@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 
 public final class SkijaRenderTarget implements AutoCloseable {
     private final Identifier identifier;
-    private NimbusTexture registeredTexture;
+    private Texture registeredTexture;
     private int framebuffer;
     private int depthStencilRenderbuffer;
     private int width, height;
@@ -45,7 +45,7 @@ public final class SkijaRenderTarget implements AutoCloseable {
             GpuTexture texture = device.createTexture("Nimbus Skija Color", GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC, GpuFormat.RGBA8_UNORM, this.width, this.height, 1, 1);
             GpuTextureView view = device.createTextureView(texture);
             GpuSampler sampler = device.createSampler(AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, FilterMode.NEAREST, FilterMode.NEAREST, 1, OptionalDouble.empty());
-            registeredTexture = new NimbusTexture(texture, view, sampler);
+            registeredTexture = new Texture(texture, view, sampler);
             Minecraft.getInstance().getTextureManager().register(identifier, registeredTexture);
             if (!(texture instanceof GlTexture glTexture)) { destroy(); throw new IllegalStateException("Nimbus Skija only supports Minecraft's OpenGL device"); }
             framebuffer = GL30.glGenFramebuffers();
