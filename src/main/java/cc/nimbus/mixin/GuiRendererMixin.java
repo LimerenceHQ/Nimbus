@@ -19,6 +19,7 @@ import cc.nimbus.module.impl.hud.PostProcess;
 import cc.nimbus.utils.render.NativeSupport;
 import cc.nimbus.utils.render.skija.SkijaRenderTarget;
 import cc.nimbus.ui.clickgui.neutron.NeutronScreen;
+import cc.nimbus.ui.menu.TitleScreen;
 import cc.nimbus.utils.render.refresh.impl.Refresh_VSync;
 import cc.nimbus.utils.render.skija.create.Skia;
 import cc.nimbus.utils.render.skija.image.minecraft.MinecraftSnapshot;
@@ -45,6 +46,11 @@ public class GuiRendererMixin {
                 MinecraftSnapshot.capture();
             }
             neutronScreen.renderExtractedFrame();
+        }
+
+        if (minecraft.gui.screen() instanceof TitleScreen mainMenu) {
+            MinecraftSnapshot.capture();
+            mainMenu.renderExtractedFrame();
         }
 
         if (nimbus$renderer == null) {
