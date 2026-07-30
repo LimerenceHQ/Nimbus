@@ -1,0 +1,15 @@
+package cc.nimbus.event.impl.render;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import cc.nimbus.event.Cancelable;
+
+public class EventRender3D extends Cancelable {
+    private final PoseStack poseStack;
+    private final float partialTick;
+    public EventRender3D(PoseStack poseStack, float partialTick) {
+        this.poseStack = poseStack;
+        this.partialTick = partialTick;
+    }
+    public PoseStack getPoseStack() { return poseStack; }
+    public float getPartialTick() { return partialTick; }
+}

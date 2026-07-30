@@ -1,0 +1,22 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "cc.nimbus.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "KeyboardHandlerMixin",
+    "MouseHandlerMixin",
+    "MinecraftMixin",
+    "GuiMixin",
+    "GuiRendererMixin",
+    "TitleScreenMixin",
+    "LevelRendererMixin",
+    "CommandSuggestionsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

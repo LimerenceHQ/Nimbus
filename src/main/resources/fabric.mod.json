@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "nimbus",
+  "version": "${version}",
+  "name": "Nimbus",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/nimbus/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "cc.nimbus.Nimbus"
+    ]
+  },
+  "mixins": [
+    {
+      "config": "nimbus.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}",
+    "java": ">=25"
+  }
+}
