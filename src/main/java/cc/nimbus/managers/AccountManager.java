@@ -97,11 +97,12 @@ public final class AccountManager implements InstanceManager {
             lastAccount = null;
             return save();
         }
-        lastAccount = accounts.stream()
+        Alt stored = accounts.stream()
                 .filter(existing -> sameIdentity(existing, account))
                 .findFirst()
                 .orElse(null);
-        if (lastAccount == null) return false;
+        if (stored == null) return false;
+        lastAccount = stored;
         return save();
     }
 

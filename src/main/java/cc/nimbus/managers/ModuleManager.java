@@ -67,7 +67,7 @@ public final class ModuleManager implements InstanceManager {
     }
 
     public synchronized void registerModules(BasicModule... modules) {
-        Arrays.stream(modules).forEach(this::registerModule);
+        for (BasicModule module : modules) registerModule(module);
     }
 
     public synchronized void registerModule(BasicModule module) {
@@ -116,9 +116,8 @@ public final class ModuleManager implements InstanceManager {
         return List.copyOf(byKey.getOrDefault(key, List.of()));
     }
 
-    @SuppressWarnings("unchecked")
     public synchronized <T extends BasicModule> T getModule(Class<T> type) {
-        return (T) byClass.get(type);
+        return type.cast(byClass.get(type));
     }
 
     public synchronized BasicModule getModule(String name) {

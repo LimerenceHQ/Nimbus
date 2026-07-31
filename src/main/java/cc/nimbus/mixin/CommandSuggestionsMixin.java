@@ -23,6 +23,7 @@ public abstract class CommandSuggestionsMixin {
     @Shadow @Final private EditBox input;
     @Shadow @Final private List<FormattedCharSequence> commandUsage;
     @Shadow private CompletableFuture<Suggestions> pendingSuggestions;
+    @Shadow private boolean keepSuggestions;
 
     @Shadow public abstract void hide();
     @Shadow public abstract void showSuggestions(boolean narrateFirstSuggestion);
@@ -33,6 +34,8 @@ public abstract class CommandSuggestionsMixin {
         if (!value.startsWith(CommandManager.PREFIX)) return;
 
         callback.cancel();
+        if (keepSuggestions) return;
+
         hide();
         commandUsage.clear();
         input.setSuggestion(null);

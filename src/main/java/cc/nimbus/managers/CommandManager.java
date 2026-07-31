@@ -73,7 +73,7 @@ public final class CommandManager implements InstanceManager {
         commands.sort(Comparator.comparing(BasicCommand::getName, String.CASE_INSENSITIVE_ORDER));
     }
 
-    public synchronized boolean executeCommand(String input) {
+    public boolean executeCommand(String input) {
         if (input == null) return false;
         String commandLine = input.trim();
         if (commandLine.startsWith(PREFIX)) commandLine = commandLine.substring(PREFIX.length());
@@ -94,7 +94,7 @@ public final class CommandManager implements InstanceManager {
         String commandName = parsed.getFirst();
         BasicCommand command = findCommand(commandName);
         if (command == null) {
-            String closest = findClosest(commandName);
+            String closest = findClosest(commandName, getCommandList());
             MessageUtils.addMessage("Unknown command: " + commandName
                     + (closest == null ? ". Try .help" : ". Did you mean ." + closest + "?"));
             return false;
@@ -114,7 +114,7 @@ public final class CommandManager implements InstanceManager {
         return name == null ? null : commandsByName.get(normalize(name));
     }
 
-    public synchronized List<String> getSuggestions(String input) {
+    public List<String> getSuggestions(String input) {
         String value = input == null ? "" : input;
         if (value.startsWith(PREFIX)) value = value.substring(PREFIX.length());
         boolean argumentPosition = value.chars().anyMatch(Character::isWhitespace);
@@ -128,7 +128,7 @@ public final class CommandManager implements InstanceManager {
 
         if (!argumentPosition) {
             String prefix = parsed.isEmpty() ? "" : parsed.getFirst().toLowerCase(Locale.ROOT);
-            return commands.stream()
+            return getCommandList().stream()
                     .map(command -> command.getName().toLowerCase(Locale.ROOT))
                     .filter(name -> name.startsWith(prefix))
                     .map(name -> PREFIX + name)
@@ -156,7 +156,7 @@ public final class CommandManager implements InstanceManager {
         }
     }
 
-    private String findClosest(String value) {
+    private static String findClosest(String value, List<BasicCommand> commands) {
         return commands.stream()
                 .map(command -> command.getName().toLowerCase(Locale.ROOT))
                 .min(Comparator.comparingInt(name -> CommandLine.distance(value, name)))

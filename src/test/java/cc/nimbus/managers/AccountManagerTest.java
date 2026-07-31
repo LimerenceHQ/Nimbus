@@ -27,6 +27,8 @@ class AccountManagerTest {
             MicrosoftAlt microsoft = new MicrosoftAlt("MicrosoftUser", "refresh-token");
             assertTrue(first.addAccount(microsoft));
             assertTrue(first.setLastAccount(microsoft));
+            assertFalse(first.setLastAccount(new OfflineAlt("UnknownUser")));
+            assertEquals("MicrosoftUser", first.getLastAccount().getUserName());
         } finally {
             first.shutdown();
         }

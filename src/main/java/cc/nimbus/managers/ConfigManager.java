@@ -105,12 +105,10 @@ public final class ConfigManager implements InstanceManager {
     }
 
     @EventTarget
-    public void onTick(EventTick event) {
+    public synchronized void onTick(EventTick event) {
         if (event.getPhase() != EventTick.Phase.POST) return;
-        synchronized (this) {
-            if (dirty && System.currentTimeMillis() - dirtySince >= AUTO_SAVE_DELAY_MS) {
-                saveConfig(currentConfig);
-            }
+        if (dirty && System.currentTimeMillis() - dirtySince >= AUTO_SAVE_DELAY_MS) {
+            saveConfig(currentConfig);
         }
     }
 
