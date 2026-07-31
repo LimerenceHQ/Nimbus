@@ -64,7 +64,6 @@ public final class FontFamily {
         font.setSubpixel(true);
         font.setEdging(FontEdging.ANTI_ALIAS);
         font.setHinting(FontHinting.SLIGHT);
-        font.setMetricsLinear(true);
         FONT_CACHE.put(key, font);
         while (FONT_CACHE.size() > MAX_FONTS) {
             Map.Entry<FontKey, Font> eldest = FONT_CACHE.entrySet().iterator().next();
@@ -72,18 +71,6 @@ public final class FontFamily {
             if (!eldest.getValue().isClosed()) eldest.getValue().close();
         }
         return font;
-    }
-
-    public static String getFamily(int index) {
-        return FAMILY_LIST.get(index);
-    }
-
-    public static String getFirstFamily() {
-        return FAMILY_LIST.get(0);
-    }
-
-    public static String getLastFamily() {
-        return FAMILY_LIST.get(FAMILY_LIST.size() - 1);
     }
 
     private static class FontKey {
