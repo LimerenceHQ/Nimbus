@@ -7,15 +7,13 @@ public final class UiPaints {
     public static Paint STROKE;
     public static Paint IMAGE;
     public static Paint TEXT;
-
-    static {
-        open();
-    }
+    private static int users;
 
     private UiPaints() {
     }
 
     public static synchronized void open() {
+        users++;
         if (FILL == null || FILL.isClosed()) FILL = new Paint().setAntiAlias(true);
         if (STROKE == null || STROKE.isClosed()) STROKE = new Paint().setAntiAlias(true).setStroke(true);
         if (IMAGE == null || IMAGE.isClosed()) IMAGE = new Paint().setAntiAlias(true);
@@ -23,6 +21,7 @@ public final class UiPaints {
     }
 
     public static synchronized void close() {
+        if (users == 0 || --users > 0) return;
         close(FILL);
         close(STROKE);
         close(IMAGE);

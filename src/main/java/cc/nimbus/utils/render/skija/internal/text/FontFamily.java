@@ -10,7 +10,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class FontFamily {
@@ -50,11 +49,8 @@ public final class FontFamily {
 
     public static @NotNull Typeface getTypeface(String familyName) {
         Typeface tf = TYPEFACE_CACHE.get(familyName);
-        if (tf == null || tf.isClosed()) {
-            return Objects.requireNonNull(
-                    FontMgr.getDefault().matchFamilyStyle(null, FontStyle.NORMAL)
-            );
-        }
+        if (tf == null) throw new IllegalArgumentException("Font is not registered: " + familyName);
+        if (tf.isClosed()) throw new IllegalStateException("Font is closed: " + familyName);
         return tf;
     }
 
@@ -68,6 +64,7 @@ public final class FontFamily {
         font.setSubpixel(true);
         font.setEdging(FontEdging.ANTI_ALIAS);
         font.setHinting(FontHinting.SLIGHT);
+        font.setMetricsLinear(true);
         FONT_CACHE.put(key, font);
         while (FONT_CACHE.size() > MAX_FONTS) {
             Map.Entry<FontKey, Font> eldest = FONT_CACHE.entrySet().iterator().next();

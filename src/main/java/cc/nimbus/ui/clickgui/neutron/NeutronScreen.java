@@ -32,6 +32,7 @@ public final class NeutronScreen extends Screen {
     private boolean extractedRightClicked;
     private double extractedScrollDelta;
     private boolean framePending;
+    private boolean resourcesReleased;
 
     public NeutronScreen() {
         super(Component.literal("Nimbus Neutron"));
@@ -129,7 +130,15 @@ public final class NeutronScreen extends Screen {
 
     @Override public boolean preeditUpdated(PreeditEvent event) { return false; }
     @Override public boolean isPauseScreen() { return false; }
-    @Override public void removed() { layer.close(); UiPaints.close(); super.removed(); }
+    @Override
+    public void removed() {
+        if (!resourcesReleased) {
+            resourcesReleased = true;
+            layer.close();
+            UiPaints.close();
+        }
+        super.removed();
+    }
 
     private static float toFramebufferX(double x, int guiWidth, int framebufferWidth) {
         return guiWidth > 0 ? (float) (x * framebufferWidth / guiWidth) : (float) x;

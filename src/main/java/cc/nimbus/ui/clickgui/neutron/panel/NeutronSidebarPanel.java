@@ -15,8 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class NeutronSidebarPanel extends NeutronPanel {
-    private static final String FONT_TITLE = "SarasaUiSC-SemiBold";
-    private static final String FONT_TEXT = "SarasaUiSC-Regular";
+    private static final String FONT_TITLE = "SarasaUiSC-Bold";
+    private static final String FONT_TEXT = "SarasaUiSC-Bold";
     private static final int DIVIDER = 0x1CFFFFFF;
     private static final float PAD = 18f;
 
