@@ -1,6 +1,6 @@
 package cc.nimbus.ui.clickgui.neutron.panel;
 
-import io.github.humbleui.skija.Canvas;
+import cc.nimbus.utils.render.skija.api.SkijaFrame;
 
 public abstract class NeutronPanel {
     protected float x;
@@ -19,5 +19,5 @@ public abstract class NeutronPanel {
         return mx >= x && my >= y && mx <= x + width && my <= y + height;
     }
 
-    public abstract void render(Canvas canvas, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed, double scrolledDelta);
+    public abstract void render(SkijaFrame frame, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed, double scrolledDelta);
 }

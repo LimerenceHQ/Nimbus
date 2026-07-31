@@ -1,0 +1,62 @@
+package cc.nimbus.utils.render.skija.api;
+
+import cc.nimbus.utils.render.skija.internal.backend.SkijaRenderTarget;
+import cc.nimbus.utils.render.skija.internal.backend.SkijaBackend;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
+
+import java.util.Objects;
+
+public final class SkijaLayer implements AutoCloseable {
+    private final SkijaRenderer renderer;
+    private final SkijaRenderTarget target;
+
+    SkijaLayer(SkijaRenderer renderer, String name) {
+        this.renderer = renderer;
+        this.target = new SkijaRenderTarget(name);
+    }
+
+    public Identifier identifier() {
+        return target.identifier();
+    }
+
+    public void ensure(int width, int height) {
+        target.ensure(width, height);
+    }
+
+    public void clear() {
+        target.clear();
+    }
+
+    public void extract(GuiGraphicsExtractor graphics, int width, int height) {
+        Objects.requireNonNull(graphics, "graphics");
+        ensure(width, height);
+        graphics.blit(
+                RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
+                identifier(),
+                0, 0, 0F, height,
+                graphics.guiWidth(), graphics.guiHeight(),
+                width, -height, width, height
+        );
+    }
+
+    public void render(SkijaFrameRenderer callback) {
+        Objects.requireNonNull(callback, "callback");
+        try {
+            target.render(canvas -> callback.render(new SkijaFrame(
+                    canvas,
+                    SkijaBackend.INSTANCE.getCurrentWidth(),
+                    SkijaBackend.INSTANCE.getCurrentHeight(),
+                    this.renderer
+            )));
+        } finally {
+            this.renderer.finishFrame();
+        }
+    }
+
+    @Override
+    public void close() {
+        target.close();
+    }
+}

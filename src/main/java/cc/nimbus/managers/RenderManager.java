@@ -1,7 +1,7 @@
 package cc.nimbus.managers;
 
 import cc.nimbus.core.interfaces.InstanceManager;
-import cc.nimbus.utils.render.skija.SkijaRenderer;
+import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 
 public final class RenderManager implements InstanceManager {
     private final SkijaRenderer skija = new SkijaRenderer();

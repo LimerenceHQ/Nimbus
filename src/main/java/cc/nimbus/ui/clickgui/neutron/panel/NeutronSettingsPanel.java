@@ -7,7 +7,7 @@ import cc.nimbus.features.module.api.setting.impl.*;
 import cc.nimbus.ui.clickgui.neutron.widget.*;
 import cc.nimbus.ui.clickgui.neutron.NeutronActions;
 import cc.nimbus.ui.clickgui.neutron.NeutronState;
-import cc.nimbus.utils.render.skija.text.factory.TextFactory;
+import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import cc.nimbus.utils.client.input.Keyboard;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Paint;
@@ -61,6 +61,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
     private int frameId;
     private long lastFrameNanos;
     private float deltaSec;
+    private SkijaFrame currentFrame;
     private ColorSetting draggingColor;
     private ColorDragTarget draggingColorTarget;
     private final IdentityHashMap<BasicModule, Float> cardXAnim = new IdentityHashMap<>();
@@ -76,7 +77,9 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
     }
 
     @Override
-    protected void renderContent(Canvas canvas, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed) {
+    protected void renderContent(SkijaFrame frame, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed) {
+        currentFrame = frame;
+        Canvas canvas = frame.canvas();
         sliderRects.clear();
         valueRects.clear();
         textRects.clear();
@@ -113,7 +116,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         if (filtered.isEmpty()) {
             lastCards.clear();
             UiPaints.TEXT.setColor(UiColors.TEXT_SECONDARY);
-            UiText.drawXY(canvas, FONT_TEXT, 13f, "暂无模块", x, y, width, height, UiPaints.TEXT);
+            UiText.drawXY(currentFrame, FONT_TEXT, 13f, "暂无模块", x, y, width, height, UiPaints.TEXT);
             contentHeight = topPad + bottomPad;
             return;
         }
@@ -210,15 +213,15 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         float headerH = 36f;
         float innerPad = 12f;
 
-        UiDraw.fillRRect(canvas, x, y, w, h, 14f, CARD_BG);
-        UiDraw.strokeRRect(canvas, x, y, w, h, 14f, 1f, CARD_STROKE);
+        UiDraw.fillRRect(currentFrame, x, y, w, h, 14f, CARD_BG);
+        UiDraw.strokeRRect(currentFrame, x, y, w, h, 14f, 1f, CARD_STROKE);
 
         boolean hoverHeader = mx >= x && mx <= x + w && my >= y && my <= y + headerH;
         float keyH = 18f;
         float keyTextSize = 11.5f;
         String keyText = card.module.getKey() == 0 ? "未绑定" : Keyboard.getKeyName(card.module.getKey());
         if (keyText == null || keyText.isEmpty()) keyText = "未绑定";
-        float keyTextW = TextFactory.getTextWidth(FONT_TEXT, keyTextSize, keyText);
+        float keyTextW = currentFrame.text().width(FONT_TEXT, keyTextSize, keyText);
         float keyW = Math.max(52f, keyTextW + 14f);
 
         float toggleW = 36f;
@@ -228,7 +231,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         UiPaints.TEXT.setColor(UiColors.TEXT_PRIMARY);
         float maxTitleW = Math.max(40f, w - innerPad * 2f - toggleW - 8f - keyW - 8f);
         String title = ellipsize(card.module.getDisplayName(), maxTitleW);
-        UiText.drawLeftY(canvas, FONT_TITLE, 13.5f, title, x + innerPad, y, headerH, UiPaints.TEXT);
+        UiText.drawLeftY(currentFrame, FONT_TITLE, 13.5f, title, x + innerPad, y, headerH, UiPaints.TEXT);
         float keyX = tx - keyW - 8f;
         float keyY = ty;
         boolean hoverKey = mx >= keyX && mx <= keyX + keyW && my >= keyY && my <= keyY + keyH;
@@ -236,10 +239,10 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         int keyBg = state.bindingModule == card.module
                 ? UiTheme.withAlpha(UiTheme.accent(), 0x55)
                 : (hoverKey ? UiColors.HOVER : 0x14000000);
-        UiDraw.fillRRect(canvas, keyX, keyY, keyW, keyH, 7f, keyBg);
-        UiDraw.strokeRRect(canvas, keyX, keyY, keyW, keyH, 7f, 1f, OUTLINE);
+        UiDraw.fillRRect(currentFrame, keyX, keyY, keyW, keyH, 7f, keyBg);
+        UiDraw.strokeRRect(currentFrame, keyX, keyY, keyW, keyH, 7f, 1f, OUTLINE);
         UiPaints.TEXT.setColor(UiColors.TEXT_PRIMARY);
-        UiText.drawXY(canvas, FONT_TEXT, keyTextSize, keyText, keyX, keyY, keyW, keyH, UiPaints.TEXT);
+        UiText.drawXY(currentFrame, FONT_TEXT, keyTextSize, keyText, keyX, keyY, keyW, keyH, UiPaints.TEXT);
 
         if (hoverHeader && leftPressed && !hoverKey) {
             card.module.toggle();
@@ -259,13 +262,13 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         }
         float toggleT = tickToggle(card.module, card.module.isEnabled());
         int toggleBg = lerpColor(0x22000000, UiTheme.withAlpha(UiTheme.accent(), 0xAA), toggleT);
-        UiDraw.fillRRect(canvas, tx, ty, toggleW, toggleH, toggleH / 2f, toggleBg);
+        UiDraw.fillRRect(currentFrame, tx, ty, toggleW, toggleH, toggleH / 2f, toggleBg);
         float knob = toggleH - 4f;
         float kx = tx + 2f + (toggleW - knob - 4f) * toggleT;
-        UiDraw.fillRRect(canvas, kx, ty + 2f, knob, knob, knob / 2f, 0xFFFFFFFF);
+        UiDraw.fillRRect(currentFrame, kx, ty + 2f, knob, knob, knob / 2f, 0xFFFFFFFF);
 
         canvas.save();
-        UiDraw.clipRRect(canvas, x, y, w, h, 14f);
+        UiDraw.clipRRect(currentFrame, x, y, w, h, 14f);
         float cy = y + headerH + 6f;
         boolean hasSetting = false;
         for (Setting<?> setting : card.module.getSettings()) {
@@ -278,7 +281,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
             float drawH = rowH * visibleT;
             float clipY = cy + rowH - drawH;
             canvas.save();
-            UiDraw.clipRRect(canvas, x + innerPad, clipY, rowW, drawH, 10f);
+            UiDraw.clipRRect(currentFrame, x + innerPad, clipY, rowW, drawH, 10f);
             renderSettingRow(canvas, setting, x + innerPad, cy, rowW, rowH, mx, my, leftDown, leftPressed, allowInteraction);
             canvas.restore();
             cy += drawH + 10f * visibleT;
@@ -286,26 +289,26 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         canvas.restore();
         if (!hasSetting) {
             UiPaints.TEXT.setColor(UiColors.TEXT_SECONDARY);
-            UiText.drawXY(canvas, FONT_TEXT, 12.5f, "暂无可调参数", x, y + headerH, w, h - headerH, UiPaints.TEXT);
+            UiText.drawXY(currentFrame, FONT_TEXT, 12.5f, "暂无可调参数", x, y + headerH, w, h - headerH, UiPaints.TEXT);
         }
     }
 
     private void renderSettingRow(Canvas canvas, Setting<?> setting, float x, float y, float w, float rowH,
                                   float mx, float my, boolean leftDown, boolean leftPressed, boolean allowInteraction) {
-        UiDraw.fillRRect(canvas, x, y, w, rowH, 10f, 0x14000000);
-        UiDraw.strokeRRect(canvas, x, y, w, rowH, 10f, 1f, OUTLINE);
+        UiDraw.fillRRect(currentFrame, x, y, w, rowH, 10f, 0x14000000);
+        UiDraw.strokeRRect(currentFrame, x, y, w, rowH, 10f, 1f, OUTLINE);
 
         if (setting instanceof NumberSetting s) {
             UiPaints.TEXT.setColor(UiColors.TEXT_PRIMARY);
-            UiText.drawLeftY(canvas, FONT_TITLE, 13.5f, setting.getName(), x + 12f, y + 6f, 18f, UiPaints.TEXT);
+            UiText.drawLeftY(currentFrame, FONT_TITLE, 13.5f, setting.getName(), x + 12f, y + 6f, 18f, UiPaints.TEXT);
             drawNumber(canvas, s, x, y, w, rowH, mx, my, leftDown && allowInteraction, leftPressed && allowInteraction);
         } else if (setting instanceof MultiSelectSetting s) {
             UiPaints.TEXT.setColor(UiColors.TEXT_PRIMARY);
-            UiText.drawLeftY(canvas, FONT_TITLE, 13.5f, setting.getName(), x + 12f, y + 2f, 18f, UiPaints.TEXT);
+            UiText.drawLeftY(currentFrame, FONT_TITLE, 13.5f, setting.getName(), x + 12f, y + 2f, 18f, UiPaints.TEXT);
             drawMulti(canvas, s, x, y + 26f, w, allowInteraction);
         } else {
             UiPaints.TEXT.setColor(UiColors.TEXT_PRIMARY);
-            UiText.drawLeftY(canvas, FONT_TITLE, 13.5f, setting.getName(), x + 12f, y, rowH, UiPaints.TEXT);
+            UiText.drawLeftY(currentFrame, FONT_TITLE, 13.5f, setting.getName(), x + 12f, y, rowH, UiPaints.TEXT);
 
             float contentY = y + (rowH - 20f) * 0.5f;
             if (setting instanceof BooleanSetting s) {
@@ -332,10 +335,10 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         boolean hover = mx >= tx && mx <= tx + toggleW && my >= ty && my <= ty + toggleH;
         float toggleT = tickToggle(s, s.getValue());
         int bg = lerpColor(0x22000000, UiTheme.withAlpha(UiTheme.accent(), 0xAA), toggleT);
-        UiDraw.fillRRect(canvas, tx, ty, toggleW, toggleH, toggleH / 2f, bg);
+        UiDraw.fillRRect(currentFrame, tx, ty, toggleW, toggleH, toggleH / 2f, bg);
         float knob = toggleH - 4f;
         float kx = tx + 2f + (toggleW - knob - 4f) * toggleT;
-        UiDraw.fillRRect(canvas, kx, ty + 2f, knob, knob, knob / 2f, 0xFFFFFFFF);
+        UiDraw.fillRRect(currentFrame, kx, ty + 2f, knob, knob, knob / 2f, 0xFFFFFFFF);
         if (hover && leftPressed) {
             s.setValue(!s.getValue());
         }
@@ -349,10 +352,10 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         boolean hover = mx >= tx && mx <= tx + toggleW && my >= ty && my <= ty + toggleH;
         float toggleT = tickToggle(s, s.getValue());
         int bg = lerpColor(0x22000000, UiTheme.withAlpha(UiTheme.accent(), 0xAA), toggleT);
-        UiDraw.fillRRect(canvas, tx, ty, toggleW, toggleH, toggleH / 2f, bg);
+        UiDraw.fillRRect(currentFrame, tx, ty, toggleW, toggleH, toggleH / 2f, bg);
         float knob = toggleH - 4f;
         float kx = tx + 2f + (toggleW - knob - 4f) * toggleT;
-        UiDraw.fillRRect(canvas, kx, ty + 2f, knob, knob, knob / 2f, 0xFFFFFFFF);
+        UiDraw.fillRRect(currentFrame, kx, ty + 2f, knob, knob, knob / 2f, 0xFFFFFFFF);
         if (hover && leftPressed) {
             s.setValue(!s.getValue());
         }
@@ -370,28 +373,28 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
 
         float v = clamp01((s.getValue().doubleValue() - s.getMinimum().doubleValue()) /
                 Math.max(1e-6, s.getMaximum().doubleValue() - s.getMinimum().doubleValue()));
-        UiDraw.fillRRect(canvas, trackX, trackY, trackW, trackH, trackH / 2f, 0x22000000);
-        UiDraw.fillRRect(canvas, trackX, trackY, trackW * v, trackH, trackH / 2f, UiTheme.withAlpha(UiTheme.accent(), 0xCC));
+        UiDraw.fillRRect(currentFrame, trackX, trackY, trackW, trackH, trackH / 2f, 0x22000000);
+        UiDraw.fillRRect(currentFrame, trackX, trackY, trackW * v, trackH, trackH / 2f, UiTheme.withAlpha(UiTheme.accent(), 0xCC));
 
         String valueText = state.numberFocused && state.editingNumber == s ? state.numberInput.toString() : formatNumberValue(s.getValue());
-        float tw = TextFactory.getTextWidth(FONT_TITLE, 12.5f, valueText);
+        float tw = currentFrame.text().width(FONT_TITLE, 12.5f, valueText);
         float valueW = Math.max(48f, tw + 12f);
         float valueH = 20f;
         float valueX = x + w - valueW - 12f;
         float valueY = y + 6f;
         Rect valueRect = Rect.makeXYWH(valueX, valueY, valueW, valueH + 4f);
         valueRects.put(s, valueRect);
-        UiDraw.fillRRect(canvas, valueX, valueY, valueW, valueH + 4f, 6f, 0x14000000);
-        UiDraw.strokeRRect(canvas, valueX, valueY, valueW, valueH + 4f, 6f, 1f, OUTLINE);
+        UiDraw.fillRRect(currentFrame, valueX, valueY, valueW, valueH + 4f, 6f, 0x14000000);
+        UiDraw.strokeRRect(currentFrame, valueX, valueY, valueW, valueH + 4f, 6f, 1f, OUTLINE);
         UiPaints.TEXT.setColor(UiColors.TEXT_PRIMARY);
-        UiText.drawXY(canvas, FONT_TITLE, 12.5f, valueText, valueX, valueY, valueW, valueH + 4f, UiPaints.TEXT);
+        UiText.drawXY(currentFrame, FONT_TITLE, 12.5f, valueText, valueX, valueY, valueW, valueH + 4f, UiPaints.TEXT);
         if (state.numberFocused && state.editingNumber == s) {
             actions.updateNumberCaret();
-            UiDraw.strokeRRect(canvas, valueX, valueY, valueW, valueH + 4f, 6f, 1f, OUTLINE);
+            UiDraw.strokeRRect(currentFrame, valueX, valueY, valueW, valueH + 4f, 6f, 1f, OUTLINE);
             if (state.numberCaretVisible) {
                 float cx = valueX + (valueW - tw) * 0.5f + tw + 1f;
                 float cy = valueY + 3f;
-                UiDraw.fillRect(canvas, cx, cy, 1f, valueH - 2f, 0xCCFFFFFF);
+                UiDraw.fillRect(currentFrame, cx, cy, 1f, valueH - 2f, 0xCCFFFFFF);
             }
         }
 
@@ -409,17 +412,17 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         String value = s.getValue();
         float maxModeW = 0f;
         for (String mode : s.getModes()) {
-            maxModeW = Math.max(maxModeW, TextFactory.getTextWidth(FONT_TEXT, 12f, mode));
+            maxModeW = Math.max(maxModeW, currentFrame.text().width(FONT_TEXT, 12f, mode));
         }
-        float pillW = Math.max(52f, Math.max(maxModeW, TextFactory.getTextWidth(FONT_TEXT, 12f, value)) + 20f);
+        float pillW = Math.max(52f, Math.max(maxModeW, currentFrame.text().width(FONT_TEXT, 12f, value)) + 20f);
         float pillH = 22f;
         float px = x + w - pillW - 12f;
         float py = y + (rowH - pillH) * 0.5f;
         boolean hover = mx >= px && mx <= px + pillW && my >= py && my <= py + pillH;
-        UiDraw.fillRRect(canvas, px, py, pillW, pillH, 10f, hover ? UiColors.HOVER : 0x14000000);
-        UiDraw.strokeRRect(canvas, px, py, pillW, pillH, 10f, 1f, OUTLINE);
+        UiDraw.fillRRect(currentFrame, px, py, pillW, pillH, 10f, hover ? UiColors.HOVER : 0x14000000);
+        UiDraw.strokeRRect(currentFrame, px, py, pillW, pillH, 10f, 1f, OUTLINE);
         UiPaints.TEXT.setColor(UiColors.TEXT_PRIMARY);
-        UiText.drawXY(canvas, FONT_TEXT, 12f, value, px, py, pillW, pillH, UiPaints.TEXT);
+        UiText.drawXY(currentFrame, FONT_TEXT, 12f, value, px, py, pillW, pillH, UiPaints.TEXT);
         modeTriggerRects.put(s, Rect.makeXYWH(px, py, pillW, pillH));
         if (allowInteraction && hover && leftPressed) {
             if (openedMode == s) {
@@ -452,8 +455,8 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         float previewY = y + (headerH - previewH) * 0.5f;
 
         drawCheckerboard(canvas, previewX, previewY, previewW, previewH, 4f);
-        UiDraw.fillRRect(canvas, previewX, previewY, previewW, previewH, 4f, currentColor);
-        UiDraw.strokeRRect(canvas, previewX, previewY, previewW, previewH, 4f, 1f, OUTLINE);
+        UiDraw.fillRRect(currentFrame, previewX, previewY, previewW, previewH, 4f, currentColor);
+        UiDraw.strokeRRect(currentFrame, previewX, previewY, previewW, previewH, 4f, 1f, OUTLINE);
 
         int[] hueColors = new int[7];
         for (int i = 0; i < 7; i++) {
@@ -467,16 +470,16 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
                     hueColors
             ));
             canvas.save();
-            UiDraw.clipRRect(canvas, toggleX, toggleY, toggleW, toggleH, 7f);
+            UiDraw.clipRRect(currentFrame, toggleX, toggleY, toggleW, toggleH, 7f);
             canvas.drawRect(Rect.makeXYWH(toggleX, toggleY, toggleW, toggleH), rainbowPaint);
             canvas.restore();
         }
-        UiDraw.strokeRRect(canvas, toggleX, toggleY, toggleW, toggleH, 7f, 1f, OUTLINE);
+        UiDraw.strokeRRect(currentFrame, toggleX, toggleY, toggleW, toggleH, 7f, 1f, OUTLINE);
         if (!s.isRainbow()) {
-            UiDraw.fillRRect(canvas, toggleX, toggleY, toggleW, toggleH, 7f, 0x66000000);
+            UiDraw.fillRRect(currentFrame, toggleX, toggleY, toggleW, toggleH, 7f, 0x66000000);
         }
         UiPaints.TEXT.setColor(s.isRainbow() ? UiColors.TEXT_PRIMARY : UiColors.TEXT_SECONDARY);
-        UiText.drawXY(canvas, FONT_TEXT, 12f, "R", toggleX, toggleY, toggleW, toggleH, UiPaints.TEXT);
+        UiText.drawXY(currentFrame, FONT_TEXT, 12f, "R", toggleX, toggleY, toggleW, toggleH, UiPaints.TEXT);
 
         boolean toggleHover = mx >= toggleX && mx <= toggleX + toggleW && my >= toggleY && my <= toggleY + toggleH;
         boolean headerHover = mx >= x && mx <= x + w && my >= y && my <= y + headerH;
@@ -512,23 +515,23 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
 
         float expandH = (COLOR_PICKER_PAD * 2f + COLOR_SB_SIZE) * t;
         canvas.save();
-        UiDraw.clipRRect(canvas, x, y, w, headerH + expandH, 10f);
+        UiDraw.clipRRect(currentFrame, x, y, w, headerH + expandH, 10f);
 
         drawSBPicker(canvas, sbX, sbY, sbSize, sbSize, s.getHue());
         float indicatorX = sbX + s.getSaturation() * sbSize;
         float indicatorY = sbY + (1f - s.getBrightness()) * sbSize;
-        UiDraw.strokeRRect(canvas, indicatorX - 4f, indicatorY - 4f, 8f, 8f, 4f, 1.5f, 0xFFFFFFFF);
-        UiDraw.strokeRRect(canvas, indicatorX - 3f, indicatorY - 3f, 6f, 6f, 3f, 1f, 0xFF000000);
+        UiDraw.strokeRRect(currentFrame, indicatorX - 4f, indicatorY - 4f, 8f, 8f, 4f, 1.5f, 0xFFFFFFFF);
+        UiDraw.strokeRRect(currentFrame, indicatorX - 3f, indicatorY - 3f, 6f, 6f, 3f, 1f, 0xFF000000);
 
         drawHueSlider(canvas, sliderX, hueY, sliderW, COLOR_SLIDER_H);
         float hueIndicatorX = sliderX + s.getHue() * sliderW;
-        UiDraw.fillRRect(canvas, hueIndicatorX - 3f, hueY - 2f, 6f, COLOR_SLIDER_H + 4f, 3f, 0xFFFFFFFF);
-        UiDraw.fillRRect(canvas, hueIndicatorX - 2f, hueY - 1f, 4f, COLOR_SLIDER_H + 2f, 2f,
+        UiDraw.fillRRect(currentFrame, hueIndicatorX - 3f, hueY - 2f, 6f, COLOR_SLIDER_H + 4f, 3f, 0xFFFFFFFF);
+        UiDraw.fillRRect(currentFrame, hueIndicatorX - 2f, hueY - 1f, 4f, COLOR_SLIDER_H + 2f, 2f,
                 Color.HSBtoRGB(s.getHue(), 1f, 1f) | 0xFF000000);
 
         drawAlphaSlider(canvas, sliderX, alphaY, sliderW, COLOR_SLIDER_H, s);
         float alphaIndicatorX = sliderX + (s.getAlphaValue() / 255f) * sliderW;
-        UiDraw.fillRRect(canvas, alphaIndicatorX - 3f, alphaY - 2f, 6f, COLOR_SLIDER_H + 4f, 3f, 0xFFFFFFFF);
+        UiDraw.fillRRect(currentFrame, alphaIndicatorX - 3f, alphaY - 2f, 6f, COLOR_SLIDER_H + 4f, 3f, 0xFFFFFFFF);
 
         Rect sbRect = Rect.makeXYWH(sbX, sbY, sbSize, sbSize);
         Rect hueRect = Rect.makeXYWH(sliderX, hueY, sliderW, COLOR_SLIDER_H);
@@ -564,17 +567,17 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         float rowGap = 6f;
         float maxX = x + w - 12f;
         for (String mode : s.getModes()) {
-            float tw = TextFactory.getTextWidth(FONT_TEXT, 11.5f, mode);
+            float tw = currentFrame.text().width(FONT_TEXT, 11.5f, mode);
             float chipW = tw + 14f;
             if (cx + chipW > maxX) {
                 cx = x + 12f;
                 cy += chipH + rowGap;
             }
             boolean selected = s.isSelected(mode);
-            UiDraw.fillRRect(canvas, cx, cy, chipW, chipH, 9f, selected ? UiTheme.withAlpha(UiTheme.accent(), 0x88) : 0x14000000);
-            UiDraw.strokeRRect(canvas, cx, cy, chipW, chipH, 9f, 1f, UiColors.STROKE);
+            UiDraw.fillRRect(currentFrame, cx, cy, chipW, chipH, 9f, selected ? UiTheme.withAlpha(UiTheme.accent(), 0x88) : 0x14000000);
+            UiDraw.strokeRRect(currentFrame, cx, cy, chipW, chipH, 9f, 1f, UiColors.STROKE);
             UiPaints.TEXT.setColor(selected ? UiColors.TEXT_PRIMARY : UiColors.TEXT_SECONDARY);
-            UiText.drawXY(canvas, FONT_TEXT, 11.5f, mode, cx, cy, chipW, chipH, UiPaints.TEXT);
+            UiText.drawXY(currentFrame, FONT_TEXT, 11.5f, mode, cx, cy, chipW, chipH, UiPaints.TEXT);
             if (allowInteraction) {
                 chipHits.add(new ChipHit(cx, cy, chipW, chipH, s, mode));
             }
@@ -594,7 +597,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         }
         float maxW = Math.max(120f, w * 0.45f);
         String draw = ellipsize(text, maxW);
-        float tw = TextFactory.getTextWidth(FONT_TEXT, 12.5f, draw);
+        float tw = currentFrame.text().width(FONT_TEXT, 12.5f, draw);
         float valueW = Math.max(72f, Math.min(maxW, tw + 12f));
         float valueH = 20f;
         float valueX = x + w - valueW - 12f;
@@ -605,16 +608,16 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         UiPaints.TEXT.setColor(usePlaceholder || (!focused && (raw == null || raw.isEmpty()))
                 ? UiColors.TEXT_SECONDARY
                 : UiColors.TEXT_PRIMARY);
-        UiDraw.fillRRect(canvas, valueX, valueY, valueW, valueH, 8f, 0x14000000);
-        UiDraw.strokeRRect(canvas, valueX, valueY, valueW, valueH, 8f, 1f, OUTLINE);
-        UiText.drawXY(canvas, FONT_TEXT, 12.5f, draw, valueX, valueY, valueW, valueH, UiPaints.TEXT);
+        UiDraw.fillRRect(currentFrame, valueX, valueY, valueW, valueH, 8f, 0x14000000);
+        UiDraw.strokeRRect(currentFrame, valueX, valueY, valueW, valueH, 8f, 1f, OUTLINE);
+        UiText.drawXY(currentFrame, FONT_TEXT, 12.5f, draw, valueX, valueY, valueW, valueH, UiPaints.TEXT);
 
         if (focused) {
             actions.updateTextCaret();
             if (state.textCaretVisible) {
                 float cx = valueX + (valueW - tw) * 0.5f + tw + 1f;
                 float cy = valueY + 3f;
-                UiDraw.fillRect(canvas, cx, cy, 1f, valueH - 4f, 0xCCFFFFFF);
+                UiDraw.fillRect(currentFrame, cx, cy, 1f, valueH - 4f, 0xCCFFFFFF);
             }
         }
 
@@ -628,7 +631,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
     private void drawSBPicker(Canvas canvas, float x, float y, float w, float h, float hue) {
         int baseColor = Color.HSBtoRGB(hue, 1f, 1f);
         canvas.save();
-        UiDraw.clipRRect(canvas, x, y, w, h, 6f);
+        UiDraw.clipRRect(currentFrame, x, y, w, h, 6f);
         try (Paint paint = new Paint()) {
             paint.setAntiAlias(true);
             paint.setShader(Shader.makeLinearGradient(
@@ -645,7 +648,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
             canvas.drawRect(Rect.makeXYWH(x, y, w, h), paint);
         }
         canvas.restore();
-        UiDraw.strokeRRect(canvas, x, y, w, h, 6f, 1f, OUTLINE);
+        UiDraw.strokeRRect(currentFrame, x, y, w, h, 6f, 1f, OUTLINE);
     }
 
     private void drawHueSlider(Canvas canvas, float x, float y, float w, float h) {
@@ -654,7 +657,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
             colors[i] = Color.HSBtoRGB(i / 6f, 1f, 1f);
         }
         canvas.save();
-        UiDraw.clipRRect(canvas, x, y, w, h, 6f);
+        UiDraw.clipRRect(currentFrame, x, y, w, h, 6f);
         try (Paint paint = new Paint()) {
             paint.setAntiAlias(true);
             paint.setShader(Shader.makeLinearGradient(
@@ -665,7 +668,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
             canvas.drawRect(Rect.makeXYWH(x, y, w, h), paint);
         }
         canvas.restore();
-        UiDraw.strokeRRect(canvas, x, y, w, h, 6f, 1f, OUTLINE);
+        UiDraw.strokeRRect(currentFrame, x, y, w, h, 6f, 1f, OUTLINE);
     }
 
     private void drawAlphaSlider(Canvas canvas, float x, float y, float w, float h, ColorSetting s) {
@@ -674,7 +677,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         int transparent = baseColor & 0x00FFFFFF;
         int opaque = baseColor | 0xFF000000;
         canvas.save();
-        UiDraw.clipRRect(canvas, x, y, w, h, 6f);
+        UiDraw.clipRRect(currentFrame, x, y, w, h, 6f);
         try (Paint paint = new Paint()) {
             paint.setAntiAlias(true);
             paint.setShader(Shader.makeLinearGradient(
@@ -685,7 +688,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
             canvas.drawRect(Rect.makeXYWH(x, y, w, h), paint);
         }
         canvas.restore();
-        UiDraw.strokeRRect(canvas, x, y, w, h, 6f, 1f, OUTLINE);
+        UiDraw.strokeRRect(currentFrame, x, y, w, h, 6f, 1f, OUTLINE);
     }
 
     private void updateColorByDrag(ColorSetting setting, ColorDragTarget target, float mx, float my,
@@ -748,24 +751,24 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         int strokeAlpha = Math.round(0x33 * t);
         int bg = UiTheme.withAlpha(0xFF000000, bgAlpha);
         int stroke = UiTheme.withAlpha(0xFFFFFFFF, strokeAlpha);
-        UiDraw.fillRRect(canvas, dropdown.x, dropdown.y, dropdown.w, animH, 10f, bg);
-        UiDraw.strokeRRect(canvas, dropdown.x, dropdown.y, dropdown.w, animH, 10f, 1f, stroke);
+        UiDraw.fillRRect(currentFrame, dropdown.x, dropdown.y, dropdown.w, animH, 10f, bg);
+        UiDraw.strokeRRect(currentFrame, dropdown.x, dropdown.y, dropdown.w, animH, 10f, 1f, stroke);
         canvas.save();
-        UiDraw.clipRRect(canvas, dropdown.x, dropdown.y, dropdown.w, animH, 10f);
+        UiDraw.clipRRect(currentFrame, dropdown.x, dropdown.y, dropdown.w, animH, 10f);
         float iy = dropdown.y + 4f;
         float visibleBottom = dropdown.y + animH - 4f;
         for (String mode : modes) {
             boolean itemHover = mx >= dropdown.x && mx <= dropdown.x + dropdown.w && my >= iy && my <= iy + dropdown.itemH;
             if (itemHover) {
                 int hoverAlpha = Math.round(((UiColors.HOVER >>> 24) & 0xFF) * t);
-                UiDraw.fillRRect(canvas, dropdown.x + 4f, iy, dropdown.w - 8f, dropdown.itemH, 8f,
+                UiDraw.fillRRect(currentFrame, dropdown.x + 4f, iy, dropdown.w - 8f, dropdown.itemH, 8f,
                         UiTheme.withAlpha(UiColors.HOVER, hoverAlpha));
             }
             int textAlpha = Math.round(255f * t);
             UiPaints.TEXT.setColor(mode.equals(value)
                     ? UiTheme.withAlpha(UiColors.TEXT_PRIMARY, textAlpha)
                     : UiTheme.withAlpha(UiColors.TEXT_SECONDARY, textAlpha));
-            UiText.drawLeftY(canvas, FONT_TEXT, 12f, mode, dropdown.x + 10f, iy, dropdown.itemH, UiPaints.TEXT);
+            UiText.drawLeftY(currentFrame, FONT_TEXT, 12f, mode, dropdown.x + 10f, iy, dropdown.itemH, UiPaints.TEXT);
             if (iy + dropdown.itemH <= visibleBottom) {
                 modeOptionHits.add(new ModeOptionHit(dropdown.x, iy, dropdown.w, dropdown.itemH, setting, mode));
             }
@@ -804,7 +807,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
             float rowX = 0f;
             int rows = 1;
             for (String mode : multi.getModes()) {
-                float tw = TextFactory.getTextWidth(FONT_TEXT, 11.5f, mode);
+                float tw = currentFrame.text().width(FONT_TEXT, 11.5f, mode);
                 float chipW = tw + 14f;
                 if (rowX == 0f) {
                     rowX = chipW + gap;
@@ -1021,12 +1024,12 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         float size = 4f;
         int c1 = 0x22FFFFFF;
         int c2 = 0x22000000;
-        UiDraw.fillRRect(canvas, x, y, w, h, r, c1);
+        UiDraw.fillRRect(currentFrame, x, y, w, h, r, c1);
         for (float yy = y; yy < y + h; yy += size) {
             for (float xx = x; xx < x + w; xx += size) {
                 boolean alt = ((int) ((xx - x) / size) + (int) ((yy - y) / size)) % 2 == 0;
                 if (alt) {
-                    UiDraw.fillRect(canvas, xx, yy, Math.min(size, x + w - xx), Math.min(size, y + h - yy), c2);
+                    UiDraw.fillRect(currentFrame, xx, yy, Math.min(size, x + w - xx), Math.min(size, y + h - yy), c2);
                 }
             }
         }
@@ -1075,13 +1078,13 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
 
     private String ellipsize(String text, float maxW) {
         if (text == null || text.isEmpty()) return "";
-        if (TextFactory.getTextWidth(FONT_TEXT, 11f, text) <= maxW) return text;
+        if (currentFrame.text().width(FONT_TEXT, 11f, text) <= maxW) return text;
         String dots = "…";
-        float dotsW = TextFactory.getTextWidth(FONT_TEXT, 11f, dots);
+        float dotsW = currentFrame.text().width(FONT_TEXT, 11f, dots);
         int end = text.length();
         while (end > 0) {
             String s = text.substring(0, end);
-            if (TextFactory.getTextWidth(FONT_TEXT, 11f, s) + dotsW <= maxW) return s + dots;
+            if (currentFrame.text().width(FONT_TEXT, 11f, s) + dotsW <= maxW) return s + dots;
             end--;
         }
         return dots;

@@ -1,6 +1,7 @@
 package cc.nimbus.ui.clickgui.neutron.panel;
 
 import cc.nimbus.ui.clickgui.neutron.widget.UiDraw;
+import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.types.Rect;
 
@@ -14,7 +15,8 @@ public abstract class NeutronScrollAreaPanel extends NeutronPanel {
     protected float scrollStep = 36f;
 
     @Override
-    public final void render(Canvas canvas, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed, double scrolledDelta) {
+    public final void render(SkijaFrame frame, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed, double scrolledDelta) {
+        Canvas canvas = frame.canvas();
         if (scrolledDelta != 0 && contains(mx, my)) {
             scrollTargetY += (float) (-scrolledDelta * scrollStep);
         }
@@ -22,20 +24,20 @@ public abstract class NeutronScrollAreaPanel extends NeutronPanel {
         float maxScroll = Math.max(0f, contentHeight - height);
         float renderScrollY = Math.max(0f, Math.min(maxScroll, (float) Math.round(scrollY)));
         canvas.save();
-        UiDraw.clipRRect(canvas, x, y, width, height, radius);
+        UiDraw.clipRRect(frame, x, y, width, height, radius);
         canvas.translate(0, -renderScrollY);
-        renderContent(canvas, mx, my + renderScrollY, leftDown, rightDown, leftPressed);
+        renderContent(frame, mx, my + renderScrollY, leftDown, rightDown, leftPressed);
         canvas.restore();
 
         if (contentHeight > height) {
             float barH = Math.max(22f, height * (height / contentHeight));
             float denom = Math.max(1f, maxScroll);
             float barY = y + (height - barH) * (renderScrollY / denom);
-            UiDraw.fillRRect(canvas, x + width - 5f, barY, 3f, barH, 1.5f, 0x33FFFFFF);
+            UiDraw.fillRRect(frame, x + width - 5f, barY, 3f, barH, 1.5f, 0x33FFFFFF);
         }
     }
 
-    protected abstract void renderContent(Canvas canvas, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed);
+    protected abstract void renderContent(SkijaFrame frame, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed);
 
     private void updateScroll() {
         long now = System.currentTimeMillis();

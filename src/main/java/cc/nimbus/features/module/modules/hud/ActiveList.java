@@ -14,9 +14,7 @@ import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.modes.Modes;
-import cc.nimbus.utils.render.skija.SkijaRenderer;
-import cc.nimbus.utils.render.skija.post.PPHandler;
-import cc.nimbus.utils.render.skija.text.factory.TextFactory;
+import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -64,7 +62,7 @@ public final class ActiveList extends BasicModule {
             String label = format(module.getDisplayName());
             String suffix = showSuffix.getValue() && !module.getSuffix().isBlank()
                     ? " " + module.getSuffix() : "";
-            float width = TextFactory.getTextWidth(FONT, FONT_SIZE, label + suffix) + PADDING_X * 2f;
+            float width = skija.text().width(FONT, FONT_SIZE, label + suffix) + PADDING_X * 2f;
             entries.add(new Entry(label, suffix, width));
         }
         entries.sort(Comparator.comparingDouble(Entry::width).reversed());
@@ -81,10 +79,10 @@ public final class ActiveList extends BasicModule {
             float y = down ? startY + index * ROW_HEIGHT : startY - index * ROW_HEIGHT;
             float radius = rounded.getValue() ? 5f : 0f;
             rows.add(new Row(entry, x, y, radius));
-            if (background.getValue()) PPHandler.add(RRect.makeXYWH(x, y, entry.width(), ROW_HEIGHT, radius));
+            if (background.getValue()) skija.postProcess().add(RRect.makeXYWH(x, y, entry.width(), ROW_HEIGHT, radius));
         }
 
-        skija.submitHud(frame -> {
+        skija.hud().submit(frame -> {
             Canvas canvas = frame.canvas();
             try (Paint backgroundPaint = new Paint().setAntiAlias(true).setColor(0xA8171A1E);
                  Paint textPaint = new Paint().setAntiAlias(true).setColor(textColor.getValue());
@@ -99,11 +97,11 @@ public final class ActiveList extends BasicModule {
                         canvas.drawRect(io.github.humbleui.types.Rect.makeXYWH(lineX, row.y(), 2f, ROW_HEIGHT), linePaint);
                     }
                     float textX = row.x() + PADDING_X;
-                    float textY = row.y() + (ROW_HEIGHT - TextFactory.getTextHeight(FONT, FONT_SIZE)) * 0.5f;
-                    TextFactory.drawTextWithShadow(canvas, FONT, FONT_SIZE, row.entry().name(), textX, textY, textPaint);
+                    float textY = row.y() + (ROW_HEIGHT - frame.text().height(FONT, FONT_SIZE)) * 0.5f;
+                    frame.text().drawWithShadow(FONT, FONT_SIZE, row.entry().name(), textX, textY, textPaint);
                     if (!row.entry().suffix().isEmpty()) {
-                        float nameWidth = TextFactory.getTextWidth(FONT, FONT_SIZE, row.entry().name());
-                        TextFactory.drawTextWithShadow(canvas, FONT, FONT_SIZE, row.entry().suffix(),
+                        float nameWidth = frame.text().width(FONT, FONT_SIZE, row.entry().name());
+                        frame.text().drawWithShadow(FONT, FONT_SIZE, row.entry().suffix(),
                                 textX + nameWidth, textY, suffixPaint);
                     }
                 }

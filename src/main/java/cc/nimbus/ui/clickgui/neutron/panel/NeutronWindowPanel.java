@@ -3,8 +3,7 @@ package cc.nimbus.ui.clickgui.neutron.panel;
 import cc.nimbus.ui.clickgui.neutron.NeutronActions;
 import cc.nimbus.ui.clickgui.neutron.NeutronState;
 import cc.nimbus.ui.clickgui.neutron.widget.UiDraw;
-import cc.nimbus.utils.render.skija.post.PPHandler;
-import cc.nimbus.core.Core;
+import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.types.RRect;
 
@@ -23,7 +22,8 @@ public class NeutronWindowPanel extends NeutronPanel {
     }
 
     @Override
-    public void render(Canvas canvas, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed, double scrolledDelta) {
+    public void render(SkijaFrame frame, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed, double scrolledDelta) {
+        Canvas canvas = frame.canvas();
         float winW = Math.min(1120f, width - 120f);
         float winH = Math.min(700f, height - 120f);
         float winX = x + (width - winW) / 2f;
@@ -38,20 +38,20 @@ public class NeutronWindowPanel extends NeutronPanel {
         float leftY = winY;
         float rightY = winY;
 
-        PPHandler.add(RRect.makeXYWH(winX, winY, winW, winH, radius));
-        Core.INSTANCE.getRenderManager().skija().drawPostProcess(canvas);
+        frame.postProcess().add(RRect.makeXYWH(winX, winY, winW, winH, radius));
+        frame.postProcess().draw();
         canvas.save();
-        UiDraw.clipRRect(canvas, winX, winY, winW, winH, radius);
-        UiDraw.fillRect(canvas, leftX, leftY, leftW, winH, LEFT_OVERLAY);
-        UiDraw.fillRect(canvas, rightX, rightY, rightW, winH, RIGHT_OVERLAY);
+        UiDraw.clipRRect(frame, winX, winY, winW, winH, radius);
+        UiDraw.fillRect(frame, leftX, leftY, leftW, winH, LEFT_OVERLAY);
+        UiDraw.fillRect(frame, rightX, rightY, rightW, winH, RIGHT_OVERLAY);
         canvas.restore();
 
         // Minecraft composites this premultiplied Skija texture as a regular GUI texture.
         // An opaque surface-colored edge prevents transparent black from bleeding into the AA rim.
-        UiDraw.strokeRRect(canvas, winX + 0.5f, winY + 0.5f,
+        UiDraw.strokeRRect(frame, winX + 0.5f, winY + 0.5f,
                 winW - 1f, winH - 1f, radius - 0.5f, 1f, 0xFF292D30);
 
-        UiDraw.fillRect(canvas, rightX, rightY, 1f, winH, 0x22FFFFFF);
+        UiDraw.fillRect(frame, rightX, rightY, 1f, winH, 0x22FFFFFF);
 
         float topBarH = 52f;
 
@@ -59,9 +59,9 @@ public class NeutronWindowPanel extends NeutronPanel {
         topBar.setBounds(rightX, rightY, rightW, topBarH);
         content.setBounds(rightX, rightY + topBarH, rightW, winH - topBarH);
 
-        sidebar.render(canvas, mx, my, leftDown, rightDown, leftPressed, scrolledDelta);
-        topBar.render(canvas, mx, my, leftDown, rightDown, leftPressed, scrolledDelta);
-        content.render(canvas, mx, my, leftDown, rightDown, leftPressed, scrolledDelta);
+        sidebar.render(frame, mx, my, leftDown, rightDown, leftPressed, scrolledDelta);
+        topBar.render(frame, mx, my, leftDown, rightDown, leftPressed, scrolledDelta);
+        content.render(frame, mx, my, leftDown, rightDown, leftPressed, scrolledDelta);
     }
 
     public boolean middleClick(float mx, float my) {

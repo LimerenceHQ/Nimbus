@@ -15,11 +15,10 @@ import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.render.EventRender2D;
 import cc.nimbus.core.Core;
 import cc.nimbus.features.module.modules.hud.PostProcess;
-import cc.nimbus.utils.render.skija.SkijaLayer;
-import cc.nimbus.utils.render.skija.SkijaRenderer;
+import cc.nimbus.utils.render.skija.api.SkijaLayer;
+import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import cc.nimbus.ui.clickgui.neutron.NeutronScreen;
 import cc.nimbus.ui.menu.TitleScreen;
-import cc.nimbus.utils.render.skija.image.minecraft.MinecraftSnapshot;
 
 import java.util.*;
 
@@ -41,13 +40,13 @@ public class GuiRendererMixin {
             PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);
             skija.configurePostProcess(postProcess == null ? null : postProcess.options());
             if (skija.postProcessOptions().blurEnabled()) {
-                MinecraftSnapshot.capture();
+                skija.captureScene();
             }
             neutronScreen.renderExtractedFrame();
         }
 
         if (minecraft.gui.screen() instanceof TitleScreen mainMenu) {
-            MinecraftSnapshot.capture();
+            skija.captureScene();
             mainMenu.renderExtractedFrame();
         }
 
@@ -69,15 +68,13 @@ public class GuiRendererMixin {
             PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);
             skija.configurePostProcess(postProcess == null ? null : postProcess.options());
             if (skija.postProcessOptions().blurEnabled()) {
-                MinecraftSnapshot.capture();
+                skija.captureScene();
             }
             nimbus$hudLayer.clear();
-            skija.beginFrame();
             EventBus.call(new EventRender2D(graphics));
             int windowRefreshRate = minecraft.getWindow().getRefreshRate();
             int refreshRate = windowRefreshRate > 0 ? windowRefreshRate : 165;
             nimbus$hudLayer.render(frame -> skija.hud().render(refreshRate));
-            skija.endFrame();
             nimbus$hudLayer.extract(graphics, framebufferWidth, framebufferHeight);
         }
         NIMBUS_RENDERING_AUXILIARY.set(true);

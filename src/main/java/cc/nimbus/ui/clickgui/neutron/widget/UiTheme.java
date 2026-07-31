@@ -1,13 +1,6 @@
 package cc.nimbus.ui.clickgui.neutron.widget;
 
 import cc.nimbus.features.module.modules.hud.ThemeSetting;
-import cc.nimbus.utils.render.skija.paint.PaintEffects;
-import cc.nimbus.utils.render.skija.text.factory.TextFactory;
-import io.github.humbleui.skija.Canvas;
-import io.github.humbleui.skija.GradientStyle;
-import io.github.humbleui.skija.Paint;
-import io.github.humbleui.skija.Shader;
-import io.github.humbleui.types.Point;
 
 public final class UiTheme {
     private UiTheme() {
@@ -21,41 +14,6 @@ public final class UiTheme {
         double p = (now % 3200L) / 3200.0;
         double t = 0.5 - 0.5 * Math.cos(p * Math.PI * 2.0);
         return lerpArgb(a, b, (float) t);
-    }
-
-    public static void drawFlowText(Canvas canvas, String family, float size, String text, float x, float y) {
-        if (text == null) text = "";
-        float tw = TextFactory.getTextWidth(family, size, text);
-        float progress = (System.currentTimeMillis() % 3000L) / 3000f;
-        float gradientWidth = tw * 2f;
-        float startX = x - gradientWidth + (progress * gradientWidth);
-        float endX = startX + gradientWidth;
-        try (Paint paint = new Paint()) {
-            paint.setAntiAlias(true);
-            paint.setShader(PaintEffects.makeLinearGradient(
-                    new Point(startX, y),
-                    new Point(endX, y),
-                    ThemeSetting.getColorPalette(),
-                    new float[]{0f, 0.5f, 1f},
-                    GradientStyle.REPEAT
-            ));
-            TextFactory.drawText(canvas, family, size, text, x, y, paint);
-        }
-    }
-
-    public static Shader flowShader(float x, float y, float width) {
-        float w = Math.max(1f, width);
-        float progress = (System.currentTimeMillis() % 3000L) / 3000f;
-        float gradientWidth = w * 2f;
-        float startX = x - gradientWidth + (progress * gradientWidth);
-        float endX = startX + gradientWidth;
-        return PaintEffects.makeLinearGradient(
-                new Point(startX, y),
-                new Point(endX, y),
-                ThemeSetting.getColorPalette(),
-                new float[]{0f, 0.5f, 1f},
-                GradientStyle.REPEAT
-        );
     }
 
     public static int withAlpha(int argb, int alpha255) {

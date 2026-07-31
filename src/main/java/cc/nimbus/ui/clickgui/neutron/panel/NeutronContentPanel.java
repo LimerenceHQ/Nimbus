@@ -3,6 +3,7 @@ package cc.nimbus.ui.clickgui.neutron.panel;
 import cc.nimbus.ui.clickgui.neutron.NeutronActions;
 import cc.nimbus.ui.clickgui.neutron.NeutronState;
 import cc.nimbus.ui.clickgui.neutron.widget.UiDraw;
+import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Canvas;
 
 public class NeutronContentPanel extends NeutronPanel {
@@ -23,7 +24,8 @@ public class NeutronContentPanel extends NeutronPanel {
     }
 
     @Override
-    public void render(Canvas canvas, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed, double scrolledDelta) {
+    public void render(SkijaFrame frame, float mx, float my, boolean leftDown, boolean rightDown, boolean leftPressed, double scrolledDelta) {
+        Canvas canvas = frame.canvas();
         lastPage = state.page;
         float contentX = x + PAGE_PAD;
         float contentY = y + PAGE_PAD;
@@ -44,20 +46,20 @@ public class NeutronContentPanel extends NeutronPanel {
 
         if (state.page == NeutronState.Page.MODULES) {
             settingsPanel.setBounds(contentX, contentY, contentW, contentH);
-            settingsPanel.render(canvas, mx, my, leftDown, rightDown, leftPressed, scrolledDelta);
+            settingsPanel.render(frame, mx, my, leftDown, rightDown, leftPressed, scrolledDelta);
             canvas.restore();
             return;
         }
 
-        UiDraw.fillRRect(canvas, contentX, contentY, contentW, contentH, 14f, CARD_BG);
-        UiDraw.strokeRRect(canvas, contentX, contentY, contentW, contentH, 14f, 1f, CARD_STROKE);
+        UiDraw.fillRRect(frame, contentX, contentY, contentW, contentH, 14f, CARD_BG);
+        UiDraw.strokeRRect(frame, contentX, contentY, contentW, contentH, 14f, 1f, CARD_STROKE);
         float innerX = contentX + INNER_PAD;
         float innerY = contentY + INNER_PAD;
         float innerW = contentW - INNER_PAD * 2f;
         float innerH = contentH - INNER_PAD * 2f;
         if (state.page == NeutronState.Page.CONFIG) {
             configPanel.setBounds(innerX, innerY, innerW, innerH);
-            configPanel.render(canvas, mx, my, leftDown, rightDown, leftPressed, scrolledDelta);
+            configPanel.render(frame, mx, my, leftDown, rightDown, leftPressed, scrolledDelta);
         }
         canvas.restore();
     }

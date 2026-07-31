@@ -2,11 +2,9 @@ package cc.nimbus.ui.menu;
 
 import cc.nimbus.ui.alt.AccountScreen;
 import cc.nimbus.core.Core;
-import cc.nimbus.utils.render.skija.image.minecraft.MinecraftSnapshot;
-import cc.nimbus.utils.render.skija.SkijaLayer;
+import cc.nimbus.utils.render.skija.api.SkijaFrame;
+import cc.nimbus.utils.render.skija.api.SkijaLayer;
 import io.github.humbleui.skija.ClipMode;
-import cc.nimbus.utils.render.skija.text.factory.TextFactory;
-import cc.nimbus.utils.render.skija.paint.SkColor;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.FilterTileMode;
 import io.github.humbleui.skija.Image;
@@ -61,47 +59,52 @@ public class TitleScreen extends Screen {
     public void renderExtractedFrame() {
         if (!framePending) return;
         framePending = false;
-        layer.render(frame -> render(frame.canvas(), framebufferWidth, framebufferHeight));
+        layer.render(frame -> render(frame, framebufferWidth, framebufferHeight));
     }
 
-    private void render(Canvas canvas, int width, int height) {
-        Paint paint = new Paint().setAntiAlias(true);
-        float scale = Math.min(1F, Math.min(width / 1100F, height / 700F));
-        float center = width * .5F;
-        float top = height * .5F - 145F * scale;
-        TextFactory.drawCenteredText(canvas, "HarmonyOS_Sans_SC-Medium", 46, "Nimbus", center, top + 26F * scale, SkColor.makeHex(0xFFFFFFFF));
-        String[] labels = {"Singleplayer", "Multiplayer", "Alt Manager", "Settings"};
-        for (int i = 0; i < labels.length; i++) {
-            float x = center - BUTTON_WIDTH * scale / 2F;
-            float y = top + 78F * scale + i * (BUTTON_HEIGHT + BUTTON_GAP) * scale;
-            boolean hover = extractedMouseX >= x && extractedMouseX <= x + BUTTON_WIDTH * scale
-                    && extractedMouseY >= y && extractedMouseY <= y + BUTTON_HEIGHT * scale;
-            float buttonWidth = BUTTON_WIDTH * scale;
-            float buttonHeight = BUTTON_HEIGHT * scale;
-            Image background = MinecraftSnapshot.getScreenshot();
-            if (background != null && !background.isClosed()) {
-                canvas.save();
-                canvas.clipRRect(RRect.makeXYWH(x, y, buttonWidth, buttonHeight, 8F * scale), ClipMode.INTERSECT, true);
-                try (ImageFilter blur = ImageFilter.makeBlur(10F, 10F, FilterTileMode.CLAMP)) {
-                    paint.setImageFilter(blur);
-                    paint.setColor(0xA0FFFFFF);
-                    canvas.drawImageRect(background, Rect.makeXYWH(x, y, buttonWidth, buttonHeight),
-                            Rect.makeXYWH(x, y, buttonWidth, buttonHeight), paint);
+    private void render(SkijaFrame frame, int width, int height) {
+        Canvas canvas = frame.canvas();
+        try (Paint paint = new Paint().setAntiAlias(true)) {
+            float scale = Math.min(1F, Math.min(width / 1100F, height / 700F));
+            float center = width * .5F;
+            float top = height * .5F - 145F * scale;
+            frame.text().center("HarmonyOS_Sans_SC-Medium", 46, "Nimbus", center, top + 26F * scale, 0xFFFFFFFF);
+            String[] labels = {"Singleplayer", "Multiplayer", "Alt Manager", "Settings"};
+            for (int i = 0; i < labels.length; i++) {
+                float x = center - BUTTON_WIDTH * scale / 2F;
+                float y = top + 78F * scale + i * (BUTTON_HEIGHT + BUTTON_GAP) * scale;
+                boolean hover = extractedMouseX >= x && extractedMouseX <= x + BUTTON_WIDTH * scale
+                        && extractedMouseY >= y && extractedMouseY <= y + BUTTON_HEIGHT * scale;
+                float buttonWidth = BUTTON_WIDTH * scale;
+                float buttonHeight = BUTTON_HEIGHT * scale;
+                Image background = frame.images().scene();
+                if (background != null && !background.isClosed()) {
+                    int save = canvas.save();
+                    try {
+                        canvas.clipRRect(RRect.makeXYWH(x, y, buttonWidth, buttonHeight, 8F * scale), ClipMode.INTERSECT, true);
+                        try (ImageFilter blur = ImageFilter.makeBlur(10F, 10F, FilterTileMode.CLAMP)) {
+                            paint.setImageFilter(blur);
+                            paint.setColor(0xA0FFFFFF);
+                            canvas.drawImageRect(background, Rect.makeXYWH(x, y, buttonWidth, buttonHeight),
+                                    Rect.makeXYWH(x, y, buttonWidth, buttonHeight), paint);
+                        } finally {
+                            paint.setImageFilter(null);
+                        }
+                    } finally {
+                        canvas.restoreToCount(save);
+                    }
                 }
-                paint.setImageFilter(null);
-                canvas.restore();
+                paint.setColor(hover ? 0x50E8EAE8 : 0x28E8EAE8);
+                canvas.drawRRect(RRect.makeXYWH(x, y, buttonWidth, buttonHeight, 8F * scale), paint);
+                frame.text().center("HarmonyOS_Sans_SC-Regular", 19,
+                        labels[i], center, y + 11F * scale, 0xD817201D);
             }
-            paint.setColor(hover ? 0x50E8EAE8 : 0x28E8EAE8);
-            canvas.drawRRect(RRect.makeXYWH(x, y, buttonWidth, buttonHeight, 8F * scale), paint);
-            TextFactory.drawCenteredText(canvas, "HarmonyOS_Sans_SC-Regular", 19,
-                    labels[i], center, y + 11F * scale, SkColor.makeHex(0xD817201D));
+            frame.text().draw("HarmonyOS_Sans_SC-Regular", 19, "Nimbus 1.0", 18, height - 28, 0x99FFFFFF);
+            String version = "Minecraft " + net.minecraft.SharedConstants.getCurrentVersion().name();
+            frame.text().draw("HarmonyOS_Sans_SC-Regular", 19, version,
+                    width - frame.text().width("HarmonyOS_Sans_SC-Regular", 19, version) - 18, height - 28,
+                    0x99FFFFFF);
         }
-        TextFactory.drawText(canvas, "HarmonyOS_Sans_SC-Regular", 19, "Nimbus 1.0", 18, height - 28, SkColor.makeHex(0x99FFFFFF));
-        String version = "Minecraft " + net.minecraft.SharedConstants.getCurrentVersion().name();
-        TextFactory.drawText(canvas, "HarmonyOS_Sans_SC-Regular", 19, version,
-                width - TextFactory.getTextWidth("HarmonyOS_Sans_SC-Regular", 19, version) - 18, height - 28,
-                SkColor.makeHex(0x99FFFFFF));
-        paint.close();
     }
 
     @Override

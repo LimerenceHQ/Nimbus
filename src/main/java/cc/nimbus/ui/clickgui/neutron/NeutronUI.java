@@ -3,7 +3,7 @@ package cc.nimbus.ui.clickgui.neutron;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.ui.clickgui.neutron.panel.NeutronWindowPanel;
 import cc.nimbus.utils.client.input.Keyboard;
-import io.github.humbleui.skija.Canvas;
+import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import org.lwjgl.glfw.GLFW;
 
 public class NeutronUI {
@@ -15,7 +15,7 @@ public class NeutronUI {
     private boolean lastLeftDown;
     private boolean lastRightDown;
 
-    public void render(String title, Canvas canvas, int width, int height, float mouseX, float mouseY,
+    public void render(String title, SkijaFrame frame, int width, int height, float mouseX, float mouseY,
                        boolean leftDown, boolean rightDown, boolean leftClicked, boolean rightClicked, double scrolledDelta) {
         boolean leftPressed = leftDown && !lastLeftDown;
         lastLeftDown = leftDown;
@@ -24,7 +24,7 @@ public class NeutronUI {
         state.rightDown = rightDown;
         lastRightDown = rightDown;
         window.setBounds(0f, 0f, width, height);
-        window.render(canvas, mouseX, mouseY, leftDown, rightDown, leftPressed, scrolledDelta);
+        window.render(frame, mouseX, mouseY, leftDown, rightDown, leftPressed, scrolledDelta);
     }
 
     public boolean handleKeyInput(int key, int scanCode, int modifiers) {

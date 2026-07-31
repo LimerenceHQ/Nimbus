@@ -9,7 +9,8 @@ import net.minecraft.client.input.PreeditEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 import cc.nimbus.core.Core;
-import cc.nimbus.utils.render.skija.SkijaLayer;
+import cc.nimbus.utils.render.skija.api.SkijaLayer;
+import cc.nimbus.ui.clickgui.neutron.widget.UiPaints;
 
 public final class NeutronScreen extends Screen {
     private final SkijaLayer layer;
@@ -34,6 +35,7 @@ public final class NeutronScreen extends Screen {
 
     public NeutronScreen() {
         super(Component.literal("Nimbus Neutron"));
+        UiPaints.open();
         layer = Core.INSTANCE.getRenderManager().skija().layer("neutron");
     }
 
@@ -65,14 +67,12 @@ public final class NeutronScreen extends Screen {
         if (!framePending) return;
         framePending = false;
         layer.clear();
-        Core.INSTANCE.getRenderManager().skija().beginFrame();
-        layer.render(frame -> ui.render("Neutron", frame.canvas(),
+        layer.render(frame -> ui.render("Neutron", frame,
                 extractedFramebufferWidth, extractedFramebufferHeight,
                 extractedMouseX, extractedMouseY,
                 extractedLeftDown, extractedRightDown,
                 extractedLeftClicked, extractedRightClicked,
                 extractedScrollDelta));
-        Core.INSTANCE.getRenderManager().skija().endFrame();
     }
 
     @Override
@@ -129,7 +129,7 @@ public final class NeutronScreen extends Screen {
 
     @Override public boolean preeditUpdated(PreeditEvent event) { return false; }
     @Override public boolean isPauseScreen() { return false; }
-    @Override public void removed() { layer.close(); super.removed(); }
+    @Override public void removed() { layer.close(); UiPaints.close(); super.removed(); }
 
     private static float toFramebufferX(double x, int guiWidth, int framebufferWidth) {
         return guiWidth > 0 ? (float) (x * framebufferWidth / guiWidth) : (float) x;
