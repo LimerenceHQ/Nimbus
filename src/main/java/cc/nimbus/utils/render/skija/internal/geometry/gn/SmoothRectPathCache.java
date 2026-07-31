@@ -6,7 +6,6 @@ import io.github.humbleui.skija.Matrix33;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.types.Point;
 
-/** Bounded cache of reusable smooth-rectangle base paths. */
 public final class SmoothRectPathCache {
     private static final CachePool<SmoothRectSpec, Path> PATHS = new CachePool<>(1024) {
         @Override

@@ -5,7 +5,6 @@ import io.github.humbleui.skija.impl.Managed;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-/** Owns native objects whose useful lifetime is one submitted frame. */
 public final class FrameResources implements AutoCloseable {
     private final Deque<Managed> resources = new ArrayDeque<>();
 

@@ -4,7 +4,6 @@ import java.util.Arrays;
 
 import static cc.nimbus.utils.math.MathUtils.clamp;
 
-/** Immutable cache key for a four-corner smooth rectangle. */
 public final class SmoothRectSpec {
     final float width;
     final float height;

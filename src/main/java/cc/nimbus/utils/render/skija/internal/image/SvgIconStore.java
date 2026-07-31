@@ -12,7 +12,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Renderer-owned cache for SVG content; contains no UI assets. */
 public final class SvgIconStore {
     private static final int MAX_SVGS = 128;
     private static final Map<String, SVGDOM> CACHE = new LinkedHashMap<>(32, 0.75f, true) {

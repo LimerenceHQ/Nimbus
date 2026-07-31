@@ -12,7 +12,6 @@ import io.github.humbleui.skija.Surface;
 import io.github.humbleui.skija.svg.SVGDOM;
 import io.github.humbleui.types.Rect;
 
-/** Rasterized SVG cache used by texture post-processing. */
 public final class SvgTextureCache {
     private static final CachePool<Key, Image> IMAGES = new CachePool<>(512) {
         @Override

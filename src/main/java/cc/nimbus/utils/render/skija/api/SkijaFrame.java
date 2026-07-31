@@ -3,7 +3,6 @@ package cc.nimbus.utils.render.skija.api;
 import cc.nimbus.utils.render.skija.internal.resource.FrameResources;
 import io.github.humbleui.skija.Canvas;
 
-/** Drawing context passed to HUD and screen submissions. */
 public final class SkijaFrame {
     private final Canvas canvas;
     private final float width;

@@ -2,7 +2,6 @@ package cc.nimbus.utils.render.skija.internal.resource;
 
 import io.github.humbleui.skija.Data;
 
-/** Bounded native-data cache for classpath resources. */
 public final class ResourceDataCache {
     private static final CachePool<String, byte[]> BYTES = new CachePool<>();
     private static final CachePool<String, Data> DATA = new CachePool<>(128) {

@@ -1,9 +1,7 @@
 package cc.nimbus.utils.render.skija.internal.text;
 
 public class TextMth {
-    /*
-    * 根据绘制字体的前景色计算字体阴影颜色，实现最佳视觉效果
-    * */
+
     public static int calculateShadowColor(int hex) {
         int r = (hex >> 16) & 0xFF;
         int g = (hex >> 8) & 0xFF;
