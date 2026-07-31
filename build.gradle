@@ -41,9 +41,6 @@ processResources {
                 "loader_version": project.loader_version
     }
 
-    // Feed Nimbus's six cubemap faces to Minecraft's rotating panorama renderer.
-    // This keeps the source assets in assets/nimbus/background while exposing
-    // them at the vanilla resource locations expected by TitleScreen.
     from("src/main/resources/assets/nimbus/background") {
         include "26.10_panorama_hdr_*.png"
         eachFile {
