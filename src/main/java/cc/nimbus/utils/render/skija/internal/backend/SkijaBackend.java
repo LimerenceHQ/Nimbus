@@ -7,7 +7,6 @@ import cc.nimbus.utils.render.skija.internal.backend.gl.States;
 import cc.nimbus.utils.render.skija.internal.image.minecraft.MinecraftSnapshot;
 import cc.nimbus.utils.render.skija.internal.effect.post.PostProcessPipeline;
 import cc.nimbus.utils.render.skija.api.PostProcessOptions;
-import cc.nimbus.utils.render.skija.internal.effect.paint.PaintEffects;
 import cc.nimbus.utils.render.skija.internal.effect.shader.Shaders;
 import cc.nimbus.utils.render.skija.internal.image.ImageStore;
 import cc.nimbus.utils.render.skija.internal.image.SvgTextureCache;
@@ -108,7 +107,6 @@ public final class SkijaBackend implements AutoCloseable {
         canvasOffSurface.close();
         PostProcessPipeline.close();
         Shaders.close();
-        PaintEffects.clear();
         ImageStore.clear();
         SvgTextureCache.clear();
         SmoothRectPathCache.clear();

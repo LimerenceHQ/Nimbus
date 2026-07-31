@@ -44,14 +44,21 @@ public final class SkijaLayer implements AutoCloseable {
     public void render(SkijaFrameRenderer callback) {
         Objects.requireNonNull(callback, "callback");
         try {
-            target.render(canvas -> callback.render(new SkijaFrame(
-                    canvas,
-                    SkijaBackend.INSTANCE.getCurrentWidth(),
-                    SkijaBackend.INSTANCE.getCurrentHeight(),
-                    this.renderer
-            )));
+            target.render(canvas -> {
+                SkijaFrame frame = new SkijaFrame(
+                        canvas,
+                        SkijaBackend.INSTANCE.getCurrentWidth(),
+                        SkijaBackend.INSTANCE.getCurrentHeight(),
+                        renderer
+                );
+                try {
+                    callback.render(frame);
+                } finally {
+                    frame.release();
+                }
+            });
         } finally {
-            this.renderer.finishFrame();
+            renderer.finishFrame();
         }
     }
 

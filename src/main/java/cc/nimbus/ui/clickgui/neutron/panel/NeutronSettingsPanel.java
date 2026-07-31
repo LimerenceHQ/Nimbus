@@ -11,7 +11,6 @@ import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import cc.nimbus.utils.client.input.Keyboard;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Paint;
-import io.github.humbleui.skija.Shader;
 import io.github.humbleui.types.Point;
 import io.github.humbleui.types.Rect;
 
@@ -464,7 +463,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         }
         try (Paint rainbowPaint = new Paint()) {
             rainbowPaint.setAntiAlias(true);
-            rainbowPaint.setShader(Shader.makeLinearGradient(
+            rainbowPaint.setShader(currentFrame.effects().linearGradient(
                     new Point(toggleX, toggleY),
                     new Point(toggleX + toggleW, toggleY),
                     hueColors
@@ -634,13 +633,13 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         UiDraw.clipRRect(currentFrame, x, y, w, h, 6f);
         try (Paint paint = new Paint()) {
             paint.setAntiAlias(true);
-            paint.setShader(Shader.makeLinearGradient(
+            paint.setShader(currentFrame.effects().linearGradient(
                     new Point(x, y),
                     new Point(x + w, y),
                     new int[]{0xFFFFFFFF, baseColor}
             ));
             canvas.drawRect(Rect.makeXYWH(x, y, w, h), paint);
-            paint.setShader(Shader.makeLinearGradient(
+            paint.setShader(currentFrame.effects().linearGradient(
                     new Point(x, y),
                     new Point(x, y + h),
                     new int[]{0x00000000, 0xFF000000}
@@ -660,7 +659,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         UiDraw.clipRRect(currentFrame, x, y, w, h, 6f);
         try (Paint paint = new Paint()) {
             paint.setAntiAlias(true);
-            paint.setShader(Shader.makeLinearGradient(
+            paint.setShader(currentFrame.effects().linearGradient(
                     new Point(x, y),
                     new Point(x + w, y),
                     colors
@@ -680,7 +679,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         UiDraw.clipRRect(currentFrame, x, y, w, h, 6f);
         try (Paint paint = new Paint()) {
             paint.setAntiAlias(true);
-            paint.setShader(Shader.makeLinearGradient(
+            paint.setShader(currentFrame.effects().linearGradient(
                     new Point(x, y),
                     new Point(x + w, y),
                     new int[]{transparent, opaque}

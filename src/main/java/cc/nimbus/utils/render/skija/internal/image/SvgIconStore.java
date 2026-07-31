@@ -6,7 +6,6 @@ import io.github.humbleui.skija.ColorFilter;
 import io.github.humbleui.skija.Data;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.svg.SVGDOM;
-import io.github.humbleui.skija.svg.SVGSVG;
 import io.github.humbleui.types.Rect;
 
 import java.nio.charset.StandardCharsets;
@@ -31,23 +30,19 @@ public final class SvgIconStore {
     public static synchronized void draw(Canvas canvas, String svg, float left, float top, float size, Paint tint) {
         if (svg == null || svg.isBlank() || size <= 0f) return;
         SVGDOM dom = CACHE.computeIfAbsent(svg, SvgIconStore::create);
-        SVGSVG root = dom.getRoot();
-        if (root == null) return;
-        Rect viewBox = root.getViewBox();
-        float width = viewBox == null ? 24f : viewBox.getWidth();
-        float height = viewBox == null ? 24f : viewBox.getHeight();
+        dom.setContainerSize(size, size);
         int save = canvas.save();
         try {
             canvas.translate(left, top);
-            canvas.scale(size / Math.max(width, height), size / Math.max(width, height));
             if (tint == null) {
                 dom.render(canvas);
                 return;
             }
-            try (Paint layer = new Paint()) {
-                layer.setColorFilter(ColorFilter.makeBlend(tint.getColor(), BlendMode.SRC_IN));
+            try (ColorFilter colorFilter = ColorFilter.makeBlend(tint.getColor(), BlendMode.SRC_IN);
+                 Paint layer = new Paint()) {
+                layer.setColorFilter(colorFilter);
                 layer.setAlpha(tint.getAlpha());
-                canvas.saveLayer(Rect.makeXYWH(-4, -4, width + 8, height + 8), layer);
+                canvas.saveLayer(Rect.makeXYWH(-2, -2, size + 4, size + 4), layer);
                 try {
                     dom.render(canvas);
                 } finally {

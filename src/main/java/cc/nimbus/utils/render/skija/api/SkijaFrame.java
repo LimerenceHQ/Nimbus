@@ -1,5 +1,6 @@
 package cc.nimbus.utils.render.skija.api;
 
+import cc.nimbus.utils.render.skija.internal.resource.FrameResources;
 import io.github.humbleui.skija.Canvas;
 
 /** Drawing context passed to HUD and screen submissions. */
@@ -7,6 +8,7 @@ public final class SkijaFrame {
     private final Canvas canvas;
     private final float width;
     private final float height;
+    private final FrameResources resources = new FrameResources();
     private final SkijaDraw draw;
     private final SkijaText text;
     private final SkijaImages images;
@@ -20,7 +22,7 @@ public final class SkijaFrame {
         this.draw = new SkijaDraw(canvas);
         this.text = new SkijaText(canvas);
         this.images = new SkijaImages();
-        this.effects = new SkijaEffects();
+        this.effects = new SkijaEffects(resources);
         this.postProcess = new SkijaPostProcess(canvas, renderer);
     }
 
@@ -54,5 +56,9 @@ public final class SkijaFrame {
 
     public SkijaPostProcess postProcess() {
         return postProcess;
+    }
+
+    void release() {
+        resources.close();
     }
 }

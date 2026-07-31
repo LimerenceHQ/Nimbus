@@ -13,11 +13,21 @@ public final class SkijaHud {
 
     public void submit(SkijaFrameRenderer callback) {
         Objects.requireNonNull(callback, "callback");
-        SkijaBackend.INSTANCE.addToSurface((canvas, width, height, paint) ->
-                callback.render(new SkijaFrame(canvas, width, height, renderer)));
+        SkijaBackend.INSTANCE.addToSurface((canvas, width, height, paint) -> {
+            SkijaFrame frame = new SkijaFrame(canvas, width, height, renderer);
+            try {
+                callback.render(frame);
+            } finally {
+                frame.release();
+            }
+        });
     }
 
     public void render(int targetFps) {
-        renderer.renderHud(targetFps);
+        try {
+            renderer.renderHud(targetFps);
+        } finally {
+            renderer.finishFrame();
+        }
     }
 }

@@ -10,7 +10,6 @@ import io.github.humbleui.skija.ImageInfo;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Surface;
 import io.github.humbleui.skija.svg.SVGDOM;
-import io.github.humbleui.skija.svg.SVGSVG;
 import io.github.humbleui.types.Rect;
 
 /** Rasterized SVG cache used by texture post-processing. */
@@ -42,13 +41,7 @@ public final class SvgTextureCache {
         ImageInfo info = new ImageInfo(key.width, key.height, ColorType.ALPHA_8, ColorAlphaType.PREMUL);
         try (Surface surface = Surface.makeRaster(info);
              SVGDOM dom = new SVGDOM(ResourceDataCache.data(key.resource))) {
-            SVGSVG root = dom.getRoot();
-            if (root != null) {
-                float sourceWidth = Math.max(1f, root.getWidth().getValue());
-                float sourceHeight = Math.max(1f, root.getHeight().getValue());
-                surface.getCanvas().scale(key.width / sourceWidth, key.height / sourceHeight);
-                root.setViewBox(Rect.makeWH(sourceWidth, sourceHeight));
-            }
+            dom.setContainerSize(key.width, key.height);
             dom.render(surface.getCanvas());
             return surface.makeImageSnapshot();
         }
