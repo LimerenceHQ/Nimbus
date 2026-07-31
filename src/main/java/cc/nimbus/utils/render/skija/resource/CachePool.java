@@ -1,4 +1,4 @@
-package cc.nimbus.utils.render.resource;
+package cc.nimbus.utils.render.skija.resource;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -20,7 +20,8 @@ public class CachePool<K, V> {
                 @Override
                 protected boolean removeEldestEntry(HashMap.Entry<K, V> eldest) {
                     if (size() > maxSize) {
-                        return CachePool.this.cleanable(eldest.getValue());
+                        CachePool.this.cleanable(eldest.getValue());
+                        return true;
                     }
                     return false;
                 }
@@ -38,7 +39,9 @@ public class CachePool<K, V> {
     }
 
     public V put(K key, V value) {
-        return CACHE.put(key, value);
+        V previous = CACHE.put(key, value);
+        if (previous != null && previous != value) cleanable(previous);
+        return previous;
     }
 
     public V get(K key) {

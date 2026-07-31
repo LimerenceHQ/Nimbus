@@ -15,11 +15,6 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import io.github.humbleui.skija.Color4f;
-import io.github.humbleui.skija.Image;
-import io.github.humbleui.skija.Paint;
-import io.github.humbleui.skija.SamplingMode;
-import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -31,8 +26,6 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
-import cc.nimbus.utils.render.skija.create.Skia;
-import cc.nimbus.utils.math.Vec3d;
 
 import java.awt.Color;
 import java.util.Optional;
@@ -328,22 +321,6 @@ public final class Render3DUtils {
         drawBoxOutlineBuffered(stack, box, argb(red, green, blue, alpha), lineWidth);
     }
 
-    public static void drawTextureLocationZoom(Identifier location, float x, float y, float width, float height, float zoom) {
-        Image image = Render2DUtils.getCachedImage(location);
-        if (image == null) image = Render2DUtils.getGlImage(location);
-        if (image == null || Skia.INSTANCE.getCanvas() == null) return;
-        float scale = Math.max(.01f, zoom);
-        float sourceW = image.getWidth() / scale;
-        float sourceH = image.getHeight() / scale;
-        float sourceX = (image.getWidth() - sourceW) / 2f;
-        float sourceY = (image.getHeight() - sourceH) / 2f;
-        try (Paint paint = new Paint()) {
-            Skia.INSTANCE.getCanvas().drawImageRect(image,
-                    Rect.makeXYWH(sourceX, sourceY, sourceW, sourceH),
-                    Rect.makeXYWH(x, y, width, height), SamplingMode.LINEAR, paint, true);
-        }
-    }
-
     public static void drawSphereWireBuffered(PoseStack stack, double cx, double cy, double cz,
                                                float radius, int rings, int segments, int argb) {
         int ringCount = Math.max(2, rings);
@@ -415,32 +392,6 @@ public final class Render3DUtils {
     public static void drawLineBuffered(PoseStack stack, double x1, double y1, double z1,
                                         double x2, double y2, double z2, int argb, float lineWidth) {
         drawLineWithDepth(stack, x1, y1, z1, x2, y2, z2, argb, lineWidth, DepthMode.NONE);
-    }
-
-    public static void renderTargetCircle(PoseStack stack, Vec3d lastPos, Vec3d pos, boolean floating,
-                                          double radius, Color4f color, float partialTicks) {
-        if (stack == null || lastPos == null || pos == null || color == null) return;
-        double wave = floating ? Math.sin(System.currentTimeMillis() / 200.0) : 0.0;
-        double x = lastPos.getX() + (pos.getX() - lastPos.getX()) * partialTicks;
-        double y = lastPos.getY() + (pos.getY() - lastPos.getY()) * partialTicks + 1 + wave;
-        double z = lastPos.getZ() + (pos.getZ() - lastPos.getZ()) * partialTicks;
-        int opaque = argb((int) (color.getR() * 255), (int) (color.getG() * 255), (int) (color.getB() * 255), (int) (color.getA() * 255));
-        int transparent = opaque & 0x00FFFFFF;
-        float[] c = getRelativeCoords(x, y, z);
-        int count = 64;
-        float drop = (float) wave * .2f;
-        drawQuads(stack, DepthMode.NONE, sink -> {
-            for (int i = 0; i < count; i++) {
-                double a = Math.PI * 2 * i / count;
-                double b = Math.PI * 2 * (i + 1) / count;
-                float ax = c[0] + (float) Math.cos(a) * (float) radius;
-                float az = c[2] + (float) Math.sin(a) * (float) radius;
-                float bx = c[0] + (float) Math.cos(b) * (float) radius;
-                float bz = c[2] + (float) Math.sin(b) * (float) radius;
-                sink.quad(ax, c[1] - drop, az, bx, c[1] - drop, bz, bx, c[1], bz, ax, c[1], az,
-                        opaque, opaque, transparent, transparent);
-            }
-        });
     }
 
     private static void drawQuads(PoseStack stack, DepthMode mode, QuadEmitter emitter) {

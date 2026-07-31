@@ -7,10 +7,8 @@ import net.minecraft.client.Minecraft;
 import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.game.EventChatSend;
-import cc.nimbus.ui.clickgui.neutron.NeutronScreen;
 import cc.nimbus.ui.screen.UnsupportedPlatformScreen;
 import cc.nimbus.utils.helper.Schedulers;
-import cc.nimbus.utils.render.NativeSupport;
 
 public final class Nimbus implements ClientModInitializer {
     public static final String NAME = "Nimbus";
@@ -23,7 +21,6 @@ public final class Nimbus implements ClientModInitializer {
     public void onInitializeClient() {
         if (initialized) return;
 
-        NativeSupport.initialize();
         Core.INSTANCE.init(FabricLoader.getInstance().getConfigDir());
 
         ClientSendMessageEvents.ALLOW_CHAT.register(message -> !EventBus.call(new EventChatSend(message)).isCancel());
@@ -31,9 +28,10 @@ public final class Nimbus implements ClientModInitializer {
         initialized = true;
 
         Minecraft.getInstance().schedule(() -> {
-            NativeSupport.validateBackend();
-            if (!NativeSupport.isSupported() && Minecraft.getInstance().gui.screen() == null) {
-                Minecraft.getInstance().gui.setScreen(new UnsupportedPlatformScreen(NativeSupport.getUnsupportedReason()));
+            var support = Core.INSTANCE.getRenderManager().skija();
+            support.validateSupport();
+            if (!support.isSupported() && Minecraft.getInstance().gui.screen() == null) {
+                Minecraft.getInstance().gui.setScreen(new UnsupportedPlatformScreen(support.unsupportedReason()));
             }
         });
     }
@@ -41,8 +39,6 @@ public final class Nimbus implements ClientModInitializer {
     public static void shutdown() {
         if (!initialized) return;
         Core.INSTANCE.shutdown();
-        NeutronScreen.closeRenderer();
-        NativeSupport.close();
         Schedulers.shutdown();
         initialized = false;
     }

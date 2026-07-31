@@ -1,6 +1,6 @@
 package cc.nimbus.utils.render.skija.paint;
 
-import cc.nimbus.utils.render.skija.create.Skia;
+import cc.nimbus.utils.render.skija.internal.SkijaBackend;
 import io.github.humbleui.skija.Paint;
 
 @SuppressWarnings("all")
@@ -14,7 +14,7 @@ public class SkColor {
     private SkColor(Paint paint) {
         this._paint = paint;
         this._paint.setAntiAlias(true);
-        Skia.INSTANCE.cleaner.addResource(paint);
+        SkijaBackend.INSTANCE.ownFrameResource(paint);
     }
 
     public Paint getPaint() {

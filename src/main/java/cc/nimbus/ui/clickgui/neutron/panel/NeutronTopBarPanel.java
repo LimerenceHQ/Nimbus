@@ -4,7 +4,7 @@ import cc.nimbus.ui.clickgui.neutron.NeutronActions;
 import cc.nimbus.ui.clickgui.neutron.NeutronState;
 import cc.nimbus.ui.clickgui.neutron.widget.*;
 import cc.nimbus.utils.render.skija.text.factory.TextFactory;
-import cc.nimbus.utils.render.IconUtils;
+import cc.nimbus.utils.render.skija.draw.SkijaIcons;
 import io.github.humbleui.skija.Canvas;
 
 public class NeutronTopBarPanel extends NeutronPanel {
@@ -58,7 +58,7 @@ public class NeutronTopBarPanel extends NeutronPanel {
         float ix = searchX + 10f;
         float iy = searchY + (searchH - iconSize) / 2f;
         UiPaints.FILL.setColor(state.searchFocused ? UiTheme.accent() : UiColors.TEXT_SECONDARY);
-        IconUtils.drawSvgTopLeft(canvas, IconUtils.SEARCH_ICON, ix, iy, iconSize, UiPaints.FILL);
+        SkijaIcons.drawSvgTopLeft(canvas, SkijaIcons.SEARCH_ICON, ix, iy, iconSize, UiPaints.FILL);
 
         String text = state.searchText.isEmpty() ? "搜索参数" : state.searchText.toString();
         UiPaints.TEXT.setColor(state.searchText.isEmpty() ? UiColors.TEXT_SECONDARY : UiColors.TEXT_PRIMARY);

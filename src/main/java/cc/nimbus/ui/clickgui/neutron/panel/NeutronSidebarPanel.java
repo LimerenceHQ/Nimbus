@@ -8,8 +8,8 @@ import cc.nimbus.ui.clickgui.neutron.NeutronActions;
 import cc.nimbus.ui.clickgui.neutron.NeutronState;
 import cc.nimbus.ui.clickgui.neutron.NeutronState.Page;
 import cc.nimbus.utils.render.skija.text.factory.TextFactory;
-import cc.nimbus.utils.render.IconUtils;
-import cc.nimbus.utils.render.Render2DUtils;
+import cc.nimbus.utils.render.skija.draw.SkijaIcons;
+import cc.nimbus.utils.render.skija.image.SkijaImages;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Image;
 import net.minecraft.resources.Identifier;
@@ -47,7 +47,7 @@ public class NeutronSidebarPanel extends NeutronPanel {
         float iconX = x + PAD + 16f;
         float iconY = y + 26f;
         UiPaints.FILL.setColor(UiTheme.accent());
-        IconUtils.drawSnowflake(canvas, iconX, iconY, 16.5f, UiPaints.FILL);
+        SkijaIcons.drawSnowflake(canvas, iconX, iconY, 16.5f, UiPaints.FILL);
 
         UiPaints.TEXT.setColor(UiColors.TEXT_PRIMARY);
         TextFactory.drawText(canvas, FONT_TITLE, 22f, Nimbus.NAME, titleX, titleY, UiPaints.TEXT);
@@ -65,8 +65,8 @@ public class NeutronSidebarPanel extends NeutronPanel {
         float ay = y + (h - avatarSize) / 2f;
 
         Minecraft mc = Minecraft.getInstance();
-        Identifier skin = mc.player == null ? null : Render2DUtils.getEntityTexture(mc.player);
-        Image skinAvatar = skin == null ? null : Render2DUtils.getGlImage(skin);
+        Identifier skin = mc.player == null ? null : SkijaImages.getEntityTexture(mc.player);
+        Image skinAvatar = skin == null ? null : SkijaImages.getGlImage(skin);
         UiDraw.drawImageRRect(canvas, skin, skinAvatar, ax, ay, avatarSize, avatarSize, 14f, 0x22000000, 160L);
 
         float textX = ax + avatarSize + 12f;
@@ -107,7 +107,7 @@ public class NeutronSidebarPanel extends NeutronPanel {
                 float ix = itemX + 10f;
                 float iy = cy + (itemH - iconSize) / 2f;
                 UiPaints.FILL.setColor(active ? UiTheme.accent() : UiColors.TEXT_SECONDARY);
-                IconUtils.drawSvgTopLeft(canvas, item.iconSvg, ix, iy, iconSize, UiPaints.FILL);
+        SkijaIcons.drawSvgTopLeft(canvas, item.iconSvg, ix, iy, iconSize, UiPaints.FILL);
 
                 UiPaints.TEXT.setColor(active ? UiColors.TEXT_PRIMARY : UiColors.TEXT_SECONDARY);
                 UiText.drawLeftY(canvas, FONT_TEXT, 16f, item.title, itemX + 36f, cy, itemH, UiPaints.TEXT);
@@ -140,20 +140,20 @@ public class NeutronSidebarPanel extends NeutronPanel {
                 SidebarItem.category("Exploit", ModuleCategory.Exploit, iconForCategory(ModuleCategory.Exploit))
         )));
         sections.add(new SidebarSection("System", List.of(
-                SidebarItem.page("CONFIG", Page.CONFIG, IconUtils.CONFIG_FOLDER_ICON)
+                SidebarItem.page("CONFIG", Page.CONFIG, SkijaIcons.CONFIG_FOLDER_ICON)
         )));
         return sections;
     }
 
     private String iconForCategory(ModuleCategory category) {
         return switch (category) {
-            case Combat -> IconUtils.CATEGORY_COMBAT_ICON;
-            case Move -> IconUtils.CATEGORY_MOVEMENT_ICON;
-            case Player -> IconUtils.CATEGORY_PLAYER_ICON;
-            case Render -> IconUtils.CATEGORY_RENDER_ICON;
-            case Exploit -> IconUtils.CATEGORY_EXPLOIT_ICON;
-            case Ghost -> IconUtils.CATEGORY_GHOST_ICON;
-            case HUD -> IconUtils.CATEGORY_HUD_ICON;
+            case Combat -> SkijaIcons.CATEGORY_COMBAT_ICON;
+            case Move -> SkijaIcons.CATEGORY_MOVEMENT_ICON;
+            case Player -> SkijaIcons.CATEGORY_PLAYER_ICON;
+            case Render -> SkijaIcons.CATEGORY_RENDER_ICON;
+            case Exploit -> SkijaIcons.CATEGORY_EXPLOIT_ICON;
+            case Ghost -> SkijaIcons.CATEGORY_GHOST_ICON;
+            case HUD -> SkijaIcons.CATEGORY_HUD_ICON;
         };
     }
 

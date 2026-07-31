@@ -10,6 +10,11 @@ import java.util.List;
 
 @SuppressWarnings({"SpellCheckingInspection"})
 public final class KawaseSurface extends AbstractOffSurface<KawaseSurface.Target> {
+    private Surface[] pyramidSurfaces = new Surface[0];
+    private DirectContext pyramidContext;
+    private int pyramidWidth;
+    private int pyramidHeight;
+
     public KawaseSurface(int targetFps) {
         super(targetFps);
     }
@@ -35,7 +40,7 @@ public final class KawaseSurface extends AbstractOffSurface<KawaseSurface.Target
         float width = snapshot.getWidth();
         float height = snapshot.getHeight();
 
-        Surface[] pyraSurfaces = new Surface[passes];
+        Surface[] pyraSurfaces = ensurePyramid(context, (int) width, (int) height, passes);
         Image[] imagesToClose = new Image[passes];
 
         try {
@@ -45,7 +50,7 @@ public final class KawaseSurface extends AbstractOffSurface<KawaseSurface.Target
                 int targetW = (int) Math.max(1, width / Math.pow(2, i + 1));
                 int targetH = (int) Math.max(1, height / Math.pow(2, i + 1));
 
-                Surface passSurface = Surface.makeRenderTarget(context, false, ImageInfo.makeN32Premul(targetW, targetH));
+                Surface passSurface = pyraSurfaces[i];
                 Canvas passCanvas = passSurface.getCanvas();
 
                 float sx = (float) targetW / currentInput.getWidth();
@@ -57,7 +62,6 @@ public final class KawaseSurface extends AbstractOffSurface<KawaseSurface.Target
                     passCanvas.drawRect(Rect.makeXYWH(0, 0, targetW, targetH), paint);
                 }
 
-                pyraSurfaces[i] = passSurface;
                 currentInput = imagesToClose[i] = passSurface.makeImageSnapshot();
             }
 
@@ -96,12 +100,52 @@ public final class KawaseSurface extends AbstractOffSurface<KawaseSurface.Target
                     img.close();
                 }
             }
-            for (Surface surf : pyraSurfaces) {
-                if (surf != null) {
-                    surf.close();
-                }
-            }
         }
+    }
+
+    private Surface[] ensurePyramid(DirectContext context, int width, int height, int passes) {
+        if (pyramidContext == context && pyramidWidth == width && pyramidHeight == height
+                && pyramidSurfaces.length == passes && allOpen(pyramidSurfaces)) {
+            return pyramidSurfaces;
+        }
+
+        closePyramid();
+        pyramidContext = context;
+        pyramidWidth = width;
+        pyramidHeight = height;
+        pyramidSurfaces = new Surface[passes];
+        for (int i = 0; i < passes; i++) {
+            int targetW = Math.max(1, (int) (width / Math.pow(2, i + 1)));
+            int targetH = Math.max(1, (int) (height / Math.pow(2, i + 1)));
+            pyramidSurfaces[i] = Surface.makeRenderTarget(
+                    context,
+                    false,
+                    ImageInfo.makeN32Premul(targetW, targetH)
+            );
+        }
+        return pyramidSurfaces;
+    }
+
+    private static boolean allOpen(Surface[] surfaces) {
+        for (Surface surface : surfaces) {
+            if (surface == null || surface.isClosed()) return false;
+        }
+        return true;
+    }
+
+    private void closePyramid() {
+        for (Surface surface : pyramidSurfaces) {
+            if (surface != null && !surface.isClosed()) surface.close();
+        }
+        pyramidSurfaces = new Surface[0];
+        pyramidContext = null;
+        pyramidWidth = pyramidHeight = 0;
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        closePyramid();
     }
 
     public record Target(

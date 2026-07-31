@@ -13,8 +13,8 @@ import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL30;
-import cc.nimbus.utils.render.gl.States;
-import cc.nimbus.utils.render.skija.create.Skia;
+import cc.nimbus.utils.render.skija.internal.gl.States;
+import cc.nimbus.utils.render.skija.internal.SkijaBackend;
 
 import java.nio.ByteBuffer;
 
@@ -41,7 +41,7 @@ public final class MinecraftSnapshot {
     }
 
     private static void captureGuarded() {
-        DirectContext context = Skia.INSTANCE.getContext();
+        DirectContext context = SkijaBackend.INSTANCE.getContext();
         if (context == null || context.isClosed()) {
             return;
         }
@@ -111,7 +111,7 @@ public final class MinecraftSnapshot {
     }
 
     public static synchronized Image getScreenshot() {
-        DirectContext context = Skia.INSTANCE.getContext();
+        DirectContext context = SkijaBackend.INSTANCE.getContext();
         if (context == null || context.isClosed() || imageContext != context
                 || image == null || image.isClosed()) {
             return null;

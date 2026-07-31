@@ -41,7 +41,7 @@ public abstract sealed class AbstractOffSurface<V> implements AutoCloseable perm
         if (path != null) {
             float inflated = inflate(target);
             if (inflated > 0) {
-                bounds = path.getBounds().inflate(inflate(target));
+                bounds = path.getBounds().inflate(inflated);
             } else {
                 bounds = path.getBounds();
             }
@@ -50,8 +50,8 @@ public abstract sealed class AbstractOffSurface<V> implements AutoCloseable perm
         }
 
         this.snapshotBounds = bounds;
-        width = Math.max(1, (int) bounds.getWidth());
-        height = Math.max(1, (int) bounds.getHeight());
+        width = Math.max(1, (int) Math.ceil(bounds.getWidth()));
+        height = Math.max(1, (int) Math.ceil(bounds.getHeight()));
 
         if (surface == null || surface.isClosed() || surface.getWidth() != width || surface.getHeight() != height) {
             if (surface != null && !surface.isClosed()) {

@@ -5,7 +5,7 @@ import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
-import cc.nimbus.utils.render.NativeSupport;
+import cc.nimbus.core.Core;
 import cc.nimbus.ui.clickgui.neutron.NeutronScreen;
 import cc.nimbus.ui.screen.UnsupportedPlatformScreen;
 
@@ -13,8 +13,11 @@ import cc.nimbus.ui.screen.UnsupportedPlatformScreen;
 public final class ClickGui extends BasicModule {
     @Override protected void onEnable() {
         Minecraft.getInstance().schedule(() -> {
-            NativeSupport.validateBackend();
-            Minecraft.getInstance().gui.setScreen(NativeSupport.isSupported() ? new NeutronScreen() : new UnsupportedPlatformScreen(NativeSupport.getUnsupportedReason()));
+            var skija = Core.INSTANCE.getRenderManager().skija();
+            skija.validateSupport();
+            Minecraft.getInstance().gui.setScreen(skija.isSupported()
+                    ? new NeutronScreen()
+                    : new UnsupportedPlatformScreen(skija.unsupportedReason()));
         });
         setEnabled(false);
     }

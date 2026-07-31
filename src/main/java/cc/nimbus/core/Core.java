@@ -6,6 +6,7 @@ import cc.nimbus.managers.AccountManager;
 import cc.nimbus.managers.CommandManager;
 import cc.nimbus.managers.ConfigManager;
 import cc.nimbus.managers.ModuleManager;
+import cc.nimbus.managers.RenderManager;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ public enum Core {
     private CommandManager commandManager;
     private ConfigManager configManager;
     private AccountManager accountManager;
+    private RenderManager renderManager;
     private boolean initialized;
 
     public synchronized void init(Path fabricConfigDirectory) {
@@ -26,14 +28,16 @@ public enum Core {
 
         Path nimbusDirectory = Objects.requireNonNull(fabricConfigDirectory, "fabricConfigDirectory")
                 .resolve("nimbus");
+        RenderManager renders = new RenderManager();
         ModuleManager modules = new ModuleManager();
         ConfigManager configs = new ConfigManager(nimbusDirectory.resolve("configs"), modules);
         AccountManager accounts = new AccountManager(nimbusDirectory.resolve("accounts"));
         CommandManager commands = new CommandManager();
-        List<InstanceManager> started = new ArrayList<>(4);
+        List<InstanceManager> started = new ArrayList<>(5);
 
         EventBus.clear();
         try {
+            start(renders, started);
             start(modules, started);
             start(configs, started);
             start(accounts, started);
@@ -45,6 +49,7 @@ public enum Core {
         }
 
         moduleManager = modules;
+        renderManager = renders;
         configManager = configs;
         accountManager = accounts;
         commandManager = commands;
@@ -55,6 +60,7 @@ public enum Core {
         if (!initialized) return;
 
         RuntimeException failure = shutdownReverse(List.of(
+                renderManager,
                 moduleManager,
                 configManager,
                 accountManager,
@@ -65,6 +71,7 @@ public enum Core {
         } finally {
             EventBus.clear();
             moduleManager = null;
+            renderManager = null;
             configManager = null;
             accountManager = null;
             commandManager = null;
@@ -106,6 +113,10 @@ public enum Core {
 
     public AccountManager getAccountManager() {
         return requireInitialized(accountManager, "AccountManager");
+    }
+
+    public RenderManager getRenderManager() {
+        return requireInitialized(renderManager, "RenderManager");
     }
 
     public boolean isInitialized() {

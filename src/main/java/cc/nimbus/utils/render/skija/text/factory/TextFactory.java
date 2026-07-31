@@ -6,8 +6,8 @@ import cc.nimbus.utils.render.skija.text.utils.TextMth;
 import io.github.humbleui.skija.*;
 import org.jetbrains.annotations.ApiStatus;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @SuppressWarnings("unused")
 public class TextFactory {
@@ -15,12 +15,13 @@ public class TextFactory {
 
     private record FontTextKey(String familyName, float size, String text) {}
 
-    private static final Map<FontTextKey, Float> TEXT_WIDTH_CACHE = new ConcurrentHashMap<>();
-    private static final Map<FontTextKey, Float> TEXT_HEIGHT_CACHE = new ConcurrentHashMap<>();
+    private static final int MAX_MEASUREMENTS = 4096;
+    private static final Map<FontTextKey, Float> TEXT_WIDTH_CACHE = boundedCache();
+    private static final Map<FontTextKey, Float> TEXT_HEIGHT_CACHE = boundedCache();
 
     private static final Paint shadowPaint = new Paint().setAntiAlias(true);
 
-    public static float getTextWidth(String familyName, float size, String text) {
+    public static synchronized float getTextWidth(String familyName, float size, String text) {
         FontTextKey key = new FontTextKey(familyName, size, text);
         return TEXT_WIDTH_CACHE.computeIfAbsent(key, k -> {
             Font font = FontFamily.getCachedFont(familyName, size);
@@ -28,7 +29,7 @@ public class TextFactory {
         });
     }
 
-    public static float getTextHeight(String familyName, float size, String text) {
+    public static synchronized float getTextHeight(String familyName, float size, String text) {
         FontTextKey key = new FontTextKey(familyName, size, text);
         return TEXT_HEIGHT_CACHE.computeIfAbsent(key, k -> {
             Font font = FontFamily.getCachedFont(familyName, size);
@@ -97,5 +98,14 @@ public class TextFactory {
         float center = getTextWidth(family, size, text) / 2;
         drawGlyphsSplice(canvas, family, size, text, x - center + 1, y + 1, shadowPaint);
         drawGlyphsSplice(canvas, family, size, text, x - center, y, paint);
+    }
+
+    private static Map<FontTextKey, Float> boundedCache() {
+        return new LinkedHashMap<>(256, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<FontTextKey, Float> eldest) {
+                return size() > MAX_MEASUREMENTS;
+            }
+        };
     }
 }

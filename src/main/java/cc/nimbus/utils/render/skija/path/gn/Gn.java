@@ -4,9 +4,6 @@ import org.jetbrains.annotations.ApiStatus;
 
 import static cc.nimbus.utils.math.MathUtils.clamp;
 
-/* *
-作者：ItzAg2o
-* */
 @SuppressWarnings("unused")
 public final class Gn {
     public final float width;

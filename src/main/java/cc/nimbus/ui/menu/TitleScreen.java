@@ -1,8 +1,9 @@
 package cc.nimbus.ui.menu;
 
 import cc.nimbus.ui.alt.AccountScreen;
+import cc.nimbus.core.Core;
 import cc.nimbus.utils.render.skija.image.minecraft.MinecraftSnapshot;
-import cc.nimbus.utils.render.skija.SkijaRenderTarget;
+import cc.nimbus.utils.render.skija.SkijaLayer;
 import io.github.humbleui.skija.ClipMode;
 import cc.nimbus.utils.render.skija.text.factory.TextFactory;
 import cc.nimbus.utils.render.skija.paint.SkColor;
@@ -28,7 +29,7 @@ public class TitleScreen extends Screen {
     private static final int BUTTON_WIDTH = 300;
     private static final int BUTTON_HEIGHT = 40;
     private static final int BUTTON_GAP = 10;
-    private static final SkijaRenderTarget TARGET = new SkijaRenderTarget("main-menu");
+    private final SkijaLayer layer;
     private int framebufferWidth;
     private int framebufferHeight;
     private float extractedMouseX;
@@ -36,7 +37,10 @@ public class TitleScreen extends Screen {
     private boolean framePending;
 
 
-    public TitleScreen() { super(Component.literal("Nimbus")); }
+    public TitleScreen() {
+        super(Component.literal("Nimbus"));
+        layer = Core.INSTANCE.getRenderManager().skija().layer("main-menu");
+    }
 
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
@@ -48,19 +52,16 @@ public class TitleScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         framebufferWidth = minecraft.getWindow().getWidth();
         framebufferHeight = minecraft.getWindow().getHeight();
-        TARGET.ensure(framebufferWidth, framebufferHeight);
+        layer.extract(graphics, framebufferWidth, framebufferHeight);
         extractedMouseX = toFramebufferX(mouseX, graphics.guiWidth(), framebufferWidth);
         extractedMouseY = toFramebufferY(mouseY, graphics.guiHeight(), framebufferHeight);
         framePending = true;
-        graphics.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
-                TARGET.identifier(), 0, 0, 0F, framebufferHeight, graphics.guiWidth(), graphics.guiHeight(),
-                framebufferWidth, -framebufferHeight, framebufferWidth, framebufferHeight);
     }
 
     public void renderExtractedFrame() {
         if (!framePending) return;
         framePending = false;
-        TARGET.render(canvas -> render(canvas, framebufferWidth, framebufferHeight));
+        layer.render(frame -> render(frame.canvas(), framebufferWidth, framebufferHeight));
     }
 
     private void render(Canvas canvas, int width, int height) {
@@ -134,7 +135,7 @@ public class TitleScreen extends Screen {
 
     @Override public boolean keyPressed(KeyEvent event) { if (event.key() == GLFW.GLFW_KEY_ESCAPE) { onClose(); return true; } return super.keyPressed(event); }
     @Override public boolean isPauseScreen() { return false; }
-    @Override public void removed() { super.removed(); }
+    @Override public void removed() { layer.close(); super.removed(); }
     @Override public void onClose() { minecraft.setScreenAndShow(null); }
     private static float toFramebufferX(double x, int guiWidth, int framebufferWidth) { return guiWidth > 0 ? (float) (x * framebufferWidth / guiWidth) : (float) x; }
     private static float toFramebufferY(double y, int guiHeight, int framebufferHeight) { return guiHeight > 0 ? (float) (y * framebufferHeight / guiHeight) : (float) y; }

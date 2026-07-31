@@ -8,11 +8,8 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
-import cc.nimbus.core.Core;
-import cc.nimbus.features.module.modules.hud.PostProcess;
-import cc.nimbus.utils.render.skija.create.Skia;
+import cc.nimbus.utils.render.skija.internal.SkijaBackend;
 import cc.nimbus.utils.render.skija.path.PathMerger;
-import cc.nimbus.utils.render.skija.surface.RefreshMode;
 import cc.nimbus.utils.render.skija.surface.offsurface.GaussianSurface;
 import cc.nimbus.utils.render.skija.surface.offsurface.KawaseSurface;
 import cc.nimbus.utils.render.skija.surface.offsurface.ShadowSurface;
@@ -34,49 +31,48 @@ public final class PPHandler {
         pathMerger.add(element);
     }
 
-    public static void drawAll(Canvas canvas) {
-        DirectContext context = Skia.INSTANCE.getContext();
-        if (context == null || pathMerger.isEmpty()) {
+    public static void drawAll(Canvas canvas, PostProcessOptions options) {
+        DirectContext context = SkijaBackend.INSTANCE.getContext();
+        if (pathMerger.isEmpty()) {
+            return;
+        }
+        if (context == null || options == null || !options.enabled()) {
+            pathMerger.clear();
             return;
         }
 
         pathMerger.build(path -> {
-            PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);
-            if (postProcess == null || !postProcess.isEnabled()) {
-                return;
-            }
-
-            List<Rect> bounds = postProcess.spilt.getValue() ? pathMerger.getBounds() : null;
-            apply(canvas, path, bounds, postProcess);
+            List<Rect> bounds = options.splitRegions() ? pathMerger.getBounds() : null;
+            apply(canvas, path, bounds, options);
         });
     }
 
-    private static void apply(Canvas canvas, Path path, List<Rect> bounds, PostProcess postProcess) {
-        if (postProcess.shadow.getValue()) {
+    private static void apply(Canvas canvas, Path path, List<Rect> bounds, PostProcessOptions options) {
+        if (options.shadow()) {
             ShadowSurface.Target target = new ShadowSurface.Target(
-                    postProcess.shadow_radius.getValue().floatValue(),
+                    options.shadowRadius(),
                     0xFF000000,
-                    (int) (postProcess.shadow_opacity.getValue().floatValue() * 255)
+                    options.shadowOpacity()
             );
-            shadow(canvas, path, Util.getShadowRefreshRate(postProcess), target);
+            shadow(canvas, path, options.shadowRefreshRate(), target);
         }
 
-        switch (postProcess.blur_mode.getValue()) {
-            case "Gaussian" -> gaussian(canvas, path, bounds, Util.getBlurRefreshRate(postProcess),
-                    new GaussianSurface.Target(postProcess.blur_radius.getValue().floatValue()));
-            case "Kawase" -> kawase(canvas, path, bounds, Util.getBlurRefreshRate(postProcess),
+        switch (options.blurMode()) {
+            case GAUSSIAN -> gaussian(canvas, path, bounds, options.blurRefreshRate(),
+                    new GaussianSurface.Target(options.blurRadius()));
+            case KAWASE -> kawase(canvas, path, bounds, options.blurRefreshRate(),
                     new KawaseSurface.Target(
-                            postProcess.blur_passes.getValue().intValue(),
-                            postProcess.blur_sample.getValue().floatValue(),
-                            postProcess.blur_sample.getValue().floatValue()));
+                            options.blurPasses(),
+                            options.downSample(),
+                            options.upSample()));
             default -> {
             }
         }
 
-        if (postProcess.texture.getValue()) {
+        if (options.texture()) {
             texture(canvas, path, new TextureSurface.Target(
                     0xFFFFFFFF,
-                    (int) (postProcess.texture_opacity.getValue().floatValue() * 255)));
+                    options.textureOpacity()));
         }
     }
 
@@ -116,7 +112,7 @@ public final class PPHandler {
     }
 
     public static void texture(Canvas canvas, Path path, TextureSurface.Target target) {
-        if (TEXTURE_SURFACE.shouldUpdate(System.currentTimeMillis(), 1)) {
+        if (TEXTURE_SURFACE.shouldUpdate(System.currentTimeMillis(), 1, path, target)) {
             TEXTURE_SURFACE.updateSurface(context(), path, null, width(), height(), target);
         }
         drawClipped(canvas, path, TEXTURE_SURFACE.getSnapshot(), TEXTURE_SURFACE.getSnapshotBounds());
@@ -145,39 +141,19 @@ public final class PPHandler {
     }
 
     private static DirectContext context() {
-        return Skia.INSTANCE.getContext();
+        return SkijaBackend.INSTANCE.getContext();
     }
 
     private static int width() {
-        return Skia.INSTANCE.getCurrentWidth();
+        return SkijaBackend.INSTANCE.getCurrentWidth();
     }
 
     private static int height() {
-        return Skia.INSTANCE.getCurrentHeight();
+        return SkijaBackend.INSTANCE.getCurrentHeight();
     }
 
     private static int gameFps() {
         return Math.max(1, Minecraft.getInstance().getFps());
     }
 
-    public static final class Util {
-        private Util() {
-        }
-
-        public static int getBlurRefreshRate(PostProcess postProcess) {
-            if (postProcess == null) {
-                return 60;
-            }
-            return RefreshMode.getByName(postProcess.blurRefresh.getValue())
-                    .getRefreshRate(postProcess.blurRefreshLimit.getValue().intValue());
-        }
-
-        public static int getShadowRefreshRate(PostProcess postProcess) {
-            if (postProcess == null) {
-                return 30;
-            }
-            return RefreshMode.getByName(postProcess.glowRefresh.getValue())
-                    .getRefreshRate(postProcess.glowRefreshLimit.getValue().intValue());
-        }
-    }
 }

@@ -9,9 +9,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL30;
-import cc.nimbus.utils.render.NativeSupport;
-import cc.nimbus.utils.render.gl.States;
-import cc.nimbus.utils.render.skija.create.Skia;
+import cc.nimbus.utils.render.skija.internal.gl.States;
+import cc.nimbus.utils.render.skija.internal.SkijaBackend;
 
 import java.util.OptionalDouble;
 import java.util.function.Consumer;
@@ -28,10 +27,10 @@ public final class SkijaRenderTarget implements AutoCloseable {
 
     public void ensure(int width, int height) {
         RenderSystem.assertOnRenderThread();
-        NativeSupport.validateBackend();
-        if (!NativeSupport.isSupported()) throw new IllegalStateException(NativeSupport.getUnsupportedReason());
+        SkijaSupport.validateBackend();
+        if (!SkijaSupport.isSupported()) throw new IllegalStateException(SkijaSupport.getUnsupportedReason());
         if (registeredTexture != null && this.width == width && this.height == height) {
-            Skia.INSTANCE.update(framebuffer, this.width, this.height);
+            SkijaBackend.INSTANCE.update(framebuffer, this.width, this.height);
             return;
         }
         States.push();
@@ -58,7 +57,7 @@ public final class SkijaRenderTarget implements AutoCloseable {
                     GL30.GL_RENDERBUFFER, depthStencilRenderbuffer);
             int status = GL30.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER);
             if (status != GL30.GL_FRAMEBUFFER_COMPLETE) { destroy(); throw new IllegalStateException("Incomplete Nimbus Skija framebuffer: 0x" + Integer.toHexString(status)); }
-            Skia.INSTANCE.update(framebuffer, this.width, this.height);
+            SkijaBackend.INSTANCE.update(framebuffer, this.width, this.height);
         } finally {
             GL30.glBindRenderbuffer(GL30.GL_RENDERBUFFER, previousRenderbuffer);
             GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, previousDrawFramebuffer);
@@ -68,27 +67,30 @@ public final class SkijaRenderTarget implements AutoCloseable {
     }
 
     public void clear() {
+        RenderSystem.assertOnRenderThread();
         if (registeredTexture != null) {
             RenderSystem.getDevice().createCommandEncoder().clearColorTexture(registeredTexture.getTexture(), new Vector4f(0, 0, 0, 0));
         }
     }
 
     public void render(Consumer<Canvas> renderer) {
+        RenderSystem.assertOnRenderThread();
         if (registeredTexture == null) return;
         States.push();
         int previousDrawFramebuffer = GL30.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
         int previousReadFramebuffer = GL30.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
         try {
+            SkijaBackend.INSTANCE.update(framebuffer, width, height);
             GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer);
             GL30.glViewport(0, 0, width, height);
             GL30.glClearStencil(0);
             GL30.glClearDepth(1.0);
             GL30.glClear(GL30.GL_DEPTH_BUFFER_BIT | GL30.GL_STENCIL_BUFFER_BIT);
-            Skia.INSTANCE.getContext().resetGLAll();
-            Canvas canvas = Skia.INSTANCE.getCanvas();
+            SkijaBackend.INSTANCE.getContext().resetGLAll();
+            Canvas canvas = SkijaBackend.INSTANCE.getCanvas();
             canvas.clear(0);
             renderer.accept(canvas);
-            Skia.INSTANCE.flushAndSubmit();
+            SkijaBackend.INSTANCE.flushAndSubmit();
         } finally {
             GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, previousDrawFramebuffer);
             GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, previousReadFramebuffer);
@@ -96,7 +98,7 @@ public final class SkijaRenderTarget implements AutoCloseable {
         }
     }
     private void destroy() {
-        Skia.INSTANCE.closeAll();
+        if (framebuffer != 0) SkijaBackend.INSTANCE.detach(framebuffer);
         if (depthStencilRenderbuffer != 0) { GL30.glDeleteRenderbuffers(depthStencilRenderbuffer); depthStencilRenderbuffer = 0; }
         if (framebuffer != 0) { GL30.glDeleteFramebuffers(framebuffer); framebuffer = 0; }
         if (registeredTexture != null) { Minecraft.getInstance().getTextureManager().release(identifier); registeredTexture = null; }

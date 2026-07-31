@@ -8,13 +8,8 @@ import io.github.humbleui.types.Rect;
 import java.util.List;
 import java.util.function.Consumer;
 
-/* *
-作者：ItzAg2o
-
-* */
 public class PathMerger implements AutoCloseable {
     private final Path buffer = new Path();
-    private final Path temp = new Path();
     private int count = 0;
 
     private final RectMath.BoundsMap boundsMap = new RectMath.BoundsMap();
@@ -41,8 +36,11 @@ public class PathMerger implements AutoCloseable {
     }
 
     public void build(Consumer<Path> consumer) {
-        consumer.accept(buffer);
-        this.clear();
+        try {
+            consumer.accept(buffer);
+        } finally {
+            clear();
+        }
     }
 
     public List<Rect> getBounds() {
@@ -65,9 +63,6 @@ public class PathMerger implements AutoCloseable {
     public void close() {
         if (!this.buffer.isClosed()) {
             this.buffer.close();
-        }
-        if (!this.temp.isClosed()) {
-            this.temp.close();
         }
         this.boundsMap.clear();
         this.count = 0;

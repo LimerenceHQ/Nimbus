@@ -4,6 +4,7 @@ import cc.nimbus.ui.clickgui.neutron.NeutronActions;
 import cc.nimbus.ui.clickgui.neutron.NeutronState;
 import cc.nimbus.ui.clickgui.neutron.widget.UiDraw;
 import cc.nimbus.utils.render.skija.post.PPHandler;
+import cc.nimbus.core.Core;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.types.RRect;
 
@@ -38,7 +39,7 @@ public class NeutronWindowPanel extends NeutronPanel {
         float rightY = winY;
 
         PPHandler.add(RRect.makeXYWH(winX, winY, winW, winH, radius));
-        PPHandler.drawAll(canvas);
+        Core.INSTANCE.getRenderManager().skija().drawPostProcess(canvas);
         canvas.save();
         UiDraw.clipRRect(canvas, winX, winY, winW, winH, radius);
         UiDraw.fillRect(canvas, leftX, leftY, leftW, winH, LEFT_OVERLAY);

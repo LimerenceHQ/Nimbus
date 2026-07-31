@@ -33,7 +33,7 @@ public enum RefreshMode {
     }
 
     public static String[] getNames() {
-        return NAMES;
+        return NAMES.clone();
     }
 
     public int getRefreshRate(int limitedFps) {

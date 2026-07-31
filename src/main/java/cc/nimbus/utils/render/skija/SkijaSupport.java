@@ -1,15 +1,18 @@
-package cc.nimbus.utils.render;
+package cc.nimbus.utils.render.skija;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 
 import java.util.Locale;
 
-public final class NativeSupport {
+final class SkijaSupport {
     private static String platformUnsupportedReason;
     private static String backendUnsupportedReason;
     private static boolean backendValidated;
-    private NativeSupport() {}
-    public static void initialize() {
+
+    private SkijaSupport() {
+    }
+
+    static void initialize() {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
         platformUnsupportedReason = !os.contains("win") || !(arch.equals("amd64") || arch.equals("x86_64"))
@@ -18,7 +21,8 @@ public final class NativeSupport {
         backendUnsupportedReason = null;
         backendValidated = false;
     }
-    public static synchronized void validateBackend() {
+
+    static synchronized void validateBackend() {
         if (backendValidated) return;
         try {
             String backendName = RenderSystem.getDevice().getDeviceInfo().backendName();
@@ -31,9 +35,17 @@ public final class NativeSupport {
             backendValidated = true;
         }
     }
-    public static boolean isSupported() { return platformUnsupportedReason == null && backendUnsupportedReason == null; }
-    public static String getUnsupportedReason() {
+
+    static boolean isSupported() {
+        return platformUnsupportedReason == null && backendUnsupportedReason == null;
+    }
+
+    static String getUnsupportedReason() {
         return platformUnsupportedReason != null ? platformUnsupportedReason : backendUnsupportedReason;
     }
-    public static synchronized void close() { backendValidated = false; backendUnsupportedReason = null; }
+
+    static synchronized void close() {
+        backendValidated = false;
+        backendUnsupportedReason = null;
+    }
 }

@@ -1,24 +1,25 @@
-package cc.nimbus.utils.render.skija.create;
+package cc.nimbus.utils.render.skija.internal;
 
 import io.github.humbleui.skija.*;
 import net.minecraft.client.Minecraft;
-import org.jetbrains.annotations.Nullable;
-import org.lwjgl.BufferUtils;
-import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
-import cc.nimbus.utils.render.resource.Cleaner;
-import cc.nimbus.utils.render.gl.States;
-import cc.nimbus.utils.render.refresh.Refresh;
+import cc.nimbus.utils.render.skija.resource.FrameResources;
+import cc.nimbus.utils.render.skija.internal.gl.States;
 import cc.nimbus.utils.render.skija.image.minecraft.MinecraftSnapshot;
 import cc.nimbus.utils.render.skija.post.PPHandler;
+import cc.nimbus.utils.render.skija.post.PostProcessOptions;
+import cc.nimbus.utils.render.skija.paint.PaintEffects;
+import cc.nimbus.utils.render.skija.image.SkijaImages;
+import cc.nimbus.utils.render.skija.image.SvgFactory;
+import cc.nimbus.utils.render.skija.data.DataMemory;
+import cc.nimbus.utils.render.skija.path.gn.GnBuilder;
 import cc.nimbus.utils.render.skija.surface.offsurface.CanvasOffSurface;
 
-import java.nio.DoubleBuffer;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
-public class Skia implements AutoCloseable {
-    public volatile static Skia INSTANCE = new Skia();
+public final class SkijaBackend implements AutoCloseable {
+    public static final SkijaBackend INSTANCE = new SkijaBackend();
     private volatile boolean init;
     private DirectContext context;
     private BackendRenderTarget renderTarget;
@@ -26,14 +27,12 @@ public class Skia implements AutoCloseable {
     private Paint paint;
     private int framebufferId;
     private int width, height;
-    private float mouseX = -1, mouseY = -1;
-    private final DoubleBuffer mouseBufferX = BufferUtils.createDoubleBuffer(1);
-    private final DoubleBuffer mouseBufferY = BufferUtils.createDoubleBuffer(1);
     private final CanvasOffSurface canvasOffSurface = new CanvasOffSurface(165);
-    private final Deque<SkiaCallback> callbacks = new ConcurrentLinkedDeque<>();
-    public final Cleaner cleaner = new Cleaner();
+    private final Deque<SkijaCallback> callbacks = new ConcurrentLinkedDeque<>();
+    private final FrameResources frameResources = new FrameResources();
+    private volatile PostProcessOptions postProcessOptions = PostProcessOptions.DISABLED;
 
-    public Skia() {
+    private SkijaBackend() {
     }
 
     public synchronized void update(int framebufferId, int width, int height) {
@@ -43,56 +42,39 @@ public class Skia implements AutoCloseable {
     }
 
     public synchronized void create(int framebufferId, int width, int height) {
-        closeAll();
+        closeSurface();
         if (width <= 0 || height <= 0) return;
         this.framebufferId = framebufferId;
         this.width = width; this.height = height;
-        context = DirectContext.makeGL();
+        if (context == null || context.isClosed()) {
+            context = DirectContext.makeGL();
+        }
         context.resetGLAll();
         renderTarget = BackendRenderTarget.makeGL(width, height, 0, 8, framebufferId, GL11.GL_RGBA8);
         surface = Surface.wrapBackendRenderTarget(context, renderTarget, SurfaceOrigin.BOTTOM_LEFT, SurfaceColorFormat.RGBA_8888, ColorSpace.getSRGB(), new SurfaceProps(true, PixelGeometry.RGB_H));
         if (surface == null) throw new IllegalStateException("Skija failed to wrap the Nimbus framebuffer");
-        paint = new Paint();
+        resetPaint();
         init = true;
     }
 
-    public void mouse(float mouseX, float mouseY) { this.mouseX = mouseX; this.mouseY = mouseY; }
-    public void mouse(long window) {
-        if (non()) return;
-        mouseBufferX.clear(); mouseBufferY.clear(); GLFW.glfwGetCursorPos(window, mouseBufferX, mouseBufferY);
-        boolean focused = GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_FOCUSED) == GLFW.GLFW_TRUE;
-        mouseX = focused ? (float) mouseBufferX.get(0) : -1; mouseY = focused ? (float) mouseBufferY.get(0) : -1;
-    }
-
-    public synchronized void call(SkiaCallback callback) {
-        if (non() || callback == null) return;
-        States.push();
-        try {
-            context.resetGLAll();
-            callback.call(getCanvas(), width, height, mouseX, mouseY, resetPaint());
-            flushAndSubmit();
-        } finally {
-            States.pop();
-        }
-    }
-    public void addToSurface(SkiaCallback callback) { if (callback != null) callbacks.add(callback); }
-    public synchronized void callSurface(Refresh refresh) {
+    public void addToSurface(SkijaCallback callback) { if (callback != null) callbacks.add(callback); }
+    public synchronized void callSurface(int targetFps) {
         if (non() || callbacks.isEmpty()) return;
         States.push();
         try {
             context.resetGLAll();
-            canvasOffSurface.setTargetFps(refresh == null ? 165 : refresh.fps());
+            canvasOffSurface.setTargetFps(Math.max(1, targetFps));
             int gameFps = Math.max(1, Minecraft.getInstance().getFps());
             if (canvasOffSurface.shouldUpdate(System.currentTimeMillis(), gameFps)) {
                 canvasOffSurface.updateSurface(context, null, null, width, height, offscreen -> {
                     int save = offscreen.save();
                     try {
-                        PPHandler.drawAll(offscreen);
+                        PPHandler.drawAll(offscreen, postProcessOptions);
                     } finally {
                         offscreen.restoreToCount(save);
                     }
-                    for (SkiaCallback callback : callbacks) {
-                        callback.call(offscreen, width, height, mouseX, mouseY, resetPaint());
+                    for (SkijaCallback callback : callbacks) {
+                        callback.call(offscreen, width, height, resetPaint());
                     }
                 });
             }
@@ -105,20 +87,51 @@ public class Skia implements AutoCloseable {
             States.pop();
         }
     }
-    public synchronized void flushAndSubmit() { if (non()) return; cleaner.clear(); surface.flushAndSubmit(); context.flush(); }
+    public synchronized void flushAndSubmit() {
+        if (non()) return;
+        try {
+            surface.flushAndSubmit();
+            context.flush();
+        } finally {
+            frameResources.clear();
+        }
+    }
     private Paint resetPaint() { if (paint == null || paint.isClosed()) paint = new Paint(); else paint.reset(); return paint; }
-    public synchronized @Nullable Image snapshot() { return non() ? null : surface.makeImageSnapshot(); }
+    public <T extends AutoCloseable> T ownFrameResource(T resource) { return frameResources.own(resource); }
+    public void setPostProcessOptions(PostProcessOptions options) {
+        postProcessOptions = options == null ? PostProcessOptions.DISABLED : options;
+    }
+    public PostProcessOptions getPostProcessOptions() { return postProcessOptions; }
 
     public synchronized void closeAll() {
         callbacks.clear();
-        cleaner.clear();
+        frameResources.clear();
         MinecraftSnapshot.clear();
         canvasOffSurface.close();
         PPHandler.close();
+        PaintEffects.clear();
+        SkijaImages.clear();
+        SvgFactory.clear();
+        GnBuilder.clear();
+        DataMemory.clear();
+        postProcessOptions = PostProcessOptions.DISABLED;
+        closeSurface();
         closeManaged(paint); paint = null;
+        context = closeManaged(context);
+        framebufferId = width = height = 0;
+        init = false;
+    }
+
+    /** Detaches a single target without destroying the shared context and caches. */
+    public synchronized void detach(int targetFramebufferId) {
+        if (framebufferId == targetFramebufferId) {
+            closeSurface();
+        }
+    }
+
+    private void closeSurface() {
         closeManaged(surface); surface = null;
         renderTarget = closeManaged(renderTarget);
-        context = closeManaged(context);
         framebufferId = width = height = 0;
         init = false;
     }

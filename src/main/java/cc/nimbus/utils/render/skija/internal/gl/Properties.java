@@ -1,4 +1,4 @@
-package cc.nimbus.utils.render.gl;
+package cc.nimbus.utils.render.skija.internal.gl;
 
 import java.util.BitSet;
 

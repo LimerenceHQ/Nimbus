@@ -1,15 +1,11 @@
 package cc.nimbus.utils.render.skija.path.gn;
 
-import cc.nimbus.utils.render.resource.CachePool;
+import cc.nimbus.utils.render.skija.resource.CachePool;
 import cc.nimbus.utils.render.skija.math.PathMath;
 import io.github.humbleui.skija.*;
 import io.github.humbleui.types.Point;
 import org.jetbrains.annotations.ApiStatus;
 
-/* *
-作者：ItzAg2o(算法)、Lecitron(算法)
-
-* */
 @SuppressWarnings("unused")
 public class GnBuilder {
     private static final CachePool<Gn, Image> CACHE_POOL_IMAGE = new CachePool<>(1024) {
@@ -153,5 +149,12 @@ public class GnBuilder {
         }
         int offset = 1; // dont know
         canvas.drawImage(getImage(gn), x - offset, y - offset, paint);
+    }
+
+    public static void clear() {
+        CACHE_POOL_IMAGE.clear();
+        CACHE_POOL_PATH.clear();
+        if (empty != null && !empty.isClosed()) empty.close();
+        empty = null;
     }
 }

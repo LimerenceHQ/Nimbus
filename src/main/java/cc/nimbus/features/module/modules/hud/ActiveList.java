@@ -1,6 +1,7 @@
 package cc.nimbus.features.module.modules.hud;
 
 import io.github.humbleui.skija.Paint;
+import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.types.RRect;
 import net.minecraft.client.Minecraft;
 import cc.nimbus.event.component.EventTarget;
@@ -8,13 +9,12 @@ import cc.nimbus.event.impl.render.EventRender2D;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.managers.ModuleManager;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.modes.Modes;
-import cc.nimbus.utils.render.skija.create.Skia;
+import cc.nimbus.utils.render.skija.SkijaRenderer;
 import cc.nimbus.utils.render.skija.post.PPHandler;
 import cc.nimbus.utils.render.skija.text.factory.TextFactory;
 
@@ -49,8 +49,9 @@ public final class ActiveList extends BasicModule {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null) return;
 
-        float screenWidth = Skia.INSTANCE.getCurrentWidth();
-        float screenHeight = Skia.INSTANCE.getCurrentHeight();
+        SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
+        float screenWidth = skija.width();
+        float screenHeight = skija.height();
         if (screenWidth <= 0 || screenHeight <= 0) return;
 
         List<Entry> entries = new ArrayList<>();
@@ -83,7 +84,8 @@ public final class ActiveList extends BasicModule {
             if (background.getValue()) PPHandler.add(RRect.makeXYWH(x, y, entry.width(), ROW_HEIGHT, radius));
         }
 
-        Skia.INSTANCE.addToSurface((canvas, width, height, mouseX, mouseY, sharedPaint) -> {
+        skija.submitHud(frame -> {
+            Canvas canvas = frame.canvas();
             try (Paint backgroundPaint = new Paint().setAntiAlias(true).setColor(0xA8171A1E);
                  Paint textPaint = new Paint().setAntiAlias(true).setColor(textColor.getValue());
                  Paint suffixPaint = new Paint().setAntiAlias(true).setColor(0xFF9AA4AE);

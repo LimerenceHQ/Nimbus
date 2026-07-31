@@ -6,14 +6,13 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.input.PreeditEvent;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
-import cc.nimbus.utils.render.skija.SkijaRenderTarget;
-import cc.nimbus.utils.render.Render2DUtils;
+import cc.nimbus.core.Core;
+import cc.nimbus.utils.render.skija.SkijaLayer;
 
 public final class NeutronScreen extends Screen {
-    private static final SkijaRenderTarget TARGET = new SkijaRenderTarget("neutron");
+    private final SkijaLayer layer;
     private final NeutronUI ui = new NeutronUI();
     private double mouseX;
     private double mouseY;
@@ -33,7 +32,10 @@ public final class NeutronScreen extends Screen {
     private double extractedScrollDelta;
     private boolean framePending;
 
-    public NeutronScreen() { super(Component.literal("Nimbus Neutron")); }
+    public NeutronScreen() {
+        super(Component.literal("Nimbus Neutron"));
+        layer = Core.INSTANCE.getRenderManager().skija().layer("neutron");
+    }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
@@ -41,7 +43,7 @@ public final class NeutronScreen extends Screen {
         this.mouseY = mouseY;
         int framebufferWidth = minecraft.getWindow().getWidth();
         int framebufferHeight = minecraft.getWindow().getHeight();
-        TARGET.ensure(framebufferWidth, framebufferHeight);
+        layer.extract(graphics, framebufferWidth, framebufferHeight);
 
         extractedFramebufferWidth = framebufferWidth;
         extractedFramebufferHeight = framebufferHeight;
@@ -57,27 +59,20 @@ public final class NeutronScreen extends Screen {
         scrollDelta = 0;
         leftClicked = false;
         rightClicked = false;
-        graphics.blit(
-                RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
-                TARGET.identifier(),
-                0, 0, 0F, framebufferHeight,
-                graphics.guiWidth(), graphics.guiHeight(),
-                framebufferWidth, -framebufferHeight,
-                framebufferWidth, framebufferHeight
-        );    }
+    }
 
     public void renderExtractedFrame() {
         if (!framePending) return;
         framePending = false;
-        TARGET.clear();
-        Render2DUtils.beginFrame();
-        TARGET.render(canvas -> ui.render("Neutron", canvas,
+        layer.clear();
+        Core.INSTANCE.getRenderManager().skija().beginFrame();
+        layer.render(frame -> ui.render("Neutron", frame.canvas(),
                 extractedFramebufferWidth, extractedFramebufferHeight,
                 extractedMouseX, extractedMouseY,
                 extractedLeftDown, extractedRightDown,
                 extractedLeftClicked, extractedRightClicked,
                 extractedScrollDelta));
-        Render2DUtils.drainPendingCloses();
+        Core.INSTANCE.getRenderManager().skija().endFrame();
     }
 
     @Override
@@ -134,7 +129,7 @@ public final class NeutronScreen extends Screen {
 
     @Override public boolean preeditUpdated(PreeditEvent event) { return false; }
     @Override public boolean isPauseScreen() { return false; }
-    @Override public void removed() { super.removed(); }
+    @Override public void removed() { layer.close(); super.removed(); }
 
     private static float toFramebufferX(double x, int guiWidth, int framebufferWidth) {
         return guiWidth > 0 ? (float) (x * framebufferWidth / guiWidth) : (float) x;
@@ -144,7 +139,4 @@ public final class NeutronScreen extends Screen {
         return guiHeight > 0 ? (float) (y * framebufferHeight / guiHeight) : (float) y;
     }
 
-    public static void closeRenderer() {
-        TARGET.close();
-    }
 }

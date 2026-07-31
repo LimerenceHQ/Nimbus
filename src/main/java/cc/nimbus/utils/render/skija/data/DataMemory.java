@@ -1,7 +1,7 @@
 package cc.nimbus.utils.render.skija.data;
 
-import cc.nimbus.utils.render.resource.CachePool;
-import cc.nimbus.utils.render.resource.ResourceHelper;
+import cc.nimbus.utils.render.skija.resource.CachePool;
+import cc.nimbus.utils.render.skija.resource.ResourceHelper;
 import io.github.humbleui.skija.Data;
 
 public class DataMemory {
@@ -26,5 +26,10 @@ public class DataMemory {
 
     public static byte[] makeBytes(String resource) {
         return BYTES_CACHE_POOL.build(resource, () -> ResourceHelper.classpath(resource));
+    }
+
+    public static void clear() {
+        DATA_CACHE_POOL.clear();
+        BYTES_CACHE_POOL.clear();
     }
 }

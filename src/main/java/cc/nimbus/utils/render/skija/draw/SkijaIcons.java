@@ -1,4 +1,4 @@
-package cc.nimbus.utils.render;
+package cc.nimbus.utils.render.skija.draw;
 
 import io.github.humbleui.skija.*;
 import io.github.humbleui.skija.svg.SVGDOM;
@@ -7,11 +7,22 @@ import io.github.humbleui.types.Rect;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffects;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class IconUtils {
-    private static final Map<String, SVGDOM> SVG_CACHE = new HashMap<>();
+public final class SkijaIcons {
+    private static final int MAX_SVGS = 128;
+    private static final Map<String, SVGDOM> SVG_CACHE = new LinkedHashMap<>(32, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, SVGDOM> eldest) {
+            if (size() <= MAX_SVGS) return false;
+            if (!eldest.getValue().isClosed()) eldest.getValue().close();
+            return true;
+        }
+    };
+
+    private SkijaIcons() {
+    }
 
     public static final String SEARCH_ICON = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-search\" aria-hidden=\"true\"><path d=\"m21 21-4.34-4.34\"></path><circle cx=\"11\" cy=\"11\" r=\"8\"></circle></svg>";
     public static final String CATEGORY_COMBAT_ICON = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><line x1=\"22\" y1=\"12\" x2=\"18\" y2=\"12\"></line><line x1=\"6\" y1=\"12\" x2=\"2\" y2=\"12\"></line><line x1=\"12\" y1=\"6\" x2=\"12\" y2=\"2\"></line><line x1=\"12\" y1=\"22\" x2=\"12\" y2=\"18\"></line></svg>";
@@ -51,7 +62,7 @@ public class IconUtils {
 
 
     public static void drawSvg(Canvas canvas, String svgContent, float x, float y, float size, Paint paint) {
-        SVGDOM dom = SVG_CACHE.computeIfAbsent(svgContent, k -> new SVGDOM(Data.makeFromBytes(k.getBytes())));
+        SVGDOM dom = SVG_CACHE.computeIfAbsent(svgContent, SkijaIcons::createDom);
 
         SVGSVG root = dom.getRoot();
         if (root == null) return;
@@ -90,7 +101,7 @@ public class IconUtils {
     }
 
     public static void drawSvgTopLeft(Canvas canvas, String svgContent, float left, float top, float size, Paint paint) {
-        SVGDOM dom = SVG_CACHE.computeIfAbsent(svgContent, k -> new SVGDOM(Data.makeFromBytes(k.getBytes())));
+        SVGDOM dom = SVG_CACHE.computeIfAbsent(svgContent, SkijaIcons::createDom);
         SVGSVG root = dom.getRoot();
         if (root == null) return;
 
@@ -167,6 +178,19 @@ public class IconUtils {
 
         if (svg != null) {
             drawSvg(canvas, svg, x, y, size, paint);
+        }
+    }
+
+    public static void clear() {
+        SVG_CACHE.values().forEach(dom -> {
+            if (!dom.isClosed()) dom.close();
+        });
+        SVG_CACHE.clear();
+    }
+
+    private static SVGDOM createDom(String svg) {
+        try (Data data = Data.makeFromBytes(svg.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+            return new SVGDOM(data);
         }
     }
 }

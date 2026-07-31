@@ -1,4 +1,4 @@
-package cc.nimbus.utils.render.resource;
+package cc.nimbus.utils.render.skija.resource;
 
 import java.io.File;
 import java.io.IOException;

@@ -1,6 +1,6 @@
 package cc.nimbus.utils.render.skija.image;
 
-import cc.nimbus.utils.render.resource.CachePool;
+import cc.nimbus.utils.render.skija.resource.CachePool;
 import cc.nimbus.utils.render.skija.data.DataMemory;
 import io.github.humbleui.skija.*;
 import io.github.humbleui.skija.svg.SVGDOM;
@@ -9,10 +9,6 @@ import io.github.humbleui.types.Rect;
 
 import java.util.Objects;
 
-/* *
-作者：ItzAg2o
-
-* */
 @SuppressWarnings({"unused", "DuplicatedCode"})
 public class SvgFactory {
     private static final CachePool<Key, Image> SVG_TO_IMAGE_CACHE = new CachePool<>(512) {
@@ -119,6 +115,10 @@ public class SvgFactory {
 
     public static void drawSvgFromImage(Canvas canvas, String svg, float x, float y, float width, float height, Paint paint) {
         canvas.drawImageRect(makeSvgToImage(svg, width, height), Rect.makeXYWH(x, y, width, height), paint);
+    }
+
+    public static void clear() {
+        SVG_TO_IMAGE_CACHE.clear();
     }
 
     private static class Key {

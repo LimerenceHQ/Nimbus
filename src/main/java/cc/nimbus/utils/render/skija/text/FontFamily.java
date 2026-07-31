@@ -8,16 +8,11 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
-/* *
-作者：ItzAg2o
-
-
-本来想换我的新字体渲染的，但是要改一堆东西，算了吧，。
-* */
 public final class FontFamily {
     private FontFamily() {
     }
@@ -29,7 +24,8 @@ public final class FontFamily {
     private static final Map<String, Typeface> TYPEFACE_CACHE = new ConcurrentHashMap<>();
 
     @ApiStatus.Internal
-    private static final Map<FontKey, Font> FONT_CACHE = new ConcurrentHashMap<>(64);
+    private static final int MAX_FONTS = 256;
+    private static final LinkedHashMap<FontKey, Font> FONT_CACHE = new LinkedHashMap<>(64, 0.75f, true);
 
     public static final TypefaceFontProvider FONT_PROVIDER = new TypefaceFontProvider();
     public static final FontCollection FONT_COLLECTION = new FontCollection();
@@ -62,19 +58,23 @@ public final class FontFamily {
         return tf;
     }
 
-    public static Font getCachedFont(String familyName, float size) {
+    public static synchronized Font getCachedFont(String familyName, float size) {
         Typeface tf = getTypeface(familyName);
         FontKey key = new FontKey(tf, size);
+        Font cached = FONT_CACHE.get(key);
+        if (cached != null && !cached.isClosed()) return cached;
 
-        return FONT_CACHE.computeIfAbsent(key, k -> {
-            synchronized (FontFamily.class) {
-                Font font = new Font(tf, size);
-                font.setSubpixel(true);
-                font.setEdging(FontEdging.ANTI_ALIAS);
-                font.setHinting(FontHinting.SLIGHT);
-                return font;
-            }
-        });
+        Font font = new Font(tf, size);
+        font.setSubpixel(true);
+        font.setEdging(FontEdging.ANTI_ALIAS);
+        font.setHinting(FontHinting.SLIGHT);
+        FONT_CACHE.put(key, font);
+        while (FONT_CACHE.size() > MAX_FONTS) {
+            Map.Entry<FontKey, Font> eldest = FONT_CACHE.entrySet().iterator().next();
+            FONT_CACHE.remove(eldest.getKey());
+            if (!eldest.getValue().isClosed()) eldest.getValue().close();
+        }
+        return font;
     }
 
     public static String getFamily(int index) {

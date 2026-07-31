@@ -8,6 +8,7 @@ import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.modes.Modes;
 import cc.nimbus.utils.render.skija.surface.RefreshMode;
+import cc.nimbus.utils.render.skija.post.PostProcessOptions;
 
 @ModuleInfo(name = "PostProcess", displayName = "Post Process", alias = {"blur", "shader"}, category = ModuleCategory.HUD, enableOnStartUp = true)
 public class PostProcess extends BasicModule {
@@ -31,5 +32,29 @@ public class PostProcess extends BasicModule {
     public final ModeSetting glowRefresh = new ModeSetting("Refresh (Glow)", RefreshMode.getNames(), RefreshMode.VSync.toString(), shadow::getValue);
     public final NumberSetting glowRefreshLimit = new NumberSetting("Refresh Limit (Glow)", 30, 1, 165, 1,
             () -> shadow.getValue() && glowRefresh.is(RefreshMode.Limited.toString()));
+
+    public PostProcessOptions options() {
+        return new PostProcessOptions(
+                isEnabled(),
+                spilt.getValue(),
+                PostProcessOptions.BlurMode.fromName(blur_mode.getValue()),
+                blur_radius.getValue().floatValue(),
+                blur_passes.getValue().intValue(),
+                blur_sample.getValue().floatValue(),
+                blur_sample.getValue().floatValue(),
+                refreshRate(blurRefresh.getValue(), blurRefreshLimit.getValue().intValue(), 60),
+                shadow.getValue(),
+                shadow_radius.getValue().floatValue(),
+                Math.round(shadow_opacity.getValue().floatValue() * 255),
+                refreshRate(glowRefresh.getValue(), glowRefreshLimit.getValue().intValue(), 30),
+                texture.getValue(),
+                Math.round(texture_opacity.getValue().floatValue() * 255)
+        );
+    }
+
+    private static int refreshRate(String name, int limit, int fallback) {
+        RefreshMode mode = RefreshMode.getByName(name);
+        return mode == null ? fallback : mode.getRefreshRate(limit);
+    }
 
 }
