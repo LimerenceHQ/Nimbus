@@ -1,0 +1,145 @@
+package cc.nimbus.managers;
+
+import cc.nimbus.core.interfaces.InstanceManager;
+import cc.nimbus.event.EventBus;
+import cc.nimbus.event.component.EventTarget;
+import cc.nimbus.event.impl.input.EventKeyPress;
+import cc.nimbus.features.module.api.BasicModule;
+import cc.nimbus.features.module.api.ModuleCategory;
+import cc.nimbus.features.module.modules.hud.ActiveList;
+import cc.nimbus.features.module.modules.hud.PostProcess;
+import cc.nimbus.features.module.modules.render.ClickGui;
+import cc.nimbus.features.module.modules.render.ESP;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+public final class ModuleManager implements InstanceManager {
+    private final List<BasicModule> modules = new ArrayList<>();
+    private final Map<Class<? extends BasicModule>, BasicModule> byClass = new HashMap<>();
+    private final Map<ModuleCategory, List<BasicModule>> byCategory = new EnumMap<>(ModuleCategory.class);
+    private final Map<String, BasicModule> byName = new HashMap<>();
+    private final Map<Integer, List<BasicModule>> byKey = new HashMap<>();
+    private Runnable changeListener = () -> {};
+
+    @Override
+    public synchronized void init() {
+        clear();
+        try {
+            registerModules(
+                    new ClickGui(),
+                    new PostProcess(),
+                    new ActiveList(),
+                    new ESP());
+            modules.stream()
+                    .filter(BasicModule::shouldAutoEnable)
+                    .forEach(module -> module.setEnabled(true));
+            EventBus.register(this);
+        } catch (RuntimeException error) {
+            clear();
+            throw error;
+        }
+    }
+
+    @Override
+    public synchronized void shutdown() {
+        clear();
+        changeListener = () -> {};
+    }
+
+    public synchronized void clear() {
+        EventBus.unregister(this);
+        modules.forEach(module -> module.setEnabled(false));
+        modules.clear();
+        byClass.clear();
+        byCategory.clear();
+        byName.clear();
+        byKey.clear();
+    }
+
+    public synchronized void registerModules(BasicModule... modules) {
+        Arrays.stream(modules).forEach(this::registerModule);
+    }
+
+    public synchronized void registerModule(BasicModule module) {
+        Objects.requireNonNull(module, "module");
+        if (byClass.containsKey(module.getClass())) {
+            throw new IllegalArgumentException("Duplicate module class: " + module.getClass().getName());
+        }
+
+        Set<String> names = new LinkedHashSet<>();
+        names.add(module.getName());
+        names.addAll(Arrays.asList(module.getAliases()));
+        for (String name : names) validateName(name);
+
+        module.bindStateListeners(changeListener, this::rebuildKeyMap);
+        modules.add(module);
+        byClass.put(module.getClass(), module);
+        byCategory.computeIfAbsent(module.getCategory(), ignored -> new ArrayList<>()).add(module);
+        names.forEach(name -> byName.put(normalize(name), module));
+        modules.sort(Comparator.comparing(BasicModule::getName, String.CASE_INSENSITIVE_ORDER));
+        rebuildKeyMap();
+    }
+
+    public synchronized void setChangeListener(Runnable listener) {
+        changeListener = listener == null ? () -> {} : listener;
+        modules.forEach(module -> module.bindStateListeners(changeListener, this::rebuildKeyMap));
+    }
+
+    public synchronized void rebuildKeyMap() {
+        byKey.clear();
+        for (BasicModule module : modules) {
+            if (module.getKey() != 0) {
+                byKey.computeIfAbsent(module.getKey(), ignored -> new ArrayList<>()).add(module);
+            }
+        }
+    }
+
+    public synchronized List<BasicModule> getModules() {
+        return List.copyOf(modules);
+    }
+
+    public synchronized List<BasicModule> getModulesByCategory(ModuleCategory category) {
+        return List.copyOf(byCategory.getOrDefault(category, List.of()));
+    }
+
+    public synchronized List<BasicModule> getModulesByKey(int key) {
+        return List.copyOf(byKey.getOrDefault(key, List.of()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public synchronized <T extends BasicModule> T getModule(Class<T> type) {
+        return (T) byClass.get(type);
+    }
+
+    public synchronized BasicModule getModule(String name) {
+        return byName.get(normalize(name));
+    }
+
+    @EventTarget
+    public void onKey(EventKeyPress event) {
+        if (event.getAction() != 1) return;
+        getModulesByKey(event.getKey()).forEach(BasicModule::toggle);
+    }
+
+    private void validateName(String name) {
+        String normalized = normalize(name);
+        if (normalized.isEmpty()) throw new IllegalArgumentException("Empty module name or alias");
+        if (byName.containsKey(normalized)) {
+            throw new IllegalArgumentException("Duplicate module name or alias: " + name);
+        }
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+}

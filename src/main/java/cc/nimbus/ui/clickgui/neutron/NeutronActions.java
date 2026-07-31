@@ -1,11 +1,11 @@
 package cc.nimbus.ui.clickgui.neutron;
 
-import cc.nimbus.config.ConfigManager;
-import cc.nimbus.module.ModuleCategory;
-import cc.nimbus.settings.Setting;
-import cc.nimbus.settings.impl.NumberSetting;
-import cc.nimbus.settings.impl.StringSetting;
-import cc.nimbus.settings.impl.TextSetting;
+import cc.nimbus.core.Core;
+import cc.nimbus.features.module.api.ModuleCategory;
+import cc.nimbus.features.module.api.setting.Setting;
+import cc.nimbus.features.module.api.setting.impl.NumberSetting;
+import cc.nimbus.features.module.api.setting.impl.StringSetting;
+import cc.nimbus.features.module.api.setting.impl.TextSetting;
 import cc.nimbus.ui.clickgui.neutron.NeutronState.Page;
 
 public class NeutronActions {
@@ -114,7 +114,6 @@ public class NeutronActions {
                 v = Math.round(v / inc) * inc;
             }
             state.editingNumber.setValue(v);
-            ConfigManager.markDirty();
         } catch (Exception ignored) {
         }
         cancelNumber();
@@ -161,7 +160,6 @@ public class NeutronActions {
     public void commitText() {
         if (!state.textFocused || state.editingText == null) return;
         state.editingText.setValue(state.textInput.toString());
-        ConfigManager.markDirty();
         cancelText();
     }
 
@@ -177,10 +175,9 @@ public class NeutronActions {
     }
 
     public void quickSave() {
-        String cfg = ConfigManager.getCurrentConfig();
-        java.util.concurrent.CompletableFuture.supplyAsync(() -> ConfigManager.saveConfig(cfg)).thenAccept(ok -> {
+        String cfg = Core.INSTANCE.getConfigManager().getCurrentConfig();
+        boolean ok = Core.INSTANCE.getConfigManager().saveConfig(cfg);
             showToast(ok ? "已保存：" + cfg : "保存失败");
-        });
     }
 
     public void showToast(String message) {

@@ -1,6 +1,6 @@
 package cc.nimbus.ui.clickgui.neutron.widget;
 
-import cc.nimbus.module.impl.hud.ThemeSetting;
+import cc.nimbus.features.module.modules.hud.ThemeSetting;
 import cc.nimbus.utils.render.skija.paint.PaintEffects;
 import cc.nimbus.utils.render.skija.text.factory.TextFactory;
 import io.github.humbleui.skija.Canvas;

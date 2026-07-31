@@ -12,10 +12,10 @@ import net.minecraft.client.renderer.state.gui.pip.PictureInPictureRenderState;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import cc.nimbus.event.handler.EventManager;
+import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.render.EventRender2D;
-import cc.nimbus.module.ModuleManager;
-import cc.nimbus.module.impl.hud.PostProcess;
+import cc.nimbus.core.Core;
+import cc.nimbus.features.module.modules.hud.PostProcess;
 import cc.nimbus.utils.render.NativeSupport;
 import cc.nimbus.utils.render.skija.SkijaRenderTarget;
 import cc.nimbus.ui.clickgui.neutron.NeutronScreen;
@@ -41,7 +41,7 @@ public class GuiRendererMixin {
         if (NIMBUS_RENDERING_AUXILIARY.get()) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.gui.screen() instanceof NeutronScreen neutronScreen) {
-            PostProcess postProcess = ModuleManager.getInstance().getModule(PostProcess.class);
+            PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);
             if (postProcess != null && postProcess.isEnabled() && !postProcess.blur_mode.is("Off")) {
                 MinecraftSnapshot.capture();
             }
@@ -70,13 +70,13 @@ public class GuiRendererMixin {
             int framebufferWidth = minecraft.getWindow().getWidth();
             int framebufferHeight = minecraft.getWindow().getHeight();
             nimbus$hudTarget.ensure(framebufferWidth, framebufferHeight);
-            PostProcess postProcess = ModuleManager.getInstance().getModule(PostProcess.class);
+            PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);
             if (postProcess != null && postProcess.isEnabled() && !postProcess.blur_mode.is("Off")) {
                 MinecraftSnapshot.capture();
             }
             nimbus$hudTarget.clear();
             Render2DUtils.beginFrame();
-            EventManager.call(new EventRender2D(graphics));
+        EventBus.call(new EventRender2D(graphics));
             nimbus$hudTarget.render(canvas -> Skia.INSTANCE.callSurface(new Refresh_VSync()));
             Render2DUtils.drainPendingCloses();
             graphics.blit(RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,

@@ -3,7 +3,6 @@ package cc.nimbus.ui.clickgui.neutron.panel;
 import cc.nimbus.ui.clickgui.neutron.NeutronActions;
 import cc.nimbus.ui.clickgui.neutron.NeutronState;
 import cc.nimbus.ui.clickgui.neutron.widget.*;
-import cc.nimbus.ui.clickgui.neutron.widget.*;
 import cc.nimbus.utils.render.skija.text.factory.TextFactory;
 import cc.nimbus.utils.render.IconUtils;
 import io.github.humbleui.skija.Canvas;

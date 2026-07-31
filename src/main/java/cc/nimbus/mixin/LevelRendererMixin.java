@@ -10,7 +10,7 @@ import org.joml.*;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import cc.nimbus.event.handler.EventManager;
+import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.render.EventRender3D;
 
 @Mixin(LevelRenderer.class)
@@ -19,6 +19,6 @@ public class LevelRendererMixin {
     private void nimbus$render(GraphicsResourceAllocator allocator, DeltaTracker delta, boolean outline, CameraRenderState camera, Matrix4fc modelView, GpuBufferSlice fog, Vector4f fogColor, boolean sky, CallbackInfo ci) {
         PoseStack stack = new PoseStack();
         stack.mulPose(modelView);
-        EventManager.call(new EventRender3D(stack, delta.getGameTimeDeltaPartialTick(false)));
+        EventBus.call(new EventRender3D(stack, delta.getGameTimeDeltaPartialTick(false)));
     }
 }

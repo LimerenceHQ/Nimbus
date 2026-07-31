@@ -1,9 +1,9 @@
 package cc.nimbus.ui.clickgui.neutron;
 
-import cc.nimbus.module.BasicModule;
-import cc.nimbus.module.ModuleCategory;
-import cc.nimbus.settings.Setting;
-import cc.nimbus.settings.impl.NumberSetting;
+import cc.nimbus.features.module.api.BasicModule;
+import cc.nimbus.features.module.api.ModuleCategory;
+import cc.nimbus.features.module.api.setting.Setting;
+import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 
 public class NeutronState {
     public enum Page {

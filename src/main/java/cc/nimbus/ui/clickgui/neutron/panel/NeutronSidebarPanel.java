@@ -3,7 +3,7 @@ package cc.nimbus.ui.clickgui.neutron.panel;
 import cc.nimbus.Nimbus;
 import cc.nimbus.ui.clickgui.neutron.widget.*;
 import net.minecraft.client.Minecraft;
-import cc.nimbus.module.ModuleCategory;
+import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.ui.clickgui.neutron.NeutronActions;
 import cc.nimbus.ui.clickgui.neutron.NeutronState;
 import cc.nimbus.ui.clickgui.neutron.NeutronState.Page;

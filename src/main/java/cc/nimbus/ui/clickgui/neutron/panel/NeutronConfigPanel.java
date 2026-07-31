@@ -1,9 +1,9 @@
 package cc.nimbus.ui.clickgui.neutron.panel;
 
-import cc.nimbus.ui.clickgui.neutron.widget.*;
 import io.github.humbleui.skija.Canvas;
 import org.lwjgl.glfw.GLFW;
-import cc.nimbus.config.ConfigManager;
+import cc.nimbus.core.Core;
+import cc.nimbus.managers.ConfigManager;
 import cc.nimbus.ui.clickgui.neutron.widget.*;
 import cc.nimbus.utils.render.skija.text.factory.TextFactory;
 
@@ -47,7 +47,7 @@ public class NeutronConfigPanel extends NeutronPanel {
         UiText.drawLeftY(canvas, FONT_TITLE, 22f, "CONFIG", x + 6f, y - 2f, headerH, UiPaints.TEXT);
         float titleW = TextFactory.getTextWidth(FONT_TITLE, 22f, "CONFIG");
         UiPaints.TEXT.setColor(UiColors.TEXT_SECONDARY);
-        UiText.drawLeftY(canvas, FONT_TITLE, 16.5f, "当前配置: " + ConfigManager.getCurrentConfig(), x + titleW + 18f, y - 2f, headerH, UiPaints.TEXT);
+        UiText.drawLeftY(canvas, FONT_TITLE, 16.5f, "当前配置: " + configs().getCurrentConfig(), x + titleW + 18f, y - 2f, headerH, UiPaints.TEXT);
         boolean inputHover = mx >= x && mx <= x + inputW && my >= inputY && my <= inputY + INPUT_H;
         if (leftPressed) inputFocused = inputHover;
         UiDraw.fillRRect(canvas, x, inputY, inputW, INPUT_H, 10f, inputFocused ? 0x22000000 : 0x14000000);
@@ -84,11 +84,12 @@ public class NeutronConfigPanel extends NeutronPanel {
 
     public boolean handleKeyInput(int key) { if (!inputFocused) return false; if (key == GLFW.GLFW_KEY_ESCAPE) { inputFocused = false; return true; } if (key == GLFW.GLFW_KEY_BACKSPACE && !configInput.isEmpty()) configInput = configInput.substring(0, configInput.length() - 1); if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) saveConfig(); return true; }
     public boolean handleCharInput(char c) { if (!inputFocused || Character.isISOControl(c) || configInput.length() >= 32) return inputFocused; if (Character.isLetterOrDigit(c) || c == '_' || c == '-') configInput += c; return true; }
-    private void refreshConfigs() { configList = new ArrayList<>(ConfigManager.getConfigs()); configList.sort(Comparator.comparing(v -> v.toLowerCase(Locale.ROOT))); if (configSelected != null && configList.stream().noneMatch(v -> v.equalsIgnoreCase(configSelected))) configSelected = null; }
-    private void saveConfig() { String name = ConfigManager.sanitizeConfigName(configInput == null ? "" : configInput.trim()); if (name == null || name.isEmpty()) { showToast("配置名无效"); return; } if (ConfigManager.saveConfig(name)) { configSelected = name; configInput = name; refreshConfigs(); showToast("已保存"); } else showToast("保存失败"); }
-    private void loadConfig() { if (configSelected != null && ConfigManager.loadConfig(configSelected)) { configInput = configSelected; showToast("已加载"); } else showToast("请选择配置"); }
-    private void deleteConfig() { if (configSelected == null) { showToast("请选择配置"); return; } String key = "local:" + configSelected; if (!key.equals(deleteCandidate) || System.currentTimeMillis() >= deleteConfirmUntil) { deleteCandidate = key; deleteConfirmUntil = System.currentTimeMillis() + 2000L; showToast("再次点击确认删除"); return; } if (ConfigManager.deleteConfig(configSelected)) { configSelected = null; configInput = ""; refreshConfigs(); showToast("已删除"); } }
-    private void openConfigDirectory() { try { if (System.currentTimeMillis() < openDirCooldownUntil) return; openDirCooldownUntil = System.currentTimeMillis() + 1000L; File dir = ConfigManager.getConfigDir(); if (Desktop.isDesktopSupported()) Desktop.getDesktop().open(dir); else Runtime.getRuntime().exec(new String[]{"explorer.exe", dir.getAbsolutePath()}); } catch (Exception ignored) {} }
+    private void refreshConfigs() { configList = new ArrayList<>(configs().getConfigs()); configList.sort(Comparator.comparing(v -> v.toLowerCase(Locale.ROOT))); if (configSelected != null && configList.stream().noneMatch(v -> v.equalsIgnoreCase(configSelected))) configSelected = null; }
+    private void saveConfig() { String name = ConfigManager.sanitizeConfigName(configInput == null ? "" : configInput.trim()); if (name == null || name.isEmpty()) { showToast("配置名无效"); return; } if (configs().saveConfig(name)) { configSelected = name; configInput = name; refreshConfigs(); showToast("已保存"); } else showToast("保存失败"); }
+    private void loadConfig() { if (configSelected != null && configs().loadConfig(configSelected)) { configInput = configSelected; showToast("已加载"); } else showToast("请选择配置"); }
+    private void deleteConfig() { if (configSelected == null) { showToast("请选择配置"); return; } String key = "local:" + configSelected; if (!key.equals(deleteCandidate) || System.currentTimeMillis() >= deleteConfirmUntil) { deleteCandidate = key; deleteConfirmUntil = System.currentTimeMillis() + 2000L; showToast("再次点击确认删除"); return; } if (configs().deleteConfig(configSelected)) { configSelected = null; configInput = ""; refreshConfigs(); showToast("已删除"); } }
+    private void openConfigDirectory() { try { if (System.currentTimeMillis() < openDirCooldownUntil) return; openDirCooldownUntil = System.currentTimeMillis() + 1000L; File dir = configs().getConfigDir(); if (Desktop.isDesktopSupported()) Desktop.getDesktop().open(dir); else Runtime.getRuntime().exec(new String[]{"explorer.exe", dir.getAbsolutePath()}); } catch (Exception ignored) {} }
+    private ConfigManager configs() { return Core.INSTANCE.getConfigManager(); }
     private void showToast(String value) { toast = value; toastUntil = System.currentTimeMillis() + 2500L; }
     private boolean button(Canvas c, String label, float bx, float by, float bw, float mx, float my, boolean pressed) { boolean hover = mx >= bx && mx <= bx + bw && my >= by && my <= by + BUTTON_H; UiDraw.fillRRect(c, bx, by, bw, BUTTON_H, 10f, hover ? 0x22FFFFFF : 0x14000000); UiDraw.strokeRRect(c, bx, by, bw, BUTTON_H, 10f, 1f, 0x33FFFFFF); UiPaints.TEXT.setColor(0xFFFFFFFF); UiText.drawXY(c, FONT_TEXT, 14f, label, bx, by, bw, BUTTON_H, UiPaints.TEXT); return hover && pressed; }
     private String deleteLabel() { return deleteCandidate != null && System.currentTimeMillis() < deleteConfirmUntil ? "确认" : "删除"; }

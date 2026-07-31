@@ -1,6 +1,6 @@
 package cc.nimbus.ui.menu;
 
-import cc.nimbus.ui.alt.GuiAltManager;
+import cc.nimbus.ui.alt.AccountScreen;
 import cc.nimbus.utils.render.skija.image.minecraft.MinecraftSnapshot;
 import cc.nimbus.utils.render.skija.SkijaRenderTarget;
 import io.github.humbleui.skija.ClipMode;
@@ -127,7 +127,7 @@ public class TitleScreen extends Screen {
         switch (index) {
             case 0 -> minecraft.setScreenAndShow(new SelectWorldScreen(this));
             case 1 -> minecraft.setScreenAndShow(new JoinMultiplayerScreen(this));
-            case 2 -> minecraft.setScreenAndShow(new GuiAltManager(this));
+            case 2 -> minecraft.setScreenAndShow(new AccountScreen(this));
             case 3 -> minecraft.setScreenAndShow(new OptionsScreen(this, minecraft.options, true));
         }
     }

@@ -8,8 +8,8 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
-import cc.nimbus.module.ModuleManager;
-import cc.nimbus.module.impl.hud.PostProcess;
+import cc.nimbus.core.Core;
+import cc.nimbus.features.module.modules.hud.PostProcess;
 import cc.nimbus.utils.render.skija.create.Skia;
 import cc.nimbus.utils.render.skija.path.PathMerger;
 import cc.nimbus.utils.render.skija.surface.RefreshMode;
@@ -41,7 +41,7 @@ public final class PPHandler {
         }
 
         pathMerger.build(path -> {
-            PostProcess postProcess = ModuleManager.getInstance().getModule(PostProcess.class);
+            PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);
             if (postProcess == null || !postProcess.isEnabled()) {
                 return;
             }

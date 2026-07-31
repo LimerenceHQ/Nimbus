@@ -12,7 +12,8 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import cc.nimbus.command.CommandManager;
+import cc.nimbus.core.Core;
+import cc.nimbus.managers.CommandManager;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -37,7 +38,7 @@ public abstract class CommandSuggestionsMixin {
         input.setSuggestion(null);
 
         int cursor = input.getCursorPosition();
-        List<String> candidates = CommandManager.getInstance().getSuggestions(value.substring(0, cursor));
+        List<String> candidates = Core.INSTANCE.getCommandManager().getSuggestions(value.substring(0, cursor));
         if (candidates.isEmpty()) {
             pendingSuggestions = null;
             return;

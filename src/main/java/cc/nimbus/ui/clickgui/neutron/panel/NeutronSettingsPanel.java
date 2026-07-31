@@ -1,10 +1,9 @@
 package cc.nimbus.ui.clickgui.neutron.panel;
 
-import cc.nimbus.Nimbus;
-import cc.nimbus.config.ConfigManager;
-import cc.nimbus.module.BasicModule;
-import cc.nimbus.settings.Setting;
-import cc.nimbus.settings.impl.*;
+import cc.nimbus.core.Core;
+import cc.nimbus.features.module.api.BasicModule;
+import cc.nimbus.features.module.api.setting.Setting;
+import cc.nimbus.features.module.api.setting.impl.*;
 import cc.nimbus.ui.clickgui.neutron.widget.*;
 import cc.nimbus.ui.clickgui.neutron.NeutronActions;
 import cc.nimbus.ui.clickgui.neutron.NeutronState;
@@ -103,7 +102,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         float baseY = y + topPad;
 
         String query = state.searchText.toString().trim().toLowerCase(Locale.ROOT);
-        List<BasicModule> modules = Nimbus.INSTANCE.getModuleManager().getModulesByCategory(state.selectedCategory);
+        List<BasicModule> modules = Core.INSTANCE.getModuleManager().getModulesByCategory(state.selectedCategory);
         List<BasicModule> filtered = new ArrayList<>();
         for (BasicModule m : modules) {
             if (query.isEmpty() || matchesQuery(m, query)) {
@@ -180,7 +179,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         float localY = my + renderScrollY;
         ModuleCard hovered = findHoveredCard(mx, localY);
         if (hovered == null) return false;
-        for (BasicModule m : Nimbus.INSTANCE.getModuleManager().getModules()) {
+        for (BasicModule m : Core.INSTANCE.getModuleManager().getModules()) {
             m.changeKey = false;
         }
         if (state.bindingModule == hovered.module) {
@@ -246,7 +245,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
             card.module.toggle();
         }
         if (hoverKey && leftPressed) {
-            for (BasicModule m : Nimbus.INSTANCE.getModuleManager().getModules()) {
+            for (BasicModule m : Core.INSTANCE.getModuleManager().getModules()) {
                 m.changeKey = false;
             }
             if (state.bindingModule == card.module) {
@@ -270,8 +269,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         float cy = y + headerH + 6f;
         boolean hasSetting = false;
         for (Setting<?> setting : card.module.getSettings()) {
-            setting.invalidateVisibilityCache();
-            float visibleT = tickVisibility(setting, setting.isVisitable());
+            float visibleT = tickVisibility(setting, setting.isHidden());
             if (visibleT <= 0.001f) continue;
             hasSetting = true;
             boolean allowInteraction = (openedMode == null || openedMode == setting) && visibleT > 0.98f;
@@ -340,7 +338,6 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         UiDraw.fillRRect(canvas, kx, ty + 2f, knob, knob, knob / 2f, 0xFFFFFFFF);
         if (hover && leftPressed) {
             s.setValue(!s.getValue());
-            ConfigManager.markDirty();
         }
     }
 
@@ -358,7 +355,6 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         UiDraw.fillRRect(canvas, kx, ty + 2f, knob, knob, knob / 2f, 0xFFFFFFFF);
         if (hover && leftPressed) {
             s.setValue(!s.getValue());
-            ConfigManager.markDirty();
         }
     }
 
@@ -487,7 +483,6 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
 
         if (allowInteraction && leftPressed && toggleHover) {
             s.setRainbow(!s.isRainbow());
-            ConfigManager.markDirty();
         } else if (allowInteraction && leftPressed && headerHover) {
             openedMode = null;
             if (openedColor != null && openedColor != s) {
@@ -711,7 +706,6 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
                 setting.setAlphaValue(Math.round(a * 255f));
             }
         }
-        ConfigManager.markDirty();
     }
 
     private void processChipHits(boolean leftPressed, float mx, float my) {
@@ -719,7 +713,6 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         for (ChipHit hit : chipHits) {
             if (hit.contains(mx, my)) {
                 hit.setting.toggle(hit.mode);
-                ConfigManager.markDirty();
                 return;
             }
         }
@@ -730,7 +723,6 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
         for (ModeOptionHit hit : modeOptionHits) {
             if (hit.contains(mx, my)) {
                 hit.setting.setValue(hit.mode);
-                ConfigManager.markDirty();
                 openedMode = null;
                 return;
             }
@@ -786,8 +778,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
     private float measureModuleCardHeight(BasicModule module, float w) {
         float h = 32f + 6f;
         for (Setting<?> setting : module.getSettings()) {
-            setting.invalidateVisibilityCache();
-            float visibleT = tickVisibility(setting, setting.isVisitable());
+            float visibleT = tickVisibility(setting, setting.isHidden());
             if (visibleT <= 0.001f) continue;
             h += getSettingRowHeight(setting, w - 24f) * visibleT + 10f * visibleT;
         }
@@ -1010,7 +1001,6 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
             value = Math.round(value / inc) * inc;
         }
         setting.setValue(value);
-        ConfigManager.markDirty();
     }
 
     private void cycleMode(ModeSetting setting, boolean forward) {

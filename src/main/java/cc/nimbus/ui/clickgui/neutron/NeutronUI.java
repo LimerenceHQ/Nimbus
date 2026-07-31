@@ -1,6 +1,6 @@
 package cc.nimbus.ui.clickgui.neutron;
 
-import cc.nimbus.module.BasicModule;
+import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.ui.clickgui.neutron.panel.NeutronWindowPanel;
 import cc.nimbus.utils.client.input.Keyboard;
 import io.github.humbleui.skija.Canvas;
