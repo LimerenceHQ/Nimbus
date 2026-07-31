@@ -10,7 +10,6 @@ import cc.nimbus.utils.render.skija.internal.backend.SkijaSupport;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Single owner and entry point for Nimbus's Skija integration. */
 public final class SkijaRenderer implements AutoCloseable {
     private final Map<String, SkijaLayer> layers = new LinkedHashMap<>();
     private final SkijaHud hud = new SkijaHud(this);
