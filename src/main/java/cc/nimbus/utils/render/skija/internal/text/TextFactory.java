@@ -7,14 +7,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class TextFactory {
-    private static final @SuppressWarnings("all") String MEASURE_TEXT = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
     private record FontTextKey(String familyName, float size, String text) {}
 
     private static final int MAX_MEASUREMENTS = 4096;
     private static final Map<FontTextKey, Float> TEXT_WIDTH_CACHE = boundedCache();
-    private static final Map<FontTextKey, Float> TEXT_HEIGHT_CACHE = boundedCache();
-
     private static final Paint SHADOW_PAINT = new Paint().setAntiAlias(true);
 
     private TextFactory() {
@@ -29,22 +25,17 @@ public final class TextFactory {
     }
 
     public static synchronized float getTextHeight(String familyName, float size, String text) {
-        FontTextKey key = new FontTextKey(familyName, size, text);
-        return TEXT_HEIGHT_CACHE.computeIfAbsent(key, k -> {
-            Font font = FontFamily.getCachedFont(familyName, size);
-            return font.measureText(text).getHeight();
-        });
+        return FontFamily.getCachedFont(familyName, size).getMetrics().getHeight();
     }
 
     public static float getTextHeight(String familyName, float size) {
-        return getTextHeight(familyName, size, MEASURE_TEXT);
+        return getTextHeight(familyName, size, "");
     }
 
     @ApiStatus.Internal
     private static void drawGlyphsSplice(Canvas canvas, String familyName, float size, String text, float x, float y, Paint paint) {
         Font font = FontFamily.getCachedFont(familyName, size);
-        float rY = y + getTextHeight(familyName, size) / 1.5F;
-        canvas.drawString(text, x, rY, font, paint);
+        canvas.drawString(text, x, TextLayout.baselineFromTop(font, y), font, paint);
     }
 
     public static void drawText(Canvas canvas, String family, float size, String text, float x, float y, Paint paint) {

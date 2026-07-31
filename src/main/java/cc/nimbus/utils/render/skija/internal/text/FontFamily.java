@@ -7,7 +7,6 @@ import io.github.humbleui.skija.paragraph.TypefaceFontProvider;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,9 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class FontFamily {
     private FontFamily() {
     }
-
-    @ApiStatus.Internal
-    private static final ArrayList<String> FAMILY_LIST = new ArrayList<>();
 
     @ApiStatus.Internal
     private static final Map<String, Typeface> TYPEFACE_CACHE = new ConcurrentHashMap<>();
@@ -43,7 +39,6 @@ public final class FontFamily {
 
         Typeface typeface = FontMgr.getDefault().makeFromData(data);
         FONT_PROVIDER.registerTypeface(typeface, familyName);
-        FAMILY_LIST.add(familyName);
         TYPEFACE_CACHE.put(familyName, typeface);
     }
 

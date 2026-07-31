@@ -88,7 +88,7 @@ public class GuiRendererMixin {
 
     @Inject(method = "close", at = @At("HEAD"))
     private void nimbus$close(CallbackInfo ci) {
-        if (nimbus$hudLayer != null) nimbus$hudLayer.close();
+        if (nimbus$hudLayer != null) nimbus$hudLayer.releaseTarget();
         nimbus$hudLayer = null;
         if (nimbus$renderer != null) nimbus$renderer.close();
         nimbus$renderer = null; nimbus$state = null;

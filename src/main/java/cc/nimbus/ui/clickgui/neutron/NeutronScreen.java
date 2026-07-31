@@ -134,7 +134,7 @@ public final class NeutronScreen extends Screen {
     public void removed() {
         if (!resourcesReleased) {
             resourcesReleased = true;
-            layer.close();
+            layer.releaseTarget();
             UiPaints.close();
         }
         super.removed();

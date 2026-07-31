@@ -1,8 +1,9 @@
 package cc.nimbus.utils.render.skija.api;
 
+import cc.nimbus.utils.render.skija.internal.text.FontFamily;
 import cc.nimbus.utils.render.skija.internal.text.TextFactory;
+import cc.nimbus.utils.render.skija.internal.text.TextLayout;
 import io.github.humbleui.skija.Canvas;
-import io.github.humbleui.skija.FontMetrics;
 import io.github.humbleui.skija.Paint;
 
 public final class SkijaText {
@@ -52,16 +53,16 @@ public final class SkijaText {
 
     public void leftY(String family, float size, String text, float x, float y, float height, Paint paint) {
         if (text == null) text = "";
-        var font = cc.nimbus.utils.render.skija.internal.text.FontFamily.getCachedFont(family, size);
-        canvas.drawString(text, x, baseline(y, height, font.getMetrics()), font, paint);
+        var font = FontFamily.getCachedFont(family, size);
+        canvas.drawString(text, x, TextLayout.baselineInBox(font, y, height), font, paint);
     }
 
     public void box(String family, float size, String text, float x, float y, float width, float height, Paint paint) {
         if (text == null) text = "";
-        var font = cc.nimbus.utils.render.skija.internal.text.FontFamily.getCachedFont(family, size);
+        var font = FontFamily.getCachedFont(family, size);
         canvas.drawString(text,
                 x + (width - font.measureTextWidth(text)) / 2f,
-                baseline(y, height, font.getMetrics()),
+                TextLayout.baselineInBox(font, y, height),
                 font, paint);
     }
 
@@ -75,7 +76,4 @@ public final class SkijaText {
         return new Paint().setAntiAlias(true).setColor(color);
     }
 
-    private static float baseline(float y, float height, FontMetrics metrics) {
-        return y + (height - metrics.getHeight()) / 2f - metrics.getAscent();
-    }
 }

@@ -138,7 +138,7 @@ public class TitleScreen extends Screen {
 
     @Override public boolean keyPressed(KeyEvent event) { if (event.key() == GLFW.GLFW_KEY_ESCAPE) { onClose(); return true; } return super.keyPressed(event); }
     @Override public boolean isPauseScreen() { return false; }
-    @Override public void removed() { layer.close(); super.removed(); }
+    @Override public void removed() { layer.releaseTarget(); super.removed(); }
     @Override public void onClose() { minecraft.setScreenAndShow(null); }
     private static float toFramebufferX(double x, int guiWidth, int framebufferWidth) { return guiWidth > 0 ? (float) (x * framebufferWidth / guiWidth) : (float) x; }
     private static float toFramebufferY(double y, int guiHeight, int framebufferHeight) { return guiHeight > 0 ? (float) (y * framebufferHeight / guiHeight) : (float) y; }

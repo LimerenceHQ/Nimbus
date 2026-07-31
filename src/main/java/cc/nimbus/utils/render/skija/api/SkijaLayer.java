@@ -29,6 +29,10 @@ public final class SkijaLayer implements AutoCloseable {
         target.clear();
     }
 
+    public void releaseTarget() {
+        target.close();
+    }
+
     public void extract(GuiGraphicsExtractor graphics, int width, int height) {
         Objects.requireNonNull(graphics, "graphics");
         ensure(width, height);
