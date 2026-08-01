@@ -11,8 +11,10 @@ Nimbus.onInitializeClient()
 └─ Core.INSTANCE.init(configDir)
    ├─ RenderManager
    ├─ ModuleManager
+   ├─ HudManager
    ├─ ConfigManager
    ├─ AccountManager
+   ├─ MusicManager
    └─ CommandManager
 ```
 
@@ -75,19 +77,23 @@ default Core core() {
 ```text
 1. RenderManager
 2. ModuleManager
-3. ConfigManager
-4. AccountManager
-5. CommandManager
+3. HudManager
+4. ConfigManager
+5. AccountManager
+6. MusicManager
+7. CommandManager
 ```
 
 shutdown 使用相反顺序：
 
 ```text
 1. CommandManager
-2. AccountManager
-3. ConfigManager
-4. ModuleManager
-5. RenderManager
+2. MusicManager
+3. AccountManager
+4. ConfigManager
+5. HudManager
+6. ModuleManager
+7. RenderManager
 ```
 
 Core 先用局部变量创建全部 Manager，全部成功后才提交到字段：
@@ -205,8 +211,10 @@ public ExampleManager getExampleManager() {
 |---|---|---|
 | `RenderManager` | 持有 `SkijaRenderer`，初始化和关闭渲染子系统 | 无 |
 | `ModuleManager` | Module 注册、索引、按键映射和自动启用 | EventBus |
+| `HudManager` | HUD 元素注册、编辑状态和拖拽布局 | ModuleManager、RenderManager |
 | `ConfigManager` | Module/Setting 配置、自动保存和配置文件切换 | ModuleManager、EventBus |
 | `AccountManager` | Alt 账户列表、最后账户、登录与账户文件 | Minecraft client |
+| `MusicManager` | 网易云账号、歌曲数据、播放队列、音频/图片缓存和播放器生命周期 | EventBus、Minecraft client |
 | `CommandManager` | Command 注册、执行、建议和聊天拦截 | EventBus |
 
 Manager 之间只能通过明确依赖协作。不要把所有 Manager 互相注入，也不要让 Core 变成业务中转站。
@@ -510,7 +518,32 @@ SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
 
 功能不得创建自己的 Renderer。详细渲染规则见 `docs/skija-architecture.md`。
 
-## 13. 对外 API 约定
+## 13. MusicManager
+
+音乐子系统的唯一进程入口是：
+
+```java
+MusicManager music = Core.INSTANCE.getMusicManager();
+```
+
+功能代码只通过 `MusicManager` 搜索、播放、控制队列、读取歌词、管理账号和获取封面。不要直接实例化 `NeteaseApi`、`AudioCache`、`ArtworkCache` 或 `PlaybackController`；这些对象由 `MusicManager` 创建、共享并在 shutdown 时统一释放。
+
+音乐数据位于 Fabric config directory 下：
+
+```text
+nimbus/music/
+├─ music.json
+├─ login-qr.png
+└─ cache/
+```
+
+- `music.json` 保存 cookie、音质、音量、倍速、播放模式、预下载、缓存上限和组合键。
+- `login-qr.png` 仅在二维码登录请求后生成，退出登录时删除。
+- `cache/` 保存下载或转换后的音频，由 `MusicManager` 负责裁剪和清理。
+- 网易云请求、文件 IO 和播放分别使用 Manager 拥有的线程资源；调用者不得自行关闭这些资源。
+- 当前 `.music` 指令是功能验证入口，不应复制一套音乐状态到 Command 内。
+
+## 14. 对外 API 约定
 
 Manager 对外 API 应遵循：
 
@@ -521,7 +554,7 @@ Manager 对外 API 应遵循：
 - 修改操作集中在 Manager，不允许调用者直接修改 registry。
 - 需要线程安全的共享状态使用同步边界，不让半更新索引泄漏。
 
-## 14. AI 修改检查表
+## 15. AI 修改检查表
 
 新增 Manager 前：
 
@@ -553,7 +586,7 @@ Manager 对外 API 应遵循：
 - 是否加入逆序 shutdown？
 - 是否避免 Manager init 期间调用未提交 Core getter？
 
-## 15. 验证
+## 16. 验证
 
 至少执行：
 
@@ -573,4 +606,6 @@ git diff --check
 - 配置写入中断不会破坏原文件。
 - Command 执行、引号解析和 Tab suggestion 正常。
 - Account 保存、删除和最后账户一致。
+- MusicManager 搜索、登录、播放控制和缓存操作能通过 `.music` 指令执行。
+- MusicManager shutdown 后停止播放、保存配置并关闭自有线程和 HTTP 资源。
 - RenderManager shutdown 后没有重复关闭错误。

@@ -7,6 +7,7 @@ import cc.nimbus.managers.CommandManager;
 import cc.nimbus.managers.ConfigManager;
 import cc.nimbus.managers.HudManager;
 import cc.nimbus.managers.ModuleManager;
+import cc.nimbus.managers.MusicManager;
 import cc.nimbus.managers.RenderManager;
 
 import java.nio.file.Path;
@@ -23,6 +24,7 @@ public enum Core {
     private AccountManager accountManager;
     private RenderManager renderManager;
     private HudManager hudManager;
+    private MusicManager musicManager;
     private boolean initialized;
 
     public synchronized void init(Path fabricConfigDirectory) {
@@ -35,8 +37,9 @@ public enum Core {
         HudManager hud = new HudManager(modules, renders);
         ConfigManager configs = new ConfigManager(nimbusDirectory.resolve("configs"), modules);
         AccountManager accounts = new AccountManager(nimbusDirectory.resolve("accounts"));
+        MusicManager music = new MusicManager(nimbusDirectory.resolve("music"));
         CommandManager commands = new CommandManager();
-        List<InstanceManager> started = new ArrayList<>(6);
+        List<InstanceManager> started = new ArrayList<>(7);
 
         EventBus.clear();
         try {
@@ -45,6 +48,7 @@ public enum Core {
             start(hud, started);
             start(configs, started);
             start(accounts, started);
+            start(music, started);
             start(commands, started);
         } catch (RuntimeException error) {
             shutdownReverse(started, error);
@@ -57,6 +61,7 @@ public enum Core {
         hudManager = hud;
         configManager = configs;
         accountManager = accounts;
+        musicManager = music;
         commandManager = commands;
         initialized = true;
     }
@@ -67,9 +72,10 @@ public enum Core {
         RuntimeException failure = shutdownReverse(List.of(
                 renderManager,
                 moduleManager,
-                configManager,
                 hudManager,
+                configManager,
                 accountManager,
+                musicManager,
                 commandManager
         ), null);
         try {
@@ -81,6 +87,7 @@ public enum Core {
             hudManager = null;
             configManager = null;
             accountManager = null;
+            musicManager = null;
             commandManager = null;
             initialized = false;
         }
@@ -126,7 +133,13 @@ public enum Core {
         return requireInitialized(renderManager, "RenderManager");
     }
 
-    public HudManager getHudManager() {return requireInitialized(hudManager, "HudManager");}
+    public MusicManager getMusicManager() {
+        return requireInitialized(musicManager, "MusicManager");
+    }
+
+    public HudManager getHudManager() {
+        return requireInitialized(hudManager, "HudManager");
+    }
 
     public boolean isInitialized() {
         return initialized;

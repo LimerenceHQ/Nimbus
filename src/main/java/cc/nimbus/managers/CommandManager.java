@@ -11,6 +11,7 @@ import cc.nimbus.features.command.commands.ConfigCommand;
 import cc.nimbus.features.command.commands.HelpCommand;
 import cc.nimbus.features.command.commands.HideCommand;
 import cc.nimbus.features.command.commands.ModulesCommand;
+import cc.nimbus.features.command.commands.MusicCommand;
 import cc.nimbus.features.command.commands.ProfileCommand;
 import cc.nimbus.features.command.commands.ToggleCommand;
 import cc.nimbus.utils.client.MessageUtils;
@@ -39,6 +40,7 @@ public final class CommandManager implements InstanceManager {
             register(new HelpCommand());
             register(new HideCommand());
             register(new ModulesCommand());
+            register(new MusicCommand());
             register(new ProfileCommand());
             register(new ToggleCommand());
             EventBus.register(this);
