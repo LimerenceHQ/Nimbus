@@ -13,6 +13,8 @@ import cc.nimbus.utils.helper.Schedulers;
 public final class Nimbus implements ClientModInitializer {
     public static final String NAME = "Nimbus";
     public static final String VERSION = "0.2";
+    public static final String AUTHOR = "Limerence";
+
     private static volatile boolean initialized;
 
     public Nimbus() {}
