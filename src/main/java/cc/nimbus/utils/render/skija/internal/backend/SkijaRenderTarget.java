@@ -1,13 +1,15 @@
 package cc.nimbus.utils.render.skija.internal.backend;
 
 import com.mojang.blaze3d.GpuFormat;
+import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.*;
 import io.github.humbleui.skija.Canvas;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
-import org.joml.Vector4f;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL30;
 import cc.nimbus.utils.render.skija.internal.backend.gl.States;
 import cc.nimbus.utils.render.skija.internal.backend.SkijaBackend;
@@ -33,6 +35,8 @@ public final class SkijaRenderTarget implements AutoCloseable {
             SkijaBackend.INSTANCE.update(framebuffer, this.width, this.height);
             return;
         }
+        int previousActiveTexture = GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
+        int previousTexture = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
         States.push();
         int previousDrawFramebuffer = GL30.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
         int previousReadFramebuffer = GL30.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
@@ -63,13 +67,28 @@ public final class SkijaRenderTarget implements AutoCloseable {
             GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, previousDrawFramebuffer);
             GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, previousReadFramebuffer);
             States.pop();
+            GlStateManager._activeTexture(previousActiveTexture);
+            GlStateManager._bindTexture(0);
+            GlStateManager._bindTexture(previousTexture);
         }
     }
 
     public void clear() {
         RenderSystem.assertOnRenderThread();
-        if (registeredTexture != null) {
-            RenderSystem.getDevice().createCommandEncoder().clearColorTexture(registeredTexture.getTexture(), new Vector4f(0, 0, 0, 0));
+        if (registeredTexture == null) return;
+        States.push();
+        int previousDrawFramebuffer = GL30.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        int previousReadFramebuffer = GL30.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+        try {
+            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer);
+            GL30.glDisable(GL30.GL_SCISSOR_TEST);
+            GL30.glColorMask(true, true, true, true);
+            GL30.glClearColor(0f, 0f, 0f, 0f);
+            GL30.glClear(GL30.GL_COLOR_BUFFER_BIT);
+        } finally {
+            GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, previousDrawFramebuffer);
+            GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, previousReadFramebuffer);
+            States.pop();
         }
     }
 

@@ -75,7 +75,6 @@ public class GuiRendererMixin {
             if (options.blurEnabled()) {
                 skija.captureScene(options.blurRefreshRate());
             }
-            nimbus$hudLayer.clear();
             EventBus.call(new EventRender2D(graphics));
             int windowRefreshRate = minecraft.getWindow().getRefreshRate();
             int refreshRate = windowRefreshRate > 0 ? windowRefreshRate : 165;
