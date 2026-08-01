@@ -35,6 +35,8 @@ import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
 public final class MusicManager implements InstanceManager {
+    private static final long SMS_RESEND_MILLIS = 60_000L;
+    private static final long SMS_EXPIRE_MILLIS = 10 * 60_000L;
     private final Path directory;
     private MusicConfig config;
     private NeteaseApi api;
@@ -47,6 +49,7 @@ public final class MusicManager implements InstanceManager {
     private volatile List<Playlist> playlists = List.of();
     private volatile Set<Long> likedIds = Set.of();
     private volatile NeteaseApi.QrLogin activeQr;
+    private volatile SmsSession activeSms;
     private volatile boolean initialized;
 
     public MusicManager(Path directory) { this.directory = Objects.requireNonNull(directory, "directory"); }
@@ -101,23 +104,30 @@ public final class MusicManager implements InstanceManager {
     public CompletableFuture<Music> song(long id) { return async(() -> api().song(requireId(id))); }
     public CompletableFuture<Playlist> playlist(long id) { return async(() -> api().playlist(requireId(id))); }
     public CompletableFuture<List<Music>> playlistSongs(long id) { return async(() -> api().playlistSongs(requireId(id))); }
-    public CompletableFuture<List<Playlist>> recommendedPlaylists() { return async(() -> api().recommendedPlaylists()); }
-    public CompletableFuture<List<Music>> recommendedSongs() { return async(() -> api().recommendedSongs()); }
+    public CompletableFuture<List<Playlist>> dailyRecommendedPlaylists() { return async(() -> api().dailyRecommendedPlaylists()); }
+    public CompletableFuture<List<Music>> dailyRecommendedSongs() { return async(() -> api().dailyRecommendedSongs()); }
+    public CompletableFuture<List<Music>> intelligentSongs(long songId, long playlistId, long startMusicId, int count) {
+        return async(() -> api().intelligentSongs(requireId(songId), requireId(playlistId), requireId(startMusicId), count));
+    }
+    public CompletableFuture<List<Music>> playIntelligent(long songId, long playlistId, int count) {
+        long seedId = requireId(songId);
+        long sourceId = requireId(playlistId);
+        return async(() -> {
+            Music seed = api().song(seedId);
+            if (seed == null) throw new IllegalStateException("Music not found: " + seedId);
+            LinkedHashSet<Music> queue = new LinkedHashSet<>();
+            queue.add(seed);
+            queue.addAll(api().intelligentSongs(seedId, sourceId, seedId, count));
+            return List.copyOf(queue);
+        }).thenApply(queue -> {
+            playback().play(queue, 0);
+            return queue;
+        });
+    }
     public CompletableFuture<Lyrics> lyrics(long id) { return async(() -> api().lyrics(requireId(id))); }
 
     public CompletableFuture<User> refreshAccount() {
-        return async(() -> {
-            User user = api().profile();
-            profile = user;
-            if (user == null) {
-                playlists = List.of();
-                likedIds = Set.of();
-                return null;
-            }
-            playlists = api().userPlaylists(user.id(), 100);
-            likedIds = Set.copyOf(api().likedIds(user.id()));
-            return user;
-        });
+        return async(this::loadAccount);
     }
     public User profile() { return profile; }
     public List<Playlist> accountPlaylists() { return playlists; }
@@ -163,22 +173,49 @@ public final class MusicManager implements InstanceManager {
         return async(() -> {
             NeteaseApi.QrStatus status = api().checkQrLogin(login.key());
             if (status.code() == 803 && !status.cookie().isBlank()) {
-                api().cookie(status.cookie());
-                config().cookie(status.cookie());
-                config().save();
+                completeLogin(status.cookie());
                 activeQr = null;
-                User user = api().profile();
-                profile = user;
-                if (user != null) {
-                    playlists = api().userPlaylists(user.id(), 100);
-                    likedIds = Set.copyOf(api().likedIds(user.id()));
-                }
             }
             return status;
         });
     }
     public NeteaseApi.QrLogin activeQr() { return activeQr; }
     public Path qrImage() { return directory.resolve("login-qr.png"); }
+
+    public synchronized CompletableFuture<NeteaseApi.SmsStatus> requestSmsLogin(String phone, String countryCode) {
+        requireInitialized();
+        String normalizedPhone = digits(phone, "phone", 5, 15);
+        String normalizedCountry = digits(countryCode == null || countryCode.isBlank() ? "86" : countryCode,
+                "country code", 1, 4);
+        long now = System.currentTimeMillis();
+        SmsSession previous = activeSms;
+        if (previous != null && now - previous.sentAt() < SMS_RESEND_MILLIS) {
+            long seconds = (SMS_RESEND_MILLIS - (now - previous.sentAt()) + 999L) / 1000L;
+            return CompletableFuture.failedFuture(new IllegalStateException("Please wait " + seconds + " seconds before resending"));
+        }
+        SmsSession session = new SmsSession(normalizedPhone, normalizedCountry, now);
+        activeSms = session;
+        return async(() -> api().sendSms(session.phone(), session.countryCode())).whenComplete((status, error) -> {
+            if (error != null || status == null || !status.successful()) clearSms(session);
+        });
+    }
+    public CompletableFuture<NeteaseApi.SmsLogin> completeSmsLogin(String captcha) {
+        SmsSession session = activeSms;
+        if (session == null) return CompletableFuture.failedFuture(new IllegalStateException("No active SMS login"));
+        if (System.currentTimeMillis() - session.sentAt() > SMS_EXPIRE_MILLIS) {
+            clearSms(session);
+            return CompletableFuture.failedFuture(new IllegalStateException("SMS login expired"));
+        }
+        String normalizedCaptcha = digits(captcha, "captcha", 4, 8);
+        return async(() -> {
+            NeteaseApi.SmsLogin result = api().loginWithSms(session.phone(), session.countryCode(), normalizedCaptcha);
+            if (result.successful()) {
+                completeLogin(result.cookie());
+                clearSms(session);
+            }
+            return result;
+        });
+    }
     public synchronized void logout() {
         requireInitialized();
         playback.stop();
@@ -189,6 +226,7 @@ public final class MusicManager implements InstanceManager {
         playlists = List.of();
         likedIds = Set.of();
         activeQr = null;
+        activeSms = null;
         try { Files.deleteIfExists(qrImage()); } catch (Exception ignored) {}
     }
 
@@ -286,6 +324,19 @@ public final class MusicManager implements InstanceManager {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(name + " cannot be empty");
         return value.trim();
     }
+    private static String digits(String value, String name, int minimum, int maximum) {
+        if (value == null) throw new IllegalArgumentException(name + " cannot be empty");
+        StringBuilder result = new StringBuilder(value.length());
+        for (int index = 0; index < value.length(); index++) {
+            char current = value.charAt(index);
+            if (Character.isDigit(current)) result.append(current);
+            else if (!Character.isWhitespace(current) && current != '+' && current != '-' && current != '(' && current != ')') {
+                throw new IllegalArgumentException("Invalid " + name);
+            }
+        }
+        if (result.length() < minimum || result.length() > maximum) throw new IllegalArgumentException("Invalid " + name);
+        return result.toString();
+    }
     private static ThreadFactory threads(String name) {
         AtomicInteger index = new AtomicInteger();
         return task -> {
@@ -303,6 +354,44 @@ public final class MusicManager implements InstanceManager {
         Minecraft minecraft = Minecraft.getInstance();
         long window = minecraft.getWindow().handle();
         return java.util.Arrays.stream(keys).allMatch(key -> key == pressed || GLFW.glfwGetKey(window, key) == GLFW.GLFW_PRESS);
+    }
+    private User loadAccount() {
+        AccountData account = fetchAccount();
+        applyAccount(account);
+        return account.user();
+    }
+    private AccountData fetchAccount() {
+        User user = api().profile();
+        if (user == null) return new AccountData(null, List.of(), Set.of());
+        return new AccountData(user, api().userPlaylists(user.id(), 100), Set.copyOf(api().likedIds(user.id())));
+    }
+    private void applyAccount(AccountData account) {
+        profile = account.user();
+        playlists = account.playlists();
+        likedIds = account.likedIds();
+    }
+    private User completeLogin(String loginCookie) {
+        String value = requireText(loginCookie, "cookie");
+        String previousApiCookie = api().cookie();
+        String previousConfigCookie = config().cookie();
+        api().cookie(value);
+        try {
+            AccountData account = fetchAccount();
+            if (account.user() == null) throw new IllegalStateException("Netease login did not return an account");
+            config().cookie(value);
+            config().save();
+            applyAccount(account);
+            activeQr = null;
+            activeSms = null;
+            return account.user();
+        } catch (RuntimeException error) {
+            api().cookie(previousApiCookie);
+            config().cookie(previousConfigCookie);
+            throw error;
+        }
+    }
+    private synchronized void clearSms(SmsSession session) {
+        if (activeSms == session) activeSms = null;
     }
     private void shutdownPartial() {
         initialized = false;
@@ -323,5 +412,14 @@ public final class MusicManager implements InstanceManager {
         playlists = List.of();
         likedIds = Set.of();
         activeQr = null;
+        activeSms = null;
+    }
+
+    private record SmsSession(String phone, String countryCode, long sentAt) {}
+    private record AccountData(User user, List<Playlist> playlists, Set<Long> likedIds) {
+        private AccountData {
+            playlists = List.copyOf(playlists);
+            likedIds = Set.copyOf(likedIds);
+        }
     }
 }

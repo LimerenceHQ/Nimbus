@@ -13,6 +13,7 @@ import com.google.gson.JsonObject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -59,19 +60,24 @@ public final class NeteaseApi implements AutoCloseable {
         List<Music> result = new ArrayList<>();
         for (int start = 0; start < ids.size(); start += 500) {
             List<Long> page = ids.subList(start, Math.min(ids.size(), start + 500));
-            String entries = page.stream().map(id -> "{\"id\":" + id + "}").reduce((left, right) -> left + "," + right).orElse("");
-            JsonObject body = request("/api/v3/song/detail", Map.of("c", "[" + entries + "]"), NeteaseHttp.Crypto.WEAPI).body();
+            JsonArray entries = new JsonArray(page.size());
+            for (long id : page) {
+                JsonObject entry = new JsonObject();
+                entry.addProperty("id", id);
+                entries.add(entry);
+            }
+            JsonObject body = request("/api/v3/song/detail", Map.of("c", GSON.toJson(entries)), NeteaseHttp.Crypto.WEAPI).body();
             result.addAll(mapArray(body, "songs", Music.class));
         }
         return List.copyOf(result);
     }
 
     public Playlist playlist(long id) {
-        JsonObject value = object(request("/api/v6/playlist/detail", Map.of("id", id, "n", 100000), NeteaseHttp.Crypto.EAPI).body(), "playlist");
+        JsonObject value = object(request("/api/v6/playlist/detail", playlistDetail(id), NeteaseHttp.Crypto.EAPI).body(), "playlist");
         return value == null ? null : GSON.fromJson(value, Playlist.class);
     }
     public List<Music> playlistSongs(long id) {
-        JsonObject playlist = object(request("/api/v6/playlist/detail", Map.of("id", id, "n", 100000), NeteaseHttp.Crypto.EAPI).body(), "playlist");
+        JsonObject playlist = object(request("/api/v6/playlist/detail", playlistDetail(id), NeteaseHttp.Crypto.EAPI).body(), "playlist");
         if (playlist == null) return List.of();
         JsonArray trackIds = array(playlist, "trackIds");
         if (trackIds == null) return List.of();
@@ -94,7 +100,7 @@ public final class NeteaseApi implements AutoCloseable {
         return List.copyOf(result);
     }
     public boolean like(long id, boolean liked) {
-        return request("/api/radio/like", Map.of("alg", "itembased", "trackId", id, "like", liked, "time", 3), NeteaseHttp.Crypto.WEAPI).successful();
+        return request("/api/radio/like", Map.of("alg", "itembased", "trackId", id, "like", liked, "time", "3"), NeteaseHttp.Crypto.WEAPI).successful();
     }
     public boolean editPlaylist(long playlistId, long musicId, boolean add) {
         Map<String, Object> data = Map.of("op", add ? "add" : "del", "pid", playlistId,
@@ -108,17 +114,38 @@ public final class NeteaseApi implements AutoCloseable {
         return response.successful();
     }
 
-    public List<Playlist> recommendedPlaylists() {
+    public List<Playlist> dailyRecommendedPlaylists() {
         return mapArray(request("/api/v1/discovery/recommend/resource", Map.of(), NeteaseHttp.Crypto.WEAPI).body(), "recommend", Playlist.class);
     }
-    public List<Music> recommendedSongs() {
+    public List<Music> dailyRecommendedSongs() {
         JsonObject data = object(request("/api/v3/discovery/recommend/songs", Map.of(), NeteaseHttp.Crypto.WEAPI).body(), "data");
         return data == null ? List.of() : mapArray(data, "dailySongs", Music.class);
+    }
+    public List<Music> intelligentSongs(long songId, long playlistId, long startMusicId, int count) {
+        Map<String, Object> data = Map.of(
+                "songId", songId,
+                "type", "fromPlayOne",
+                "playlistId", playlistId,
+                "startMusicId", startMusicId,
+                "count", Math.max(1, Math.min(100, count))
+        );
+        JsonArray values = array(request("/api/playmode/intelligence/list", data, NeteaseHttp.Crypto.EAPI).body(), "data");
+        if (values == null) return List.of();
+        Map<Long, Music> songs = new LinkedHashMap<>();
+        for (JsonElement value : values) {
+            if (!value.isJsonObject()) continue;
+            JsonObject item = value.getAsJsonObject();
+            JsonElement song = item.has("songInfo") ? item.get("songInfo") : item;
+            if (!song.isJsonObject()) continue;
+            Music music = GSON.fromJson(song, Music.class);
+            if (music.id() > 0L) songs.putIfAbsent(music.id(), music);
+        }
+        return List.copyOf(songs.values());
     }
 
     public Lyrics lyrics(long id) {
         Map<String, Object> data = Map.of("id", id, "cp", false, "tv", 0, "lv", 0, "rv", 0,
-                "kv", 0, "yv", -1, "ytv", -1, "yrv", -1);
+                "kv", 0, "yv", 0, "ytv", 0, "yrv", 0);
         JsonObject body = request("/api/song/lyric/v1", data, NeteaseHttp.Crypto.EAPI).body();
         return new Lyrics(lyric(body, "lrc"), lyric(body, "yrc"), lyric(body, "tlyric"), lyric(body, "romalrc"));
     }
@@ -149,8 +176,30 @@ public final class NeteaseApi implements AutoCloseable {
     public QrStatus checkQrLogin(String key) {
         NeteaseHttp.Response response = request("/api/login/qrcode/client/login", Map.of("key", key, "type", 3), NeteaseHttp.Crypto.EAPI);
         int code = response.body().has("code") ? response.body().get("code").getAsInt() : -1;
-        String newCookie = response.cookies().isEmpty() ? "" : String.join(";", response.cookies());
-        return new QrStatus(code, newCookie);
+        return new QrStatus(code, response.cookie());
+    }
+
+    public SmsStatus sendSms(String phone, String countryCode) {
+        Map<String, Object> data = Map.of(
+                "cellphone", phone,
+                "ctcode", countryCode,
+                "secrete", "music_middleuser_pclogin"
+        );
+        JsonObject body = request("/api/sms/captcha/sent", data, NeteaseHttp.Crypto.WEAPI).body();
+        return new SmsStatus(code(body), message(body));
+    }
+    public SmsLogin loginWithSms(String phone, String countryCode, String captcha) {
+        Map<String, Object> data = Map.of(
+                "type", "1",
+                "https", "true",
+                "phone", phone,
+                "countrycode", countryCode,
+                "captcha", captcha,
+                "remember", "true",
+                "secureCaptcha", ""
+        );
+        NeteaseHttp.Response response = request("/api/w/login/cellphone", data, NeteaseHttp.Crypto.WEAPI);
+        return new SmsLogin(code(response.body()), message(response.body()), response.cookie());
     }
 
     private NeteaseHttp.Response request(String uri, Object data, NeteaseHttp.Crypto crypto) {
@@ -159,6 +208,17 @@ public final class NeteaseApi implements AutoCloseable {
     private static String lyric(JsonObject body, String key) {
         JsonObject value = object(body, key);
         return value == null || !value.has("lyric") || value.get("lyric").isJsonNull() ? "" : value.get("lyric").getAsString();
+    }
+    private static Map<String, Object> playlistDetail(long id) { return Map.of("id", id, "n", 100000, "s", 8); }
+    private static int code(JsonObject body) {
+        return body != null && body.has("code") && !body.get("code").isJsonNull() ? body.get("code").getAsInt() : -1;
+    }
+    private static String message(JsonObject body) {
+        if (body == null) return "";
+        for (String key : List.of("message", "msg")) {
+            if (body.has(key) && !body.get(key).isJsonNull()) return body.get(key).getAsString();
+        }
+        return "";
     }
     private static JsonObject object(JsonObject source, String key) {
         return source != null && source.has(key) && source.get(key).isJsonObject() ? source.getAsJsonObject(key) : null;
@@ -185,4 +245,12 @@ public final class NeteaseApi implements AutoCloseable {
     public record AudioUrl(String url, String type, long sizeBytes, long durationMs) {}
     public record QrLogin(String key, String url) {}
     public record QrStatus(int code, String cookie) {}
+    public record SmsStatus(int code, String message) {
+        public SmsStatus { message = message == null ? "" : message; }
+        public boolean successful() { return code == 200; }
+    }
+    public record SmsLogin(int code, String message, String cookie) {
+        public SmsLogin { message = message == null ? "" : message; cookie = cookie == null ? "" : cookie; }
+        public boolean successful() { return code == 200 && !cookie.isBlank(); }
+    }
 }

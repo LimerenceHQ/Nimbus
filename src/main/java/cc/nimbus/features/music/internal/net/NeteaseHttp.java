@@ -21,6 +21,10 @@ public final class NeteaseHttp implements AutoCloseable {
     private static final String WEB = "https://music.163.com";
     private static final String API = "https://interfacepc.music.163.com";
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36";
+    private final String ntesNuid = random(32);
+    private final String ntesNnid = ntesNuid + ',' + System.currentTimeMillis();
+    private final String wnmcid = random(6) + "." + System.currentTimeMillis() + ".01.0";
+    private final String deviceId = random(26).toUpperCase();
     private final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -30,6 +34,7 @@ public final class NeteaseHttp implements AutoCloseable {
         try {
             Map<String, String> cookies = parseCookies(cookieString);
             defaults(cookies);
+            if (!uri.contains("login")) cookies.putIfAbsent("NMTID", random(16));
             Map<String, String> headers = new LinkedHashMap<>();
             headers.put("User-Agent", USER_AGENT);
 
@@ -93,18 +98,17 @@ public final class NeteaseHttp implements AutoCloseable {
         return cookies;
     }
 
-    private static void defaults(Map<String, String> cookies) {
-        String id = random(32);
+    private void defaults(Map<String, String> cookies) {
         cookies.putIfAbsent("__remember_me", "true");
-        cookies.putIfAbsent("_ntes_nuid", id);
-        cookies.putIfAbsent("_ntes_nnid", id + "," + System.currentTimeMillis());
-        cookies.putIfAbsent("WNMCID", random(6) + "." + System.currentTimeMillis() + ".01.0");
+        cookies.putIfAbsent("_ntes_nuid", ntesNuid);
+        cookies.putIfAbsent("_ntes_nnid", ntesNnid);
+        cookies.putIfAbsent("WNMCID", wnmcid);
         cookies.putIfAbsent("WEVNSM", "1.0.0");
         cookies.putIfAbsent("os", "pc");
         cookies.putIfAbsent("osver", "Microsoft-Windows-11-Professional-build-26100-64bit");
         cookies.putIfAbsent("appver", "3.1.12.204072");
         cookies.putIfAbsent("channel", "netease");
-        cookies.putIfAbsent("deviceId", random(26).toUpperCase());
+        cookies.putIfAbsent("deviceId", deviceId);
     }
 
     private static Map<String, String> eapiHeader(Map<String, String> cookies) {
@@ -124,6 +128,16 @@ public final class NeteaseHttp implements AutoCloseable {
     private static String cookieHeader(Map<String, String> cookies) {
         return cookies.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining("; "));
     }
+    private static String responseCookie(List<String> headers) {
+        Map<String, String> cookies = new LinkedHashMap<>();
+        for (String header : headers) {
+            if (header == null || header.isBlank()) continue;
+            String pair = header.split(";", 2)[0].trim();
+            int separator = pair.indexOf('=');
+            if (separator > 0) cookies.put(pair.substring(0, separator).trim(), pair.substring(separator + 1).trim());
+        }
+        return cookieHeader(cookies);
+    }
     private static String form(Map<String, String> values) {
         return values.entrySet().stream().map(entry -> encode(entry.getKey()) + "=" + encode(entry.getValue())).collect(Collectors.joining("&"));
     }
@@ -141,6 +155,7 @@ public final class NeteaseHttp implements AutoCloseable {
     public enum Crypto { EAPI, WEAPI }
     public record Response(int status, JsonObject body, List<String> cookies) {
         public Response { cookies = List.copyOf(cookies == null ? List.of() : cookies); }
+        public String cookie() { return responseCookie(cookies); }
         public boolean successful() {
             if (status < 200 || status >= 300) return false;
             return !body.has("code") || body.get("code").getAsInt() == 200;

@@ -543,6 +543,19 @@ nimbus/music/
 - 网易云请求、文件 IO 和播放分别使用 Manager 拥有的线程资源；调用者不得自行关闭这些资源。
 - 当前 `.music` 指令是功能验证入口，不应复制一套音乐状态到 Command 内。
 
+常用异步入口：
+
+```java
+music.dailyRecommendedSongs();
+music.dailyRecommendedPlaylists();
+music.intelligentSongs(songId, playlistId, startMusicId, count);
+music.playIntelligent(songId, playlistId, count);
+music.requestSmsLogin(phone, countryCode);
+music.completeSmsLogin(captcha);
+```
+
+短信登录的手机号、国家码和验证码会话只存在于内存，不写入配置。二维码与短信登录共用 Cookie 验证和账号资料刷新流程；只有账号验证成功后才持久化 Cookie。
+
 ## 14. 对外 API 约定
 
 Manager 对外 API 应遵循：

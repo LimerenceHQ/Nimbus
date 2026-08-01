@@ -23,7 +23,7 @@ public final class MusicCommand extends BasicCommand {
     private static final List<String> ACTIONS = List.of("status", "search", "searchpl", "play", "playlist",
             "pause", "resume", "toggle", "stop", "next", "prev", "seek", "volume", "rate", "mode",
             "quality", "queue", "lyrics", "account", "refresh", "logout", "login", "liked", "like",
-            "add", "remove", "recommend", "prefetch", "cache", "bind");
+            "add", "remove", "daily", "recommend", "intelligence", "prefetch", "cache", "bind");
 
     public MusicCommand() { super("Music", "控制网易云音乐播放器。", "m", "ncm"); }
 
@@ -59,7 +59,8 @@ public final class MusicCommand extends BasicCommand {
                 case "like" -> like(args);
                 case "add" -> editPlaylist(args, true);
                 case "remove", "del" -> editPlaylist(args, false);
-                case "recommend", "rec" -> recommend(args);
+                case "daily", "recommend", "rec" -> daily(args);
+                case "intelligence", "intelligent", "heartbeat" -> intelligence(args);
                 case "prefetch" -> prefetch(args);
                 case "cache" -> cache(args);
                 case "bind" -> bind(args);
@@ -156,7 +157,29 @@ public final class MusicCommand extends BasicCommand {
             complete(music().checkQrLogin(), MusicCommand::printQrStatus);
             return;
         }
-        throw new IllegalArgumentException("用法: .music login qr|check");
+        if (action.equals("sms")) {
+            require(args, 3);
+            switch (args[2].toLowerCase(Locale.ROOT)) {
+                case "send" -> {
+                    require(args, 4);
+                    String countryCode = args.length > 4 ? args[4] : "86";
+                    complete(music().requestSmsLogin(args[3], countryCode), status -> {
+                        if (status.successful()) message("短信验证码已发送。");
+                        else message(apiFailure("验证码发送失败", status.code(), status.message()));
+                    });
+                }
+                case "verify", "login" -> {
+                    require(args, 4);
+                    complete(music().completeSmsLogin(args[3]), status -> {
+                        if (status.successful()) message("手机号登录成功。");
+                        else message(apiFailure("手机号登录失败", status.code(), status.message()));
+                    });
+                }
+                default -> throw new IllegalArgumentException("用法: .music login sms send <手机号> [国家码] | verify <验证码>");
+            }
+            return;
+        }
+        throw new IllegalArgumentException("用法: .music login qr|check|sms");
     }
     private void liked(String[] args) {
         int limit = args.length > 1 ? Math.max(1, Math.min(100, integer(args[1], "数量"))) : 30;
@@ -178,10 +201,21 @@ public final class MusicCommand extends BasicCommand {
         long song = args.length > 2 ? id(args[2]) : currentId();
         complete(music().editPlaylist(playlist, song, add), changed -> message(changed ? "歌单已更新。" : "歌单更新失败。"));
     }
-    private void recommend(String[] args) {
+    private void daily(String[] args) {
         String type = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "songs";
-        if (type.startsWith("p")) complete(music().recommendedPlaylists(), MusicCommand::printPlaylists);
-        else complete(music().recommendedSongs(), MusicCommand::printSongs);
+        if (type.startsWith("p")) complete(music().dailyRecommendedPlaylists(), MusicCommand::printPlaylists);
+        else complete(music().dailyRecommendedSongs(), MusicCommand::printSongs);
+    }
+    private void intelligence(String[] args) {
+        require(args, 2);
+        long playlistId = id(args[1]);
+        long songId = args.length > 2 ? id(args[2]) : currentId();
+        int count = args.length > 3 ? Math.max(1, Math.min(100, integer(args[3], "数量"))) : 30;
+        message("正在生成心动模式队列...");
+        complete(music().playIntelligent(songId, playlistId, count), songs -> {
+            if (songs.isEmpty()) message("没有获得智能推荐歌曲。");
+            else message("心动模式已开始，共 " + songs.size() + " 首。");
+        });
     }
     private void prefetch(String[] args) {
         if (args.length == 1) { message("预下载: " + (music().config().prefetch() ? "开启" : "关闭")); return; }
@@ -308,10 +342,13 @@ public final class MusicCommand extends BasicCommand {
         while (value.getCause() != null) value = value.getCause();
         return value.getMessage() == null ? value.getClass().getSimpleName() : value.getMessage();
     }
+    private static String apiFailure(String action, int code, String detail) {
+        return action + "（" + code + "）" + (detail == null || detail.isBlank() ? "。" : ": " + detail);
+    }
     private static List<String> qualityNames() { return java.util.Arrays.stream(Quality.values()).map(Quality::apiValue).toList(); }
     private static void message(String value) { MessageUtils.addMessage(value); }
     private static void plain(String value) { MessageUtils.addMessageWithoutPrefix(value); }
-    private static void usage() { message("用法: .music status|search|play|playlist|login|lyrics|liked|queue|cache|quality|volume|rate ..."); }
+    private static void usage() { message("用法: .music status|search|play|playlist|daily|intelligence|login|lyrics|queue|cache ..."); }
 
     @Override public String getUsage() { return ".music <status|search|play|playlist|controls|login|account|lyrics|cache|settings>"; }
     @Override public List<String> suggest(String[] args) {
@@ -320,15 +357,21 @@ public final class MusicCommand extends BasicCommand {
         return switch (args[0].toLowerCase(Locale.ROOT)) {
             case "mode" -> List.of("single", "loop", "shuffle").stream().filter(value -> value.startsWith(prefix)).toList();
             case "quality" -> qualityNames().stream().filter(value -> value.startsWith(prefix)).toList();
-            case "login" -> List.of("qr", "check").stream().filter(value -> value.startsWith(prefix)).toList();
+            case "login" -> loginSuggestions(args, prefix);
             case "prefetch" -> List.of("on", "off").stream().filter(value -> value.startsWith(prefix)).toList();
             case "cache" -> List.of("status", "clear", "trim", "limit").stream().filter(value -> value.startsWith(prefix)).toList();
-            case "recommend" -> List.of("songs", "playlists").stream().filter(value -> value.startsWith(prefix)).toList();
+            case "daily", "recommend" -> List.of("songs", "playlists").stream().filter(value -> value.startsWith(prefix)).toList();
             case "like" -> List.of("on", "off", "toggle").stream().filter(value -> value.startsWith(prefix)).toList();
             case "bind" -> args.length <= 2
                     ? List.of("prev", "next", "pause").stream().filter(value -> value.startsWith(prefix)).toList()
                     : List.of("none").stream().filter(value -> value.startsWith(prefix)).toList();
             default -> List.of();
         };
+    }
+    private static List<String> loginSuggestions(String[] args, String prefix) {
+        List<String> values = args.length <= 2
+                ? List.of("qr", "check", "sms")
+                : args[1].equalsIgnoreCase("sms") && args.length <= 3 ? List.of("send", "verify") : List.of();
+        return values.stream().filter(value -> value.startsWith(prefix)).toList();
     }
 }
