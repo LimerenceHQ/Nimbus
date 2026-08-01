@@ -5,8 +5,13 @@ import cc.nimbus.features.command.api.BasicCommand;
 import cc.nimbus.features.music.Quality;
 import cc.nimbus.features.music.MusicConfig;
 import cc.nimbus.features.music.lyrics.Lyrics;
+import cc.nimbus.features.music.lyrics.LyricsParser;
+import cc.nimbus.features.music.lyrics.TimedLine;
+import cc.nimbus.features.music.model.Album;
+import cc.nimbus.features.music.model.Artist;
 import cc.nimbus.features.music.model.Music;
 import cc.nimbus.features.music.model.Playlist;
+import cc.nimbus.features.music.model.User;
 import cc.nimbus.features.music.playback.PlayMode;
 import cc.nimbus.features.music.playback.PlaybackState;
 import cc.nimbus.features.music.provider.NeteaseApi;
@@ -23,7 +28,7 @@ public final class MusicCommand extends BasicCommand {
     private static final List<String> ACTIONS = List.of("status", "search", "searchpl", "play", "playlist",
             "pause", "resume", "toggle", "stop", "next", "prev", "seek", "volume", "rate", "mode",
             "quality", "queue", "lyrics", "account", "refresh", "logout", "login", "liked", "like",
-            "add", "remove", "daily", "recommend", "intelligence", "prefetch", "cache", "bind");
+            "add", "remove", "daily", "recommend", "intelligence", "prefetch", "cache", "bind", "inspect");
 
     public MusicCommand() { super("Music", "控制网易云音乐播放器。", "m", "ncm"); }
 
@@ -64,6 +69,7 @@ public final class MusicCommand extends BasicCommand {
                 case "prefetch" -> prefetch(args);
                 case "cache" -> cache(args);
                 case "bind" -> bind(args);
+                case "inspect", "model", "test" -> inspect(args);
                 default -> usage();
             }
         } catch (IllegalArgumentException error) {
@@ -131,11 +137,7 @@ public final class MusicCommand extends BasicCommand {
     }
     private void lyrics(String[] args) {
         long id = args.length > 1 ? id(args[1]) : currentId();
-        complete(music().lyrics(id), lyrics -> {
-            String value = !lyrics.words().isBlank() ? lyrics.words() : lyrics.line();
-            if (value.isBlank()) { message("没有找到歌词。"); return; }
-            value.lines().limit(20).forEach(MusicCommand::plain);
-        });
+        complete(music().lyrics(id), MusicCommand::printLyrics);
     }
     private void account() {
         var profile = music().profile();
@@ -266,6 +268,16 @@ public final class MusicCommand extends BasicCommand {
         music().hotkey(action, keys);
         message(action + " 组合键: " + hotkeyText(keys));
     }
+    private void inspect(String[] args) {
+        long songId = args.length > 1 ? id(args[1]) : 382100L;
+        complete(music().song(songId), song -> {
+            if (song == null) { message("没有找到歌曲 " + songId + "。"); return; }
+            printMusicModel(song);
+            printUserModel(music().profile());
+            List<Playlist> playlists = music().accountPlaylists();
+            printPlaylistModel(playlists.isEmpty() ? null : playlists.getFirst());
+        });
+    }
     private void status() {
         PlaybackState state = music().state();
         if (state.music() == null) {
@@ -287,6 +299,79 @@ public final class MusicCommand extends BasicCommand {
     private static void printPlaylists(List<Playlist> playlists) {
         if (playlists.isEmpty()) { message("没有结果。"); return; }
         for (int index = 0; index < playlists.size(); index++) plain((index + 1) + ". " + playlists.get(index));
+    }
+    private static void printLyrics(Lyrics lyrics) {
+        List<TimedLine> original = LyricsParser.lines(lyrics.line());
+        if (original.isEmpty()) {
+            original = LyricsParser.words(lyrics.words()).stream()
+                    .map(line -> new TimedLine(line.startMs(), line.text()))
+                    .toList();
+        }
+        List<TimedLine> translated = LyricsParser.lines(lyrics.translated());
+        if (original.isEmpty() && translated.isEmpty()) { message("没有找到歌词。"); return; }
+
+        if (!original.isEmpty()) {
+            message("原歌词:");
+            original.stream().map(TimedLine::text).filter(value -> !value.isBlank()).limit(20).forEach(MusicCommand::plain);
+        }
+        if (!translated.isEmpty()) {
+            message("中文翻译:");
+            translated.stream().map(TimedLine::text).filter(value -> !value.isBlank()).limit(20).forEach(MusicCommand::plain);
+        }
+    }
+    private static void printMusicModel(Music music) {
+        message("歌曲模型:");
+        plain("ID: " + music.id());
+        plain("名称: " + music.name());
+        plain("主标题: " + music.mainTitle());
+        plain("附加标题: " + music.additionalTitle());
+        plain("歌手文本: " + music.artistsText());
+        plain("别名: " + music.aliases());
+        plain("翻译名: " + music.translatedNames());
+        plain("时长: " + music.durationMs() + " ms");
+        plain("发布时间: " + music.publishedAt());
+        plain("标记: 纯音乐=" + music.instrumental() + ", Dolby Atmos=" + music.dolbyAtmos()
+                + ", Explicit=" + music.explicit() + ", Hi-Res=" + music.hiRes());
+        plain("512px 封面: " + music.coverUrl(512));
+
+        Album album = music.album();
+        message("专辑模型:");
+        if (album == null) plain("无");
+        else {
+            plain("ID: " + album.id());
+            plain("名称: " + album.name());
+            plain("封面: " + album.pictureUrl());
+            plain("翻译名: " + album.translatedNames());
+        }
+
+        message("歌手模型:");
+        if (music.artists().isEmpty()) plain("无");
+        for (Artist artist : music.artists()) {
+            plain("ID=" + artist.id() + ", 名称=" + artist.name() + ", 翻译名="
+                    + artist.translatedNames() + ", 别名=" + artist.aliases());
+        }
+    }
+    private static void printUserModel(User user) {
+        message("用户模型:");
+        if (user == null) { plain("未登录或用户资料尚未加载。"); return; }
+        plain("ID: " + user.id());
+        plain("昵称: " + user.name());
+        plain("签名: " + user.signature());
+        plain("VIP 类型: " + user.vipType());
+        plain("头像: " + user.avatarUrl());
+    }
+    private static void printPlaylistModel(Playlist playlist) {
+        message("首个账号歌单模型:");
+        if (playlist == null) { plain("账号没有已加载的歌单。"); return; }
+        plain("ID: " + playlist.id());
+        plain("名称: " + playlist.name());
+        plain("封面: " + playlist.coverUrl());
+        plain("歌曲数: " + playlist.trackCount());
+        plain("播放数: " + playlist.playCount());
+        plain("创建者: " + (playlist.creator() == null ? "无" : playlist.creator().name()));
+        plain("简介: " + playlist.description());
+        plain("已收藏: " + playlist.subscribed());
+        plain("创建时间: " + playlist.createdAt());
     }
     private static void printQrStatus(NeteaseApi.QrStatus status) {
         String text = switch (status.code()) {
@@ -348,7 +433,7 @@ public final class MusicCommand extends BasicCommand {
     private static List<String> qualityNames() { return java.util.Arrays.stream(Quality.values()).map(Quality::apiValue).toList(); }
     private static void message(String value) { MessageUtils.addMessage(value); }
     private static void plain(String value) { MessageUtils.addMessageWithoutPrefix(value); }
-    private static void usage() { message("用法: .music status|search|play|playlist|daily|intelligence|login|lyrics|queue|cache ..."); }
+    private static void usage() { message("用法: .music status|search|play|playlist|daily|intelligence|login|lyrics|inspect|queue|cache ..."); }
 
     @Override public String getUsage() { return ".music <status|search|play|playlist|controls|login|account|lyrics|cache|settings>"; }
     @Override public List<String> suggest(String[] args) {
