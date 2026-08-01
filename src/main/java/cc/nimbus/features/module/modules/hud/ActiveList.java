@@ -15,7 +15,7 @@ import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Path;
-import io.github.humbleui.types.RRect;
+import io.github.humbleui.types.Rect;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,7 +35,7 @@ public final class ActiveList extends BasicModule {
     private static final float ROW_HEIGHT = 25f;
     private static final float PADDING_X = 8f;
     private static final float ACCENT_WIDTH = 2f;
-    private static final float RADIUS = 2f;
+    private static final float ROW_OVERLAP = 0.75f;
     private static final int BACKGROUND_COLOR = 0x5C171A1E;
     private static final int TEXT_COLOR = 0xFFF4F7F8;
     private static final int SUFFIX_COLOR = 0xFF9EA8B2;
@@ -68,37 +68,27 @@ public final class ActiveList extends BasicModule {
         int accentColor = accent.getValue();
 
         if (drawBackground) {
-            try (Path regions = new Path()) {
-                for (int index = 0; index < entries.size(); index++) {
-                    Entry entry = entries.get(index);
-                    float rowX = rowX(anchor, totalWidth, entry.width());
-                    float rowY = rowY(anchor, totalHeight, index);
-                    regions.addRRect(RRect.makeXYWH(
-                            bounds.x() + rowX * scale,
-                            bounds.y() + rowY * scale,
-                            entry.width() * scale,
-                            ROW_HEIGHT * scale,
-                            RADIUS * scale
-                    ));
-                }
+            try (Path regions = backgroundPath(
+                    entries, anchor, totalWidth, totalHeight, bounds.x(), bounds.y(), scale)) {
                 skija.postProcess().add(regions);
             }
         }
 
         List<Entry> frameEntries = List.copyOf(entries);
         skija.hud().submit(frame -> drag.render(frame, local -> {
-            try (Paint textPaint = new Paint().setAntiAlias(true).setColor(TEXT_COLOR);
+            try (Path backgroundPath = backgroundPath(
+                    frameEntries, anchor, totalWidth, totalHeight, 0f, 0f, 1f);
+                 Paint backgroundPaint = new Paint().setAntiAlias(true).setColor(BACKGROUND_COLOR);
+                 Paint textPaint = new Paint().setAntiAlias(true).setColor(TEXT_COLOR);
                  Paint suffixPaint = new Paint().setAntiAlias(true).setColor(SUFFIX_COLOR)) {
+                if (drawBackground) local.canvas().drawPath(backgroundPath, backgroundPaint);
+                float accentX = anchor.isRight() ? totalWidth - ACCENT_WIDTH : 0f;
+                local.draw().rect(accentX, 0f, ACCENT_WIDTH, totalHeight, accentColor);
                 float textY = (ROW_HEIGHT - local.text().height(FONT, FONT_SIZE)) * 0.5f;
                 for (int index = 0; index < frameEntries.size(); index++) {
                     Entry entry = frameEntries.get(index);
                     float rowX = rowX(anchor, totalWidth, entry.width());
                     float rowY = rowY(anchor, totalHeight, index);
-                    if (drawBackground) {
-                        local.draw().roundedRect(rowX, rowY, entry.width(), ROW_HEIGHT, RADIUS, BACKGROUND_COLOR);
-                    }
-                    float accentX = anchor.isRight() ? rowX + entry.width() - ACCENT_WIDTH : rowX;
-                    local.draw().rect(accentX, rowY, ACCENT_WIDTH, ROW_HEIGHT, accentColor);
                     float labelX = rowX + PADDING_X + (anchor.isRight() ? 0f : ACCENT_WIDTH);
                     local.text().draw(FONT, FONT_SIZE, entry.name(), labelX, rowY + textY, textPaint);
                     if (!entry.suffix().isEmpty()) {
@@ -140,6 +130,31 @@ public final class ActiveList extends BasicModule {
         return anchor.isBottom()
                 ? totalHeight - (index + 1) * ROW_HEIGHT
                 : index * ROW_HEIGHT;
+    }
+
+    private static Path backgroundPath(
+            List<Entry> entries,
+            HudAnchor anchor,
+            float totalWidth,
+            float totalHeight,
+            float originX,
+            float originY,
+            float scale
+    ) {
+        Path path = new Path();
+        for (int index = 0; index < entries.size(); index++) {
+            Entry entry = entries.get(index);
+            float rowX = rowX(anchor, totalWidth, entry.width());
+            float rowY = rowY(anchor, totalHeight, index);
+            float rowHeight = Math.min(ROW_HEIGHT + ROW_OVERLAP, totalHeight - rowY);
+            path.addRect(Rect.makeXYWH(
+                    originX + rowX * scale,
+                    originY + rowY * scale,
+                    entry.width() * scale,
+                    rowHeight * scale
+            ));
+        }
+        return path;
     }
 
     private record Entry(String name, String suffix, float nameWidth, float width) {}

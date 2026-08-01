@@ -15,6 +15,7 @@ import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL30;
 import cc.nimbus.utils.render.skija.internal.backend.gl.States;
 import cc.nimbus.utils.render.skija.internal.backend.SkijaBackend;
+import cc.nimbus.utils.render.skija.internal.backend.SkijaSupport;
 
 import java.nio.ByteBuffer;
 
@@ -32,6 +33,8 @@ public final class MinecraftSnapshot {
     }
 
     public static synchronized void capture() {
+        SkijaSupport.validateBackend();
+        if (!SkijaSupport.isSupported()) return;
         States.push();
         try {
             captureGuarded();

@@ -36,6 +36,9 @@ public class GuiRendererMixin {
         if (NIMBUS_RENDERING_AUXILIARY.get()) return;
         Minecraft minecraft = Minecraft.getInstance();
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
+        skija.validateSupport();
+        if (!skija.isSupported()) return;
+
         if (minecraft.gui.screen() instanceof NeutronScreen neutronScreen) {
             PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);
             skija.configurePostProcess(postProcess == null ? null : postProcess.options());
@@ -59,8 +62,7 @@ public class GuiRendererMixin {
         GuiGraphicsExtractor graphics = new GuiGraphicsExtractor(minecraft, nimbus$state, mouseX, mouseY);
         boolean renderHud = minecraft.level != null && minecraft.player != null
                 && (minecraft.gui.screen() == null || minecraft.gui.screen() instanceof ChatScreen);
-        skija.validateSupport();
-        if (renderHud && skija.isSupported()) {
+        if (renderHud) {
             if (nimbus$hudLayer == null) nimbus$hudLayer = skija.layer("hud");
             int framebufferWidth = minecraft.getWindow().getWidth();
             int framebufferHeight = minecraft.getWindow().getHeight();

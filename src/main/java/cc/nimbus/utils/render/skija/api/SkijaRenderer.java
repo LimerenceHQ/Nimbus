@@ -27,25 +27,22 @@ public final class SkijaRenderer {
         if (initialized) return;
         if (closed) throw new IllegalStateException("Skija renderer is closed and cannot be restarted");
         SkijaSupport.initialize();
-        if (SkijaSupport.isSupported()) {
-            FontFamily.initialize();
-            fontsInitialized = true;
-        }
         initialized = true;
     }
 
     public void validateSupport() {
-        requireReady();
+        requireInitialized();
         SkijaSupport.validateBackend();
+        if (SkijaSupport.isSupported()) ensureFontsInitialized();
     }
 
     public boolean isSupported() {
-        requireReady();
+        validateSupport();
         return SkijaSupport.isSupported();
     }
 
     public String unsupportedReason() {
-        requireReady();
+        validateSupport();
         return SkijaSupport.getUnsupportedReason();
     }
 
@@ -126,6 +123,21 @@ public final class SkijaRenderer {
     }
 
     synchronized void requireReady() {
+        requireInitialized();
+        SkijaSupport.validateBackend();
+        if (!SkijaSupport.isSupported()) {
+            throw new IllegalStateException(SkijaSupport.getUnsupportedReason());
+        }
+        ensureFontsInitialized();
+    }
+
+    private synchronized void ensureFontsInitialized() {
+        if (fontsInitialized) return;
+        FontFamily.initialize();
+        fontsInitialized = true;
+    }
+
+    private void requireInitialized() {
         if (closed) throw new IllegalStateException("Skija renderer is closed");
         if (!initialized) throw new IllegalStateException("Skija renderer is not initialized");
     }
