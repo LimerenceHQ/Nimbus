@@ -136,7 +136,7 @@ public class TitleScreen extends Screen {
         }
     }
 
-    @Override public boolean keyPressed(KeyEvent event) { if (event.key() == GLFW.GLFW_KEY_ESCAPE) { onClose(); return true; } return super.keyPressed(event); }
+    @Override public boolean keyPressed(KeyEvent event) { if (event.key() == GLFW.GLFW_KEY_ESCAPE) return true; return super.keyPressed(event); }
     @Override public boolean isPauseScreen() { return false; }
     @Override public void removed() { layer.releaseTarget(); super.removed(); }
     @Override public void onClose() { minecraft.setScreenAndShow(null); }
