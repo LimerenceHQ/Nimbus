@@ -9,6 +9,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class FontFamily {
@@ -22,27 +23,45 @@ public final class FontFamily {
     private static final int MAX_FONTS = 256;
     private static final LinkedHashMap<FontKey, Font> FONT_CACHE = new LinkedHashMap<>(64, 0.75f, true);
 
-    public static final TypefaceFontProvider FONT_PROVIDER = new TypefaceFontProvider();
-    public static final FontCollection FONT_COLLECTION = new FontCollection();
+    private static final TypefaceFontProvider FONT_PROVIDER = new TypefaceFontProvider();
+    private static final FontCollection FONT_COLLECTION = new FontCollection();
+    private static boolean closed;
 
-    public static void registerTypeface(String fontPath, String familyName) {
+    public static synchronized void initialize() {
+        ensureOpen();
+    }
+
+    public static synchronized void registerTypeface(String fontPath, String familyName) {
+        ensureOpen();
+        Objects.requireNonNull(fontPath, "fontPath");
+        Objects.requireNonNull(familyName, "familyName");
+        if (fontPath.isBlank()) throw new IllegalArgumentException("fontPath cannot be blank");
+        if (familyName.isBlank()) throw new IllegalArgumentException("familyName cannot be blank");
         if (TYPEFACE_CACHE.containsKey(familyName)) {
-            System.out.println("[Nimbus-ERROR] Font family already registered: " + familyName);
-            return;
+            throw new IllegalStateException("Font family is already registered: " + familyName);
         }
 
         Data data = ResourceDataCache.data(fontPath);
         if (data == null || data.isClosed()) {
-            System.out.println("[Nimbus-ERROR] Cannot load font: " + fontPath);
-            return;
+            throw new IllegalStateException("Cannot load font resource: " + fontPath);
         }
 
         Typeface typeface = FontMgr.getDefault().makeFromData(data);
-        FONT_PROVIDER.registerTypeface(typeface, familyName);
-        TYPEFACE_CACHE.put(familyName, typeface);
+        if (typeface == null) {
+            throw new IllegalStateException("Skija rejected font resource " + fontPath + " for family " + familyName);
+        }
+        try {
+            FONT_PROVIDER.registerTypeface(typeface, familyName);
+            TYPEFACE_CACHE.put(familyName, typeface);
+        } catch (RuntimeException error) {
+            if (!typeface.isClosed()) typeface.close();
+            throw new IllegalStateException("Cannot register font family " + familyName + " from " + fontPath, error);
+        }
     }
 
     public static @NotNull Typeface getTypeface(String familyName) {
+        ensureOpen();
+        Objects.requireNonNull(familyName, "familyName");
         Typeface tf = TYPEFACE_CACHE.get(familyName);
         if (tf == null) throw new IllegalArgumentException("Font is not registered: " + familyName);
         if (tf.isClosed()) throw new IllegalStateException("Font is closed: " + familyName);
@@ -50,6 +69,9 @@ public final class FontFamily {
     }
 
     public static synchronized Font getCachedFont(String familyName, float size) {
+        if (!Float.isFinite(size) || size <= 0f) {
+            throw new IllegalArgumentException("Font size must be finite and positive: " + size);
+        }
         Typeface tf = getTypeface(familyName);
         FontKey key = new FontKey(tf, size);
         Font cached = FONT_CACHE.get(key);
@@ -68,24 +90,56 @@ public final class FontFamily {
         return font;
     }
 
+    public static synchronized void close() {
+        if (closed) return;
+        closed = true;
+
+        RuntimeException failure = null;
+        for (Font font : FONT_CACHE.values()) {
+            failure = closeManaged(failure, font);
+        }
+        FONT_CACHE.clear();
+        failure = closeManaged(failure, FONT_COLLECTION);
+        failure = closeManaged(failure, FONT_PROVIDER);
+        for (Typeface typeface : TYPEFACE_CACHE.values()) {
+            failure = closeManaged(failure, typeface);
+        }
+        TYPEFACE_CACHE.clear();
+        if (failure != null) throw failure;
+    }
+
+    private static void ensureOpen() {
+        if (closed) throw new IllegalStateException("Font subsystem is closed");
+    }
+
+    private static RuntimeException closeManaged(RuntimeException failure, io.github.humbleui.skija.impl.Managed value) {
+        try {
+            if (value != null && !value.isClosed()) value.close();
+        } catch (RuntimeException error) {
+            if (failure == null) return error;
+            failure.addSuppressed(error);
+        }
+        return failure;
+    }
+
     private static class FontKey {
         public final Typeface typeface;
-        public final int size100;
+        public final int sizeBits;
 
         public FontKey(Typeface tf, float size) {
             this.typeface = tf;
-            this.size100 = (int) (size * 100);
+            this.sizeBits = Float.floatToIntBits(size);
         }
 
         @Override
         public int hashCode() {
-            return 31 * System.identityHashCode(typeface) + size100;
+            return 31 * System.identityHashCode(typeface) + sizeBits;
         }
 
         @Override
         public boolean equals(Object o) {
             if (!(o instanceof FontKey k)) return false;
-            return k.typeface == typeface && k.size100 == size100;
+            return k.typeface == typeface && k.sizeBits == sizeBits;
         }
     }
 

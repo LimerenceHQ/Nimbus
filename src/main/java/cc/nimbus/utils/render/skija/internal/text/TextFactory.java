@@ -11,29 +11,31 @@ public final class TextFactory {
 
     private static final int MAX_MEASUREMENTS = 4096;
     private static final Map<FontTextKey, Float> TEXT_WIDTH_CACHE = boundedCache();
-    private static final Paint SHADOW_PAINT = new Paint().setAntiAlias(true);
+    private static Paint shadowPaint;
+    private static boolean closed;
 
     private TextFactory() {
     }
 
     public static synchronized float getTextWidth(String familyName, float size, String text) {
+        ensureOpen();
+        text = normalize(text);
         FontTextKey key = new FontTextKey(familyName, size, text);
         return TEXT_WIDTH_CACHE.computeIfAbsent(key, k -> {
             Font font = FontFamily.getCachedFont(familyName, size);
-            return font.measureTextWidth(text);
+            return font.measureTextWidth(k.text());
         });
     }
 
-    public static synchronized float getTextHeight(String familyName, float size, String text) {
+    public static synchronized float getTextHeight(String familyName, float size) {
+        ensureOpen();
         return FontFamily.getCachedFont(familyName, size).getMetrics().getHeight();
-    }
-
-    public static float getTextHeight(String familyName, float size) {
-        return getTextHeight(familyName, size, "");
     }
 
     @ApiStatus.Internal
     private static void drawGlyphsSplice(Canvas canvas, String familyName, float size, String text, float x, float y, Paint paint) {
+        ensureOpen();
+        text = normalize(text);
         Font font = FontFamily.getCachedFont(familyName, size);
         canvas.drawString(text, x, TextLayout.baselineFromTop(font, y), font, paint);
     }
@@ -49,23 +51,26 @@ public final class TextFactory {
     }
 
     public static void drawTextWithShadow(Canvas canvas, String family, float size, String text, float x, float y, Paint paint) {
+        Paint shadow = shadowPaint();
         int shadowHex = TextMth.calculateShadowColor(paint.getColor());
-        if (SHADOW_PAINT.getColor() != shadowHex) {
-            SHADOW_PAINT.setColor(shadowHex);
+        if (shadow.getColor() != shadowHex) {
+            shadow.setColor(shadowHex);
         }
 
-        drawGlyphsSplice(canvas, family, size, text, x + 1, y + 1, SHADOW_PAINT);
+        drawGlyphsSplice(canvas, family, size, text, x + 1, y + 1, shadow);
         drawGlyphsSplice(canvas, family, size, text, x, y, paint);
     }
 
     public static void drawCenteredTextWithShadow(Canvas canvas, String family, float size, String text, float x, float y, Paint paint) {
+        text = normalize(text);
+        Paint shadow = shadowPaint();
         int shadowHex = TextMth.calculateShadowColor(paint.getColor());
-        if (SHADOW_PAINT.getColor() != shadowHex) {
-            SHADOW_PAINT.setColor(shadowHex);
+        if (shadow.getColor() != shadowHex) {
+            shadow.setColor(shadowHex);
         }
 
         float center = getTextWidth(family, size, text) / 2;
-        drawGlyphsSplice(canvas, family, size, text, x - center + 1, y + 1, SHADOW_PAINT);
+        drawGlyphsSplice(canvas, family, size, text, x - center + 1, y + 1, shadow);
         drawGlyphsSplice(canvas, family, size, text, x - center, y, paint);
     }
 
@@ -76,5 +81,29 @@ public final class TextFactory {
                 return size() > MAX_MEASUREMENTS;
             }
         };
+    }
+
+    public static synchronized void close() {
+        if (closed) return;
+        closed = true;
+        TEXT_WIDTH_CACHE.clear();
+        if (shadowPaint != null && !shadowPaint.isClosed()) shadowPaint.close();
+        shadowPaint = null;
+    }
+
+    private static synchronized Paint shadowPaint() {
+        ensureOpen();
+        if (shadowPaint == null || shadowPaint.isClosed()) {
+            shadowPaint = new Paint().setAntiAlias(true);
+        }
+        return shadowPaint;
+    }
+
+    private static void ensureOpen() {
+        if (closed) throw new IllegalStateException("Text subsystem is closed");
+    }
+
+    private static String normalize(String text) {
+        return text == null ? "" : text;
     }
 }

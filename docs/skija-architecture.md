@@ -112,6 +112,8 @@ Minecraft shutdown
 
 功能代码不得调用 `SkijaRenderer.close()`。
 
+`SkijaRenderer` 是一次性进程资源。`RenderManager.shutdown()` 后重复关闭是幂等的，但不能重新 `init()` 或通过旧 Layer 重新创建 target。关闭流程会尽量释放全部 Layer、字体、缓存、Backend 和 native 资源；单项清理失败不会阻止后续资源继续关闭，最终异常会通过 suppressed errors 保留。
+
 ## 3. 架构与包边界
 
 ```text
@@ -211,9 +213,8 @@ SkijaLayer layer = skija.layer("my-screen");
 - 不要每帧生成动态名称。
 - 不要让两个同时活跃的消费者使用同一个名称。
 - Screen 离开时调用 `releaseTarget()`，下次 `ensure()` 会重建 target。
-- 功能代码不要调用 `layer.close()`；真正关闭由 `SkijaRenderer.close()` 完成。
-
-当前 `SkijaLayer.close()` 仍是公开方法，因为类仍实现 `AutoCloseable`。这是当前 API 的待收口点，不代表功能应该使用它。
+- `SkijaLayer` 不实现 `AutoCloseable`，功能不能结束命名 Layer 的生命周期。
+- Renderer shutdown 会通过内部方法最终销毁所有 Layer target。
 
 ### 4.2 为什么不等待 GC
 
@@ -379,6 +380,8 @@ public final class ExampleScreen extends Screen {
 
 字体名称必须完全匹配。未注册字体会立即抛出异常，不会静默回退到系统字体。
 
+字体资源缺失、字体文件无法解析或 family 重复注册会在字体子系统初始化时直接失败，并在异常中保留资源路径和 family。字号必须是有限正数。Renderer shutdown 会关闭 Font 缓存、Typeface、`TypefaceFontProvider`、`FontCollection` 和文本阴影 Paint。
+
 ### 9.2 坐标语义
 
 ```java
@@ -406,6 +409,8 @@ Frame 外只测量时使用：
 float width = skija.text().width(family, size, text);
 float height = skija.text().height(family, size);
 ```
+
+所有公开文本绘制和测量方法都将 `null` 文本视为空字符串；family 名称和字号错误仍会立即抛出异常。
 
 不要通过 `measureText()` 的单个字符串视觉 bounds 调整每次绘制的 baseline，否则不同文本会产生垂直像素相位变化。
 
@@ -558,6 +563,8 @@ frame.postProcess().draw();
 
 每帧结束时区域由 `finishFrame()` 清理。不要把后处理区域当成持久配置。
 
+`PostProcessOptions` 在构造时验证 blur mode、半径、pass、采样、刷新率和 opacity。非法值会在配置进入渲染管线前抛出明确参数异常。
+
 ## 15. 平台和失败行为
 
 当前 Backend 明确支持：
@@ -672,9 +679,9 @@ git diff --check
 ## 19. 当前已知边界
 
 - 尚未实现通用 `SkijaScreen` 生命周期适配器。
-- `SkijaLayer.close()` 仍公开，但功能约定只使用 `releaseTarget()`。
 - 当前 Mixin 对 NeutronScreen 和 TitleScreen 分别接入，并非通用 Screen 分发。
 - 旧 Neutron ClickGUI 计划重写，不应把其静态 `UiPaints` 资源方式作为新 UI 的推荐设计。
+- Resource image 尚未接入 Minecraft resource reload 失效通知；Minecraft texture copy 目前只在底层 GL texture id 改变时刷新。
 - SVG 最终清晰度仍受实际显示像素和资产网格限制。
 - 字体栅格化效果依赖具体字体面的 outline/hinting 数据。
 

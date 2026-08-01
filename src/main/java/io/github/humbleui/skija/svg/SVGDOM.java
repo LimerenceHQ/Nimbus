@@ -25,9 +25,6 @@ public class SVGDOM extends RefCnt {
         }
     }
 
-    /**
-     * Deprecated. Use getRoot().getIntrinsicSize() instead
-     */
     @NotNull @Deprecated
     public Point getContainerSize() {
         try {
@@ -51,7 +48,6 @@ public class SVGDOM extends RefCnt {
         return this;
     }
 
-    // sk_sp<SkSVGNode>* findNodeById(const char* id);
 
     @NotNull @Contract("-> this")
     public SVGDOM render(@NotNull Canvas canvas) {

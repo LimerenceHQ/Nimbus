@@ -16,18 +16,22 @@ public final class SkijaPostProcess {
     }
 
     public void add(Rect rectangle) {
+        renderer.requireReady();
         PostProcessPipeline.add(rectangle);
     }
 
     public void add(RRect rectangle) {
+        renderer.requireReady();
         PostProcessPipeline.add(rectangle);
     }
 
     public void add(Path path) {
+        renderer.requireReady();
         PostProcessPipeline.add(path);
     }
 
     public void draw() {
+        renderer.requireReady();
         if (canvas == null) throw new IllegalStateException("Post-processing can only be drawn inside a Skija frame");
         PostProcessPipeline.drawAll(canvas, renderer.postProcessOptions());
     }

@@ -1,32 +1,24 @@
 package cc.nimbus.utils.render.skija.internal.resource;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.function.Supplier;
 
 public class CachePool<K, V> {
-    private final HashMap<K, V> cache;
-
-    public CachePool() {
-        this(-1);
-    }
+    private final LinkedHashMap<K, V> cache;
 
     public CachePool(int maxSize) {
-        if (maxSize < 0) {
-            this.cache = new HashMap<>();
-        } else {
-            int initialCapacity = (maxSize == Integer.MAX_VALUE) ? 16 : (int) Math.ceil(maxSize / 0.75f) + 1;
-            this.cache = new LinkedHashMap<>(initialCapacity, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(HashMap.Entry<K, V> eldest) {
-                    if (size() > maxSize) {
-                        CachePool.this.closeValue(eldest.getValue());
-                        return true;
-                    }
-                    return false;
+        if (maxSize <= 0) throw new IllegalArgumentException("maxSize must be positive: " + maxSize);
+        int initialCapacity = (int) Math.ceil(maxSize / 0.75f) + 1;
+        this.cache = new LinkedHashMap<>(initialCapacity, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<K, V> eldest) {
+                if (size() > maxSize) {
+                    CachePool.this.closeValue(eldest.getValue());
+                    return true;
                 }
-            };
-        }
+                return false;
+            }
+        };
     }
 
     public V build(K key, Supplier<? extends V> provider) {

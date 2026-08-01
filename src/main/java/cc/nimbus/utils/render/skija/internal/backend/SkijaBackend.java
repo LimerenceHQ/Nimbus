@@ -23,7 +23,6 @@ public final class SkijaBackend implements AutoCloseable {
     private DirectContext context;
     private BackendRenderTarget renderTarget;
     private Surface surface;
-    private Paint paint;
     private int framebufferId;
     private int width, height;
     private final CanvasOffSurface canvasOffSurface = new CanvasOffSurface(165);
@@ -51,7 +50,6 @@ public final class SkijaBackend implements AutoCloseable {
         renderTarget = BackendRenderTarget.makeGL(width, height, 0, 8, framebufferId, GL11.GL_RGBA8);
         surface = Surface.wrapBackendRenderTarget(context, renderTarget, SurfaceOrigin.BOTTOM_LEFT, SurfaceColorFormat.RGBA_8888, ColorSpace.getSRGB(), new SurfaceProps(true, PixelGeometry.RGB_H));
         if (surface == null) throw new IllegalStateException("Skija failed to wrap the Nimbus framebuffer");
-        resetPaint();
         init = true;
     }
 
@@ -75,9 +73,7 @@ public final class SkijaBackend implements AutoCloseable {
                     } finally {
                         offscreen.restoreToCount(save);
                     }
-                    for (SkijaCallback callback : callbacks) {
-                        callback.call(offscreen, width, height, resetPaint());
-                    }
+                    for (SkijaCallback callback : callbacks) callback.call(offscreen, width, height);
                 });
             }
             callbacks.clear();
@@ -95,7 +91,6 @@ public final class SkijaBackend implements AutoCloseable {
         surface.flushAndSubmit();
         context.flush();
     }
-    private Paint resetPaint() { if (paint == null || paint.isClosed()) paint = new Paint(); else paint.reset(); return paint; }
     public void setPostProcessOptions(PostProcessOptions options) {
         postProcessOptions = options == null ? PostProcessOptions.DISABLED : options;
     }
@@ -103,20 +98,23 @@ public final class SkijaBackend implements AutoCloseable {
 
     public synchronized void closeAll() {
         callbacks.clear();
-        MinecraftSnapshot.clear();
-        canvasOffSurface.close();
-        PostProcessPipeline.close();
-        Shaders.close();
-        ImageStore.clear();
-        SvgTextureCache.clear();
-        SmoothRectPathCache.clear();
-        ResourceDataCache.clear();
+        RuntimeException failure = null;
+        failure = cleanup(failure, MinecraftSnapshot::clear);
+        failure = cleanup(failure, canvasOffSurface::close);
+        failure = cleanup(failure, PostProcessPipeline::close);
+        failure = cleanup(failure, Shaders::close);
+        failure = cleanup(failure, ImageStore::clear);
+        failure = cleanup(failure, SvgTextureCache::clear);
+        failure = cleanup(failure, SmoothRectPathCache::clear);
+        failure = cleanup(failure, ResourceDataCache::clear);
         postProcessOptions = PostProcessOptions.DISABLED;
-        closeSurface();
-        closeManaged(paint); paint = null;
-        context = closeManaged(context);
+        failure = cleanup(failure, this::closeSurface);
+        DirectContext contextToClose = context;
+        context = null;
+        failure = cleanup(failure, () -> closeManaged(contextToClose));
         framebufferId = width = height = 0;
         init = false;
+        if (failure != null) throw failure;
     }
 
     /** Detaches a single target without destroying the shared context and caches. */
@@ -133,6 +131,15 @@ public final class SkijaBackend implements AutoCloseable {
         init = false;
     }
     private static <T extends io.github.humbleui.skija.impl.Managed> T closeManaged(T value) { if (value != null && !value.isClosed()) value.close(); return null; }
+    private static RuntimeException cleanup(RuntimeException failure, Runnable action) {
+        try {
+            action.run();
+        } catch (RuntimeException error) {
+            if (failure == null) return error;
+            failure.addSuppressed(error);
+        }
+        return failure;
+    }
     @Override public void close() { closeAll(); }
     public boolean non() { return !init || context == null || context.isClosed() || renderTarget == null || renderTarget.isClosed() || surface == null || surface.isClosed(); }
     public int getCurrentWidth() { return width; }

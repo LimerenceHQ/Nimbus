@@ -3,7 +3,7 @@ package cc.nimbus.utils.render.skija.internal.resource;
 import io.github.humbleui.skija.Data;
 
 public final class ResourceDataCache {
-    private static final CachePool<String, byte[]> BYTES = new CachePool<>();
+    private static final CachePool<String, byte[]> BYTES = new CachePool<>(128);
     private static final CachePool<String, Data> DATA = new CachePool<>(128) {
         @Override
         protected void closeValue(Data value) {

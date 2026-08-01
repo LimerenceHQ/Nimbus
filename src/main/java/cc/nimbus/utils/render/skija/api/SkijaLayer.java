@@ -8,7 +8,7 @@ import net.minecraft.resources.Identifier;
 
 import java.util.Objects;
 
-public final class SkijaLayer implements AutoCloseable {
+public final class SkijaLayer {
     private final SkijaRenderer renderer;
     private final SkijaRenderTarget target;
 
@@ -22,10 +22,12 @@ public final class SkijaLayer implements AutoCloseable {
     }
 
     public void ensure(int width, int height) {
+        renderer.requireReady();
         target.ensure(width, height);
     }
 
     public void clear() {
+        renderer.requireReady();
         target.clear();
     }
 
@@ -47,6 +49,7 @@ public final class SkijaLayer implements AutoCloseable {
 
     public void render(SkijaFrameRenderer callback) {
         Objects.requireNonNull(callback, "callback");
+        renderer.requireReady();
         try {
             target.render(canvas -> {
                 SkijaFrame frame = new SkijaFrame(
@@ -66,8 +69,7 @@ public final class SkijaLayer implements AutoCloseable {
         }
     }
 
-    @Override
-    public void close() {
+    void shutdown() {
         target.close();
     }
 }
