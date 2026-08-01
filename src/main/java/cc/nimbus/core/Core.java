@@ -126,9 +126,7 @@ public enum Core {
         return requireInitialized(renderManager, "RenderManager");
     }
 
-    public HudManager getHudManager() {
-        return requireInitialized(hudManager, "HudManager");
-    }
+    public HudManager getHudManager() {return requireInitialized(hudManager, "HudManager");}
 
     public boolean isInitialized() {
         return initialized;
