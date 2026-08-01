@@ -24,7 +24,8 @@ public final class NeteaseHttp implements AutoCloseable {
     private final String ntesNuid = random(32);
     private final String ntesNnid = ntesNuid + ',' + System.currentTimeMillis();
     private final String wnmcid = random(6) + "." + System.currentTimeMillis() + ".01.0";
-    private final String deviceId = random(26).toUpperCase();
+    private final String deviceId = randomHex(52);
+    private final Map<String, String> sessionCookies = new LinkedHashMap<>();
     private final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -32,7 +33,8 @@ public final class NeteaseHttp implements AutoCloseable {
 
     public Response request(String uri, Object data, Crypto crypto, String cookieString) {
         try {
-            Map<String, String> cookies = parseCookies(cookieString);
+            Map<String, String> cookies = sessionCookieSnapshot();
+            cookies.putAll(parseCookies(cookieString));
             defaults(cookies);
             if (!uri.contains("login")) cookies.putIfAbsent("NMTID", random(16));
             Map<String, String> headers = new LinkedHashMap<>();
@@ -64,7 +66,9 @@ public final class NeteaseHttp implements AutoCloseable {
             headers.forEach(request::header);
             HttpResponse<String> response = client.send(request.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             JsonObject json = parseObject(response.body());
-            return new Response(response.statusCode(), json, response.headers().allValues("set-cookie"));
+            List<String> setCookies = response.headers().allValues("set-cookie");
+            mergeSessionCookies(setCookies);
+            return new Response(response.statusCode(), json, setCookies);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Netease request interrupted", interrupted);
@@ -99,6 +103,7 @@ public final class NeteaseHttp implements AutoCloseable {
     }
 
     private void defaults(Map<String, String> cookies) {
+        String identity = cookies.getOrDefault("sDeviceId", cookies.getOrDefault("deviceId", deviceId));
         cookies.putIfAbsent("__remember_me", "true");
         cookies.putIfAbsent("_ntes_nuid", ntesNuid);
         cookies.putIfAbsent("_ntes_nnid", ntesNnid);
@@ -108,7 +113,8 @@ public final class NeteaseHttp implements AutoCloseable {
         cookies.putIfAbsent("osver", "Microsoft-Windows-11-Professional-build-26100-64bit");
         cookies.putIfAbsent("appver", "3.1.12.204072");
         cookies.putIfAbsent("channel", "netease");
-        cookies.putIfAbsent("deviceId", deviceId);
+        cookies.putIfAbsent("deviceId", identity);
+        cookies.putIfAbsent("sDeviceId", identity);
     }
 
     private static Map<String, String> eapiHeader(Map<String, String> cookies) {
@@ -128,7 +134,7 @@ public final class NeteaseHttp implements AutoCloseable {
     private static String cookieHeader(Map<String, String> cookies) {
         return cookies.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining("; "));
     }
-    private static String responseCookie(List<String> headers) {
+    private static Map<String, String> responseCookies(List<String> headers) {
         Map<String, String> cookies = new LinkedHashMap<>();
         for (String header : headers) {
             if (header == null || header.isBlank()) continue;
@@ -136,14 +142,43 @@ public final class NeteaseHttp implements AutoCloseable {
             int separator = pair.indexOf('=');
             if (separator > 0) cookies.put(pair.substring(0, separator).trim(), pair.substring(separator + 1).trim());
         }
-        return cookieHeader(cookies);
+        return cookies;
+    }
+    private Map<String, String> sessionCookieSnapshot() {
+        synchronized (sessionCookies) { return new LinkedHashMap<>(sessionCookies); }
+    }
+    private void mergeSessionCookies(List<String> headers) {
+        synchronized (sessionCookies) {
+            responseCookies(headers).forEach((name, value) -> {
+                if (value.isEmpty()) sessionCookies.remove(name);
+                else sessionCookies.put(name, value);
+            });
+        }
+    }
+    public void resetSessionCookies(String cookieString) {
+        synchronized (sessionCookies) {
+            sessionCookies.clear();
+            sessionCookies.putAll(parseCookies(cookieString));
+        }
     }
     private static String form(Map<String, String> values) {
         return values.entrySet().stream().map(entry -> encode(entry.getKey()) + "=" + encode(entry.getValue())).collect(Collectors.joining("&"));
     }
     private static String encode(String value) { return URLEncoder.encode(value, StandardCharsets.UTF_8); }
+    public String webLoginChainId(String cookieString) {
+        Map<String, String> cookies = sessionCookieSnapshot();
+        cookies.putAll(parseCookies(cookieString));
+        String identity = cookies.getOrDefault("sDeviceId", cookies.getOrDefault("deviceId", deviceId));
+        return "v1_" + identity + "_web_login_" + System.currentTimeMillis();
+    }
     private static String random(int length) {
         String alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        StringBuilder value = new StringBuilder(length);
+        for (int index = 0; index < length; index++) value.append(alphabet.charAt(ThreadLocalRandom.current().nextInt(alphabet.length())));
+        return value.toString();
+    }
+    private static String randomHex(int length) {
+        String alphabet = "0123456789ABCDEF";
         StringBuilder value = new StringBuilder(length);
         for (int index = 0; index < length; index++) value.append(alphabet.charAt(ThreadLocalRandom.current().nextInt(alphabet.length())));
         return value.toString();
@@ -155,7 +190,7 @@ public final class NeteaseHttp implements AutoCloseable {
     public enum Crypto { EAPI, WEAPI }
     public record Response(int status, JsonObject body, List<String> cookies) {
         public Response { cookies = List.copyOf(cookies == null ? List.of() : cookies); }
-        public String cookie() { return responseCookie(cookies); }
+        public String cookie() { return cookieHeader(responseCookies(cookies)); }
         public boolean successful() {
             if (status < 200 || status >= 300) return false;
             return !body.has("code") || body.get("code").getAsInt() == 200;

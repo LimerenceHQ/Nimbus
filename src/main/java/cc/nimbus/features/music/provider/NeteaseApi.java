@@ -23,7 +23,10 @@ public final class NeteaseApi implements AutoCloseable {
     private volatile String cookie = "";
 
     public NeteaseApi(NeteaseHttp http) { this.http = http; }
-    public void cookie(String value) { cookie = value == null ? "" : value.trim(); }
+    public void cookie(String value) {
+        cookie = value == null ? "" : value.trim();
+        http.resetSessionCookies(cookie);
+    }
     public String cookie() { return cookie; }
 
     public User profile() {
@@ -171,7 +174,8 @@ public final class NeteaseApi implements AutoCloseable {
         if (data == null) data = response.body();
         if (data == null || !data.has("unikey")) return null;
         String key = data.get("unikey").getAsString();
-        return new QrLogin(key, "https://music.163.com/login?codekey=" + key);
+        String chainId = http.webLoginChainId(cookie);
+        return new QrLogin(key, "https://music.163.com/login?codekey=" + key + "&chainId=" + chainId);
     }
     public QrStatus checkQrLogin(String key) {
         NeteaseHttp.Response response = request("/api/login/qrcode/client/login", Map.of("key", key, "type", 3), NeteaseHttp.Crypto.EAPI);
