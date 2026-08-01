@@ -5,6 +5,7 @@ import cc.nimbus.event.EventBus;
 import cc.nimbus.managers.AccountManager;
 import cc.nimbus.managers.CommandManager;
 import cc.nimbus.managers.ConfigManager;
+import cc.nimbus.managers.HudManager;
 import cc.nimbus.managers.ModuleManager;
 import cc.nimbus.managers.RenderManager;
 
@@ -21,6 +22,7 @@ public enum Core {
     private ConfigManager configManager;
     private AccountManager accountManager;
     private RenderManager renderManager;
+    private HudManager hudManager;
     private boolean initialized;
 
     public synchronized void init(Path fabricConfigDirectory) {
@@ -30,15 +32,17 @@ public enum Core {
                 .resolve("nimbus");
         RenderManager renders = new RenderManager();
         ModuleManager modules = new ModuleManager();
+        HudManager hud = new HudManager(modules, renders);
         ConfigManager configs = new ConfigManager(nimbusDirectory.resolve("configs"), modules);
         AccountManager accounts = new AccountManager(nimbusDirectory.resolve("accounts"));
         CommandManager commands = new CommandManager();
-        List<InstanceManager> started = new ArrayList<>(5);
+        List<InstanceManager> started = new ArrayList<>(6);
 
         EventBus.clear();
         try {
             start(renders, started);
             start(modules, started);
+            start(hud, started);
             start(configs, started);
             start(accounts, started);
             start(commands, started);
@@ -50,6 +54,7 @@ public enum Core {
 
         moduleManager = modules;
         renderManager = renders;
+        hudManager = hud;
         configManager = configs;
         accountManager = accounts;
         commandManager = commands;
@@ -63,6 +68,7 @@ public enum Core {
                 renderManager,
                 moduleManager,
                 configManager,
+                hudManager,
                 accountManager,
                 commandManager
         ), null);
@@ -72,6 +78,7 @@ public enum Core {
             EventBus.clear();
             moduleManager = null;
             renderManager = null;
+            hudManager = null;
             configManager = null;
             accountManager = null;
             commandManager = null;
@@ -117,6 +124,10 @@ public enum Core {
 
     public RenderManager getRenderManager() {
         return requireInitialized(renderManager, "RenderManager");
+    }
+
+    public HudManager getHudManager() {
+        return requireInitialized(hudManager, "HudManager");
     }
 
     public boolean isInitialized() {

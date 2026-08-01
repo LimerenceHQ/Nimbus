@@ -1,6 +1,7 @@
 package cc.nimbus.features.module.api;
 
 import cc.nimbus.event.EventBus;
+import cc.nimbus.features.hud.Draggable;
 import cc.nimbus.features.module.api.setting.Setting;
 
 import java.lang.reflect.Field;
@@ -9,7 +10,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class BasicModule extends ToggleElement {
     private final ModuleInfo info;
@@ -18,7 +21,7 @@ public abstract class BasicModule extends ToggleElement {
     private final String description;
     private final ModuleCategory category;
     private final List<Setting<?>> additionalSettings = new ArrayList<>();
-    private volatile List<Setting<?>> settings;
+    private volatile Members members;
     private String suffix = "";
     private int key;
     private boolean hidden;
@@ -73,7 +76,9 @@ public abstract class BasicModule extends ToggleElement {
     public final void bindStateListeners(Runnable changeListener, Runnable keyChangeListener) {
         this.changeListener = changeListener == null ? () -> {} : changeListener;
         this.keyChangeListener = keyChangeListener == null ? () -> {} : keyChangeListener;
-        getSettings().forEach(setting -> setting.setChangeListener(this::changed));
+        Members current = members();
+        current.settings().forEach(setting -> setting.setChangeListener(this::changed));
+        current.draggables().forEach(draggable -> draggable.setChangeListener(this::changed));
     }
 
     public void setKey(int key) {
@@ -130,13 +135,11 @@ public abstract class BasicModule extends ToggleElement {
     }
 
     public final List<Setting<?>> getSettings() {
-        List<Setting<?>> result = settings;
-        if (result != null) return result;
+        return members().settings();
+    }
 
-        synchronized (this) {
-            if (settings == null) settings = discoverSettings();
-            return settings;
-        }
+    public final List<Draggable> getDraggables() {
+        return members().draggables();
     }
 
     public final synchronized void addSetting(Setting<?> setting) {
@@ -144,11 +147,23 @@ public abstract class BasicModule extends ToggleElement {
         if (additionalSettings.contains(setting)) return;
         setting.setChangeListener(this::changed);
         additionalSettings.add(setting);
-        settings = null;
+        members = null;
     }
 
-    private List<Setting<?>> discoverSettings() {
-        LinkedHashSet<Setting<?>> found = new LinkedHashSet<>();
+    private Members members() {
+        Members result = members;
+        if (result != null) return result;
+
+        synchronized (this) {
+            if (members == null) members = discoverMembers();
+            return members;
+        }
+    }
+
+    private Members discoverMembers() {
+        LinkedHashSet<Setting<?>> settings = new LinkedHashSet<>();
+        LinkedHashSet<Draggable> draggables = new LinkedHashSet<>();
+        Set<String> draggableNames = new LinkedHashSet<>();
         List<Class<?>> hierarchy = new ArrayList<>();
         for (Class<?> type = getClass(); type != null && BasicModule.class.isAssignableFrom(type);
              type = type.getSuperclass()) {
@@ -160,26 +175,37 @@ public abstract class BasicModule extends ToggleElement {
             for (Field field : type.getDeclaredFields()) {
                 if (Modifier.isStatic(field.getModifiers())
                         || field.isAnnotationPresent(Exclude.class)
-                        || !Setting.class.isAssignableFrom(field.getType())) {
+                        || (!Setting.class.isAssignableFrom(field.getType())
+                        && !Draggable.class.isAssignableFrom(field.getType()))) {
                     continue;
                 }
                 try {
                     field.setAccessible(true);
-                    if (field.get(this) instanceof Setting<?> setting && found.add(setting)) {
+                    Object value = field.get(this);
+                    if (value instanceof Setting<?> setting && settings.add(setting)) {
                         setting.setChangeListener(this::changed);
+                    } else if (value instanceof Draggable draggable && draggables.add(draggable)) {
+                        String key = draggable.getName().toLowerCase(Locale.ROOT);
+                        if (!draggableNames.add(key)) {
+                            throw new IllegalStateException("Duplicate draggable name '" + draggable.getName()
+                                    + "' in module " + name);
+                        }
+                        draggable.setChangeListener(this::changed);
                     }
                 } catch (IllegalAccessException error) {
-                    throw new IllegalStateException("Cannot read setting field " + field, error);
+                    throw new IllegalStateException("Cannot read module field " + field, error);
                 }
             }
         }
         for (Setting<?> setting : additionalSettings) {
-            if (found.add(setting)) setting.setChangeListener(this::changed);
+            if (settings.add(setting)) setting.setChangeListener(this::changed);
         }
-        return List.copyOf(found);
+        return new Members(List.copyOf(settings), List.copyOf(draggables));
     }
 
     private void changed() {
         changeListener.run();
     }
+
+    private record Members(List<Setting<?>> settings, List<Draggable> draggables) {}
 }

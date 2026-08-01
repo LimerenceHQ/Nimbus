@@ -16,7 +16,7 @@ public class PostProcess extends BasicModule {
     public final BooleanSetting texture = new BooleanSetting("Texture", true);
     public final NumberSetting texture_opacity = new NumberSetting("Texture Opacity", 0.2, 0, 1, 0.3, texture::getValue);
 
-    public final ModeSetting blur_mode = new ModeSetting("Blur", new Modes("Off", "Gaussian", "Kawase"));
+    public final ModeSetting blur_mode = new ModeSetting("Blur", new Modes("Off", "Gaussian", "Kawase"), "Gaussian");
     public final NumberSetting blur_radius = new NumberSetting("Blur Radius", 10, 0, 20, 0.5, () -> blur_mode.is("Gaussian"));
     public final NumberSetting blur_passes = new NumberSetting("Blur Passes", 2, 1, 5, 1, () -> blur_mode.is("Kawase"));
     public final NumberSetting blur_sample = new NumberSetting("Blur Sample", 3, 1, 5, 0.5, () -> blur_mode.is("Kawase"));

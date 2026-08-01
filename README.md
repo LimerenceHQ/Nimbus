@@ -92,6 +92,7 @@ Module 配置由 `ConfigManager` 管理；账户和 token 数据由 `AccountMana
 
 - [Core 与 Manager 使用指南](docs/core-manager-guide.md)：Manager、Module、Setting、Config、Command 和 EventBus 的注册与使用。
 - [HUD 与 Skija 架构](docs/skija-architecture.md)：渲染入口、Layer、坐标、文本、SVG、缓存和资源生命周期。
+- [HUD 拖拽系统](docs/hud-draggable-guide.md)：自动注册、四区锚点、缩放、编辑和配置持久化。
 - [设计与重构规范](docs/design-guidelines.md)：包结构、接口抽取、代码卫生、错误处理和验证要求。
 - [项目开发契约](docs/skill/AGENTS.md)：AI 修改本项目时必须遵守的最低规则。
 

@@ -1,122 +1,146 @@
 package cc.nimbus.features.module.modules.hud;
 
-import io.github.humbleui.skija.Paint;
-import io.github.humbleui.skija.Canvas;
-import io.github.humbleui.types.RRect;
-import net.minecraft.client.Minecraft;
+import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.render.EventRender2D;
+import cc.nimbus.features.hud.Draggable;
+import cc.nimbus.features.hud.HudAnchor;
+import cc.nimbus.features.hud.HudRect;
+import cc.nimbus.features.hud.HudSize;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
-import cc.nimbus.features.module.api.setting.impl.NumberSetting;
-import cc.nimbus.features.module.api.setting.impl.modes.Modes;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
+import io.github.humbleui.skija.Paint;
+import io.github.humbleui.skija.Path;
+import io.github.humbleui.types.RRect;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
-import cc.nimbus.core.Core;
 
-@ModuleInfo(name = "ArrayList", displayName = "ArrayList", alias = {"ActiveList"}, description = "Shows enabled modules.", category = ModuleCategory.HUD)
+@ModuleInfo(
+        name = "ArrayList",
+        displayName = "Active List",
+        alias = {"ActiveList"},
+        description = "Displays enabled modules.",
+        category = ModuleCategory.HUD,
+        enableOnStartUp = true
+)
 public final class ActiveList extends BasicModule {
-    private static final String FONT = "HarmonyOS_Sans_SC-Medium";
-    private static final float FONT_SIZE = 16f;
-    private static final float ROW_HEIGHT = 27f;
-    private static final float PADDING_X = 7f;
+    private static final String FONT = "SarasaUiSC-SemiBold";
+    private static final float FONT_SIZE = 15f;
+    private static final float ROW_HEIGHT = 25f;
+    private static final float PADDING_X = 8f;
+    private static final float ACCENT_WIDTH = 2f;
+    private static final float RADIUS = 2f;
+    private static final int BACKGROUND_COLOR = 0x5C171A1E;
+    private static final int TEXT_COLOR = 0xFFF4F7F8;
+    private static final int SUFFIX_COLOR = 0xFF9EA8B2;
 
-    public final ModeSetting position = new ModeSetting("Position",
-            new Modes("Top left", "Top right", "Bottom left", "Bottom right"), "Top right");
-    public final ModeSetting letterCase = new ModeSetting("Char case",
-            new Modes("Normal", "Lowercase", "Uppercase"), "Normal");
-    public final NumberSetting margin = new NumberSetting("Margin", 12, 0, 80, 1);
-    public final BooleanSetting background = new BooleanSetting("Background", true);
-    public final BooleanSetting rounded = new BooleanSetting("Round", true, background::getValue);
-    public final BooleanSetting accentLine = new BooleanSetting("Right line", true);
-    public final BooleanSetting hideRender = new BooleanSetting("Hide Render", false);
     public final BooleanSetting showSuffix = new BooleanSetting("Show suffix", true);
-    public final ColorSetting textColor = new ColorSetting("Text color", 0xFFF1F5F7);
-    public final ColorSetting accentColor = new ColorSetting("Accent color", 0xFF52C7B8);
+    public final BooleanSetting background = new BooleanSetting("Background", true);
+    public final ColorSetting accent = new ColorSetting("Accent", 0xFF82A9FF);
+    private HudSize layoutSize = new HudSize(2f, 2f);
+
+    private final Draggable drag = new Draggable("ActiveList", 0.98, 0.02) {
+        @Override
+        public HudSize getSize() {
+            return layoutSize;
+        }
+    };
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || minecraft.player == null) return;
-
-        SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
-        float screenWidth = skija.width();
-        float screenHeight = skija.height();
-        if (screenWidth <= 0 || screenHeight <= 0) return;
-
-        List<Entry> entries = new ArrayList<>();
-        for (BasicModule module : Core.INSTANCE.getModuleManager().getModules()) {
-            if (!module.isEnabled() || module.isHidden() || module == this) continue;
-            if (hideRender.getValue()
-                    && (module.getCategory() == ModuleCategory.Render || module.getCategory() == ModuleCategory.HUD)) {
-                continue;
-            }
-            String label = format(module.getDisplayName());
-            String suffix = showSuffix.getValue() && !module.getSuffix().isBlank()
-                    ? " " + module.getSuffix() : "";
-            float width = skija.text().width(FONT, FONT_SIZE, label + suffix) + PADDING_X * 2f;
-            entries.add(new Entry(label, suffix, width));
-        }
-        entries.sort(Comparator.comparingDouble(Entry::width).reversed());
+        List<Entry> entries = entries();
+        float totalWidth = maxWidth(entries);
+        float totalHeight = Math.max(2f, entries.size() * ROW_HEIGHT);
+        layoutSize = new HudSize(totalWidth, totalHeight);
         if (entries.isEmpty()) return;
 
-        boolean right = position.getValue().endsWith("right");
-        boolean down = position.getValue().startsWith("Top");
-        float edge = margin.getValue().floatValue();
-        float startY = down ? edge : screenHeight - edge - ROW_HEIGHT;
-        List<Row> rows = new ArrayList<>(entries.size());
-        for (int index = 0; index < entries.size(); index++) {
-            Entry entry = entries.get(index);
-            float x = right ? screenWidth - edge - entry.width() : edge;
-            float y = down ? startY + index * ROW_HEIGHT : startY - index * ROW_HEIGHT;
-            float radius = rounded.getValue() ? 5f : 0f;
-            rows.add(new Row(entry, x, y, radius));
-            if (background.getValue()) skija.postProcess().add(RRect.makeXYWH(x, y, entry.width(), ROW_HEIGHT, radius));
+        SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
+        HudAnchor anchor = drag.getAnchor();
+        HudRect bounds = drag.getRect(skija.width(), skija.height());
+        float scale = (float) drag.getScale();
+        boolean drawBackground = background.getValue();
+        int accentColor = accent.getValue();
+
+        if (drawBackground) {
+            try (Path regions = new Path()) {
+                for (int index = 0; index < entries.size(); index++) {
+                    Entry entry = entries.get(index);
+                    float rowX = rowX(anchor, totalWidth, entry.width());
+                    float rowY = rowY(anchor, totalHeight, index);
+                    regions.addRRect(RRect.makeXYWH(
+                            bounds.x() + rowX * scale,
+                            bounds.y() + rowY * scale,
+                            entry.width() * scale,
+                            ROW_HEIGHT * scale,
+                            RADIUS * scale
+                    ));
+                }
+                skija.postProcess().add(regions);
+            }
         }
 
-        skija.hud().submit(frame -> {
-            Canvas canvas = frame.canvas();
-            try (Paint backgroundPaint = new Paint().setAntiAlias(true).setColor(0xA8171A1E);
-                 Paint textPaint = new Paint().setAntiAlias(true).setColor(textColor.getValue());
-                 Paint suffixPaint = new Paint().setAntiAlias(true).setColor(0xFF9AA4AE);
-                 Paint linePaint = new Paint().setAntiAlias(true).setColor(accentColor.getValue())) {
-                for (Row row : rows) {
-                    if (background.getValue()) {
-                        canvas.drawRRect(RRect.makeXYWH(row.x(), row.y(), row.entry().width(), ROW_HEIGHT, row.radius()), backgroundPaint);
+        List<Entry> frameEntries = List.copyOf(entries);
+        skija.hud().submit(frame -> drag.render(frame, local -> {
+            try (Paint textPaint = new Paint().setAntiAlias(true).setColor(TEXT_COLOR);
+                 Paint suffixPaint = new Paint().setAntiAlias(true).setColor(SUFFIX_COLOR)) {
+                float textY = (ROW_HEIGHT - local.text().height(FONT, FONT_SIZE)) * 0.5f;
+                for (int index = 0; index < frameEntries.size(); index++) {
+                    Entry entry = frameEntries.get(index);
+                    float rowX = rowX(anchor, totalWidth, entry.width());
+                    float rowY = rowY(anchor, totalHeight, index);
+                    if (drawBackground) {
+                        local.draw().roundedRect(rowX, rowY, entry.width(), ROW_HEIGHT, RADIUS, BACKGROUND_COLOR);
                     }
-                    if (accentLine.getValue()) {
-                        float lineX = right ? row.x() + row.entry().width() - 2f : row.x();
-                        canvas.drawRect(io.github.humbleui.types.Rect.makeXYWH(lineX, row.y(), 2f, ROW_HEIGHT), linePaint);
-                    }
-                    float textX = row.x() + PADDING_X;
-                    float textY = row.y() + (ROW_HEIGHT - frame.text().height(FONT, FONT_SIZE)) * 0.5f;
-                    frame.text().drawWithShadow(FONT, FONT_SIZE, row.entry().name(), textX, textY, textPaint);
-                    if (!row.entry().suffix().isEmpty()) {
-                        float nameWidth = frame.text().width(FONT, FONT_SIZE, row.entry().name());
-                        frame.text().drawWithShadow(FONT, FONT_SIZE, row.entry().suffix(),
-                                textX + nameWidth, textY, suffixPaint);
+                    float accentX = anchor.isRight() ? rowX + entry.width() - ACCENT_WIDTH : rowX;
+                    local.draw().rect(accentX, rowY, ACCENT_WIDTH, ROW_HEIGHT, accentColor);
+                    float labelX = rowX + PADDING_X + (anchor.isRight() ? 0f : ACCENT_WIDTH);
+                    local.text().draw(FONT, FONT_SIZE, entry.name(), labelX, rowY + textY, textPaint);
+                    if (!entry.suffix().isEmpty()) {
+                        local.text().draw(FONT, FONT_SIZE, entry.suffix(),
+                                labelX + entry.nameWidth(), rowY + textY, suffixPaint);
                     }
                 }
             }
-        });
+        }));
     }
 
-    private String format(String value) {
-        return switch (letterCase.getValue()) {
-            case "Lowercase" -> value.toLowerCase(Locale.ROOT);
-            case "Uppercase" -> value.toUpperCase(Locale.ROOT);
-            default -> value;
-        };
+    private List<Entry> entries() {
+        SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
+        List<Entry> entries = new ArrayList<>();
+        for (BasicModule module : Core.INSTANCE.getModuleManager().getModules()) {
+            if (!module.isEnabled() || module.isHidden() || module == this) continue;
+            String name = module.getDisplayName();
+            String suffix = showSuffix.getValue() && !module.getSuffix().isBlank()
+                    ? " " + module.getSuffix() : "";
+            float nameWidth = skija.text().width(FONT, FONT_SIZE, name);
+            float textWidth = nameWidth + skija.text().width(FONT, FONT_SIZE, suffix);
+            entries.add(new Entry(name, suffix, nameWidth,
+                    textWidth + PADDING_X * 2f + ACCENT_WIDTH));
+        }
+        entries.sort(Comparator.comparingDouble(Entry::width).reversed()
+                .thenComparing(Entry::name, String.CASE_INSENSITIVE_ORDER));
+        return entries;
     }
 
-    private record Entry(String name, String suffix, float width) {}
-    private record Row(Entry entry, float x, float y, float radius) {}
+    private static float maxWidth(List<Entry> entries) {
+        return Math.max(2f, entries.stream().map(Entry::width).max(Float::compare).orElse(2f));
+    }
+
+    private static float rowX(HudAnchor anchor, float totalWidth, float rowWidth) {
+        return anchor.isRight() ? totalWidth - rowWidth : 0f;
+    }
+
+    private static float rowY(HudAnchor anchor, float totalHeight, int index) {
+        return anchor.isBottom()
+                ? totalHeight - (index + 1) * ROW_HEIGHT
+                : index * ROW_HEIGHT;
+    }
+
+    private record Entry(String name, String suffix, float nameWidth, float width) {}
 }

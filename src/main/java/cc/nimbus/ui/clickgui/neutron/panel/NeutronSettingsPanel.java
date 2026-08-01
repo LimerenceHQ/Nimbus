@@ -105,6 +105,7 @@ public class NeutronSettingsPanel extends NeutronScrollAreaPanel {
 
         String query = state.searchText.toString().trim().toLowerCase(Locale.ROOT);
         List<BasicModule> modules = Core.INSTANCE.getModuleManager().getModulesByCategory(state.selectedCategory);
+
         List<BasicModule> filtered = new ArrayList<>();
         for (BasicModule m : modules) {
             if (query.isEmpty() || matchesQuery(m, query)) {

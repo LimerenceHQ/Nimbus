@@ -4,6 +4,7 @@ import cc.nimbus.core.interfaces.InstanceManager;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.game.EventTick;
+import cc.nimbus.features.hud.Draggable;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.setting.Setting;
 import cc.nimbus.features.module.api.setting.impl.*;
@@ -215,6 +216,15 @@ public final class ConfigManager implements InstanceManager {
             JsonObject settings = new JsonObject();
             for (Setting<?> setting : module.getSettings()) settings.add(setting.getName(), writeSetting(setting));
             value.add("settings", settings);
+            JsonObject draggables = new JsonObject();
+            for (Draggable draggable : module.getDraggables()) {
+                JsonObject state = new JsonObject();
+                state.addProperty("x", draggable.getX());
+                state.addProperty("y", draggable.getY());
+                state.addProperty("scale", draggable.getScale());
+                draggables.add(draggable.getName(), state);
+            }
+            if (!draggables.isEmpty()) value.add("draggables", draggables);
             modules.add(module.getName(), value);
         }
         root.add("modules", modules);
@@ -248,9 +258,29 @@ public final class ConfigManager implements InstanceManager {
                 if (value.has("settings") && value.get("settings").isJsonObject()) {
                     deserializeSettings(value.getAsJsonObject("settings"), module.getSettings());
                 }
+                if (value.has("draggables") && value.get("draggables").isJsonObject()) {
+                    deserializeDraggables(value.getAsJsonObject("draggables"), module);
+                }
                 if (value.has("enabled")) module.setEnabled(value.get("enabled").getAsBoolean());
             } catch (RuntimeException error) {
                 System.err.println("[Nimbus] Ignoring damaged config entry for " + module.getName() + ": " + error.getMessage());
+            }
+        }
+    }
+
+    private void deserializeDraggables(JsonObject source, BasicModule module) {
+        for (Draggable draggable : module.getDraggables()) {
+            JsonElement element = findIgnoreCase(source, draggable.getName());
+            if (element == null || !element.isJsonObject()) continue;
+            try {
+                JsonObject state = element.getAsJsonObject();
+                double x = state.has("x") ? state.get("x").getAsDouble() : draggable.getX();
+                double y = state.has("y") ? state.get("y").getAsDouble() : draggable.getY();
+                draggable.setPosition(x, y);
+                if (state.has("scale")) draggable.setScale(state.get("scale").getAsDouble());
+            } catch (RuntimeException error) {
+                System.err.println("[Nimbus] Ignoring damaged draggable '" + draggable.getName()
+                        + "' in module " + module.getName() + ": " + message(error));
             }
         }
     }
