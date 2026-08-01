@@ -44,35 +44,6 @@ public final class GaussianSurface extends AbstractOffSurface<GaussianSurface.Ta
             return;
         }
 
-        float saturation = 1.F + target.radius() / 120;
-
-        float rw = 0.2126f;
-        float gw = 0.7152f;
-        float bw = 0.0722f;
-
-        float invS = 1.0f - saturation;
-
-        float rR = rw * invS + saturation;
-        float rG = gw * invS;
-        float rB = bw * invS;
-
-        float gR = rw * invS;
-        float gG = gw * invS + saturation;
-        float gB = bw * invS;
-
-        float bR = rw * invS;
-        float bG = gw * invS;
-        float bB = bw * invS + saturation;
-
-        float[] colorMat = new float[] {
-                rR, rG, rB, 0f, 0f,
-                gR, gG, gB, 0f, 0f,
-                bR, bG, bB, 0f, 0f,
-                0f, 0f, 0f, 1f, 0f
-        };
-
-        ColorMatrix colorMatrix = new ColorMatrix(colorMat);
-
         if (blurFilter == null || blurFilter.isClosed() || lastRadius != target.radius()) {
             if (blurFilter != null && !blurFilter.isClosed()) {
                 blurFilter.close();
@@ -84,29 +55,47 @@ public final class GaussianSurface extends AbstractOffSurface<GaussianSurface.Ta
             if (saturationFilter != null && !saturationFilter.isClosed()) {
                 saturationFilter.close();
             }
-            saturationFilter = ColorFilter.makeMatrix(colorMatrix);
+            saturationFilter = ColorFilter.makeMatrix(saturationMatrix(target.radius()));
         }
 
         this.blur.setImageFilter(blurFilter);
         this.blur.setColorFilter(saturationFilter);
 
-        int count = canvas.saveLayer(null, blur);
-
-        try {
-            if (srcs != null && !srcs.isEmpty()) {
-                float samplingMargin = target.radius() * 3F;
-                for (Rect src : srcs) {
-                    Rect samplingBounds = src.inflate(samplingMargin);
+        if (srcs != null && !srcs.isEmpty()) {
+            float samplingMargin = target.radius() * 3F;
+            for (Rect src : srcs) {
+                Rect samplingBounds = src.inflate(samplingMargin);
+                int count = canvas.saveLayer(samplingBounds, blur);
+                try {
                     canvas.drawImageRect(snapshot, samplingBounds, samplingBounds, paint);
+                } finally {
+                    canvas.restoreToCount(count);
                 }
-            } else {
-                canvas.drawImage(snapshot, 0, 0, paint);
             }
-        } finally {
-            canvas.restoreToCount(count);
+        } else {
+            int count = canvas.saveLayer(null, blur);
+            try {
+                canvas.drawImage(snapshot, 0, 0, paint);
+            } finally {
+                canvas.restoreToCount(count);
+            }
         }
 
         lastRadius = target.radius();
+    }
+
+    private static ColorMatrix saturationMatrix(float radius) {
+        float saturation = 1F + radius / 120F;
+        float red = 0.2126F;
+        float green = 0.7152F;
+        float blue = 0.0722F;
+        float inverse = 1F - saturation;
+        return new ColorMatrix(new float[]{
+                red * inverse + saturation, green * inverse, blue * inverse, 0F, 0F,
+                red * inverse, green * inverse + saturation, blue * inverse, 0F, 0F,
+                red * inverse, green * inverse, blue * inverse + saturation, 0F, 0F,
+                0F, 0F, 0F, 1F, 0F
+        });
     }
 
     public record Target(float radius) {

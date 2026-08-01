@@ -42,14 +42,16 @@ public class GuiRendererMixin {
         if (minecraft.gui.screen() instanceof NeutronScreen neutronScreen) {
             PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);
             skija.configurePostProcess(postProcess == null ? null : postProcess.options());
-            if (skija.postProcessOptions().blurEnabled()) {
-                skija.captureScene();
+            var options = skija.postProcessOptions();
+            if (options.blurEnabled()) {
+                skija.captureScene(options.blurRefreshRate());
             }
             neutronScreen.renderExtractedFrame();
         }
 
         if (minecraft.gui.screen() instanceof TitleScreen mainMenu) {
-            skija.captureScene();
+            int refreshRate = minecraft.getWindow().getRefreshRate();
+            skija.captureScene(refreshRate > 0 ? refreshRate : 60);
             mainMenu.renderExtractedFrame();
         }
 
@@ -69,8 +71,9 @@ public class GuiRendererMixin {
             nimbus$hudLayer.ensure(framebufferWidth, framebufferHeight);
             PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);
             skija.configurePostProcess(postProcess == null ? null : postProcess.options());
-            if (skija.postProcessOptions().blurEnabled()) {
-                skija.captureScene();
+            var options = skija.postProcessOptions();
+            if (options.blurEnabled()) {
+                skija.captureScene(options.blurRefreshRate());
             }
             nimbus$hudLayer.clear();
             EventBus.call(new EventRender2D(graphics));

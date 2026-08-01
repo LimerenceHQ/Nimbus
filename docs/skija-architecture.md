@@ -499,9 +499,11 @@ Image image = frame.images().minecraftTexture(texture);
 场景截图：
 
 ```java
-skija.captureScene();
+skija.captureScene(60);
 Image scene = frame.images().scene();
 ```
+
+`captureScene(int targetFps)` 会限制昂贵的场景纹理复制频率。后处理应传入 `PostProcessOptions.blurRefreshRate()`；只有确实要求每个游戏帧更新的直接场景读取才使用无参数 `captureScene()`。
 
 规则：
 
@@ -559,7 +561,7 @@ frame.postProcess().add(RRect.makeXYWH(x, y, width, height, radius));
 frame.postProcess().draw();
 ```
 
-模糊需要有效的场景截图。当前 `GuiRendererMixin` 会根据 `PostProcessOptions` 在正确阶段调用 `captureScene()`；新增 Screen 集成时必须同步处理该顺序。
+模糊需要有效的场景截图。当前 `GuiRendererMixin` 会根据 `PostProcessOptions` 在正确阶段调用 `captureScene(options.blurRefreshRate())`；新增 Screen 集成时必须同步处理该顺序和刷新率，不能在受限模糊模式下仍然每帧复制整张场景。
 
 每帧结束时区域由 `finishFrame()` 清理。不要把后处理区域当成持久配置。
 

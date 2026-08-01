@@ -64,7 +64,9 @@ public final class PostProcessPipeline {
                     0xFF000000,
                     options.shadowOpacity()
             );
-            shadow(canvas, path, options.shadowRefreshRate(), target);
+            if (target.radius() > 0f && target.alpha() > 0) {
+                shadow(canvas, path, options.shadowRefreshRate(), target);
+            }
         }
 
         switch (options.blurMode()) {
@@ -88,7 +90,7 @@ public final class PostProcessPipeline {
 
     public static void shadow(Canvas canvas, Path path, int refreshRate, ShadowSurface.Target target) {
         SHADOW_PROCESSOR.setTargetFps(refreshRate);
-        if (SHADOW_PROCESSOR.shouldUpdate(System.currentTimeMillis(), gameFps())) {
+        if (SHADOW_PROCESSOR.shouldUpdate(System.currentTimeMillis(), gameFps(), path, target)) {
             SHADOW_PROCESSOR.updateSurface(context(), path, null, width(), height(), target);
         }
 
@@ -122,7 +124,7 @@ public final class PostProcessPipeline {
     }
 
     public static void texture(Canvas canvas, Path path, TextureSurface.Target target) {
-        if (TEXTURE_SURFACE.shouldUpdate(System.currentTimeMillis(), 1, path, target)) {
+        if (TEXTURE_SURFACE.shouldUpdate(path, target)) {
             TEXTURE_SURFACE.updateSurface(context(), path, null, width(), height(), target);
         }
         drawClipped(canvas, path, TEXTURE_SURFACE.getSnapshot(), TEXTURE_SURFACE.getSnapshotBounds());

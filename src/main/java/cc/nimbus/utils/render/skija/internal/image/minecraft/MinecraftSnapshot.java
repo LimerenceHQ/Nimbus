@@ -1,10 +1,7 @@
 package cc.nimbus.utils.render.skija.internal.image.minecraft;
 
-import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTexture;
 import io.github.humbleui.skija.ColorType;
 import io.github.humbleui.skija.DirectContext;
 import io.github.humbleui.skija.Image;
@@ -22,42 +19,49 @@ import java.nio.ByteBuffer;
 public final class MinecraftSnapshot {
     private static Image image;
     private static DirectContext imageContext;
-    private static GpuTexture stagingTexture;
     private static int textureId;
     private static int readFramebuffer;
     private static int drawFramebuffer;
     private static int width;
     private static int height;
+    private static long lastCaptureNanos;
 
     private MinecraftSnapshot() {
     }
 
     public static synchronized void capture() {
+        capture(Integer.MAX_VALUE);
+    }
+
+    public static synchronized void capture(int targetFps) {
         SkijaSupport.validateBackend();
         if (!SkijaSupport.isSupported()) return;
+        long now = System.nanoTime();
+        long interval = 1_000_000_000L / Math.max(1, targetFps);
+        if (image != null && !image.isClosed() && now - lastCaptureNanos < interval) return;
         States.push();
         try {
-            captureGuarded();
+            if (captureGuarded()) lastCaptureNanos = now;
         } finally {
             States.pop();
         }
     }
 
-    private static void captureGuarded() {
+    private static boolean captureGuarded() {
         DirectContext context = SkijaBackend.INSTANCE.getContext();
         if (context == null || context.isClosed()) {
-            return;
+            return false;
         }
 
         RenderTarget target = Minecraft.getInstance().gameRenderer.mainRenderTarget();
-        if (!(target.getColorTexture() instanceof GlTexture)) {
-            return;
+        if (!(target.getColorTexture() instanceof GlTexture sourceTexture)) {
+            return false;
         }
 
         int targetWidth = target.width;
         int targetHeight = target.height;
         if (targetWidth <= 0 || targetHeight <= 0) {
-            return;
+            return false;
         }
 
         if (image == null || image.isClosed() || imageContext != context
@@ -66,13 +70,6 @@ public final class MinecraftSnapshot {
             width = targetWidth;
             height = targetHeight;
             imageContext = context;
-
-            stagingTexture = RenderSystem.getDevice().createTexture(
-                    "Nimbus Skija Scene Snapshot",
-                    GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC,
-                    GpuFormat.RGBA8_UNORM,
-                    width, height, 1, 1
-            );
 
             int previousTexture = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
             textureId = GL11.glGenTextures();
@@ -89,15 +86,7 @@ public final class MinecraftSnapshot {
             drawFramebuffer = GL30.glGenFramebuffers();
         }
 
-        var encoder = RenderSystem.getDevice().createCommandEncoder();
-        encoder.copyTextureToTexture(target.getColorTexture(), stagingTexture,
-                0, 0, 0, 0, 0, width, height);
-        encoder.submit();
-
-        if (!(stagingTexture instanceof GlTexture stagingGlTexture)) {
-            return;
-        }
-        copyTexture(stagingGlTexture.glId());
+        copyTexture(sourceTexture.glId());
         if (image == null || image.isClosed()) {
             image = Image.adoptGLTextureFrom(
                     context,
@@ -111,6 +100,7 @@ public final class MinecraftSnapshot {
             );
         }
         context.resetGLAll();
+        return true;
     }
 
     public static synchronized Image getScreenshot() {
@@ -149,8 +139,10 @@ public final class MinecraftSnapshot {
     }
 
     public static void clear() {
-        if (image != null && !image.isClosed()) {
-            image.close();
+        if (image != null) {
+            if (!image.isClosed()) image.close();
+        } else if (textureId != 0) {
+            GL11.glDeleteTextures(textureId);
         }
         image = null;
         imageContext = null;
@@ -163,11 +155,8 @@ public final class MinecraftSnapshot {
             GL30.glDeleteFramebuffers(drawFramebuffer);
             drawFramebuffer = 0;
         }
-        if (stagingTexture != null) {
-            stagingTexture.close();
-            stagingTexture = null;
-        }
         width = 0;
         height = 0;
+        lastCaptureNanos = 0L;
     }
 }

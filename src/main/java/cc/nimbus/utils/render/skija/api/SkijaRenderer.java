@@ -71,6 +71,11 @@ public final class SkijaRenderer {
         MinecraftSnapshot.capture();
     }
 
+    public void captureScene(int targetFps) {
+        requireReady();
+        MinecraftSnapshot.capture(targetFps);
+    }
+
     void renderHud(int targetFps) {
         SkijaBackend.INSTANCE.callSurface(targetFps);
     }

@@ -16,11 +16,11 @@ public final class TextureSurface extends AbstractOffSurface<TextureSurface.Targ
         super(targetFps);
     }
 
-    public boolean shouldUpdate(long nowMs, float currentFps, Path path, Target target) {
+    public boolean shouldUpdate(Path path, Target target) {
         Rect cachedBounds = getSnapshotBounds();
         Rect bounds = path == null ? null : path.getBounds();
         return cachedBounds == null || bounds == null || !sameBounds(cachedBounds, bounds)
-                || !target.equals(lastTarget) || super.shouldUpdate(nowMs, currentFps);
+                || !target.equals(lastTarget);
     }
 
     @Override
