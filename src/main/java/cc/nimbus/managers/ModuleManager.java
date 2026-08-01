@@ -11,6 +11,8 @@ import cc.nimbus.features.module.modules.hud.ActiveList;
 import cc.nimbus.features.module.modules.hud.Watermark;
 import cc.nimbus.features.module.modules.render.ClickGui;
 import cc.nimbus.features.module.modules.render.ESP;
+import net.minecraft.client.Minecraft;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -128,8 +130,13 @@ public final class ModuleManager implements InstanceManager {
 
     @EventTarget
     public void onKey(EventKeyPress event) {
-        if (event.getAction() != 1) return;
+        if (event.getAction() != GLFW.GLFW_PRESS || !acceptsModuleKeybinds()) return;
         getModulesByKey(event.getKey()).forEach(BasicModule::toggle);
+    }
+
+    private static boolean acceptsModuleKeybinds() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.level != null && minecraft.player != null && minecraft.gui.screen() == null;
     }
 
     private void validateName(String name) {

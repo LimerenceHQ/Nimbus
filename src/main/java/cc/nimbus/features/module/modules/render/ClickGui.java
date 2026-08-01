@@ -13,9 +13,11 @@ import cc.nimbus.ui.screen.UnsupportedPlatformScreen;
 public final class ClickGui extends BasicModule {
     @Override protected void onEnable() {
         Minecraft.getInstance().schedule(() -> {
+            Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft.level == null || minecraft.player == null || minecraft.gui.screen() != null) return;
             var skija = Core.INSTANCE.getRenderManager().skija();
             skija.validateSupport();
-            Minecraft.getInstance().gui.setScreen(skija.isSupported()
+            minecraft.gui.setScreen(skija.isSupported()
                     ? new NeutronScreen()
                     : new UnsupportedPlatformScreen(skija.unsupportedReason()));
         });
