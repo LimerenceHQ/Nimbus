@@ -8,11 +8,10 @@ import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.game.EventChatSend;
 import cc.nimbus.ui.screen.UnsupportedPlatformScreen;
-import cc.nimbus.utils.helper.Schedulers;
 
 public final class Nimbus implements ClientModInitializer {
     public static final String NAME = "Nimbus";
-    public static final String VERSION = "0.2";
+    public static final String VERSION = "1.0";
     public static final String AUTHOR = "Limerence";
 
     private static volatile boolean initialized;
@@ -41,7 +40,6 @@ public final class Nimbus implements ClientModInitializer {
     public static void shutdown() {
         if (!initialized) return;
         Core.INSTANCE.shutdown();
-        Schedulers.shutdown();
         initialized = false;
     }
 }
