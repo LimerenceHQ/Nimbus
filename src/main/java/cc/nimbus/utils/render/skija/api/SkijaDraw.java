@@ -4,6 +4,7 @@ import cc.nimbus.utils.render.skija.internal.image.ImageStore;
 import cc.nimbus.utils.render.skija.internal.geometry.gn.SmoothRectSpec;
 import cc.nimbus.utils.render.skija.internal.geometry.gn.SmoothRectPathCache;
 import cc.nimbus.utils.render.skija.internal.image.SvgIconStore;
+import cc.nimbus.utils.render.skija.internal.resource.ResourceDataCache;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.ClipMode;
 import io.github.humbleui.skija.Image;
@@ -13,6 +14,7 @@ import io.github.humbleui.skija.Path;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 import net.minecraft.resources.Identifier;
+import java.nio.charset.StandardCharsets;
 
 public final class SkijaDraw {
     private final Canvas canvas;
@@ -71,6 +73,12 @@ public final class SkijaDraw {
 
     public void svg(String content, float x, float y, float size, Paint tint) {
         SvgIconStore.draw(canvas, content, x, y, size, tint);
+    }
+
+    public void svgResource(String path, float x, float y, float size, Paint tint) {
+        byte[] bytes = ResourceDataCache.bytes(path);
+        if (bytes == null || bytes.length == 0) return;
+        SvgIconStore.draw(canvas, new String(bytes, StandardCharsets.UTF_8), x, y, size, tint);
     }
 
     public void outline(float x, float y, float width, float height, float radius, float strokeWidth, int color) {

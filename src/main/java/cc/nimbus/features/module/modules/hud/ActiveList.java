@@ -13,6 +13,7 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
+import cc.nimbus.utils.render.font.NimbusFonts;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.skija.PathBuilder;
@@ -31,7 +32,7 @@ import java.util.List;
         enableOnStartUp = true
 )
 public final class ActiveList extends BasicModule {
-    private static final String FONT = "SarasaUiSC-SemiBold";
+    private static final String FONT = NimbusFonts.BODY_MEDIUM;
     private static final float FONT_SIZE = 15f;
     private static final float ROW_HEIGHT = 25f;
     private static final float PADDING_X = 8f;
@@ -43,7 +44,7 @@ public final class ActiveList extends BasicModule {
 
     public final BooleanSetting showSuffix = new BooleanSetting("Show suffix", true);
     public final BooleanSetting background = new BooleanSetting("Background", true);
-    public final ColorSetting accent = new ColorSetting("Accent", 0xFF82A9FF);
+    public final ColorSetting accent = new ColorSetting("Accent", 0xFF82A9FF, this::customStyle);
     private HudSize layoutSize = new HudSize(2f, 2f);
 
     private final Draggable drag = new Draggable("ActiveList", 0.98, 0.02) {
@@ -66,7 +67,9 @@ public final class ActiveList extends BasicModule {
         HudRect bounds = drag.getRect(skija.width(), skija.height());
         float scale = (float) drag.getScale();
         boolean drawBackground = background.getValue();
-        int accentColor = accent.getValue();
+        int accentColor = customStyle()
+                ? accent.getValue()
+                : Core.INSTANCE.getConfigManager().clientSettings().accentColor();
 
         if (drawBackground) {
             try (Path regions = backgroundPath(
@@ -121,6 +124,11 @@ public final class ActiveList extends BasicModule {
 
     private static float maxWidth(List<Entry> entries) {
         return Math.max(2f, entries.stream().map(Entry::width).max(Float::compare).orElse(2f));
+    }
+
+    private boolean customStyle() {
+        return Core.INSTANCE.isInitialized()
+                && Core.INSTANCE.getConfigManager().clientSettings().customStyle();
     }
 
     private static float rowX(HudAnchor anchor, float totalWidth, float rowWidth) {

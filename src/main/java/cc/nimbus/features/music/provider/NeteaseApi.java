@@ -120,6 +120,25 @@ public final class NeteaseApi implements AutoCloseable {
     public List<Playlist> dailyRecommendedPlaylists() {
         return mapArray(request("/api/v1/discovery/recommend/resource", Map.of(), NeteaseHttp.Crypto.WEAPI).body(), "recommend", Playlist.class);
     }
+    public List<Playlist> personalizedPlaylists(int limit) {
+        Map<String, Object> data = Map.of(
+                "limit", Math.max(1, Math.min(100, limit)),
+                "total", true,
+                "n", 1000
+        );
+        return mapArray(request("/api/personalized/playlist", data, NeteaseHttp.Crypto.WEAPI).body(),
+                "result", Playlist.class);
+    }
+    public List<Playlist> featuredPlaylists(int limit) {
+        Map<String, Object> data = Map.of(
+                "cat", "全部",
+                "limit", Math.max(1, Math.min(100, limit)),
+                "lasttime", 0,
+                "total", true
+        );
+        return mapArray(request("/api/playlist/highquality/list", data, NeteaseHttp.Crypto.WEAPI).body(),
+                "playlists", Playlist.class);
+    }
     public List<Music> dailyRecommendedSongs() {
         JsonObject data = object(request("/api/v3/discovery/recommend/songs", Map.of(), NeteaseHttp.Crypto.WEAPI).body(), "data");
         return data == null ? List.of() : mapArray(data, "dailySongs", Music.class);

@@ -35,7 +35,7 @@ public enum Core {
         RenderManager renders = new RenderManager();
         ModuleManager modules = new ModuleManager();
         HudManager hud = new HudManager(modules, renders);
-        ConfigManager configs = new ConfigManager(nimbusDirectory.resolve("configs"), modules);
+        ConfigManager configs = new ConfigManager(nimbusDirectory, modules);
         AccountManager accounts = new AccountManager(nimbusDirectory.resolve("accounts"));
         MusicManager music = new MusicManager(nimbusDirectory.resolve("music"));
         CommandManager commands = new CommandManager();

@@ -4,18 +4,22 @@ import cc.nimbus.core.interfaces.InstanceManager;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.input.EventKeyPress;
+import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.features.music.MusicConfig;
 import cc.nimbus.features.music.Quality;
 import cc.nimbus.features.music.internal.net.NeteaseHttp;
 import cc.nimbus.features.music.lyrics.Lyrics;
 import cc.nimbus.features.music.model.Music;
+import cc.nimbus.features.music.model.CachedSong;
 import cc.nimbus.features.music.model.Playlist;
 import cc.nimbus.features.music.model.User;
 import cc.nimbus.features.music.playback.PlayMode;
+import cc.nimbus.features.music.playback.PlaybackQueueState;
 import cc.nimbus.features.music.playback.PlaybackController;
 import cc.nimbus.features.music.playback.PlaybackState;
 import cc.nimbus.features.music.provider.NeteaseApi;
 import cc.nimbus.features.music.resource.ArtworkCache;
+import cc.nimbus.features.music.resource.Artwork;
 import cc.nimbus.features.music.resource.AudioCache;
 import cc.nimbus.features.music.resource.QrCodeImage;
 
@@ -35,6 +39,7 @@ import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
 public final class MusicManager implements InstanceManager {
+    private static final long CONFIG_SAVE_DELAY_MILLIS = 800L;
     private static final long SMS_RESEND_MILLIS = 60_000L;
     private static final long SMS_EXPIRE_MILLIS = 10 * 60_000L;
     private final Path directory;
@@ -51,6 +56,8 @@ public final class MusicManager implements InstanceManager {
     private volatile NeteaseApi.QrLogin activeQr;
     private volatile SmsSession activeSms;
     private volatile boolean initialized;
+    private volatile boolean configDirty;
+    private volatile long configDirtySince;
 
     public MusicManager(Path directory) { this.directory = Objects.requireNonNull(directory, "directory"); }
 
@@ -106,6 +113,12 @@ public final class MusicManager implements InstanceManager {
     public CompletableFuture<List<Music>> playlistSongs(long id) { return async(() -> api().playlistSongs(requireId(id))); }
     public CompletableFuture<List<Playlist>> dailyRecommendedPlaylists() { return async(() -> api().dailyRecommendedPlaylists()); }
     public CompletableFuture<List<Music>> dailyRecommendedSongs() { return async(() -> api().dailyRecommendedSongs()); }
+    public CompletableFuture<List<Playlist>> personalizedPlaylists(int limit) {
+        return async(() -> api().personalizedPlaylists(limit));
+    }
+    public CompletableFuture<List<Playlist>> featuredPlaylists(int limit) {
+        return async(() -> api().featuredPlaylists(limit));
+    }
     public CompletableFuture<List<Music>> intelligentSongs(long songId, long playlistId, long startMusicId, int count) {
         return async(() -> api().intelligentSongs(requireId(songId), requireId(playlistId), requireId(startMusicId), count));
     }
@@ -181,6 +194,20 @@ public final class MusicManager implements InstanceManager {
     }
     public NeteaseApi.QrLogin activeQr() { return activeQr; }
     public Path qrImage() { return directory.resolve("login-qr.png"); }
+    public CompletableFuture<byte[]> qrImageBytes() {
+        return async(() -> {
+            try {
+                return Files.isRegularFile(qrImage()) ? Files.readAllBytes(qrImage()) : new byte[0];
+            } catch (java.io.IOException error) {
+                throw new IllegalStateException("Unable to read login QR code", error);
+            }
+        });
+    }
+    public synchronized void cancelLogin() {
+        activeQr = null;
+        activeSms = null;
+        try { Files.deleteIfExists(qrImage()); } catch (Exception ignored) {}
+    }
 
     public synchronized CompletableFuture<NeteaseApi.SmsStatus> requestSmsLogin(String phone, String countryCode) {
         requireInitialized();
@@ -238,6 +265,44 @@ public final class MusicManager implements InstanceManager {
         });
     }
     public void play(Music music) { playback().play(music); }
+    public void play(List<Music> songs, int index) { playback().play(songs, index); }
+    public List<CachedSong> cachedSongs() {
+        requireInitialized();
+        return audioCache.cachedSongs();
+    }
+    public CompletableFuture<CachedSong> cache(Music music) {
+        Objects.requireNonNull(music, "music");
+        return async(() -> {
+            Path prepared = audioCache.prepare(music, config().quality(), ignored -> {}, () -> false);
+            CachedSong cached = audioCache.cachedSong(music.id());
+            if (prepared == null || cached == null) throw new IllegalStateException("Unable to cache " + music.name());
+            return cached;
+        });
+    }
+    public CompletableFuture<Boolean> removeCached(long musicId) {
+        long id = requireId(musicId);
+        long keep = state().music() == null ? -1L : state().music().id();
+        return async(() -> audioCache.remove(id, keep));
+    }
+    public void playCached(List<Long> musicIds, int index) {
+        requireInitialized();
+        if (musicIds == null || musicIds.isEmpty()) return;
+        long selectedId = musicIds.get(Math.clamp(index, 0, musicIds.size() - 1));
+        List<Music> songs = musicIds.stream()
+                .map(audioCache::cachedSong)
+                .filter(Objects::nonNull)
+                .map(CachedSong::music)
+                .toList();
+        if (songs.isEmpty()) throw new IllegalArgumentException("No cached songs are available");
+        int selectedIndex = 0;
+        for (int candidate = 0; candidate < songs.size(); candidate++) {
+            if (songs.get(candidate).id() == selectedId) {
+                selectedIndex = candidate;
+                break;
+            }
+        }
+        playback().playCached(songs, selectedIndex);
+    }
     public CompletableFuture<List<Music>> playPlaylist(long id, int index) {
         return playlistSongs(id).thenApply(songs -> {
             if (songs.isEmpty()) throw new IllegalStateException("Playlist is empty: " + id);
@@ -247,6 +312,7 @@ public final class MusicManager implements InstanceManager {
     }
     public Music next() { return playback().next(); }
     public Music previous() { return playback().previous(); }
+    public Music playAt(int index) { return playback().playAt(index); }
     public void stop() { playback().stop(); }
     public void pause() { playback().pause(); }
     public void resume() { playback().resume(); }
@@ -254,20 +320,28 @@ public final class MusicManager implements InstanceManager {
     public void seek(double seconds) { playback().seek(seconds); }
     public PlaybackState state() { return playback().state(); }
     public List<Music> queue() { return playback().queue(); }
+    public PlaybackQueueState queueState() { return playback().queueState(); }
     public float[] spectrum() { return playback().spectrum(); }
 
-    public synchronized void volume(float value) { playback().volume(value); config().save(); }
-    public synchronized void rate(float value) { playback().rate(value); config().save(); }
-    public synchronized void mode(PlayMode value) { playback().mode(value); config().save(); }
-    public synchronized void quality(Quality value) { config().quality(value); config().save(); }
-    public synchronized void prefetch(boolean value) { config().prefetch(value); config().save(); }
-    public synchronized void cacheLimitBytes(long value) { config().cacheLimitBytes(value); config().save(); }
+    public synchronized void volume(float value) { playback().volume(value); markConfigDirty(); }
+    public synchronized void rate(float value) { playback().rate(value); markConfigDirty(); }
+    public synchronized void mode(PlayMode value) { playback().mode(value); markConfigDirty(); }
+    public synchronized void quality(Quality value) { config().quality(value); markConfigDirty(); }
+    public synchronized void prefetch(boolean value) { config().prefetch(value); markConfigDirty(); }
+    public synchronized void dynamicBackground(boolean value) { config().dynamicBackground(value); markConfigDirty(); }
+    public synchronized void cacheLimitBytes(long value) { config().cacheLimitBytes(value); markConfigDirty(); }
     public MusicConfig config() { requireInitialized(); return config; }
 
     public CompletableFuture<byte[]> cover(Music music, int size) {
         Objects.requireNonNull(music, "music");
         int bounded = Math.max(32, Math.min(2048, size));
         return artwork().load("music:" + music.id() + ':' + bounded, music.coverUrl(bounded), io());
+    }
+    public CompletableFuture<Artwork> artwork(Music music, int size) {
+        Objects.requireNonNull(music, "music");
+        int bounded = Math.max(32, Math.min(2048, size));
+        return artwork().loadArtwork("music-artwork:" + music.id() + ':' + bounded,
+                music.coverUrl(bounded), io());
     }
     public CompletableFuture<byte[]> cover(Playlist playlist, int size) {
         Objects.requireNonNull(playlist, "playlist");
@@ -297,7 +371,13 @@ public final class MusicManager implements InstanceManager {
 
     public synchronized void hotkey(MusicConfig.Hotkey action, int... keys) {
         config().hotkey(action, keys);
-        config().save();
+        markConfigDirty();
+    }
+
+    @EventTarget
+    public void onTick(EventTick event) {
+        if (event.getPhase() != EventTick.Phase.POST || !configDirty) return;
+        if (System.currentTimeMillis() - configDirtySince >= CONFIG_SAVE_DELAY_MILLIS) flushConfig();
     }
 
     @EventTarget
@@ -344,6 +424,15 @@ public final class MusicManager implements InstanceManager {
             thread.setDaemon(true);
             return thread;
         };
+    }
+    private synchronized void markConfigDirty() {
+        configDirty = true;
+        configDirtySince = System.currentTimeMillis();
+    }
+    private synchronized void flushConfig() {
+        if (!configDirty || config == null) return;
+        config.save();
+        configDirty = false;
     }
     private static boolean acceptsHotkeys() {
         Minecraft minecraft = Minecraft.getInstance();

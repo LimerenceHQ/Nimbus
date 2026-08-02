@@ -101,7 +101,7 @@ Core 先用局部变量创建全部 Manager，全部成功后才提交到字段�
 ```java
 RenderManager renders = new RenderManager();
 ModuleManager modules = new ModuleManager();
-ConfigManager configs = new ConfigManager(configDirectory, modules);
+ConfigManager configs = new ConfigManager(nimbusDirectory, modules);
 
 start(renders, started);
 start(modules, started);
@@ -212,7 +212,7 @@ public ExampleManager getExampleManager() {
 | `RenderManager` | 持有 `SkijaRenderer`，初始化和关闭渲染子系统 | 无 |
 | `ModuleManager` | Module 注册、索引、按键映射和自动启用 | EventBus |
 | `HudManager` | HUD 元素注册、编辑状态和拖拽布局 | ModuleManager、RenderManager |
-| `ConfigManager` | Module/Setting 配置、自动保存和配置文件切换 | ModuleManager、EventBus |
+| `ConfigManager` | 命名 Module 配置、全局 Client Settings、自动保存和配置文件切换 | ModuleManager、EventBus |
 | `AccountManager` | Alt 账户列表、最后账户、登录与账户文件 | Minecraft client |
 | `MusicManager` | 网易云账号、歌曲数据、播放队列、音频/图片缓存和播放器生命周期 | EventBus、Minecraft client |
 | `CommandManager` | Command 注册、执行、建议和聊天拦截 | EventBus |
@@ -259,7 +259,6 @@ public final class Example extends BasicModule {
 ```java
 registerModules(
         new ClickGui(),
-        new PostProcess(),
         new ActiveList(),
         new ESP(),
         new Example()
@@ -357,12 +356,13 @@ nimbus/
    └─ last.json
 ```
 
-Module 配置与 Account 配置是两个独立领域：
+Client Settings、Module 配置与 Account 配置是独立领域：
 
+- `ConfigManager` 管 `client.json`，保存 Client Name、Style、Accent 和完整后处理参数。
 - `ConfigManager` 管 `configs/*.json`。
 - `AccountManager` 管 `accounts/accounts.json` 和 `accounts/last.json`。
 
-不要把账户 token 混入 Module config。
+命名 Config 不包含 Client Settings，切换命名 Config 不改变全局视觉。不要把账户 token 或音乐 cookie 混入 Module config。
 
 ### 8.2 自动保存链路
 
@@ -374,6 +374,8 @@ or Setting.setValue(...)
       -> EventTick.POST after 800 ms
         -> saveConfig(currentConfig)
 ```
+
+Client Settings 使用独立 dirty 状态和同样的 800 ms 延迟保存链路，目标文件固定为 `nimbus/client.json`。两个 dirty 状态不能合并，否则保存命名 Config 会意外改变全局设置的持久化语义。
 
 加载配置期间 `loading == true`，Setting 变化不会再次标 dirty。
 
@@ -410,6 +412,14 @@ profile.json.tmp
 配置读取按 Module 和 Setting 名称忽略大小写。损坏的单个条目会记录错误并跳过，不应让整个文件中其他正常条目失效。
 
 配置名称只允许 sanitize 后不发生变化的安全字符；不要把未经检查的输入拼进 Path。
+
+### 8.4 ClickGUI 与 Client Settings
+
+`ClickGui` Module 持有进程级 `ClickGuiSession`，默认绑定为右 Shift。Session 只保存六列滚动、各列展开项、当前工具窗口和 Music 路由，不写入配置，也不升级为 Manager。关闭 Screen 时清除搜索、输入焦点、绑定监听、登录敏感字段、确认状态和异步页面数据。
+
+`ClickGuiScreen` 继承 `AbstractSkijaScreen`；`ClickGuiView` 负责六列布局、统一逻辑坐标和输入分发。六列固定为 Combat、Move、Player、Render、Exploit、HUD。设置控件统一由 `SettingControls` 渲染，Config、Client Settings 和 Module 不能各自复制 Setting 表单。
+
+Music 工具窗口只调用 `MusicManager`。网络、播放器、队列、缓存和账号状态不进入 `ui.clickgui`。异步结果必须调度回 Minecraft 主线程，并通过页面 generation 丢弃关闭后的迟到结果。
 
 ## 9. Command 注册
 
@@ -535,11 +545,13 @@ nimbus/music/
 ├─ music.json
 ├─ login-qr.png
 └─ cache/
+   └─ index.json
 ```
 
 - `music.json` 保存 cookie、音质、音量、倍速、播放模式、预下载、缓存上限和组合键。
 - `login-qr.png` 仅在二维码登录请求后生成，退出登录时删除。
-- `cache/` 保存下载或转换后的音频，由 `MusicManager` 负责裁剪和清理。
+- `cache/` 保存下载或转换后的音频；`index.json` 原子记录歌曲快照、可用质量、总大小和最后使用时间。
+- `cachedSongs()` 只枚举索引中仍有有效 WAV 的项目；`playCached(...)` 使用缓存快照构建 cache-only 队列，不请求歌曲元数据或音频 URL。
 - 网易云请求、文件 IO 和播放分别使用 Manager 拥有的线程资源；调用者不得自行关闭这些资源。
 - 当前 `.music` 指令是功能验证入口，不应复制一套音乐状态到 Command 内。
 
@@ -548,8 +560,14 @@ nimbus/music/
 ```java
 music.dailyRecommendedSongs();
 music.dailyRecommendedPlaylists();
+music.personalizedPlaylists(12);
+music.featuredPlaylists(40);
 music.intelligentSongs(songId, playlistId, startMusicId, count);
 music.playIntelligent(songId, playlistId, count);
+music.cachedSongs();
+music.cache(song);
+music.removeCached(songId);
+music.playCached(songIds, startIndex);
 music.requestSmsLogin(phone, countryCode);
 music.completeSmsLogin(captcha);
 ```

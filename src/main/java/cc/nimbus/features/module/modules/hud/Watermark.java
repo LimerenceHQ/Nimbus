@@ -12,6 +12,7 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.features.module.api.setting.impl.TextSetting;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
+import cc.nimbus.utils.render.font.NimbusFonts;
 import io.github.humbleui.types.RRect;
 
 @ModuleInfo(
@@ -21,7 +22,7 @@ import io.github.humbleui.types.RRect;
         enableOnStartUp = true
 )
 public final class Watermark extends BasicModule {
-    private static final String FONT = "SarasaUiSC-Bold";
+    private static final String FONT = NimbusFonts.DISPLAY;
     private static final float FONT_SIZE = 16f;
     private static final float HEIGHT = 34f;
     private static final float PADDING_X = 12f;
@@ -30,8 +31,10 @@ public final class Watermark extends BasicModule {
     private static final int BACKGROUND_COLOR = 0x66171A1E;
     private static final int TEXT_COLOR = 0xFFF4F7F8;
 
-    public final TextSetting text = new TextSetting("Text", "Nimbus");
-    public final ColorSetting accent = new ColorSetting("Accent", 0xFF52C7B8);
+    public final TextSetting text = new TextSetting(
+            "Text", "Nimbus", null, false, false, null, 32, this::customStyle
+    );
+    public final ColorSetting accent = new ColorSetting("Accent", 0xFF52C7B8, this::customStyle);
 
     private final Draggable drag = new Draggable("Watermark", 0.02, 0.02) {
         @Override
@@ -51,7 +54,9 @@ public final class Watermark extends BasicModule {
         HudSize size = drag.getSize();
         HudRect bounds = drag.getRect(skija.width(), skija.height());
         float scale = (float) drag.getScale();
-        int accentColor = accent.getValue();
+        int accentColor = customStyle()
+                ? accent.getValue()
+                : Core.INSTANCE.getConfigManager().clientSettings().accentColor();
         skija.postProcess().add(RRect.makeXYWH(
                 bounds.x(), bounds.y(), bounds.width(), bounds.height(), RADIUS * scale
         ));
@@ -65,7 +70,15 @@ public final class Watermark extends BasicModule {
     }
 
     private String displayText() {
+        if (!customStyle()) {
+            return Core.INSTANCE.getConfigManager().clientSettings().displayName();
+        }
         String value = text.getValue();
         return value == null || value.isBlank() ? "Nimbus" : value.strip();
+    }
+
+    private boolean customStyle() {
+        return Core.INSTANCE.isInitialized()
+                && Core.INSTANCE.getConfigManager().clientSettings().customStyle();
     }
 }

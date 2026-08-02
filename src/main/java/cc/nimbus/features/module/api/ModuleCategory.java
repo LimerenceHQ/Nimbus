@@ -6,7 +6,6 @@ public enum ModuleCategory {
     Player("Player"),
     Render("Render"),
     Exploit("Exploit"),
-    Ghost("Ghost"),
     HUD("HUD");
 
     private final String name;

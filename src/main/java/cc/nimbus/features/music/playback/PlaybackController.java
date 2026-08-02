@@ -29,6 +29,7 @@ public final class PlaybackController {
     private volatile AudioEngine player;
     private volatile Future<?> task;
     private volatile String error = "";
+    private volatile boolean cacheOnly;
 
     public PlaybackController(MusicConfig config, AudioCache cache, ExecutorService playbackExecutor,
                               ExecutorService ioExecutor) {
@@ -42,11 +43,19 @@ public final class PlaybackController {
     public synchronized void play(Music music) {
         Objects.requireNonNull(music, "music");
         queue.replace(List.of(music), 0);
+        cacheOnly = false;
         restart();
     }
     public synchronized void play(List<Music> songs, int index) {
         if (songs == null || songs.isEmpty()) return;
         queue.replace(songs, Math.max(0, Math.min(index, songs.size() - 1)));
+        cacheOnly = false;
+        restart();
+    }
+    public synchronized void playCached(List<Music> songs, int index) {
+        if (songs == null || songs.isEmpty()) return;
+        queue.replace(songs, Math.max(0, Math.min(index, songs.size() - 1)));
+        cacheOnly = true;
         restart();
     }
     public synchronized Music next() {
@@ -56,6 +65,11 @@ public final class PlaybackController {
     }
     public synchronized Music previous() {
         Music selected = queue.previous();
+        if (selected != null) restart();
+        return selected;
+    }
+    public synchronized Music playAt(int index) {
+        Music selected = queue.select(index);
         if (selected != null) restart();
         return selected;
     }
@@ -111,10 +125,13 @@ public final class PlaybackController {
         AudioEngine active = player;
         float progress = active == null ? 0f : active.getCurrentTimeSeconds();
         Music music = current;
+        PlaybackQueueState queueState = queue.snapshot();
         return new PlaybackState(phase, music, progress, music == null ? 0f : music.durationMs() / 1000f,
-                config.volume(), config.rate(), queue.index(), queue.size(), error, transfer.get(), prefetch.get());
+                config.volume(), config.rate(), queueState.index(), queueState.songs().size(),
+                error, transfer.get(), prefetch.get());
     }
-    public List<Music> queue() { return queue.songs(); }
+    public List<Music> queue() { return queue.snapshot().songs(); }
+    public PlaybackQueueState queueState() { return queue.snapshot(); }
     public PlayMode mode() { return queue.mode(); }
     public float[] spectrum() {
         AudioEngine active = player;
@@ -138,13 +155,16 @@ public final class PlaybackController {
             current = music;
             phase = PlaybackPhase.PREPARING;
             Quality quality = config.quality();
-            Path file = cache.prepare(music, quality, transfer::set, () -> !valid(token));
-            if (file == null && quality != Quality.STANDARD && valid(token)) {
+            Path file = cacheOnly
+                    ? cache.prepareCached(music, quality, transfer::set)
+                    : cache.prepare(music, quality, transfer::set, () -> !valid(token));
+            if (!cacheOnly && file == null && quality != Quality.STANDARD && valid(token)) {
                 file = cache.prepare(music, Quality.STANDARD, transfer::set, () -> !valid(token));
             }
             if (!valid(token)) return;
             if (file == null) {
-                fail(transfer.get().error().isBlank() ? "Unable to prepare audio" : transfer.get().error());
+                fail(cacheOnly ? "Cached audio is unavailable"
+                        : transfer.get().error().isBlank() ? "Unable to prepare audio" : transfer.get().error());
                 return;
             }
 
@@ -156,7 +176,8 @@ public final class PlaybackController {
             active.play();
             boolean prefetched = false;
             while (valid(token) && !active.isFinished()) {
-                if (!prefetched && config.prefetch() && active.getCurrentTimeSeconds() >= music.durationMs() / 1000f * 0.9f) {
+                if (!cacheOnly && !prefetched && config.prefetch()
+                        && active.getCurrentTimeSeconds() >= music.durationMs() / 1000f * 0.9f) {
                     prefetch(token, music);
                     prefetched = true;
                 }

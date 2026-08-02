@@ -26,6 +26,7 @@ public final class MusicConfig {
     private float rate = 1f;
     private long cacheLimitBytes = 5L * 1024 * 1024 * 1024;
     private boolean prefetch = true;
+    private boolean dynamicBackground = true;
     private int[] previousHotkey = new int[0];
     private int[] nextHotkey = new int[0];
     private int[] pauseHotkey = new int[0];
@@ -43,6 +44,7 @@ public final class MusicConfig {
             rate = bound(number(root, "rate", 1f), 0.5f, 2f);
             cacheLimitBytes = Math.max(256L * 1024 * 1024, longNumber(root, "cacheLimitBytes", cacheLimitBytes));
             prefetch = bool(root, "prefetch", true);
+            dynamicBackground = bool(root, "dynamicBackground", true);
             previousHotkey = hotkey(root, "previousHotkey");
             nextHotkey = hotkey(root, "nextHotkey");
             pauseHotkey = hotkey(root, "pauseHotkey");
@@ -63,6 +65,7 @@ public final class MusicConfig {
             root.addProperty("rate", rate);
             root.addProperty("cacheLimitBytes", cacheLimitBytes);
             root.addProperty("prefetch", prefetch);
+            root.addProperty("dynamicBackground", dynamicBackground);
             root.add("previousHotkey", hotkey(previousHotkey));
             root.add("nextHotkey", hotkey(nextHotkey));
             root.add("pauseHotkey", hotkey(pauseHotkey));
@@ -94,6 +97,8 @@ public final class MusicConfig {
     public synchronized void cacheLimitBytes(long value) { cacheLimitBytes = Math.max(256L * 1024 * 1024, value); }
     public synchronized boolean prefetch() { return prefetch; }
     public synchronized void prefetch(boolean value) { prefetch = value; }
+    public synchronized boolean dynamicBackground() { return dynamicBackground; }
+    public synchronized void dynamicBackground(boolean value) { dynamicBackground = value; }
     public synchronized int[] hotkey(Hotkey action) {
         return switch (action) {
             case PREVIOUS -> previousHotkey.clone();

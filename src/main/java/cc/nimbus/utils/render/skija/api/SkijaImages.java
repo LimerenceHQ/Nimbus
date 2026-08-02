@@ -13,6 +13,10 @@ public final class SkijaImages {
         return cc.nimbus.utils.render.skija.internal.image.ImageStore.getResourceImage(id);
     }
 
+    public Image encoded(String key, byte[] bytes) {
+        return cc.nimbus.utils.render.skija.internal.image.ImageStore.getEncodedImage(key, bytes);
+    }
+
     public Image minecraftTexture(Identifier id) {
         return cc.nimbus.utils.render.skija.internal.image.ImageStore.getGlImage(id);
     }

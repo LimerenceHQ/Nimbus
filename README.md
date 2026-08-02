@@ -1,6 +1,6 @@
 # Nimbus
 
-Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工作是建立一套简洁、明确且容易长期维护的客户端：统一 客户端 写法、集中配置管理、保留可靠的自动发现能力。
+Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工作是建立一套简洁、明确且容易长期维护的客户端：统一客户端写法、集中配置管理、保留可靠的自动发现能力。
 
 > Nimbus 仍处于开发阶段，内部结构和公开 API 可能继续调整。目前通过 Gradle 引入的 Skija native 仅包含 Windows x64 版本。
 
@@ -14,7 +14,9 @@ Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工�
 - Command 系统：集中注册命令、别名和补全逻辑。
 - EventBus：支持优先级、取消语义以及与 Module 启用状态绑定的监听生命周期。
 - Skija 渲染子系统：统一 HUD、Screen、文本、图片、SVG、效果和后处理入口。
-- UI 基础：包含菜单、账户界面以及仍在迭代中的 ClickGUI 实现。
+- UI 基础：包含菜单、账户界面、六列 List ClickGUI，以及共用窗口系统的 Config、Client Settings 与 Nimbus Music；右 Shift 是默认打开键。
+- Music：网易云登录、推荐、精品歌单、搜索、歌词、真实播放队列和带原子索引的离线缓存。
+- 字体：Nimbus 自有界面统一使用 Geist、Inter、Noto Sans 和 Noto Sans CJK SC，并共享中英文 fallback 布局。
 
 当前仓库中包含 HUD、Render 类 Module 和一组基础客户端命令。这些实现同时承担对 Base API 的实际使用与验证。
 
@@ -53,6 +55,7 @@ src/main/java/cc/nimbus
 ├─ managers             # 进程级服务及其所有权边界
 ├─ features
 │  ├─ module            # Module API 与分类实现
+│  ├─ music             # 网易云模型、网络、歌词、缓存与播放
 │  └─ command           # Command API 与具体命令
 ├─ event                # EventBus、处理器与领域事件
 ├─ ui                   # 菜单、账户界面、ClickGUI 与 Screen
@@ -67,8 +70,10 @@ Nimbus.onInitializeClient()
 └─ Core.INSTANCE.init(configDir)
    ├─ RenderManager
    ├─ ModuleManager
+   ├─ HudManager
    ├─ ConfigManager
    ├─ AccountManager
+   ├─ MusicManager
    └─ CommandManager
 ```
 
@@ -80,21 +85,27 @@ Nimbus 在 Fabric config directory 下使用单一项目目录：
 
 ```text
 nimbus/
+├─ client.json
 ├─ configs/
 │  ├─ default.json
 │  └─ <profile>.json
-└─ accounts/
+├─ accounts/
    ├─ accounts.json
-   └─ last.json
+│  └─ last.json
+└─ music/
+   ├─ music.json
+   └─ cache/
+      └─ index.json
 ```
 
-Module 配置由 `ConfigManager` 管理；账户和 token 数据由 `AccountManager` 管理。两个领域不会写入同一配置文件。
+`client.json` 保存全局 Client Settings，`configs/*.json` 保存 Module、Setting 和 HUD 位置；两者都由唯一 `ConfigManager` 管理但使用独立 dirty 状态。账户/token 由 `AccountManager` 管理，音乐 cookie、播放设置和缓存由 `MusicManager` 管理。`music/cache/index.json` 只记录已完成且可离线播放的歌曲快照和文件状态。
 
 ## 开发文档
 
 - [Core 与 Manager 使用指南](docs/core-manager-guide.md)：Manager、Module、Setting、Config、Command 和 EventBus 的注册与使用。
 - [HUD 与 Skija 架构](docs/skija-architecture.md)：渲染入口、Layer、坐标、文本、SVG、缓存和资源生命周期。
 - [HUD 拖拽系统](docs/hud-draggable-guide.md)：自动注册、四区锚点、缩放、编辑和配置持久化。
+- [ClickGUI 与 Nimbus Music](docs/clickgui-music-guide.md)：List GUI、工具窗口、Music 路由、异步状态和离线缓存边界。
 - [设计与重构规范](docs/design-guidelines.md)：包结构、接口抽取、代码卫生、错误处理和验证要求。
 - [项目开发契约](docs/skill/AGENTS.md)：AI 修改本项目时必须遵守的最低规则。
 

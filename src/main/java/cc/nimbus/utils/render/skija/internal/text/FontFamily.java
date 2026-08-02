@@ -18,6 +18,7 @@ public final class FontFamily {
 
     @ApiStatus.Internal
     private static final Map<String, Typeface> TYPEFACE_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, String> FALLBACKS = new ConcurrentHashMap<>();
 
     @ApiStatus.Internal
     private static final int MAX_FONTS = 256;
@@ -90,6 +91,17 @@ public final class FontFamily {
         return font;
     }
 
+    public static synchronized void registerFallback(String familyName, String fallbackFamily) {
+        ensureOpen();
+        getTypeface(familyName);
+        getTypeface(fallbackFamily);
+        FALLBACKS.put(familyName, fallbackFamily);
+    }
+
+    public static String fallbackFamily(String familyName) {
+        return FALLBACKS.get(familyName);
+    }
+
     public static synchronized void close() {
         if (closed) return;
         closed = true;
@@ -105,6 +117,7 @@ public final class FontFamily {
             failure = closeManaged(failure, typeface);
         }
         TYPEFACE_CACHE.clear();
+        FALLBACKS.clear();
         if (failure != null) throw failure;
     }
 
@@ -147,12 +160,20 @@ public final class FontFamily {
         FONT_COLLECTION.setDefaultFontManager(FontMgr.getDefault());
         FONT_COLLECTION.setAssetFontManager(FONT_PROVIDER);
 
-        registerTypeface("assets/nimbus/fonts/HarmonyOS_Sans_SC-Medium.ttf", "HarmonyOS_Sans_SC-Medium");
-        registerTypeface("assets/nimbus/fonts/HarmonyOS_Sans_SC-Regular.ttf", "HarmonyOS_Sans_SC-Regular");
+        registerTypeface("assets/nimbus/fonts/Geist-SemiBold.ttf", "Geist-SemiBold");
+        registerTypeface("assets/nimbus/fonts/Inter_18pt-Regular.ttf", "Inter-Regular");
+        registerTypeface("assets/nimbus/fonts/Inter_18pt-Medium.ttf", "Inter-Medium");
+        registerTypeface("assets/nimbus/fonts/Inter_18pt-SemiBold.ttf", "Inter-SemiBold");
+        registerTypeface("assets/nimbus/fonts/NotoSans-Regular.ttf", "NotoSans-Regular");
+        registerTypeface("assets/nimbus/fonts/NotoSans-Medium.ttf", "NotoSans-Medium");
+        registerTypeface("assets/nimbus/fonts/NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Regular");
+        registerTypeface("assets/nimbus/fonts/NotoSansCJKsc-Medium.otf", "NotoSansCJKsc-Medium");
 
-        registerTypeface("assets/nimbus/fonts/SarasaUiSC-Bold.ttf", "SarasaUiSC-Bold");
-        registerTypeface("assets/nimbus/fonts/SarasaUiSC-Regular.ttf", "SarasaUiSC-Regular");
-        registerTypeface("assets/nimbus/fonts/SarasaUiSC-SemiBold.ttf", "SarasaUiSC-SemiBold");
-        registerTypeface("assets/nimbus/fonts/SarasaUiSC-Light.ttf", "SarasaUiSC-Light");
+        registerFallback("Geist-SemiBold", "NotoSansCJKsc-Medium");
+        registerFallback("Inter-Regular", "NotoSansCJKsc-Regular");
+        registerFallback("Inter-Medium", "NotoSansCJKsc-Medium");
+        registerFallback("Inter-SemiBold", "NotoSansCJKsc-Medium");
+        registerFallback("NotoSans-Regular", "NotoSansCJKsc-Regular");
+        registerFallback("NotoSans-Medium", "NotoSansCJKsc-Medium");
     }
 }

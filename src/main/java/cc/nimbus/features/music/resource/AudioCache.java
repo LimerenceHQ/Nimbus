@@ -2,7 +2,14 @@ package cc.nimbus.features.music.resource;
 
 import cc.nimbus.features.music.Quality;
 import cc.nimbus.features.music.model.Music;
+import cc.nimbus.features.music.model.CachedSong;
 import cc.nimbus.features.music.provider.NeteaseApi;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import javazoom.jl.converter.Converter;
 import org.jflac.FLACDecoder;
 import org.jflac.PCMProcessor;
@@ -21,10 +28,16 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -32,21 +45,29 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 public final class AudioCache implements AutoCloseable {
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Path directory;
+    private final Path indexFile;
     private final NeteaseApi api;
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
     private final ConcurrentHashMap<Long, ReentrantLock> songLocks = new ConcurrentHashMap<>();
+    private final Map<Long, CachedSong> cachedSongs = new LinkedHashMap<>();
 
     public AudioCache(Path directory, NeteaseApi api) {
         this.directory = Objects.requireNonNull(directory, "directory");
+        this.indexFile = directory.resolve("index.json");
         this.api = Objects.requireNonNull(api, "api");
     }
 
     public void init() {
-        try { Files.createDirectories(directory); }
+        try {
+            Files.createDirectories(directory);
+            loadIndex();
+            reconcileIndex();
+        }
         catch (Exception error) { throw new IllegalStateException("Unable to create music cache", error); }
     }
 
@@ -65,6 +86,7 @@ public final class AudioCache implements AutoCloseable {
             Path wav = songDirectory.resolve(quality.apiValue() + ".wav");
             if (validWav(wav)) {
                 touch(wav);
+                updateIndex(music, songDirectory);
                 listener.accept(value(music, quality, TransferStage.READY, 0L, -1L, 0L, ""));
                 return wav;
             }
@@ -90,6 +112,7 @@ public final class AudioCache implements AutoCloseable {
                 Files.deleteIfExists(temporary);
             }
             listener.accept(value(music, quality, TransferStage.READY, 0L, -1L, 0L, ""));
+            updateIndex(music, songDirectory);
             return wav;
         } catch (Cancelled ignored) {
             listener.accept(TransferStatus.idle());
@@ -97,6 +120,65 @@ public final class AudioCache implements AutoCloseable {
         } catch (Exception error) {
             listener.accept(value(music, quality, TransferStage.ERROR, 0L, -1L, 0L, message(error)));
             return null;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public Path prepareCached(Music music, Consumer<TransferStatus> status) {
+        return prepareCached(music, null, status);
+    }
+
+    public Path prepareCached(Music music, Quality preferred, Consumer<TransferStatus> status) {
+        Objects.requireNonNull(music, "music");
+        Consumer<TransferStatus> listener = status == null ? ignored -> {} : status;
+        ReentrantLock lock = songLocks.computeIfAbsent(music.id(), ignored -> new ReentrantLock());
+        lock.lock();
+        try {
+            CachedSong cached = cachedSong(music.id());
+            if (cached == null) return null;
+            Path songDirectory = directory.resolve(Long.toString(music.id()));
+            List<Quality> qualities = new ArrayList<>(cached.qualities());
+            qualities.sort(Comparator.comparingInt(Quality::ordinal).reversed());
+            if (preferred != null && qualities.remove(preferred)) qualities.addFirst(preferred);
+            for (Quality quality : qualities) {
+                Path wav = songDirectory.resolve(quality.apiValue() + ".wav");
+                if (!validWav(wav)) continue;
+                touch(wav);
+                updateIndex(music, songDirectory);
+                listener.accept(value(music, quality, TransferStage.READY, 0L, Files.size(wav), 0L, ""));
+                return wav;
+            }
+            removeIndex(music.id());
+            return null;
+        } catch (Exception error) {
+            listener.accept(value(music, Quality.STANDARD, TransferStage.ERROR, 0L, -1L, 0L, message(error)));
+            return null;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public synchronized List<CachedSong> cachedSongs() {
+        return cachedSongs.values().stream()
+                .sorted(Comparator.comparingLong(CachedSong::lastUsedAt).reversed())
+                .toList();
+    }
+
+    public synchronized CachedSong cachedSong(long musicId) {
+        return cachedSongs.get(musicId);
+    }
+
+    public boolean remove(long musicId, long keepMusicId) {
+        if (musicId <= 0L || musicId == keepMusicId) return false;
+        ReentrantLock lock = songLocks.computeIfAbsent(musicId, ignored -> new ReentrantLock());
+        if (!lock.tryLock()) return false;
+        try {
+            delete(directory.resolve(Long.toString(musicId)));
+            removeIndex(musicId);
+            return true;
+        } catch (Exception ignored) {
+            return false;
         } finally {
             lock.unlock();
         }
@@ -113,7 +195,10 @@ public final class AudioCache implements AutoCloseable {
             if (id == keepMusicId) continue;
             ReentrantLock lock = songLocks.computeIfAbsent(id, ignored -> new ReentrantLock());
             if (!lock.tryLock()) continue;
-            try { delete(child); } catch (Exception ignored) {} finally { lock.unlock(); }
+            try {
+                delete(child);
+                removeIndex(id);
+            } catch (Exception ignored) {} finally { lock.unlock(); }
         }
         return Math.max(0L, before - sizeBytes());
     }
@@ -133,6 +218,7 @@ public final class AudioCache implements AutoCloseable {
             try {
                 long bytes = size(song);
                 delete(song);
+                removeIndex(id);
                 freed += bytes;
             } catch (Exception ignored) {
             } finally {
@@ -247,6 +333,92 @@ public final class AudioCache implements AutoCloseable {
         try { Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE); }
         catch (java.nio.file.AtomicMoveNotSupportedException ignored) { Files.move(source, target, StandardCopyOption.REPLACE_EXISTING); }
     }
+
+    private synchronized void updateIndex(Music music, Path songDirectory) throws Exception {
+        EnumSet<Quality> qualities = EnumSet.noneOf(Quality.class);
+        for (Quality quality : Quality.values()) {
+            if (validWav(songDirectory.resolve(quality.apiValue() + ".wav"))) qualities.add(quality);
+        }
+        if (qualities.isEmpty()) {
+            removeIndex(music.id());
+            return;
+        }
+        cachedSongs.put(music.id(), new CachedSong(music, qualities, size(songDirectory), System.currentTimeMillis()));
+        saveIndex();
+    }
+
+    private synchronized void removeIndex(long musicId) {
+        if (cachedSongs.remove(musicId) != null) saveIndex();
+    }
+
+    private synchronized void loadIndex() {
+        cachedSongs.clear();
+        if (!Files.isRegularFile(indexFile)) return;
+        try (var reader = Files.newBufferedReader(indexFile, StandardCharsets.UTF_8)) {
+            JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+            JsonArray values = root.has("songs") && root.get("songs").isJsonArray()
+                    ? root.getAsJsonArray("songs") : new JsonArray();
+            for (JsonElement value : values) {
+                if (!value.isJsonObject()) continue;
+                JsonObject entry = value.getAsJsonObject();
+                Music music = GSON.fromJson(entry.get("music"), Music.class);
+                if (music == null || music.id() <= 0L) continue;
+                EnumSet<Quality> qualities = EnumSet.noneOf(Quality.class);
+                if (entry.has("qualities") && entry.get("qualities").isJsonArray()) {
+                    for (JsonElement quality : entry.getAsJsonArray("qualities")) {
+                        Quality parsed = Quality.parse(quality.getAsString());
+                        if (parsed != null) qualities.add(parsed);
+                    }
+                }
+                long bytes = entry.has("sizeBytes") ? entry.get("sizeBytes").getAsLong() : 0L;
+                long used = entry.has("lastUsedAt") ? entry.get("lastUsedAt").getAsLong() : 0L;
+                if (!qualities.isEmpty()) cachedSongs.put(music.id(), new CachedSong(music, qualities, bytes, used));
+            }
+        } catch (Exception error) {
+            cachedSongs.clear();
+            System.err.println("[Nimbus] Ignoring damaged music cache index: " + message(error));
+        }
+    }
+
+    private synchronized void reconcileIndex() {
+        boolean changed = cachedSongs.entrySet().removeIf(entry -> {
+            Path songDirectory = directory.resolve(Long.toString(entry.getKey()));
+            return entry.getValue().qualities().stream()
+                    .noneMatch(quality -> validWav(songDirectory.resolve(quality.apiValue() + ".wav")));
+        });
+        if (changed) saveIndex();
+    }
+
+    private synchronized void saveIndex() {
+        Path temporary = indexFile.resolveSibling(indexFile.getFileName() + ".tmp");
+        try {
+            JsonObject root = new JsonObject();
+            root.addProperty("version", 1);
+            JsonArray values = new JsonArray();
+            for (CachedSong cached : cachedSongs.values()) {
+                JsonObject entry = new JsonObject();
+                entry.add("music", GSON.toJsonTree(cached.music()));
+                JsonArray qualities = new JsonArray();
+                cached.qualities().forEach(quality -> qualities.add(quality.name()));
+                entry.add("qualities", qualities);
+                entry.addProperty("sizeBytes", cached.sizeBytes());
+                entry.addProperty("lastUsedAt", cached.lastUsedAt());
+                values.add(entry);
+            }
+            root.add("songs", values);
+            Files.writeString(temporary, GSON.toJson(root), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            try {
+                Files.move(temporary, indexFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(temporary, indexFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (Exception error) {
+            System.err.println("[Nimbus] Failed to save music cache index: " + message(error));
+        } finally {
+            try { Files.deleteIfExists(temporary); } catch (Exception ignored) {}
+        }
+    }
     private List<Path> songDirectories() {
         if (!Files.isDirectory(directory)) return List.of();
         try (var files = Files.list(directory)) { return files.filter(Files::isDirectory).toList(); }
@@ -269,7 +441,10 @@ public final class AudioCache implements AutoCloseable {
     private static long modified(Path path) { try { return Files.getLastModifiedTime(path).toMillis(); } catch (Exception ignored) { return 0L; } }
     private static String message(Throwable error) { return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage(); }
 
-    @Override public void close() { http.close(); }
+    @Override public void close() {
+        saveIndex();
+        http.close();
+    }
 
     private enum AudioType {
         FLAC("flac"), MP3("mp3"), WAV("wav"), MP4(null), OGG(null), UNKNOWN(null);

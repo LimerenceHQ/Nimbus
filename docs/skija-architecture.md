@@ -171,6 +171,8 @@ cc.nimbus.managers.RenderManager
 
 普通 UI SVG 通过 `frame.draw().svg(...)` 直接矢量绘制，不经过 `SvgTextureCache`。
 
+网络封面、头像和二维码使用 `frame.images().encoded(key, bytes)`。`key` 必须稳定标识逻辑图片；相同 key 和相同内容复用 Image，内容变化时缓存关闭并替换旧 Image。缓存是 Renderer 所有的有界 LRU，调用方只借用返回值，不得手动关闭，也不得在功能里建立第二套 Skija Image 缓存。异步线程只能准备编码字节，解码入口必须在 render thread 的 `SkijaFrame` 内调用。
+
 ### 3.5 `internal.text`
 
 包含字体注册、Font 缓存、宽度缓存和统一 baseline 计算。
@@ -201,7 +203,7 @@ cc.nimbus.managers.RenderManager
 
 ### 4.1 Layer 与 RenderTarget 不是同一个生命周期
 
-`renderer.layer("neutron")` 按名称缓存并返回同一个 `SkijaLayer`。Layer 是可复用句柄；它内部的全屏 framebuffer 是昂贵且可重建的 target。
+`renderer.layer("click-gui")` 按名称缓存并返回同一个 `SkijaLayer`。Layer 是可复用句柄；它内部的全屏 framebuffer 是昂贵且可重建的 target。
 
 ```java
 SkijaLayer layer = skija.layer("my-screen");
@@ -222,18 +224,16 @@ SkijaLayer layer = skija.layer("my-screen");
 
 ### 4.3 当前 Screen 生命周期
 
-当前尚未实现通用 `SkijaScreen` 基类。不要假设该类型存在。
+所有长期维护的 Skija Screen 继承 `cc.nimbus.ui.screen.AbstractSkijaScreen`。基类统一负责：
 
-现有 Screen 需要：
+1. 取得稳定命名的 Layer。
+2. 在 `extractRenderState` 中提取 framebuffer 尺寸、鼠标坐标和 Layer 状态。
+3. 暂存待渲染帧，并由通用 `GuiRendererMixin` 分发 `renderExtractedFrame()`。
+4. Screen 移除时调用 `layer.releaseTarget()`。
 
-1. 构造时取得稳定命名的 Layer。
-2. 在 `extractRenderState` 中调用 `layer.extract(...)`。
-3. 在 `GuiRendererMixin` 的正确阶段调用 Screen 的 `renderExtractedFrame()`。
-4. 在 `removed()` 中调用 `layer.releaseTarget()`。
+子类只实现 `renderSkija(SkijaFrame)`，可按需覆盖 `extractSkijaState(...)`、`removedSkijaScreen()` 和 `requestedSceneCaptureRate(...)`。Mixin 只判断 `AbstractSkijaScreen`，不得再按具体 Screen 类名增加分支。
 
-`removed()` 表示 Screen 当前不再显示，不表示 Java 对象永久销毁。因此应释放可重建 target，不应关闭进程字体和共享缓存。
-
-未来若增加多个长期维护的 Skija Screen，可以抽取完整的 Screen 生命周期适配器；不要只为了隐藏一行 `releaseTarget()` 创建空洞基类。
+`removed()` 表示 Screen 当前不再显示，不表示 Java 对象永久销毁。因此基类释放可重建 target，不关闭进程字体、命名 Layer 句柄或共享图片缓存。
 
 ## 5. Render Thread 规则
 
@@ -300,7 +300,7 @@ private void onRender2D(EventRender2D event) {
                 .setAntiAlias(true)
                 .setColor(0xFFFFFFFF)) {
             for (Row row : rows) {
-                frame.text().draw("HarmonyOS_Sans_SC-Medium", 16f,
+                frame.text().draw(NimbusFonts.BODY_MEDIUM, 16f,
                         row.text(), row.x(), row.y(), paint);
             }
         }
@@ -320,50 +320,24 @@ skija.layer("module-name");
 
 ## 8. Screen 使用方式
 
-当前模式可以参考 `cc.nimbus.ui.menu.TitleScreen`：
+参考 `cc.nimbus.ui.menu.TitleScreen` 和 `cc.nimbus.ui.clickgui.ClickGuiScreen`：
 
 ```java
-public final class ExampleScreen extends Screen {
-    private final SkijaLayer layer;
-    private int framebufferWidth;
-    private int framebufferHeight;
-    private boolean framePending;
-
+public final class ExampleScreen extends AbstractSkijaScreen {
     public ExampleScreen() {
-        super(Component.literal("Example"));
-        layer = Core.INSTANCE.getRenderManager().skija().layer("example-screen");
+        super(Component.literal("Example"), "example-screen");
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor graphics,
-                                   int mouseX, int mouseY, float partialTick) {
-        framebufferWidth = minecraft.getWindow().getWidth();
-        framebufferHeight = minecraft.getWindow().getHeight();
-        layer.extract(graphics, framebufferWidth, framebufferHeight);
-        framePending = true;
-    }
-
-    public void renderExtractedFrame() {
-        if (!framePending) return;
-        framePending = false;
-        layer.render(frame -> renderSkija(frame));
-    }
-
-    private void renderSkija(SkijaFrame frame) {
+    protected void renderSkija(SkijaFrame frame) {
         frame.draw().roundedRect(20, 20, 180, 60, 8, 0xE0202226);
-        frame.text().draw("HarmonyOS_Sans_SC-Regular", 16,
+        frame.text().draw(NimbusFonts.BODY, 16,
                 "Example", 36, 36, 0xFFFFFFFF);
-    }
-
-    @Override
-    public void removed() {
-        layer.releaseTarget();
-        super.removed();
     }
 }
 ```
 
-仅创建 Screen 不会自动让 `renderExtractedFrame()` 执行。当前架构仍需在 `GuiRendererMixin` 的辅助渲染阶段接入该 Screen。修改此流程前必须阅读现有 Mixin，不能猜测 Minecraft GUI 调用顺序。
+继承基类后无需修改 Mixin。输入事件仍由具体 Screen 接收，并使用基类提供的 `framebufferX/Y(...)` 与渲染所用逻辑变换做逆变换。修改提取和辅助渲染顺序前必须阅读当前 Minecraft 26.2 映射源码与现有 Mixin。
 
 ## 9. 文本
 
@@ -371,12 +345,18 @@ public final class ExampleScreen extends Screen {
 
 当前 `FontFamily` 注册：
 
-- `HarmonyOS_Sans_SC-Medium`
-- `HarmonyOS_Sans_SC-Regular`
-- `SarasaUiSC-Bold`
-- `SarasaUiSC-Regular`
-- `SarasaUiSC-SemiBold`
-- `SarasaUiSC-Light`
+- `Geist-SemiBold`
+- `Inter-Regular`
+- `Inter-Medium`
+- `Inter-SemiBold`
+- `NotoSans-Regular`
+- `NotoSans-Medium`
+- `NotoSansCJKsc-Regular`
+- `NotoSansCJKsc-Medium`
+
+业务代码优先使用 `cc.nimbus.utils.render.font.NimbusFonts` 的语义角色，不散落 family 字符串。Geist 用于品牌和窗口标题，Inter 用于控件、Module 和数字，Noto Sans 用于音乐内容；每个拉丁字体角色都注册了匹配字重的 Noto Sans CJK SC fallback。
+
+`TextFactory` 按 Unicode code point 选择字体 run。测量与绘制使用同一份有界布局缓存，因此混合文本的 advance、居中、选区和光标不能各自实现另一套宽度算法。缓存只保存 Java 布局数据，Font 和 Typeface 仍由字体子系统统一拥有。
 
 字体名称必须完全匹配。未注册字体会立即抛出异常，不会静默回退到系统字体。
 
@@ -416,7 +396,7 @@ float height = skija.text().height(family, size);
 
 ### 9.3 Hinting 注意事项
 
-字体轮廓异常可能只发生在特定字体面和字号。已经观察到部分 Sarasa 字重在小字号、Skija 灰度抗锯齿下存在 hinting 表现差异。
+字体轮廓异常可能只发生在特定字体面和字号。当前字体统一使用 Skija 灰度抗锯齿、subpixel positioning 和 `SLIGHT` hinting；不要根据系统字体预览的 ClearType 结果直接推断 Skija 输出。
 
 处理顺序：
 
@@ -640,11 +620,10 @@ captureScene()
 
 新增 Screen：
 
-- 使用稳定且唯一的 Layer 名称。
-- 在 `extractRenderState` 调用 `layer.extract()`。
-- 将 GUI mouse 坐标转换到 framebuffer。
-- 在正确的 `GuiRendererMixin` 阶段执行 Skija render。
-- 在 `removed()` 调用 `releaseTarget()`。
+- 继承 `AbstractSkijaScreen` 并使用稳定且唯一的 Layer 名称。
+- 只在 `renderSkija(...)` 使用当前 `SkijaFrame`。
+- 输入与渲染使用同一坐标变换及其逆变换。
+- 不修改 `GuiRendererMixin` 增加具体 Screen 分支。
 - 若使用 blur，先接入 scene capture。
 
 扩展公共 API：
@@ -680,9 +659,7 @@ git diff --check
 
 ## 19. 当前已知边界
 
-- 尚未实现通用 `SkijaScreen` 生命周期适配器。
-- 当前 Mixin 对 NeutronScreen 和 TitleScreen 分别接入，并非通用 Screen 分发。
-- 旧 Neutron ClickGUI 计划重写，不应把其静态 `UiPaints` 资源方式作为新 UI 的推荐设计。
+- `AbstractSkijaScreen` 只统一 Layer、帧提取、坐标和 target 生命周期；具体 UI 输入状态仍属于各 Screen。
 - Resource image 尚未接入 Minecraft resource reload 失效通知；Minecraft texture copy 目前只在底层 GL texture id 改变时刷新。
 - SVG 最终清晰度仍受实际显示像素和资产网格限制。
 - 字体栅格化效果依赖具体字体面的 outline/hinting 数据。

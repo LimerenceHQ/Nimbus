@@ -4,6 +4,7 @@ import cc.nimbus.core.interfaces.InstanceManager;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.game.EventTick;
+import cc.nimbus.features.client.ClientSettings;
 import cc.nimbus.features.hud.Draggable;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.setting.Setting;
@@ -35,16 +36,23 @@ public final class ConfigManager implements InstanceManager {
     private static final long AUTO_SAVE_DELAY_MS = 800L;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
+    private final Path rootDirectory;
     private final Path directory;
+    private final Path clientFile;
     private final ModuleManager moduleManager;
+    private ClientSettings clientSettings = new ClientSettings();
     private String currentConfig = DEFAULT_CONFIG;
     private boolean dirty;
+    private boolean clientDirty;
     private boolean loading;
     private boolean initialized;
     private long dirtySince;
+    private long clientDirtySince;
 
-    public ConfigManager(Path directory, ModuleManager moduleManager) {
-        this.directory = Objects.requireNonNull(directory, "directory");
+    public ConfigManager(Path rootDirectory, ModuleManager moduleManager) {
+        this.rootDirectory = Objects.requireNonNull(rootDirectory, "rootDirectory");
+        this.directory = rootDirectory.resolve("configs");
+        this.clientFile = rootDirectory.resolve("client.json");
         this.moduleManager = Objects.requireNonNull(moduleManager, "moduleManager");
     }
 
@@ -52,26 +60,32 @@ public final class ConfigManager implements InstanceManager {
     public synchronized void init() {
         if (initialized) return;
         try {
+            Files.createDirectories(rootDirectory);
             Files.createDirectories(directory);
         } catch (java.io.IOException error) {
-            throw new IllegalStateException("Unable to create config directory: " + directory, error);
+            throw new IllegalStateException("Unable to create Nimbus config directories", error);
         }
+        clientSettings.bindChangeListener(this::markClientDirty);
         moduleManager.setChangeListener(this::markDirty);
         EventBus.register(this);
         initialized = true;
+        if (Files.isRegularFile(clientFile)) {
+            if (!loadClientSettings()) {
+                System.err.println("[Nimbus] Ignoring damaged client settings: " + clientFile);
+                clientSettings = new ClientSettings();
+                clientSettings.bindChangeListener(this::markClientDirty);
+                if (!saveClientSettings()) throw failInitialization("Unable to recreate client settings: " + clientFile);
+            }
+        } else {
+            if (!saveClientSettings()) throw failInitialization("Unable to create client settings: " + clientFile);
+        }
         Path defaultFile = file(DEFAULT_CONFIG);
         if (Files.isRegularFile(defaultFile)) {
             if (!loadConfig(DEFAULT_CONFIG)) {
-                EventBus.unregister(this);
-                moduleManager.setChangeListener(null);
-                initialized = false;
-                throw new IllegalStateException("Unable to load default config: " + defaultFile);
+                throw failInitialization("Unable to load default config: " + defaultFile);
             }
         } else if (!saveConfig(DEFAULT_CONFIG)) {
-            EventBus.unregister(this);
-            moduleManager.setChangeListener(null);
-            initialized = false;
-            throw new IllegalStateException("Unable to create default config: " + defaultFile);
+            throw failInitialization("Unable to create default config: " + defaultFile);
         }
     }
 
@@ -81,9 +95,14 @@ public final class ConfigManager implements InstanceManager {
         try {
             saveConfig(currentConfig);
         } finally {
-            EventBus.unregister(this);
-            moduleManager.setChangeListener(null);
-            initialized = false;
+            try {
+                saveClientSettings();
+            } finally {
+                EventBus.unregister(this);
+                moduleManager.setChangeListener(null);
+                clientSettings.bindChangeListener(null);
+                initialized = false;
+            }
         }
     }
 
@@ -99,10 +118,20 @@ public final class ConfigManager implements InstanceManager {
         return dirty;
     }
 
+    public ClientSettings clientSettings() {
+        return clientSettings;
+    }
+
     public synchronized void markDirty() {
         if (loading) return;
         dirty = true;
         dirtySince = System.currentTimeMillis();
+    }
+
+    public synchronized void markClientDirty() {
+        if (loading) return;
+        clientDirty = true;
+        clientDirtySince = System.currentTimeMillis();
     }
 
     @EventTarget
@@ -110,6 +139,48 @@ public final class ConfigManager implements InstanceManager {
         if (event.getPhase() != EventTick.Phase.POST) return;
         if (dirty && System.currentTimeMillis() - dirtySince >= AUTO_SAVE_DELAY_MS) {
             saveConfig(currentConfig);
+        }
+        if (clientDirty && System.currentTimeMillis() - clientDirtySince >= AUTO_SAVE_DELAY_MS) {
+            saveClientSettings();
+        }
+    }
+
+    public synchronized boolean saveClientSettings() {
+        Path temporary = clientFile.resolveSibling(clientFile.getFileName() + TEMP_EXTENSION);
+        try {
+            Files.createDirectories(rootDirectory);
+            Files.writeString(temporary, GSON.toJson(clientSnapshot()), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            moveReplacing(temporary, clientFile);
+            clientDirty = false;
+            return true;
+        } catch (java.io.IOException | RuntimeException error) {
+            System.err.println("[Nimbus] Failed to save client settings: " + message(error));
+            return false;
+        } finally {
+            try {
+                Files.deleteIfExists(temporary);
+            } catch (java.io.IOException ignored) {
+            }
+        }
+    }
+
+    private synchronized boolean loadClientSettings() {
+        try (Reader reader = Files.newBufferedReader(clientFile, StandardCharsets.UTF_8)) {
+            JsonElement parsed = JsonParser.parseReader(reader);
+            if (!parsed.isJsonObject()) return false;
+            JsonObject root = parsed.getAsJsonObject();
+            JsonElement settings = root.get("settings");
+            if (settings == null || !settings.isJsonObject()) return false;
+            loading = true;
+            deserializeSettings(settings.getAsJsonObject(), clientSettings.settings());
+            clientDirty = false;
+            return true;
+        } catch (java.io.IOException | RuntimeException error) {
+            System.err.println("[Nimbus] Failed to load client settings: " + message(error));
+            return false;
+        } finally {
+            loading = false;
         }
     }
 
@@ -121,11 +192,7 @@ public final class ConfigManager implements InstanceManager {
             Files.createDirectories(directory);
             Files.writeString(temporary, GSON.toJson(snapshot(name)), StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            try {
-                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException ignored) {
-                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
-            }
+            moveReplacing(temporary, target);
             currentConfig = name;
             dirty = false;
             return true;
@@ -231,6 +298,20 @@ public final class ConfigManager implements InstanceManager {
         return root;
     }
 
+    private JsonObject clientSnapshot() {
+        JsonObject root = new JsonObject();
+        JsonObject metadata = new JsonObject();
+        metadata.addProperty("version", 1);
+        metadata.addProperty("savedAt", System.currentTimeMillis());
+        root.add("_metadata", metadata);
+        JsonObject settings = new JsonObject();
+        for (Setting<?> setting : clientSettings.settings()) {
+            settings.add(setting.getName(), writeSetting(setting));
+        }
+        root.add("settings", settings);
+        return root;
+    }
+
     private JsonElement writeSetting(Setting<?> setting) {
         Object value = setting.getValue();
         if (setting instanceof ColorSetting color) {
@@ -324,6 +405,22 @@ public final class ConfigManager implements InstanceManager {
             if (entry.getKey().equalsIgnoreCase(name)) return entry.getValue();
         }
         return null;
+    }
+
+    private static void moveReplacing(Path source, Path target) throws java.io.IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException ignored) {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private IllegalStateException failInitialization(String message) {
+        EventBus.unregister(this);
+        moduleManager.setChangeListener(null);
+        clientSettings.bindChangeListener(null);
+        initialized = false;
+        return new IllegalStateException(message);
     }
 
     private static String message(Throwable error) {

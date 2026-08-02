@@ -15,11 +15,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.render.EventRender2D;
 import cc.nimbus.core.Core;
-import cc.nimbus.features.module.modules.hud.PostProcess;
 import cc.nimbus.utils.render.skija.api.SkijaLayer;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
-import cc.nimbus.ui.clickgui.neutron.NeutronScreen;
-import cc.nimbus.ui.menu.TitleScreen;
+import cc.nimbus.ui.screen.AbstractSkijaScreen;
 
 import java.util.*;
 
@@ -46,20 +44,14 @@ public class GuiRendererMixin {
             skija.invalidateScene();
         }
 
-        if (minecraft.gui.screen() instanceof NeutronScreen neutronScreen) {
-            PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);
-            skija.configurePostProcess(postProcess == null ? null : postProcess.options());
+        if (minecraft.gui.screen() instanceof AbstractSkijaScreen screen) {
+            skija.configurePostProcess(Core.INSTANCE.getConfigManager().clientSettings().postProcessOptions());
             var options = skija.postProcessOptions();
-            if (options.blurEnabled()) {
-                skija.captureScene(options.blurRefreshRate());
+            int captureRate = screen.requestedSceneCaptureRate(options);
+            if (captureRate > 0) {
+                skija.captureScene(captureRate);
             }
-            neutronScreen.renderExtractedFrame();
-        }
-
-        if (minecraft.gui.screen() instanceof TitleScreen mainMenu) {
-            int refreshRate = minecraft.getWindow().getRefreshRate();
-            skija.captureScene(refreshRate > 0 ? refreshRate : 60);
-            mainMenu.renderExtractedFrame();
+            screen.renderExtractedFrame();
         }
 
         if (nimbus$renderer == null) {
@@ -76,8 +68,7 @@ public class GuiRendererMixin {
             int framebufferWidth = minecraft.getWindow().getWidth();
             int framebufferHeight = minecraft.getWindow().getHeight();
             nimbus$hudLayer.ensure(framebufferWidth, framebufferHeight);
-            PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);
-            skija.configurePostProcess(postProcess == null ? null : postProcess.options());
+            skija.configurePostProcess(Core.INSTANCE.getConfigManager().clientSettings().postProcessOptions());
             var options = skija.postProcessOptions();
             if (options.blurEnabled()) {
                 skija.captureScene(options.blurRefreshRate());

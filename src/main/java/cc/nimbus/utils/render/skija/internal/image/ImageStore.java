@@ -18,6 +18,7 @@ import org.lwjgl.opengl.GL30;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -25,6 +26,7 @@ public final class ImageStore {
     private static final int MAX_IMAGES = 256;
     private static final Map<Identifier, Image> RESOURCE_IMAGES = new LinkedHashMap<>(32, 0.75f, true);
     private static final Map<Identifier, GlImage> GL_IMAGES = new LinkedHashMap<>(32, 0.75f, true);
+    private static final Map<String, EncodedImage> ENCODED_IMAGES = new LinkedHashMap<>(32, 0.75f, true);
     private static final ArrayDeque<Image> PENDING_CLOSE = new ArrayDeque<>();
 
     private ImageStore() {
@@ -89,6 +91,21 @@ public final class ImageStore {
         }
     }
 
+    public static Image getEncodedImage(String key, byte[] bytes) {
+        if (key == null || key.isBlank() || bytes == null || bytes.length == 0) return null;
+        RenderSystem.assertOnRenderThread();
+        EncodedImage cached = ENCODED_IMAGES.get(key);
+        if (cached != null && Arrays.equals(cached.bytes(), bytes) && !cached.image().isClosed()) {
+            return cached.image();
+        }
+        if (cached != null) scheduleClose(cached.image());
+        byte[] copy = bytes.clone();
+        Image image = Image.makeDeferredFromEncodedBytes(copy);
+        ENCODED_IMAGES.put(key, new EncodedImage(copy, image));
+        trim();
+        return image;
+    }
+
     public static Identifier getEntityTexture(Entity entity) {
         if (entity instanceof AbstractClientPlayer player) {
             return player.getSkin().body().texturePath();
@@ -104,14 +121,19 @@ public final class ImageStore {
     public static void clear() {
         RESOURCE_IMAGES.values().forEach(ImageStore::scheduleClose);
         GL_IMAGES.values().forEach(value -> scheduleClose(value.image()));
+        ENCODED_IMAGES.values().forEach(value -> scheduleClose(value.image()));
         RESOURCE_IMAGES.clear();
         GL_IMAGES.clear();
+        ENCODED_IMAGES.clear();
         drainPendingCloses();
     }
 
     private static void trim() {
-        while (RESOURCE_IMAGES.size() + GL_IMAGES.size() > MAX_IMAGES) {
-            if (!RESOURCE_IMAGES.isEmpty()) {
+        while (RESOURCE_IMAGES.size() + GL_IMAGES.size() + ENCODED_IMAGES.size() > MAX_IMAGES) {
+            if (!ENCODED_IMAGES.isEmpty()) {
+                String key = ENCODED_IMAGES.keySet().iterator().next();
+                scheduleClose(ENCODED_IMAGES.remove(key).image());
+            } else if (!RESOURCE_IMAGES.isEmpty()) {
                 Identifier key = RESOURCE_IMAGES.keySet().iterator().next();
                 scheduleClose(RESOURCE_IMAGES.remove(key));
             } else {
@@ -172,5 +194,8 @@ public final class ImageStore {
     }
 
     private record GlImage(int sourceTexture, Image image) {
+    }
+
+    private record EncodedImage(byte[] bytes, Image image) {
     }
 }

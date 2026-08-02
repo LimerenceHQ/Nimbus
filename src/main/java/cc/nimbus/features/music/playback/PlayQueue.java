@@ -33,6 +33,11 @@ public final class PlayQueue {
         index = normalize(index - 1);
         return order.get(index);
     }
+    public synchronized Music select(int selectedIndex) {
+        if (selectedIndex < 0 || selectedIndex >= order.size()) return null;
+        index = selectedIndex;
+        return order.get(index);
+    }
     public synchronized Music peekNext() {
         if (order.isEmpty()) return null;
         return mode == PlayMode.SINGLE ? current() : order.get(normalize(index + 1));
@@ -47,7 +52,12 @@ public final class PlayQueue {
     public synchronized PlayMode mode() { return mode; }
     public synchronized int index() { return order.isEmpty() ? -1 : normalize(index); }
     public synchronized int size() { return order.size(); }
-    public synchronized List<Music> songs() { return List.copyOf(source); }
+    public synchronized List<Music> songs() { return List.copyOf(order); }
+    public synchronized PlaybackQueueState snapshot() {
+        return order.isEmpty()
+                ? PlaybackQueueState.empty()
+                : new PlaybackQueueState(order, normalize(index));
+    }
 
     private void rebuild(Music selected) {
         order.clear();
