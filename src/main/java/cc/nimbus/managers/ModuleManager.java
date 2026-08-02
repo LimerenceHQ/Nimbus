@@ -9,6 +9,7 @@ import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.modules.hud.PostProcess;
 import cc.nimbus.features.module.modules.hud.ActiveList;
 import cc.nimbus.features.module.modules.hud.Watermark;
+import cc.nimbus.features.module.modules.movement.Sprint;
 import cc.nimbus.features.module.modules.render.ClickGui;
 import cc.nimbus.features.module.modules.render.ESP;
 import net.minecraft.client.Minecraft;
@@ -43,6 +44,7 @@ public final class ModuleManager implements InstanceManager {
                     new PostProcess(),
                     new ActiveList(),
                     new Watermark(),
+                    new Sprint(),
                     new ESP());
             modules.stream()
                     .filter(BasicModule::shouldAutoEnable)
