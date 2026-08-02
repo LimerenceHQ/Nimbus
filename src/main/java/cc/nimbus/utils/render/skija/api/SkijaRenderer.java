@@ -8,6 +8,7 @@ import cc.nimbus.utils.render.skija.internal.image.minecraft.MinecraftSnapshot;
 import cc.nimbus.utils.render.skija.internal.backend.SkijaSupport;
 import cc.nimbus.utils.render.skija.internal.text.FontFamily;
 import cc.nimbus.utils.render.skija.internal.text.TextFactory;
+import com.mojang.blaze3d.systems.RenderSystem;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.util.LinkedHashMap;
@@ -74,6 +75,13 @@ public final class SkijaRenderer {
     public void captureScene(int targetFps) {
         requireReady();
         MinecraftSnapshot.capture(targetFps);
+    }
+
+    public void invalidateScene() {
+        RenderSystem.assertOnRenderThread();
+        requireReady();
+        MinecraftSnapshot.invalidate();
+        SkijaBackend.INSTANCE.invalidateScene();
     }
 
     void renderHud(int targetFps) {

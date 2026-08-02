@@ -103,12 +103,17 @@ public abstract sealed class AbstractOffSurface<V> implements AutoCloseable perm
         return snapshotBounds;
     }
 
+    public void invalidate() {
+        if (snapshot != null && !snapshot.isClosed()) snapshot.close();
+        snapshot = null;
+        snapshotBounds = null;
+        lastUpdateTimeMs = 0;
+    }
+
     @Override
     public void close() {
-        if (snapshot != null && !snapshot.isClosed()) snapshot.close();
+        invalidate();
         if (surface != null && !surface.isClosed()) surface.close();
-        snapshot = null;
         surface = null;
-        snapshotBounds = null;
     }
 }

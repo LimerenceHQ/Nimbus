@@ -144,6 +144,12 @@ public final class PostProcessPipeline {
         pathMerger.clear();
     }
 
+    public static void invalidateScene() {
+        clear();
+        GAUSSIAN_SURFACE.invalidate();
+        KAWASE_SURFACE.invalidate();
+    }
+
     public static void close() {
         clear();
         GAUSSIAN_SURFACE.close();

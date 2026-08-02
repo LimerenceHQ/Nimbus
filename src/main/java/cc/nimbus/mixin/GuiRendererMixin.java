@@ -5,6 +5,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.render.GuiRenderer;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
 import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import net.minecraft.client.renderer.state.gui.pip.PictureInPictureRenderState;
@@ -29,6 +30,7 @@ public class GuiRendererMixin {
     @Unique private GuiRenderState nimbus$state;
     @Unique private GuiRenderer nimbus$renderer;
     @Unique private SkijaLayer nimbus$hudLayer;
+    @Unique private ClientLevel nimbus$scene;
     @Unique private static final ThreadLocal<Boolean> NIMBUS_RENDERING_AUXILIARY = ThreadLocal.withInitial(() -> false);
 
     @Inject(method = "draw", at = @At("HEAD"))
@@ -38,6 +40,11 @@ public class GuiRendererMixin {
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         skija.validateSupport();
         if (!skija.isSupported()) return;
+
+        if (nimbus$scene != minecraft.level) {
+            nimbus$scene = minecraft.level;
+            skija.invalidateScene();
+        }
 
         if (minecraft.gui.screen() instanceof NeutronScreen neutronScreen) {
             PostProcess postProcess = Core.INSTANCE.getModuleManager().getModule(PostProcess.class);

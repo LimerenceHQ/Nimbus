@@ -96,6 +96,12 @@ public final class SkijaBackend implements AutoCloseable {
     }
     public PostProcessOptions getPostProcessOptions() { return postProcessOptions; }
 
+    public synchronized void invalidateScene() {
+        callbacks.clear();
+        canvasOffSurface.invalidate();
+        PostProcessPipeline.invalidateScene();
+    }
+
     public synchronized void closeAll() {
         callbacks.clear();
         RuntimeException failure = null;

@@ -1,8 +1,10 @@
 package cc.nimbus.utils.render.skija.internal.image.minecraft;
 
+import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.GpuTexture;
 import io.github.humbleui.skija.ColorType;
 import io.github.humbleui.skija.DirectContext;
 import io.github.humbleui.skija.Image;
@@ -20,12 +22,14 @@ import java.nio.ByteBuffer;
 public final class MinecraftSnapshot {
     private static Image image;
     private static DirectContext imageContext;
+    private static GpuTexture stagingTexture;
     private static int textureId;
     private static int readFramebuffer;
     private static int drawFramebuffer;
     private static int width;
     private static int height;
     private static long lastCaptureNanos;
+    private static boolean valid;
 
     private MinecraftSnapshot() {
     }
@@ -40,10 +44,13 @@ public final class MinecraftSnapshot {
         if (!SkijaSupport.isSupported()) return;
         long now = System.nanoTime();
         long interval = 1_000_000_000L / Math.max(1, targetFps);
-        if (image != null && !image.isClosed() && now - lastCaptureNanos < interval) return;
+        if (valid && image != null && !image.isClosed() && now - lastCaptureNanos < interval) return;
         States.push();
         try {
-            if (captureGuarded()) lastCaptureNanos = now;
+            if (captureGuarded()) {
+                valid = true;
+                lastCaptureNanos = now;
+            }
         } finally {
             States.pop();
         }
@@ -74,6 +81,13 @@ public final class MinecraftSnapshot {
             height = targetHeight;
             imageContext = context;
 
+            stagingTexture = RenderSystem.getDevice().createTexture(
+                    "Nimbus Skija Scene Snapshot",
+                    GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC,
+                    GpuFormat.RGBA8_UNORM,
+                    width, height, 1, 1
+            );
+
             int previousTexture = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
             textureId = GL11.glGenTextures();
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
@@ -89,7 +103,15 @@ public final class MinecraftSnapshot {
             drawFramebuffer = GL30.glGenFramebuffers();
         }
 
-        copyTexture(sourceTexture.glId());
+        var encoder = RenderSystem.getDevice().createCommandEncoder();
+        encoder.copyTextureToTexture(target.getColorTexture(), stagingTexture,
+                0, 0, 0, 0, 0, width, height);
+        encoder.submit();
+
+        if (!(stagingTexture instanceof GlTexture stagingGlTexture) || stagingGlTexture.isClosed()) {
+            return false;
+        }
+        copyTexture(stagingGlTexture.glId());
         if (image == null || image.isClosed()) {
             image = Image.adoptGLTextureFrom(
                     context,
@@ -108,11 +130,16 @@ public final class MinecraftSnapshot {
 
     public static synchronized Image getScreenshot() {
         DirectContext context = SkijaBackend.INSTANCE.getContext();
-        if (context == null || context.isClosed() || imageContext != context
+        if (!valid || context == null || context.isClosed() || imageContext != context
                 || image == null || image.isClosed()) {
             return null;
         }
         return image;
+    }
+
+    public static synchronized void invalidate() {
+        valid = false;
+        lastCaptureNanos = 0L;
     }
 
     private static void copyTexture(int sourceTextureId) {
@@ -158,8 +185,12 @@ public final class MinecraftSnapshot {
             GL30.glDeleteFramebuffers(drawFramebuffer);
             drawFramebuffer = 0;
         }
+        if (stagingTexture != null) {
+            stagingTexture.close();
+            stagingTexture = null;
+        }
         width = 0;
         height = 0;
-        lastCaptureNanos = 0L;
+        invalidate();
     }
 }
