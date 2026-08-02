@@ -80,6 +80,7 @@ public final class FontFamily {
 
         Font font = new Font(tf, size);
         font.setSubpixel(true);
+        font.setBaselineSnapped(true);
         font.setEdging(FontEdging.ANTI_ALIAS);
         font.setHinting(FontHinting.SLIGHT);
         FONT_CACHE.put(key, font);
