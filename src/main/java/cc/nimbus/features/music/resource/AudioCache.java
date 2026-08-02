@@ -1,14 +1,14 @@
 package cc.nimbus.features.music.resource;
 
 import cc.nimbus.features.music.Quality;
-import cc.nimbus.features.music.internal.codec.jflac.FLACDecoder;
-import cc.nimbus.features.music.internal.codec.jflac.PCMProcessor;
-import cc.nimbus.features.music.internal.codec.jflac.metadata.StreamInfo;
-import cc.nimbus.features.music.internal.codec.jflac.util.ByteData;
-import cc.nimbus.features.music.internal.codec.jflac.util.WavWriter;
-import cc.nimbus.features.music.internal.codec.jl.converter.Converter;
 import cc.nimbus.features.music.model.Music;
 import cc.nimbus.features.music.provider.NeteaseApi;
+import javazoom.jl.converter.Converter;
+import org.jflac.FLACDecoder;
+import org.jflac.PCMProcessor;
+import org.jflac.metadata.StreamInfo;
+import org.jflac.util.ByteData;
+import org.jflac.util.WavWriter;
 
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;

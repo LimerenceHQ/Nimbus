@@ -1,6 +1,6 @@
 package cc.nimbus.features.music.resource;
 
-import cc.nimbus.features.music.internal.qr.QrCode;
+import io.nayuki.qrcodegen.QrCode;
 
 import javax.imageio.ImageIO;
 import java.awt.Color;

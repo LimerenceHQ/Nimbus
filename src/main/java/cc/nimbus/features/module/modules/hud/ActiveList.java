@@ -15,6 +15,7 @@ import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Path;
+import io.github.humbleui.skija.PathBuilder;
 import io.github.humbleui.types.Rect;
 
 import java.util.ArrayList;
@@ -141,7 +142,7 @@ public final class ActiveList extends BasicModule {
             float originY,
             float scale
     ) {
-        Path path = new Path();
+        PathBuilder path = new PathBuilder();
         for (int index = 0; index < entries.size(); index++) {
             Entry entry = entries.get(index);
             float rowX = rowX(anchor, totalWidth, entry.width());
@@ -154,7 +155,7 @@ public final class ActiveList extends BasicModule {
                     rowHeight * scale
             ));
         }
-        return path;
+        return path.build();
     }
 
     private record Entry(String name, String suffix, float nameWidth, float width) {}

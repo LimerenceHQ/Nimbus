@@ -21,12 +21,17 @@ repositories {
 }
 
 dependencies {
-    // To change the versions see the gradle.properties file
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
+    implementation include("io.github.humbleui:skija-shared:${project.skija_version}")
+    implementation include("io.github.humbleui:types:${project.humbleui_types_version}")
+    runtimeOnly include("io.github.humbleui:skija-windows-x64:${project.skija_version}")
+
+    implementation include("javazoom:jlayer:${project.jlayer_version}")
+    implementation include("org.jflac:jflac-codec:${project.jflac_version}")
+    implementation include("io.nayuki:qrcodegen:${project.qrcodegen_version}")
 }
 
 processResources {
@@ -81,6 +86,7 @@ jar {
     from("LICENSE.txt") {
         rename { "${it}_${project.archives_base_name}" }
     }
+    from("README.md")
 }
 
 // configure the maven publication

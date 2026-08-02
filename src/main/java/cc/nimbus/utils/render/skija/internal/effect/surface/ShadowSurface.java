@@ -60,7 +60,9 @@ public final class ShadowSurface extends AbstractOffSurface<ShadowSurface.Target
         } finally {
             canvas.restoreToCount(count);
         }
-        cachedPath.rewind().addPath(path);
+        try (Path previous = new Path(path)) {
+            cachedPath.swap(previous);
+        }
         cachedRadius = target.radius();
         cachedAlpha = target.alpha();
     }

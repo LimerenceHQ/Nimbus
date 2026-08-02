@@ -1,6 +1,5 @@
 package cc.nimbus.utils.render.skija.internal.geometry;
 
-import cc.nimbus.utils.render.skija.internal.geometry.RectMath;
 import io.github.humbleui.skija.*;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
@@ -9,7 +8,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class PathMerger implements AutoCloseable {
-    private final Path buffer = new Path();
+    private final PathBuilder buffer = new PathBuilder();
     private int count = 0;
 
     private final RectMath.BoundsMap boundsMap = new RectMath.BoundsMap();
@@ -35,8 +34,8 @@ public class PathMerger implements AutoCloseable {
     }
 
     public void build(Consumer<Path> consumer) {
-        try {
-            consumer.accept(buffer);
+        try (Path path = buffer.snapshot()) {
+            consumer.accept(path);
         } finally {
             clear();
         }
@@ -48,7 +47,7 @@ public class PathMerger implements AutoCloseable {
 
     public void clear() {
         if (count > 0) {
-            buffer.rewind();
+            buffer.reset();
             count = 0;
         }
         boundsMap.clear();

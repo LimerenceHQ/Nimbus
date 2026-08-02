@@ -48,7 +48,7 @@ public final class SkijaBackend implements AutoCloseable {
         }
         context.resetGLAll();
         renderTarget = BackendRenderTarget.makeGL(width, height, 0, 8, framebufferId, GL11.GL_RGBA8);
-        surface = Surface.wrapBackendRenderTarget(context, renderTarget, SurfaceOrigin.BOTTOM_LEFT, SurfaceColorFormat.RGBA_8888, ColorSpace.getSRGB(), new SurfaceProps(true, PixelGeometry.RGB_H));
+        surface = Surface.wrapBackendRenderTarget(context, renderTarget, SurfaceOrigin.BOTTOM_LEFT, ColorType.RGBA_8888, ColorSpace.getSRGB(), new SurfaceProps(true, PixelGeometry.RGB_H));
         if (surface == null) throw new IllegalStateException("Skija failed to wrap the Nimbus framebuffer");
         init = true;
     }
@@ -88,8 +88,7 @@ public final class SkijaBackend implements AutoCloseable {
     }
     public synchronized void flushAndSubmit() {
         if (non()) return;
-        surface.flushAndSubmit();
-        context.flush();
+        context.flushAndSubmit(surface);
     }
     public void setPostProcessOptions(PostProcessOptions options) {
         postProcessOptions = options == null ? PostProcessOptions.DISABLED : options;

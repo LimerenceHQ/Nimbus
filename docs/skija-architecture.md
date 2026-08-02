@@ -90,12 +90,12 @@ import io.github.humbleui.types.RRect;
 
 不要为了“完全封装”机械包装 Skija 的每一个 Canvas 方法。Nimbus facade 只包装需要统一语义、生命周期、缓存或 Minecraft 集成的能力。
 
-`src/main/java/io/github/humbleui` 是当前 Skija Java binding 的真实源码：
+Skija Java binding 与 Windows x64 native 由 Gradle 依赖提供，版本统一锁定在 `gradle.properties`：
 
-- 修改前应阅读它来确认真实方法、参数和关闭语义。
-- 功能可以导入合适的公开绘图类型。
-- Nimbus 业务逻辑不得写进该第三方包。
-- 除非已经证明是 binding 本身的问题并核对 native API，否则不要修改该目录。
+- 修改前应读取该版本的官方源码 JAR 或上游源码，确认真实方法、参数、所有权和关闭语义。
+- 不得以旧版文档、记忆或仓库历史中的内嵌副本代替当前依赖源码。
+- 功能可以导入合适的公开绘图类型，但 Nimbus 业务逻辑不得写进 `io.github.humbleui` 第三方包。
+- 依赖坐标只在 `build.gradle` 声明，版本只在 `gradle.properties` 声明；不要重新复制源码、DLL 或 ICU 数据进仓库。
 
 `RenderManager` 的生命周期：
 
@@ -589,7 +589,7 @@ if (!skija.isSupported()) {
 
 AI 修改此子系统时必须遵守：
 
-1. 不猜 Skija API。先阅读仓库内 `io.github.humbleui.skija` 的真实 Java 包装源码。
+1. 不猜 Skija API。先读取 `gradle.properties` 锁定版本对应的官方源码 JAR 或上游源码。
 2. 不猜 Minecraft GUI 生命周期。先阅读当前版本源码、Mixin 和现有调用链。
 3. 不从功能包导入 `cc.nimbus.utils.render.skija.internal`；这不禁止在 Frame 内使用 `io.github.humbleui.skija` 绘图类型。
 4. 不创建第二个 Renderer、Backend、DirectContext、FontManager 或图片缓存。

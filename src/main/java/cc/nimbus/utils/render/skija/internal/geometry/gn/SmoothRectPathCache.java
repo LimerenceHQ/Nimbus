@@ -4,6 +4,7 @@ import cc.nimbus.utils.render.skija.internal.geometry.PathMath;
 import cc.nimbus.utils.render.skija.internal.resource.CachePool;
 import io.github.humbleui.skija.Matrix33;
 import io.github.humbleui.skija.Path;
+import io.github.humbleui.skija.PathBuilder;
 import io.github.humbleui.types.Point;
 
 public final class SmoothRectPathCache {
@@ -18,11 +19,11 @@ public final class SmoothRectPathCache {
     }
 
     public static Path translated(SmoothRectSpec spec, float x, float y) {
-        Path translated = new Path();
+        PathBuilder translated = new PathBuilder();
         if (!SmoothRectSpec.isEmpty(spec)) {
             translated.addPath(basePath(spec), Matrix33.makeTranslate(x, y));
         }
-        return translated;
+        return translated.build();
     }
 
     public static void clear() {
@@ -56,13 +57,13 @@ public final class SmoothRectPathCache {
             control[index] = radius[index] * coefficient;
         }
 
-        Path path = new Path();
+        PathBuilder path = new PathBuilder();
         path.moveTo(radius[0], 0f);
         PathMath.cubicCorner(path, new Point(width - radius[1], 0f), new Point(width, radius[1]), new Point(1, 0), new Point(0, 1), control[1]);
         PathMath.cubicCorner(path, new Point(width, height - radius[2]), new Point(width - radius[2], height), new Point(0, 1), new Point(-1, 0), control[2]);
         PathMath.cubicCorner(path, new Point(radius[3], height), new Point(0f, height - radius[3]), new Point(-1, 0), new Point(0, -1), control[3]);
         PathMath.cubicCorner(path, new Point(0f, radius[0]), new Point(radius[0], 0f), new Point(0, -1), new Point(1, 0), control[0]);
         path.closePath();
-        return path;
+        return path.build();
     }
 }

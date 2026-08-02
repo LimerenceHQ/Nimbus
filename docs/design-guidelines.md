@@ -129,15 +129,15 @@ UI 专属绘制、状态和 widget 留在 UI 领域。例如 ClickGUI 的 `UiDra
 
 一旦拥有注册表、缓存生命周期或跨功能状态，应重新评估是否属于 Manager 或某个子系统内部。
 
-### 3.6 第三方源码
+### 3.6 第三方依赖
 
-例如 `io.github.humbleui` 是第三方 Skija binding 源码：
+第三方库通过 Gradle 和 Maven Central 引入，仓库不保存其源码或 native 二进制副本：
 
-- 可以阅读以确认 API。
-- 可以在正确作用域使用公开类型。
-- 不放 Nimbus 业务逻辑。
-- 不为适配 Nimbus 风格随意重排或重命名。
-- 修改必须有明确的上游/API 证据。
+- 坐标在 `build.gradle` 声明，版本在 `gradle.properties` 统一管理。
+- 修改调用前读取锁定版本对应的官方源码 JAR 或上游源码，确认真实 API 和所有权语义。
+- 可以在正确作用域使用公开类型，但不把 Nimbus 业务逻辑写进第三方包。
+- 不为适配 Nimbus 风格 fork、重排或重命名第三方源码。
+- 新增依赖时更新 `README.md` 的“第三方依赖”章节，并检查最终 Fabric JAR 的嵌套依赖。
 
 ## 4. Manager 设计规范
 

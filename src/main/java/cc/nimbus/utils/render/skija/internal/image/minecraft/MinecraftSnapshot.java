@@ -5,8 +5,10 @@ import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
+import io.github.humbleui.skija.BackendTexture;
 import io.github.humbleui.skija.ColorType;
 import io.github.humbleui.skija.DirectContext;
+import io.github.humbleui.skija.GLTextureInfo;
 import io.github.humbleui.skija.Image;
 import io.github.humbleui.skija.SurfaceOrigin;
 import net.minecraft.client.Minecraft;
@@ -113,16 +115,13 @@ public final class MinecraftSnapshot {
         }
         copyTexture(stagingGlTexture.glId());
         if (image == null || image.isClosed()) {
-            image = Image.adoptGLTextureFrom(
-                    context,
-                    textureId,
-                    GL11.GL_TEXTURE_2D,
-                    width,
-                    height,
-                    GL11.GL_RGBA8,
-                    SurfaceOrigin.BOTTOM_LEFT,
-                    ColorType.RGB_888X
-            );
+            try (BackendTexture texture = BackendTexture.makeGL(
+                    width, height, false,
+                    new GLTextureInfo(GL11.GL_TEXTURE_2D, textureId, GL11.GL_RGBA8))) {
+                image = Image.adoptTextureFrom(
+                        context, texture, SurfaceOrigin.BOTTOM_LEFT, ColorType.RGB_888X
+                );
+            }
         }
         context.resetGLAll();
         return true;

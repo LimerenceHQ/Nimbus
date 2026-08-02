@@ -2,7 +2,7 @@
 
 Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工作是建立一套简洁、明确且容易长期维护的客户端：统一 客户端 写法、集中配置管理、保留可靠的自动发现能力。
 
-> Nimbus 仍处于开发阶段，内部结构和公开 API 可能继续调整。目前 Skija native 仅随项目提供 Windows x64 版本。
+> Nimbus 仍处于开发阶段，内部结构和公开 API 可能继续调整。目前通过 Gradle 引入的 Skija native 仅包含 Windows x64 版本。
 
 ## 当前基础能力
 
@@ -27,7 +27,7 @@ Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工�
 | Fabric API | `0.156.0+26.2` |
 | Java | `25` 或更高 |
 | Gradle | Wrapper `9.5.1` |
-| Skija native | Windows x64 |
+| Skija | `0.143.17`，Windows x64 native |
 
 版本以 [`gradle.properties`](gradle.properties) 和 [`fabric.mod.json`](src/main/resources/fabric.mod.json) 为准。
 
@@ -42,6 +42,8 @@ Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工�
 ```
 
 构建产物位于 `build/libs/`。首次构建需要能够下载 Minecraft、Fabric 和 Gradle 依赖。
+
+Skija、JLayer、jFLAC 和 QR Code Generator 均由 Maven Central 解析并嵌入构建产物，仓库不保存这些项目的源码或 native 二进制副本。版本统一声明在 `gradle.properties`。
 
 ## 项目结构
 
@@ -107,6 +109,20 @@ Module 配置由 `ConfigManager` 管理；账户和 token 数据由 `AccountMana
 - 所有权、线程边界和释放责任必须能够从代码中判断。
 - 编译只是最低验证；配置、渲染、输入和补全等行为需要针对性检查。
 - 重构保持范围明确，不覆盖用户并行修改，不顺手整理无关代码。
+
+## 第三方依赖
+
+下列依赖在 Gradle 构建期间从 Maven Central 解析，其源码和 native 二进制文件不存放在本仓库中。实际版本以 `gradle.properties` 为准。
+
+| 依赖 | 用途 | 许可证 | 上游项目 |
+|---|---|---|---|
+| `io.github.humbleui:skija-shared` / `skija-windows-x64` | Skia Java 绑定和 Windows x64 native 运行库 | Apache License 2.0 | [HumbleUI/Skija](https://github.com/humbleui/skija) |
+| `io.github.humbleui:types` | Skija 使用的几何类型 | Apache License 2.0 | [HumbleUI/Types](https://github.com/humbleui/types) |
+| `javazoom:jlayer` | MP3 解码和 WAV 转换 | GNU LGPL | [JavaLayer](http://www.javazoom.net/javalayer/javalayer.html) |
+| `org.jflac:jflac-codec` | FLAC 解码和 WAV 转换 | GNU LGPL 2.1 | [jFLAC](https://github.com/nguillaumin/jflac) |
+| `io.nayuki:qrcodegen` | 音乐登录二维码生成 | MIT License | [QR Code Generator](https://github.com/nayuki/QR-Code-generator) |
+
+这些库及其权利归各自作者所有，并按各自许可证分发。Nimbus 不修改其包内实现；Fabric 模组中嵌入的依赖 JAR 保留上游元数据，完整许可证和声明以对应上游项目为准。
 
 ## License
 

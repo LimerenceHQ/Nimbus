@@ -3,7 +3,9 @@ package cc.nimbus.utils.render.skija.internal.image;
 import cc.nimbus.utils.render.skija.internal.backend.SkijaBackend;
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.systems.RenderSystem;
+import io.github.humbleui.skija.BackendTexture;
 import io.github.humbleui.skija.ColorType;
+import io.github.humbleui.skija.GLTextureInfo;
 import io.github.humbleui.skija.Image;
 import io.github.humbleui.skija.SurfaceOrigin;
 import net.minecraft.client.Minecraft;
@@ -52,11 +54,14 @@ public final class ImageStore {
         int copy = copyTexture(sourceTexture, width, height);
         Image image;
         try {
-            image = Image.adoptGLTextureFrom(
-                    SkijaBackend.INSTANCE.getContext(), copy, GL11.GL_TEXTURE_2D,
-                    width, height, GL11.GL_RGBA8,
-                    SurfaceOrigin.TOP_LEFT, ColorType.RGBA_8888
-            );
+            try (BackendTexture backendTexture = BackendTexture.makeGL(
+                    width, height, false,
+                    new GLTextureInfo(GL11.GL_TEXTURE_2D, copy, GL11.GL_RGBA8))) {
+                image = Image.adoptTextureFrom(
+                        SkijaBackend.INSTANCE.getContext(), backendTexture,
+                        SurfaceOrigin.TOP_LEFT, ColorType.RGBA_8888
+                );
+            }
         } catch (RuntimeException error) {
             GL11.glDeleteTextures(copy);
             throw error;
