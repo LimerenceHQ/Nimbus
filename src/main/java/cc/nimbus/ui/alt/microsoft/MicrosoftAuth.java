@@ -1,315 +1,337 @@
 package cc.nimbus.ui.alt.microsoft;
 
-import com.google.gson.GsonBuilder;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.lang.reflect.Method;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
-public class MicrosoftAuth implements Closeable {
+public final class MicrosoftAuth implements Closeable {
     private static final String CLIENT_ID = "67b74668-ef33-49c3-a75c-18cbb2481e0c";
     private static final String REDIRECT_URI = "http://localhost:9743/sad";
-    private static final String SCOPE = "XboxLive.signin%20offline_access";
+    private static final String SCOPE = "XboxLive.signin offline_access";
+    private static final Gson GSON = new Gson();
 
-    private static final GsonBuilder gson = new GsonBuilder();
-    private static final JsonParser parser = new JsonParser();
+    private final HttpServer server;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
-    private final Callback<String> statusCallback;
-    private final Runnable closeRunnable;
-    private final String state;
+    public MicrosoftAuth(Consumer<Data> callback, Consumer<String> statusCallback) throws IOException {
+        Consumer<Data> success = Objects.requireNonNull(callback, "callback");
+        Consumer<String> status = statusCallback == null ? ignored -> {} : statusCallback;
+        String state = UUID.randomUUID().toString();
 
-    private boolean closed = false;
-
-    public MicrosoftAuth(Callback<Data> callback, Callback<String> statusCallback) throws IOException {
-        this.statusCallback = statusCallback;
-        this.state = UUID.randomUUID().toString();
-
-        HttpServer redirectServer = HttpServer.create(new InetSocketAddress("localhost",9743),0);
-
-        closeRunnable = () -> redirectServer.stop(0);
-
-        redirectServer.createContext("/sad", exchange -> {
-            Map<String, String> params = query(exchange.getRequestURI().getRawQuery());
-            String response;
-            int code = 200;
-            try {
-                if (!state.equals(params.get("state"))) throw new IOException("Invalid OAuth state");
-                String authCode = params.get("code");
-                if (authCode == null || authCode.isBlank()) throw new IOException(params.getOrDefault("error_description", "Missing authorization code"));
-                String[] tokens = getMicrosoftTokenAndRefreshToken(authCode);
-                String xBoxLiveToken = getXBoxLiveToken(tokens[0]);
-                String[] xsts = getXSTSTokenAndUserHash(xBoxLiveToken);
-                String accessToken = getAccessToken(xsts[0], xsts[1]);
-                JsonObject profile = parser.parse(get("https://api.minecraftservices.com/minecraft/profile", Map.of("Authorization", "Bearer " + accessToken))).getAsJsonObject();
-                Data data = new Data(profile.get("name").getAsString(), profile.get("id").getAsString(), accessToken, tokens[1]);
-                callback.call(data);
-                setStatus("登录完成");
-                response = "Microsoft login successful. You can close this page.";
-                close();
-            } catch (Exception e) {
-                code = 400; response = "Microsoft login failed: " + e.getMessage(); setStatus(response);
-            }
-            byte[] body = response.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(code, body.length);
-            try (java.io.OutputStream os = exchange.getResponseBody()) { os.write(body); }
-            exchange.close();
-        });
-
-        redirectServer.start();
-
-        String authorizationUrl = "https://login.live.com/oauth20_authorize.srf?client_id="
-                + URLEncoder.encode(CLIENT_ID, StandardCharsets.UTF_8)
-                + "&redirect_uri=" + URLEncoder.encode(REDIRECT_URI, StandardCharsets.UTF_8)
-                + "&response_type=code&display=touch&scope=" + SCOPE
-                + "&prompt=select_account&state=" + URLEncoder.encode(state, StandardCharsets.UTF_8);
-
+        server = HttpServer.create(new InetSocketAddress("localhost", 9743), 0);
         try {
-            // 获取操作系统的名字
-            String osName = System.getProperty("os.name", "");
-            if (osName.startsWith("Mac OS")) {
-                // 苹果的打开方式
-                Class<?> fileMgr = Class.forName("com.apple.eio.FileManager");
-                Method openURL = fileMgr.getDeclaredMethod("openURL",
-                        String.class);
-                openURL.invoke(null, authorizationUrl);
-            } else if (osName.startsWith("Windows")) {
-                // windows的打开方式。
-                Runtime.getRuntime().exec("rundll32 url.dll,FileProtocolHandler " + authorizationUrl);
-            } else {
-                // Unix or Linux的打开方式
-                String[] browsers = {"firefox", "opera", "konqueror", "epiphany",
-                        "mozilla", "netscape"};
-                String browser = null;
-                for (int count = 0; count < browsers.length && browser == null; count++)
-                    // 执行代码，在brower有值后跳出，
-                    // 这里是如果进程创建成功了，==0是表示正常结束。
-                    if (Runtime.getRuntime()
-                            .exec(new String[]{"which", browsers[count]})
-                            .waitFor() == 0)
-                        browser = browsers[count];
-                if (browser == null)
-                    throw new Exception("Could not find web browser");
-                else
-                    // 这个值在上面已经成功的得到了一个进程。
-                    Runtime.getRuntime().exec(new String[]{browser, authorizationUrl});
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+            server.createContext("/sad", exchange -> handleCallback(exchange, state, success, status));
+            server.start();
+            openBrowser(authorizationUrl(state));
+        } catch (Exception error) {
+            close();
+            throw new IOException("Unable to start Microsoft login", error);
         }
-
     }
 
-    public MicrosoftAuth(Callback<Data> callback, Callback<String> statusCallback, String refreshToken) {
-        this.statusCallback = statusCallback;
-        this.closeRunnable = null;
-        this.state = "";
+    public static Data authenticate(String refreshToken, Consumer<String> statusCallback) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new IllegalArgumentException("Microsoft account does not contain a refresh token");
+        }
+        Consumer<String> status = statusCallback == null ? ignored -> {} : statusCallback;
+        Tokens tokens = refreshMicrosoftToken(refreshToken, status);
+        return authenticateMinecraft(tokens, status);
+    }
 
-        String microsoftToken = getMicrosoftTokenFromRefreshToken(refreshToken);
-        String xBoxLiveToken = getXBoxLiveToken(microsoftToken);
-        String[] xstsTokenAndHash = getXSTSTokenAndUserHash(xBoxLiveToken);
-        String accessToken = getAccessToken(xstsTokenAndHash[0], xstsTokenAndHash[1]);
-
-        JsonObject jsonObject = parser.parse(
-                get(
-                        "https://api.minecraftservices.com/minecraft/profile",
-                                Map.of("Authorization", "Bearer " + accessToken))
-        ).getAsJsonObject();
-
-        callback.call(
-                new Data(
-                        jsonObject.get("name").getAsString(),
-                        jsonObject.get("id").getAsString(),
-                        accessToken,
-                        refreshToken
-                )
+    public static Profile fetchProfile(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new IllegalArgumentException("Minecraft access token is empty");
+        }
+        JsonObject profile = requestJson(
+                "GET",
+                "https://api.minecraftservices.com/minecraft/profile",
+                null,
+                Map.of("Authorization", "Bearer " + accessToken)
         );
-
-        setStatus("登录完成");
+        return profile(profile);
     }
 
-    @Override
-    public void close() {
-        if (closed) {
-            return;
-        }
-
-        System.out.println("Close");
-
-        if (closeRunnable != null) {
-            closeRunnable.run();
-        }
-        closed = true;
-    }
-
-    private void setStatus(String status) {
-        statusCallback.call(status);
-    }
-
-    private String getMicrosoftTokenFromRefreshToken(String refreshToken) {
-        setStatus("Get microsoft token from refreshToken");
-
-        JsonObject jsonObject = parser.parse(
-                post(
-                        "https://login.live.com/oauth20_token.srf",
-                        "client_id=" + CLIENT_ID + "&refresh_token=" + refreshToken + "&grant_type=refresh_token",
-                        Map.of("Content-Type", "application/x-www-form-urlencoded"))
-        ).getAsJsonObject();
-
-        return jsonObject.get("access_token").getAsString();
-    }
-
-    private String[] getMicrosoftTokenAndRefreshToken(String code) {
-        setStatus("Get microsoft token and refreshToken");
-
-        JsonObject jsonObject = parser.parse(
-                post(
-                        "https://login.live.com/oauth20_token.srf",
-                        "client_id=" + CLIENT_ID + "&code=" + code + "&grant_type=authorization_code&redirect_uri=" + REDIRECT_URI + "&scope=" + SCOPE,
-                        Map.of("Content-Type", "application/x-www-form-urlencoded"))
-        ).getAsJsonObject();
-
-        return new String[]{
-                jsonObject.get("access_token").getAsString(),
-                jsonObject.get("refresh_token").getAsString()
-        };
-    }
-
-    private String getXBoxLiveToken(String microsoftToken) {
-        setStatus("Get XBox live token");
-
-        JsonObject paramObj = new JsonObject();
-        JsonObject propertiesObj = new JsonObject();
-
-        propertiesObj.addProperty("AuthMethod", "RPS");
-        propertiesObj.addProperty("SiteName", "user.auth.xboxlive.com");
-        propertiesObj.addProperty("RpsTicket", "d=" + microsoftToken);
-        paramObj.add("Properties", propertiesObj);
-        paramObj.addProperty("RelyingParty", "http://auth.xboxlive.com");
-        paramObj.addProperty("TokenType", "JWT");
-
-        JsonObject jsonObject = parser.parse(
-                post(
-                        "https://user.auth.xboxlive.com/user/authenticate",
-                        gson.create().toJson(paramObj),
-                        Map.of(
-                                "Content-Type", "application/json",
-                                "Accept", "application/json"
-                        ))
-        ).getAsJsonObject();
-
-        return jsonObject.get("Token").getAsString();
-    }
-
-    private String[] getXSTSTokenAndUserHash(String xboxLiveToken) {
-        setStatus("Get xsts token and user hash");
-
-        JsonObject paramObj = new JsonObject();
-        JsonObject propertiesObj = new JsonObject();
-
-        propertiesObj.addProperty("SandboxId", "RETAIL");
-        propertiesObj.add("UserTokens", parser.parse(gson.create().toJson(java.util.Arrays.asList(xboxLiveToken))));
-        paramObj.add("Properties", propertiesObj);
-        paramObj.addProperty("RelyingParty", "rp://api.minecraftservices.com/");
-        paramObj.addProperty("TokenType", "JWT");
-
-        JsonObject jsonObject = parser.parse(
-                post("https://xsts.auth.xboxlive.com/xsts/authorize",
-                        gson.create().toJson(paramObj),
-                        Map.of("Content-Type", "application/json"))
-        ).getAsJsonObject();
-
-        return new String[]{
-                jsonObject.get("Token").getAsString(),
-                jsonObject.get("DisplayClaims").getAsJsonObject().get("xui").getAsJsonArray().get(0).getAsJsonObject().get("uhs").getAsString()
-        };
-    }
-
-    private String getAccessToken(String xstsToken, String uhs) {
-        setStatus("Get access token");
-
-        JsonObject paramObj = new JsonObject();
-        paramObj.addProperty("identityToken", "XBL3.0 x=" + uhs + ";" + xstsToken);
-
-        JsonObject jsonObject = parser.parse(
-                post("https://api.minecraftservices.com/authentication/login_with_xbox",
-                        gson.create().toJson(paramObj),
-                        Map.of("Content-Type", "application/json", "Accept", "application/json"))).getAsJsonObject();
-
-        return jsonObject.get("access_token").getAsString();
-    }
-
-    private String post(String urlString, String param, java.util.Map<String,String> requestProperty) {
+    private void handleCallback(
+            HttpExchange exchange,
+            String expectedState,
+            Consumer<Data> callback,
+            Consumer<String> status
+    ) {
+        int responseCode = 200;
+        String response = "Microsoft login successful. You can close this page.";
         try {
-            URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-            connection.setDoInput(true);
-            connection.setDoOutput(true);
-
-            connection.setConnectTimeout(20000);
-            connection.setReadTimeout(20000);
-
-            connection.setRequestMethod("POST");
-
-            requestProperty.forEach(connection::setRequestProperty);
-
-            connection.connect();
-
-            connection.getOutputStream().write(param.getBytes(StandardCharsets.UTF_8));
-
-            String readText;
-
-            try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-                readText = reader.lines().collect(java.util.stream.Collectors.joining());
+            Map<String, String> params = query(exchange.getRequestURI().getRawQuery());
+            if (!expectedState.equals(params.get("state"))) {
+                throw new IllegalStateException("Invalid OAuth state");
+            }
+            String code = params.get("code");
+            if (code == null || code.isBlank()) {
+                throw new IllegalStateException(params.getOrDefault(
+                        "error_description",
+                        "Microsoft did not return an authorization code"
+                ));
             }
 
-            connection.disconnect();
-
-            return readText;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            Tokens tokens = exchangeAuthorizationCode(code, status);
+            Data data = authenticateMinecraft(tokens, status);
+            status.accept("Applying Minecraft session");
+            callback.accept(data);
+        } catch (Exception error) {
+            responseCode = 400;
+            response = "Microsoft login failed: " + message(error);
+            status.accept(response);
+        } finally {
+            writeResponse(exchange, responseCode, response);
+            close();
         }
     }
 
-    private String get(String urlString, java.util.Map<String,String> requestProperty) {
+    private static Data authenticateMinecraft(Tokens tokens, Consumer<String> status) {
+        status.accept("Getting Xbox Live token");
+        String xboxLiveToken = xboxLiveToken(tokens.accessToken());
+        status.accept("Getting XSTS token");
+        Xsts xsts = xstsToken(xboxLiveToken);
+        status.accept("Getting Minecraft access token");
+        String accessToken = minecraftAccessToken(xsts);
+        Profile profile = fetchProfile(accessToken);
+        return new Data(profile.userName(), profile.uuid(), accessToken, tokens.refreshToken());
+    }
+
+    private static Tokens exchangeAuthorizationCode(String code, Consumer<String> status) {
+        status.accept("Getting Microsoft access token");
+        Map<String, String> form = new LinkedHashMap<>();
+        form.put("client_id", CLIENT_ID);
+        form.put("code", code);
+        form.put("grant_type", "authorization_code");
+        form.put("redirect_uri", REDIRECT_URI);
+        form.put("scope", SCOPE);
+        JsonObject json = postForm("https://login.live.com/oauth20_token.srf", form);
+        return tokens(json, null);
+    }
+
+    private static Tokens refreshMicrosoftToken(String refreshToken, Consumer<String> status) {
+        status.accept("Refreshing Microsoft access token");
+        Map<String, String> form = new LinkedHashMap<>();
+        form.put("client_id", CLIENT_ID);
+        form.put("refresh_token", refreshToken);
+        form.put("grant_type", "refresh_token");
+        form.put("scope", SCOPE);
+        JsonObject json = postForm("https://login.live.com/oauth20_token.srf", form);
+        return tokens(json, refreshToken);
+    }
+
+    private static String xboxLiveToken(String microsoftToken) {
+        JsonObject properties = new JsonObject();
+        properties.addProperty("AuthMethod", "RPS");
+        properties.addProperty("SiteName", "user.auth.xboxlive.com");
+        properties.addProperty("RpsTicket", "d=" + microsoftToken);
+
+        JsonObject body = new JsonObject();
+        body.add("Properties", properties);
+        body.addProperty("RelyingParty", "http://auth.xboxlive.com");
+        body.addProperty("TokenType", "JWT");
+
+        return required(requestJson(
+                "POST",
+                "https://user.auth.xboxlive.com/user/authenticate",
+                GSON.toJson(body),
+                Map.of("Content-Type", "application/json", "Accept", "application/json")
+        ), "Token");
+    }
+
+    private static Xsts xstsToken(String xboxLiveToken) {
+        JsonObject properties = new JsonObject();
+        properties.addProperty("SandboxId", "RETAIL");
+        properties.add("UserTokens", GSON.toJsonTree(new String[]{xboxLiveToken}));
+
+        JsonObject body = new JsonObject();
+        body.add("Properties", properties);
+        body.addProperty("RelyingParty", "rp://api.minecraftservices.com/");
+        body.addProperty("TokenType", "JWT");
+
+        JsonObject json = requestJson(
+                "POST",
+                "https://xsts.auth.xboxlive.com/xsts/authorize",
+                GSON.toJson(body),
+                Map.of("Content-Type", "application/json", "Accept", "application/json")
+        );
+        String token = required(json, "Token");
         try {
-            URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            String userHash = json.getAsJsonObject("DisplayClaims")
+                    .getAsJsonArray("xui")
+                    .get(0)
+                    .getAsJsonObject()
+                    .get("uhs")
+                    .getAsString();
+            return new Xsts(token, userHash);
+        } catch (RuntimeException error) {
+            throw new IllegalStateException("XSTS response did not contain a user hash", error);
+        }
+    }
 
+    private static String minecraftAccessToken(Xsts xsts) {
+        JsonObject body = new JsonObject();
+        body.addProperty("identityToken", "XBL3.0 x=" + xsts.userHash() + ";" + xsts.token());
+        return required(requestJson(
+                "POST",
+                "https://api.minecraftservices.com/authentication/login_with_xbox",
+                GSON.toJson(body),
+                Map.of("Content-Type", "application/json", "Accept", "application/json")
+        ), "access_token");
+    }
+
+    private static JsonObject postForm(String url, Map<String, String> values) {
+        return requestJson(
+                "POST",
+                url,
+                form(values),
+                Map.of("Content-Type", "application/x-www-form-urlencoded", "Accept", "application/json")
+        );
+    }
+
+    private static JsonObject requestJson(
+            String method,
+            String url,
+            String body,
+            Map<String, String> headers
+    ) {
+        String response = request(method, url, body, headers);
+        try {
+            JsonElement json = JsonParser.parseString(response);
+            if (!json.isJsonObject()) throw new IllegalStateException("response is not a JSON object");
+            return json.getAsJsonObject();
+        } catch (RuntimeException error) {
+            throw new IllegalStateException("Invalid JSON response from " + endpoint(url), error);
+        }
+    }
+
+    private static String request(
+            String method,
+            String url,
+            String body,
+            Map<String, String> headers
+    ) {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
+            connection.setRequestMethod(method);
+            connection.setConnectTimeout(20_000);
+            connection.setReadTimeout(20_000);
             connection.setDoInput(true);
-            connection.setRequestMethod("GET");
+            headers.forEach(connection::setRequestProperty);
 
-            connection.setConnectTimeout(20000);
-            connection.setReadTimeout(20000);
-
-            requestProperty.forEach(connection::setRequestProperty);
-
-            connection.connect();
-
-            String readText;
-
-            try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-                readText = reader.lines().collect(java.util.stream.Collectors.joining());
+            if (body != null) {
+                byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                connection.setDoOutput(true);
+                connection.setFixedLengthStreamingMode(bytes.length);
+                try (OutputStream output = connection.getOutputStream()) {
+                    output.write(bytes);
+                }
             }
 
-            connection.disconnect();
+            int status = connection.getResponseCode();
+            InputStream stream = status >= 200 && status < 300
+                    ? connection.getInputStream()
+                    : connection.getErrorStream();
+            String response = stream == null ? "" : read(stream);
+            if (status < 200 || status >= 300) {
+                throw new IllegalStateException(
+                        "HTTP " + status + " from " + endpoint(url) + ": " + errorMessage(response)
+                );
+            }
+            return response;
+        } catch (IOException error) {
+            throw new IllegalStateException("Request failed for " + endpoint(url) + ": " + message(error), error);
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
 
-            return readText;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+    private static String read(InputStream stream) throws IOException {
+        try (stream) {
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static Tokens tokens(JsonObject json, String fallbackRefreshToken) {
+        String accessToken = required(json, "access_token");
+        String refreshToken = optional(json, "refresh_token");
+        if (refreshToken.isBlank()) refreshToken = fallbackRefreshToken;
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new IllegalStateException("Microsoft response did not contain a refresh token");
+        }
+        return new Tokens(accessToken, refreshToken);
+    }
+
+    private static Profile profile(JsonObject json) {
+        return new Profile(required(json, "name"), required(json, "id"));
+    }
+
+    private static String required(JsonObject json, String key) {
+        String value = optional(json, key);
+        if (value.isBlank()) throw new IllegalStateException("Response did not contain " + key);
+        return value;
+    }
+
+    private static String optional(JsonObject json, String key) {
+        return json.has(key) && !json.get(key).isJsonNull() ? json.get(key).getAsString() : "";
+    }
+
+    private static String form(Map<String, String> values) {
+        return values.entrySet().stream()
+                .map(entry -> encode(entry.getKey()) + "=" + encode(entry.getValue()))
+                .collect(java.util.stream.Collectors.joining("&"));
+    }
+
+    private static String authorizationUrl(String state) {
+        return "https://login.live.com/oauth20_authorize.srf?client_id=" + encode(CLIENT_ID)
+                + "&redirect_uri=" + encode(REDIRECT_URI)
+                + "&response_type=code&display=touch&scope=" + encode(SCOPE)
+                + "&prompt=select_account&state=" + encode(state);
+    }
+
+    private static void openBrowser(String url) throws IOException {
+        String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+        if (os.contains("win")) {
+            new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", url).start();
+        } else if (os.contains("mac")) {
+            new ProcessBuilder("open", url).start();
+        } else {
+            new ProcessBuilder("xdg-open", url).start();
+        }
+    }
+
+    private static void writeResponse(HttpExchange exchange, int status, String response) {
+        byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+        try {
+            exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+            exchange.sendResponseHeaders(status, bytes.length);
+            try (OutputStream output = exchange.getResponseBody()) {
+                output.write(bytes);
+            }
+        } catch (IOException ignored) {
+        } finally {
+            exchange.close();
         }
     }
 
@@ -319,23 +341,61 @@ public class MicrosoftAuth implements Closeable {
         for (String part : rawQuery.split("&")) {
             int separator = part.indexOf('=');
             if (separator <= 0) continue;
-            result.put(URLDecoder.decode(part.substring(0, separator), StandardCharsets.UTF_8),
-                    URLDecoder.decode(part.substring(separator + 1), StandardCharsets.UTF_8));
+            result.put(
+                    URLDecoder.decode(part.substring(0, separator), StandardCharsets.UTF_8),
+                    URLDecoder.decode(part.substring(separator + 1), StandardCharsets.UTF_8)
+            );
         }
         return result;
     }
 
-    public interface Callback<T> {
-        void call(T obj);
+    private static String errorMessage(String body) {
+        if (body == null || body.isBlank()) return "empty error response";
+        try {
+            JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+            for (String key : new String[]{"error_description", "message", "error"}) {
+                String value = optional(json, key);
+                if (!value.isBlank()) return value;
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return body.length() <= 300 ? body : body.substring(0, 300) + "...";
     }
 
-    public static class Data {
+    private static String endpoint(String url) {
+        try {
+            URI parsed = URI.create(url);
+            return parsed.getHost() + parsed.getPath();
+        } catch (Exception ignored) {
+            return url;
+        }
+    }
+
+    private static String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private static String message(Throwable error) {
+        return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+    }
+
+    @Override
+    public void close() {
+        if (closed.compareAndSet(false, true)) server.stop(0);
+    }
+
+    private record Tokens(String accessToken, String refreshToken) {}
+    private record Xsts(String token, String userHash) {}
+
+    public record Profile(String userName, String uuid) {}
+
+    public static final class Data {
         public final String userName;
         public final String uuid;
         public final String accessToken;
         public final String refreshToken;
 
-        public Data(String userName, String uuid, String accessToken, String refreshToken) {
+        private Data(String userName, String uuid, String accessToken, String refreshToken) {
             this.userName = userName;
             this.uuid = uuid;
             this.accessToken = accessToken;

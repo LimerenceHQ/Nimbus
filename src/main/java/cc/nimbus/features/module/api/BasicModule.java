@@ -52,17 +52,56 @@ public abstract class BasicModule extends ToggleElement {
     }
 
     @Override
-    public void setEnabled(boolean enabled) {
+    public synchronized void setEnabled(boolean enabled) {
         if (this.enabled == enabled) return;
         this.enabled = enabled;
+
         if (enabled) {
-            EventBus.register(this);
-            onEnable();
+            enable();
         } else {
-            EventBus.unregister(this);
-            onDisable();
+            disable();
         }
-        changed();
+    }
+
+    private void enable() {
+        boolean hookStarted = false;
+        try {
+            EventBus.register(this);
+            hookStarted = true;
+            onEnable();
+            if (enabled) changed();
+        } catch (Throwable failure) {
+            boolean needsHookCleanup = hookStarted && enabled;
+            enabled = false;
+            failure = cleanup(failure, () -> EventBus.unregister(this));
+            if (needsHookCleanup) failure = cleanup(failure, this::onDisable);
+            failure = cleanup(failure, this::changed);
+            rethrow(failure);
+        }
+    }
+
+    private void disable() {
+        Throwable failure = null;
+        failure = cleanup(failure, () -> EventBus.unregister(this));
+        failure = cleanup(failure, this::onDisable);
+        failure = cleanup(failure, this::changed);
+        if (failure != null) rethrow(failure);
+    }
+
+    private static Throwable cleanup(Throwable failure, Runnable action) {
+        try {
+            action.run();
+        } catch (Throwable error) {
+            if (failure == null) return error;
+            failure.addSuppressed(error);
+        }
+        return failure;
+    }
+
+    private static void rethrow(Throwable failure) {
+        if (failure instanceof RuntimeException runtime) throw runtime;
+        if (failure instanceof Error error) throw error;
+        throw new IllegalStateException(failure);
     }
 
     @Override

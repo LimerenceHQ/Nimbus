@@ -11,7 +11,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Consumer;
 
 public final class EventBus {
     private static final Map<Class<? extends Cancelable>, ListenerData[]> REGISTRY = new ConcurrentHashMap<>();
@@ -27,9 +26,15 @@ public final class EventBus {
     public static synchronized void register(Object subscriber) {
         Objects.requireNonNull(subscriber, "subscriber");
         if (!SUBSCRIBERS.add(subscriber)) return;
-        for (Class<?> type = subscriber.getClass(); type != null && type != Object.class; type = type.getSuperclass()) {
-            for (Method method : type.getDeclaredMethods()) registerMethod(subscriber, method);
-            for (Field field : type.getDeclaredFields()) registerField(subscriber, field);
+        try {
+            for (Class<?> type = subscriber.getClass(); type != null && type != Object.class; type = type.getSuperclass()) {
+                for (Method method : type.getDeclaredMethods()) registerMethod(subscriber, method);
+                for (Field field : type.getDeclaredFields()) registerField(subscriber, field);
+            }
+        } catch (Throwable error) {
+            removeListeners(subscriber);
+            SUBSCRIBERS.remove(subscriber);
+            throw error;
         }
     }
 
@@ -62,10 +67,10 @@ public final class EventBus {
     }
 
     @SuppressWarnings("unchecked") private static Class<? extends Cancelable> cast(Class<?> type) { return (Class<? extends Cancelable>) type; }
-    private static void invoke(MethodHandle handle, Cancelable event) { try { handle.invoke(event); } catch (Throwable error) { error.printStackTrace(); } }
+    private static void invoke(MethodHandle handle, Cancelable event) throws Throwable { handle.invoke(event); }
     @SuppressWarnings({"rawtypes", "unchecked"}) private static void invokeListener(Listener listener, Cancelable event) { listener.handle(event); }
 
-    private static void add(Class<? extends Cancelable> event, Object parent, Consumer<Cancelable> consumer, int priority, String name) {
+    private static void add(Class<? extends Cancelable> event, Object parent, EventConsumer consumer, int priority, String name) {
         List<ListenerData> listeners = MUTABLE.computeIfAbsent(event, key -> new ArrayList<>());
         listeners.add(new ListenerData(parent, consumer, priority, name));
         listeners.sort(Comparator.comparingInt(ListenerData::priority));
@@ -74,6 +79,10 @@ public final class EventBus {
 
     public static synchronized void unregister(Object subscriber) {
         if (!SUBSCRIBERS.remove(subscriber)) return;
+        removeListeners(subscriber);
+    }
+
+    private static void removeListeners(Object subscriber) {
         for (var entry : MUTABLE.entrySet()) {
             entry.getValue().removeIf(listener -> listener.parent() == subscriber);
             REGISTRY.put(entry.getKey(), entry.getValue().toArray(ListenerData[]::new));
@@ -84,14 +93,40 @@ public final class EventBus {
         ListenerData[] listeners = REGISTRY.get(event.getClass());
         if (listeners == null) return event;
         long eventStart = profiling ? System.nanoTime() : 0;
-        for (ListenerData listener : listeners) {
-            if (event.isCancel()) break;
-            long start = profiling ? System.nanoTime() : 0;
-            listener.consumer().accept(event);
-            if (profiling) LISTENER_PROFILE.computeIfAbsent(listener.name(), key -> new ProfileCounter()).record(System.nanoTime() - start);
+        try {
+            for (ListenerData listener : listeners) {
+                if (event.isCancel()) break;
+                long start = profiling ? System.nanoTime() : 0;
+                try {
+                    listener.consumer().accept(event);
+                } catch (Throwable error) {
+                    if (fatal(error)) throw (Error) error;
+                    if (error instanceof InterruptedException) Thread.currentThread().interrupt();
+                    logFailure(event, listener, error);
+                } finally {
+                    if (profiling) LISTENER_PROFILE.computeIfAbsent(listener.name(), key -> new ProfileCounter()).record(System.nanoTime() - start);
+                }
+            }
+        } finally {
+            if (profiling) EVENT_PROFILE.computeIfAbsent(event.getClass().getName(), key -> new ProfileCounter()).record(System.nanoTime() - eventStart);
         }
-        if (profiling) EVENT_PROFILE.computeIfAbsent(event.getClass().getName(), key -> new ProfileCounter()).record(System.nanoTime() - eventStart);
         return event;
+    }
+
+    private static boolean fatal(Throwable error) {
+        return error instanceof Error;
+    }
+
+    private static void logFailure(Cancelable event, ListenerData listener, Throwable error) {
+        Object subscriber = listener.parent();
+        System.err.printf(
+                "[Nimbus] Event listener failed [event=%s, subscriber=%s@%x, handler=%s]%n",
+                event.getClass().getName(),
+                subscriber.getClass().getName(),
+                System.identityHashCode(subscriber),
+                listener.name()
+        );
+        error.printStackTrace(System.err);
     }
 
     public static boolean hasListeners(Class<? extends Cancelable> type) { ListenerData[] data = REGISTRY.get(type); return data != null && data.length > 0; }
@@ -103,7 +138,12 @@ public final class EventBus {
     private static List<ProfileEntry> top(Map<String, ProfileCounter> values, int limit) { return values.entrySet().stream().map(e -> e.getValue().entry(e.getKey())).sorted(Comparator.comparingLong(ProfileEntry::totalNanos).reversed()).limit(Math.max(1, limit)).toList(); }
     public static synchronized void clear() { REGISTRY.clear(); MUTABLE.clear(); SUBSCRIBERS.clear(); resetProfiling(); }
 
-    private record ListenerData(Object parent, Consumer<Cancelable> consumer, int priority, String name) {}
+    @FunctionalInterface
+    private interface EventConsumer {
+        void accept(Cancelable event) throws Throwable;
+    }
+
+    private record ListenerData(Object parent, EventConsumer consumer, int priority, String name) {}
     private static final class ProfileCounter {
         private final LongAdder calls = new LongAdder(); private final LongAdder total = new LongAdder(); private final AtomicLong max = new AtomicLong();
         void record(long nanos) { calls.increment(); total.add(nanos); max.accumulateAndGet(nanos, Math::max); }

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 public final class AccountManager implements InstanceManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -33,6 +34,7 @@ public final class AccountManager implements InstanceManager {
     private final Path lastAccountFile;
     private final List<Alt> accounts = new ArrayList<>();
     private Alt lastAccount;
+    private MicrosoftAuth microsoftAuth;
 
     public AccountManager(Path directory) {
         this.directory = Objects.requireNonNull(directory, "directory");
@@ -42,6 +44,7 @@ public final class AccountManager implements InstanceManager {
 
     @Override
     public synchronized void init() {
+        cancelMicrosoftLogin();
         accounts.clear();
         lastAccount = null;
         try {
@@ -56,6 +59,7 @@ public final class AccountManager implements InstanceManager {
 
     @Override
     public synchronized void shutdown() {
+        cancelMicrosoftLogin();
         save();
         accounts.clear();
         lastAccount = null;
@@ -108,19 +112,47 @@ public final class AccountManager implements InstanceManager {
 
     public void login(
             Alt account,
-            MicrosoftAuth.Callback<MicrosoftAuth.Data> callback,
-            MicrosoftAuth.Callback<String> status
+            Consumer<LoginResult> callback,
+            Consumer<String> status
     ) {
         Objects.requireNonNull(account, "account");
+        Objects.requireNonNull(callback, "callback");
+        Consumer<String> statusCallback = status == null ? ignored -> {} : status;
+
         if (account instanceof OfflineAlt) {
-            applyUser(account.getUserName(), UUID.randomUUID(), "");
-            setLastAccount(account);
+            completeLogin(
+                    account,
+                    account,
+                    offlineUuid(account.getUserName()),
+                    "",
+                    callback,
+                    statusCallback
+            );
         } else if (account instanceof OriginalAlt original) {
-            applyUser(original.getUserName(), parseUuid(original.getUUID()), original.getAccessToken());
-            setLastAccount(account);
+            new Thread(
+                    () -> loginOriginal(original, callback, statusCallback),
+                    "nimbus-token-login"
+            ).start();
         } else if (account instanceof MicrosoftAlt microsoft) {
-            new Thread(() -> loginMicrosoft(account, microsoft, callback, status), "nimbus-alt-login").start();
+            new Thread(
+                    () -> loginMicrosoft(account, microsoft, callback, statusCallback),
+                    "nimbus-alt-login"
+            ).start();
+        } else {
+            statusCallback.accept("Login failed: unsupported account type");
         }
+    }
+
+    public void loginMicrosoft(Consumer<LoginResult> callback, Consumer<String> status) {
+        Objects.requireNonNull(callback, "callback");
+        Consumer<String> statusCallback = status == null ? ignored -> {} : status;
+        new Thread(() -> startMicrosoftLogin(callback, statusCallback), "nimbus-microsoft-login").start();
+    }
+
+    public synchronized void cancelMicrosoftLogin() {
+        if (microsoftAuth == null) return;
+        microsoftAuth.close();
+        microsoftAuth = null;
     }
 
     public synchronized boolean save() {
@@ -142,18 +174,104 @@ public final class AccountManager implements InstanceManager {
     private void loginMicrosoft(
             Alt account,
             MicrosoftAlt microsoft,
-            MicrosoftAuth.Callback<MicrosoftAuth.Data> callback,
-            MicrosoftAuth.Callback<String> status
+            Consumer<LoginResult> callback,
+            Consumer<String> status
     ) {
         try {
-            new MicrosoftAuth(data -> {
-                applyUser(data.userName, parseUuid(data.uuid), data.accessToken);
-                setLastAccount(account);
-                if (callback != null) callback.call(data);
-            }, status, microsoft.getRefreshToken());
+            MicrosoftAuth.Data data = MicrosoftAuth.authenticate(
+                    microsoft.getRefreshToken(),
+                    status
+            );
+            completeMicrosoftLogin(account, data, callback, status);
         } catch (RuntimeException error) {
-            if (status != null) status.call("Login failed: " + message(error));
+            status.accept("Login failed: " + message(error));
         }
+    }
+
+    private void loginOriginal(
+            OriginalAlt original,
+            Consumer<LoginResult> callback,
+            Consumer<String> status
+    ) {
+        try {
+            status.accept("Validating Minecraft access token");
+            MicrosoftAuth.Profile profile = MicrosoftAuth.fetchProfile(original.getAccessToken());
+            OriginalAlt authenticated = new OriginalAlt(
+                    profile.userName(),
+                    original.getAccessToken(),
+                    profile.uuid()
+            );
+            completeLogin(
+                    original,
+                    authenticated,
+                    parseUuid(profile.uuid()),
+                    original.getAccessToken(),
+                    callback,
+                    status
+            );
+        } catch (RuntimeException error) {
+            status.accept("Login failed: " + message(error));
+        }
+    }
+
+    private void startMicrosoftLogin(Consumer<LoginResult> callback, Consumer<String> status) {
+        try {
+            synchronized (this) {
+                cancelMicrosoftLogin();
+                microsoftAuth = new MicrosoftAuth(
+                        data -> completeMicrosoftLogin(null, data, callback, status),
+                        status
+                );
+            }
+        } catch (IOException | RuntimeException error) {
+            status.accept("Login failed: " + message(error));
+        }
+    }
+
+    private void completeMicrosoftLogin(
+            Alt previous,
+            MicrosoftAuth.Data data,
+            Consumer<LoginResult> callback,
+            Consumer<String> status
+    ) {
+        MicrosoftAlt authenticated = new MicrosoftAlt(data.userName, data.refreshToken);
+        completeLogin(
+                previous,
+                authenticated,
+                parseUuid(data.uuid),
+                data.accessToken,
+                callback,
+                status
+        );
+    }
+
+    private void completeLogin(
+            Alt previous,
+            Alt authenticated,
+            UUID uuid,
+            String accessToken,
+            Consumer<LoginResult> callback,
+            Consumer<String> status
+    ) {
+        applyUser(
+                authenticated.getUserName(),
+                uuid,
+                accessToken,
+                () -> {
+                    boolean saved;
+                    synchronized (this) {
+                        if (previous != null) {
+                            accounts.removeIf(existing -> sameIdentity(existing, previous));
+                        }
+                        accounts.removeIf(existing -> sameIdentity(existing, authenticated));
+                        accounts.add(authenticated);
+                        lastAccount = authenticated;
+                        saved = save();
+                    }
+                    callback.accept(new LoginResult(authenticated, saved));
+                },
+                error -> status.accept("Login failed: " + message(error))
+        );
     }
 
     private JsonArray serializeAccounts() {
@@ -230,19 +348,35 @@ public final class AccountManager implements InstanceManager {
 
     private static UUID parseUuid(String value) {
         if (value == null || value.isBlank()) {
-            return UUID.nameUUIDFromBytes("nimbus-alt".getBytes(StandardCharsets.UTF_8));
+            throw new IllegalArgumentException("Authenticated account did not provide a UUID");
         }
-        return UUID.fromString(value.replaceFirst(
-                "(\\p{XDigit}{8})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}+)",
-                "$1-$2-$3-$4-$5"
-        ));
+        try {
+            return UUID.fromString(value.replaceFirst(
+                    "(\\p{XDigit}{8})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}+)",
+                    "$1-$2-$3-$4-$5"
+            ));
+        } catch (IllegalArgumentException error) {
+            throw new IllegalArgumentException("Authenticated account returned an invalid UUID", error);
+        }
+    }
+
+    private static UUID offlineUuid(String userName) {
+        return UUID.nameUUIDFromBytes(
+                ("OfflinePlayer:" + userName).getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     private static String message(Throwable error) {
         return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
     }
 
-    private static void applyUser(String name, UUID uuid, String accessToken) {
+    private static void applyUser(
+            String name,
+            UUID uuid,
+            String accessToken,
+            Runnable success,
+            Consumer<Throwable> failure
+    ) {
         Minecraft.getInstance().execute(() -> {
             try {
                 var field = Minecraft.class.getDeclaredField("user");
@@ -254,9 +388,13 @@ public final class AccountManager implements InstanceManager {
                         Optional.empty(),
                         Optional.empty()
                 ));
-            } catch (ReflectiveOperationException error) {
-                throw new IllegalStateException("Unable to replace Minecraft user", error);
+            } catch (ReflectiveOperationException | RuntimeException error) {
+                failure.accept(new IllegalStateException("Unable to replace Minecraft user", error));
+                return;
             }
+            success.run();
         });
     }
+
+    public record LoginResult(Alt account, boolean saved) {}
 }

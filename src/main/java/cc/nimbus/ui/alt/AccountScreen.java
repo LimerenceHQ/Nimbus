@@ -11,7 +11,6 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 import cc.nimbus.ui.alt.model.*;
-import cc.nimbus.ui.alt.microsoft.MicrosoftAuth;
 
 public final class AccountScreen extends Screen {
     private final Screen parent;
@@ -127,21 +126,27 @@ public final class AccountScreen extends Screen {
     private void loginSelected() {
         if (selected == null) return;
         status = "正在登录..."; updateButtons();
-        accounts().login(selected, data -> minecraft.execute(() -> { status = "登录成功: " + data.userName; updateButtons(); }), value -> minecraft.execute(() -> { status = value; updateButtons(); }));
-        if (!(selected instanceof MicrosoftAlt)) { status = "登录成功: " + selected.getUserName(); updateButtons(); }
+        accounts().login(
+                selected,
+                result -> minecraft.execute(() -> loginSucceeded(result)),
+                value -> minecraft.execute(() -> { status = value; updateButtons(); })
+        );
     }
 
     private void startMicrosoft() {
         status = "正在打开 Microsoft 登录..."; updateButtons();
-        new Thread(() -> {
-            try {
-                new MicrosoftAuth(data -> minecraft.execute(() -> {
-                    MicrosoftAlt alt = new MicrosoftAlt(data.userName, data.refreshToken);
-                    accounts().addAccount(alt); selected = alt; accounts().setLastAccount(alt);
-                    status = "Microsoft 登录成功"; updateButtons();
-                }), value -> minecraft.execute(() -> { status = value; updateButtons(); }));
-            } catch (Exception e) { minecraft.execute(() -> { status = "登录失败: " + e.getMessage(); updateButtons(); }); }
-        }, "nimbus-microsoft-login").start();
+        accounts().loginMicrosoft(
+                result -> minecraft.execute(() -> loginSucceeded(result)),
+                value -> minecraft.execute(() -> { status = value; updateButtons(); })
+        );
+    }
+
+    private void loginSucceeded(AccountManager.LoginResult result) {
+        selected = result.account();
+        status = result.saved()
+                ? "登录成功: " + result.account().getUserName()
+                : "已登录，但账号保存失败";
+        updateButtons();
     }
 
     private void deleteSelected() { if (selected != null) { accounts().removeAccount(selected); status = "已删除"; selected = null; save(); updateButtons(); } }
@@ -151,6 +156,6 @@ public final class AccountScreen extends Screen {
 
     private int formTop() { return Math.max(220, Math.min(height - 210, (int) (height * 0.58f))); }
 
-    @Override public void onClose() { save(); minecraft.setScreenAndShow(parent); }
+    @Override public void onClose() { accounts().cancelMicrosoftLogin(); save(); minecraft.setScreenAndShow(parent); }
     @Override public boolean isPauseScreen() { return false; }
 }
