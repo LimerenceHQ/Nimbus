@@ -65,8 +65,9 @@ public class GuiRendererMixin {
                 && (minecraft.gui.screen() == null || minecraft.gui.screen() instanceof ChatScreen);
         if (renderHud) {
             if (nimbus$hudLayer == null) nimbus$hudLayer = skija.layer("hud");
-            int framebufferWidth = minecraft.getWindow().getWidth();
-            int framebufferHeight = minecraft.getWindow().getHeight();
+            var mainRenderTarget = minecraft.gameRenderer.mainRenderTarget();
+            int framebufferWidth = mainRenderTarget.width;
+            int framebufferHeight = mainRenderTarget.height;
             nimbus$hudLayer.ensure(framebufferWidth, framebufferHeight);
             skija.configurePostProcess(Core.INSTANCE.getConfigManager().clientSettings().postProcessOptions());
             var options = skija.postProcessOptions();
@@ -79,6 +80,7 @@ public class GuiRendererMixin {
             nimbus$hudLayer.render(frame -> skija.hud().render(refreshRate));
             nimbus$hudLayer.extract(graphics, framebufferWidth, framebufferHeight);
         }
+
         NIMBUS_RENDERING_AUXILIARY.set(true);
         try {
             nimbus$renderer.render();

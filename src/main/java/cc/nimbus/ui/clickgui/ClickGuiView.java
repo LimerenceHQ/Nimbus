@@ -331,7 +331,7 @@ public final class ClickGuiView {
             tooltipSince = context.nowMillis();
         }
         if (tooltip.isBlank() || context.nowMillis() - tooltipSince < 550L) return;
-        float width = Math.min(270f, context.frame().text().width(UiContext.FONT, 10f, tooltip) + 16f);
+        float width = Math.min(270f, context.width(UiContext.FONT, 10f, tooltip) + 16f);
         UiRect bounds = new UiRect(Math.min(context.mouseX() + 12f, logicalWidth - width - 8f),
                 Math.min(context.mouseY() + 14f, logicalHeight - 31f), width, 25f);
         context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f,
@@ -565,9 +565,9 @@ public final class ClickGuiView {
     }
 
     private static String ellipsize(UiContext context, String value, float width) {
-        if (value == null || context.frame().text().width(UiContext.FONT, 10f, value) <= width) return value;
+        if (value == null || context.width(UiContext.FONT, 10f, value) <= width) return value;
         String result = value;
-        while (!result.isEmpty() && context.frame().text().width(UiContext.FONT, 10f, result + "...") > width) {
+        while (!result.isEmpty() && context.width(UiContext.FONT, 10f, result + "...") > width) {
             result = result.substring(0, result.length() - 1);
         }
         return result + "...";

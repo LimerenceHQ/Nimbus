@@ -13,25 +13,42 @@ public record UiContext(
         float deltaSeconds,
         long nowMillis
 ) {
+    private static final float FONT_SCALE = 1.12f;
     public static final String FONT = NimbusFonts.BODY;
     public static final String FONT_MEDIUM = NimbusFonts.BODY_MEDIUM;
 
     public void text(String value, float x, float y, float size, int color) {
-        frame.text().draw(FONT, size, value, x, y, color);
+        draw(FONT, size, value, x, y, color);
     }
 
     public void medium(String value, float x, float y, float size, int color) {
-        frame.text().draw(FONT_MEDIUM, size, value, x, y, color);
+        draw(FONT_MEDIUM, size, value, x, y, color);
+    }
+
+    public void draw(String family, float size, String value, float x, float y, int color) {
+        frame.text().draw(family, fontSize(size), value, x, y, color);
+    }
+
+    public void center(String family, float size, String value, float centerX, float y, int color) {
+        frame.text().center(family, fontSize(size), value, centerX, y, color);
+    }
+
+    public float width(String family, float size, String value) {
+        return frame.text().width(family, fontSize(size), value);
+    }
+
+    public float height(String family, float size) {
+        return frame.text().height(family, fontSize(size));
     }
 
     public void textIn(String value, UiRect bounds, float size, int color) {
-        float textY = bounds.y() + (bounds.height() - frame.text().height(FONT, size)) * 0.5f;
+        float textY = bounds.y() + (bounds.height() - height(FONT, size)) * 0.5f;
         text(value, bounds.x(), textY, size, color);
     }
 
     public void centered(String value, UiRect bounds, float size, int color) {
-        float textY = bounds.y() + (bounds.height() - frame.text().height(FONT, size)) * 0.5f;
-        frame.text().center(FONT, size, value, bounds.x() + bounds.width() * 0.5f, textY, color);
+        float textY = bounds.y() + (bounds.height() - height(FONT, size)) * 0.5f;
+        center(FONT, size, value, bounds.x() + bounds.width() * 0.5f, textY, color);
     }
 
     public int clip(UiRect bounds, float radius) {
@@ -43,5 +60,9 @@ public record UiContext(
 
     public void restore(int save) {
         frame.canvas().restoreToCount(save);
+    }
+
+    private static float fontSize(float size) {
+        return size * FONT_SCALE;
     }
 }

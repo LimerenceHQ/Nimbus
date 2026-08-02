@@ -515,10 +515,10 @@ public final class SettingControls {
 
     private static String ellipsize(UiContext context, String value, float width) {
         if (value == null) return "";
-        if (context.frame().text().width(UiContext.FONT, 10.5f, value) <= width) return value;
+        if (context.width(UiContext.FONT, 10.5f, value) <= width) return value;
         String result = value;
         while (!result.isEmpty()
-                && context.frame().text().width(UiContext.FONT, 10.5f, result + "...") > width) {
+                && context.width(UiContext.FONT, 10.5f, result + "...") > width) {
             result = result.substring(0, result.length() - 1);
         }
         return result + "...";

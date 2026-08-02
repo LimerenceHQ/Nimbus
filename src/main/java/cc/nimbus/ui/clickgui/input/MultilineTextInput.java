@@ -92,7 +92,7 @@ public final class MultilineTextInput {
                 if (focused && cursor >= begin && cursor <= end
                         && (context.nowMillis() / 500L & 1L) == 0L) {
                     int local = Math.min(cursor - begin, value.length());
-                    float cursorX = context.frame().text().width(UiContext.FONT, size,
+                    float cursorX = context.width(UiContext.FONT, size,
                             secure ? "*".repeat(local) : value.substring(0, local));
                     context.frame().draw().rect(bounds.x() + PADDING + cursorX, lineY - 1f,
                             1f, LINE_HEIGHT, ClickGuiTheme.TEXT);

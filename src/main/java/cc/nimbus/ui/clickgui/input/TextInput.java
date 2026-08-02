@@ -66,7 +66,7 @@ public final class TextInput {
         float previousWidth = 0f;
         for (int index = 0; index < value.length();) {
             int next = value.offsetByCodePoints(index, 1);
-            float nextWidth = context.frame().text().width(UiContext.FONT, size, value.substring(0, next));
+            float nextWidth = context.width(UiContext.FONT, size, value.substring(0, next));
             if (local < (previousWidth + nextWidth) * .5f) {
                 position = index;
                 break;
@@ -90,7 +90,7 @@ public final class TextInput {
         String composed = display.substring(0, cursor) + preedit + display.substring(cursor);
         boolean empty = composed.isEmpty();
         float textX = bounds.x() + 8f;
-        float textY = bounds.y() + (bounds.height() - context.frame().text().height(UiContext.FONT, size)) * 0.5f;
+        float textY = bounds.y() + (bounds.height() - context.height(UiContext.FONT, size)) * 0.5f;
         int save = context.clip(new UiRect(bounds.x() + 2f, bounds.y(), bounds.width() - 4f, bounds.height()), 2f);
         try {
             String selected = editor.getHighlighted();
@@ -101,8 +101,8 @@ public final class TextInput {
                         && raw.substring(cursor, cursor + selectedLength).equals(selected)) {
                     start = cursor;
                 }
-                float selectionX = textX + context.frame().text().width(UiContext.FONT, size, display.substring(0, start));
-                float selectionW = context.frame().text().width(UiContext.FONT, size,
+                float selectionX = textX + context.width(UiContext.FONT, size, display.substring(0, start));
+                float selectionW = context.width(UiContext.FONT, size,
                         display.substring(start, Math.min(display.length(), start + selectedLength)));
                 context.frame().draw().rect(selectionX, bounds.y() + 5f, selectionW, bounds.height() - 10f,
                         context.theme().accent(0x42));
@@ -110,7 +110,7 @@ public final class TextInput {
             context.text(empty ? placeholder : composed, textX, textY, size,
                     empty ? ClickGuiTheme.MUTED : ClickGuiTheme.TEXT);
             if (focused && (context.nowMillis() / 500L & 1L) == 0L) {
-                float cursorX = textX + context.frame().text().width(UiContext.FONT, size, display.substring(0, cursor));
+                float cursorX = textX + context.width(UiContext.FONT, size, display.substring(0, cursor));
                 context.frame().draw().rect(cursorX, bounds.y() + 5f, 1f, bounds.height() - 10f,
                         ClickGuiTheme.TEXT);
             }

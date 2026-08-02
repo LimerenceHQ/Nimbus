@@ -4,6 +4,7 @@ import cc.nimbus.core.Core;
 import cc.nimbus.utils.render.skija.api.PostProcessOptions;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import cc.nimbus.utils.render.skija.api.SkijaLayer;
+import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -28,8 +29,9 @@ public abstract class AbstractSkijaScreen extends Screen {
             int mouseY,
             float partialTick
     ) {
-        framebufferWidth = minecraft.getWindow().getWidth();
-        framebufferHeight = minecraft.getWindow().getHeight();
+        RenderTarget target = minecraft.gameRenderer.mainRenderTarget();
+        framebufferWidth = target.width;
+        framebufferHeight = target.height;
         framebufferMouseX = toFramebufferX(mouseX, graphics.guiWidth(), framebufferWidth);
         framebufferMouseY = toFramebufferY(mouseY, graphics.guiHeight(), framebufferHeight);
         layer.extract(graphics, framebufferWidth, framebufferHeight);
@@ -70,11 +72,11 @@ public abstract class AbstractSkijaScreen extends Screen {
     }
 
     protected final float framebufferX(double guiX) {
-        return toFramebufferX(guiX, width, minecraft.getWindow().getWidth());
+        return toFramebufferX(guiX, width, minecraft.gameRenderer.mainRenderTarget().width);
     }
 
     protected final float framebufferY(double guiY) {
-        return toFramebufferY(guiY, height, minecraft.getWindow().getHeight());
+        return toFramebufferY(guiY, height, minecraft.gameRenderer.mainRenderTarget().height);
     }
 
     @Override

@@ -147,7 +147,7 @@ public final class MusicTool implements ToolPage {
             context.frame().draw().svgResource("assets/nimbus/image/logo.svg",
                     bounds.x() + 16f, bounds.y() + 15f, 27f, paint);
         }
-        context.frame().text().draw(NimbusFonts.DISPLAY, 15f, "Nimbus Music",
+        context.draw(NimbusFonts.DISPLAY, 15f, "Nimbus Music",
                 bounds.x() + 50f, bounds.y() + 20f, ClickGuiTheme.TEXT);
 
         sidebarClipBounds = new UiRect(bounds.x() + 8f, bounds.y() + 55f,
@@ -356,7 +356,7 @@ public final class MusicTool implements ToolPage {
         Artwork artwork = data.artwork(playlist, 320);
         UiRect cover = new UiRect(bounds.x() + 18f, y, 94f, 94f);
         drawArtwork(context, artwork, "playlist:" + playlist.id(), cover, 4f, 255);
-        context.frame().text().draw(NimbusFonts.CONTENT_MEDIUM, 19f, playlist.name(),
+        context.draw(NimbusFonts.CONTENT_MEDIUM, 19f, playlist.name(),
                 cover.x() + cover.width() + 16f, y + 10f, ClickGuiTheme.TEXT);
         context.text(playlist.trackCount() + " tracks", cover.x() + cover.width() + 16f,
                 y + 42f, 10f, ClickGuiTheme.MUTED);
@@ -388,7 +388,7 @@ public final class MusicTool implements ToolPage {
                 coverSize, coverSize);
         drawCurrentArtwork(context, music, cover);
         hits.add(new Hit(cover, Action.PREVIEW_COVER, null));
-        context.frame().text().draw(NimbusFonts.CONTENT_MEDIUM, 18f, music.name(), cover.x(),
+        context.draw(NimbusFonts.CONTENT_MEDIUM, 18f, music.name(), cover.x(),
                 cover.y() + cover.height() + 13f, ClickGuiTheme.TEXT);
         context.text(music.artistsText(), cover.x(), cover.y() + cover.height() + 38f, 10.5f, ClickGuiTheme.MUTED);
         float iconY = cover.y() + cover.height() + 7f;
@@ -451,13 +451,13 @@ public final class MusicTool implements ToolPage {
             if (index == active && !data.lyrics().words().isEmpty()) {
                 drawWordProgress(context, line.text(), bounds.x(), y, bounds.width(), size, now);
             } else {
-                context.frame().text().draw(NimbusFonts.CONTENT, size,
+                context.draw(NimbusFonts.CONTENT, size,
                         ellipsizeFont(context, NimbusFonts.CONTENT, size, line.text(), bounds.width()),
                         bounds.x(), y, color);
             }
             String translated = translated(index, line.timeMs());
             if (!translated.isBlank()) {
-                context.frame().text().draw(NimbusFonts.CONTENT, 9.5f,
+                context.draw(NimbusFonts.CONTENT, 9.5f,
                         ellipsizeFont(context, NimbusFonts.CONTENT, 9.5f, translated, bounds.width()),
                         bounds.x(), y + 22f, index == active ? 0xD8D5D7DC : 0x708F939B);
             }
@@ -471,11 +471,11 @@ public final class MusicTool implements ToolPage {
                 .findFirst().orElse(null);
         String text = wordLine == null || wordLine.text().isBlank() ? fallback : wordLine.text();
         text = ellipsizeFont(context, NimbusFonts.CONTENT, size, text, width);
-        context.frame().text().draw(NimbusFonts.CONTENT, size, text, x, y, 0x78FFFFFF);
+        context.draw(NimbusFonts.CONTENT, size, text, x, y, 0x78FFFFFF);
         float highlighted = 0f;
         if (wordLine != null) {
             for (TimedWord word : wordLine.words()) {
-                float wordWidth = context.frame().text().width(NimbusFonts.CONTENT, size, word.text());
+                float wordWidth = context.width(NimbusFonts.CONTENT, size, word.text());
                 if (now >= word.endMs()) highlighted += wordWidth;
                 else if (now > word.startMs()) {
                     float progress = (now - word.startMs()) / (float) Math.max(1, word.endMs() - word.startMs());
@@ -486,7 +486,7 @@ public final class MusicTool implements ToolPage {
         }
         int clip = context.clip(new UiRect(x, y - 2f, Math.min(width, highlighted), size + 8f), 0f);
         try {
-            context.frame().text().draw(NimbusFonts.CONTENT, size, text, x, y, ClickGuiTheme.TEXT);
+            context.draw(NimbusFonts.CONTENT, size, text, x, y, ClickGuiTheme.TEXT);
         } finally {
             context.restore(clip);
         }
@@ -596,10 +596,10 @@ public final class MusicTool implements ToolPage {
                 IMAGE_PLACEHOLDER);
         if (music != null) {
             hits.add(new Hit(cover, Action.NOW_PLAYING, null));
-            context.frame().text().draw(NimbusFonts.CONTENT_MEDIUM, 11f, ellipsizeFont(context,
+            context.draw(NimbusFonts.CONTENT_MEDIUM, 11f, ellipsizeFont(context,
                     NimbusFonts.CONTENT_MEDIUM, 11f, music.name(), 180f), cover.x() + 61f, y + 16f,
                     ClickGuiTheme.TEXT);
-            context.frame().text().draw(NimbusFonts.CONTENT, 9f, ellipsizeFont(context,
+            context.draw(NimbusFonts.CONTENT, 9f, ellipsizeFont(context,
                     NimbusFonts.CONTENT, 9f, music.artistsText(), 180f), cover.x() + 61f, y + 37f,
                     ClickGuiTheme.MUTED);
         } else {
@@ -702,10 +702,10 @@ public final class MusicTool implements ToolPage {
             UiRect image = new UiRect(bounds.x() + (bounds.width() - size) * .5f,
                     bounds.y() + 30f + (1f - previewProgress) * 12f, size, size);
             drawCurrentArtwork(context, music, image);
-            context.frame().text().center(NimbusFonts.CONTENT_MEDIUM, 17f, music.name(),
+            context.center(NimbusFonts.CONTENT_MEDIUM, 17f, music.name(),
                     bounds.x() + bounds.width() * .5f, image.y() + image.height() + 16f, ClickGuiTheme.TEXT);
             String detail = music.artistsText() + (music.album() == null ? "" : "  /  " + music.album().name());
-            context.frame().text().center(NimbusFonts.CONTENT, 10.5f, detail,
+            context.center(NimbusFonts.CONTENT, 10.5f, detail,
                     bounds.x() + bounds.width() * .5f, image.y() + image.height() + 43f, ClickGuiTheme.MUTED);
             if (previewProgress > .85f) hits.add(new Hit(bounds, Action.CLOSE_PREVIEW, null));
         } finally {
@@ -714,14 +714,14 @@ public final class MusicTool implements ToolPage {
     }
 
     private float heading(UiContext context, String title, String subtitle, UiRect bounds, float y) {
-        context.frame().text().draw(NimbusFonts.DISPLAY, 20f, title, bounds.x() + 18f, y,
+        context.draw(NimbusFonts.DISPLAY, 20f, title, bounds.x() + 18f, y,
                 ClickGuiTheme.TEXT);
         context.text(subtitle, bounds.x() + 18f, y + 29f, 10f, ClickGuiTheme.MUTED);
         return y + 58f;
     }
 
     private float section(UiContext context, String title, UiRect bounds, float y) {
-        context.frame().text().draw(NimbusFonts.BODY_MEDIUM, 11f, title, bounds.x() + 18f, y,
+        context.draw(NimbusFonts.BODY_MEDIUM, 11f, title, bounds.x() + 18f, y,
                 ClickGuiTheme.TEXT);
         return y + 25f;
     }
@@ -747,7 +747,7 @@ public final class MusicTool implements ToolPage {
             float hover = hover(context, "playlist:" + playlist.id(), hit.contains(context.mouseX(), context.mouseY()));
             if (hover > .01f) context.frame().draw().outline(cover.x(), cover.y(), cover.width(), cover.height(),
                     4f, 1f, alpha(0xFFFFFFFF, Math.round(36f * hover)));
-            context.frame().text().draw(NimbusFonts.CONTENT_MEDIUM, 10f,
+            context.draw(NimbusFonts.CONTENT_MEDIUM, 10f,
                     ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 10f, playlist.name(), width),
                     x, top + imageSize + 8f, ClickGuiTheme.TEXT);
             context.text(formatCount(playlist.playCount()) + " plays", x, top + imageSize + 25f,
@@ -766,10 +766,10 @@ public final class MusicTool implements ToolPage {
                 hoverRow(context, row, "song:" + music.id());
                 context.textIn(Integer.toString(index + 1), new UiRect(row.x() + 6f, row.y(), 26f, row.height()),
                         9f, ClickGuiTheme.MUTED);
-                context.frame().text().draw(NimbusFonts.CONTENT_MEDIUM, 10.5f,
+                context.draw(NimbusFonts.CONTENT_MEDIUM, 10.5f,
                         ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 10.5f, music.name(), row.width() * .43f),
                         row.x() + 34f, row.y() + 6f, ClickGuiTheme.TEXT);
-                context.frame().text().draw(NimbusFonts.CONTENT, 9f,
+                context.draw(NimbusFonts.CONTENT, 9f,
                         ellipsizeFont(context, NimbusFonts.CONTENT, 9f, music.artistsText(), row.width() * .3f),
                         row.x() + row.width() * .55f, row.y() + 9f, ClickGuiTheme.MUTED);
                 context.text(time(music.durationMs() / 1000f), row.x() + row.width() - 45f,
@@ -1219,7 +1219,7 @@ public final class MusicTool implements ToolPage {
 
     private void renderMessage(UiContext context, UiRect bounds) {
         if (message.isBlank() || context.nowMillis() >= messageUntil) return;
-        float width = Math.min(320f, context.frame().text().width(UiContext.FONT, 10f, message) + 24f);
+        float width = Math.min(320f, context.width(UiContext.FONT, 10f, message) + 24f);
         UiRect toast = new UiRect(bounds.x() + (bounds.width() - width) * .5f,
                 bounds.y() + bounds.height() - PLAYER_HEIGHT - 42f, width, 29f);
         context.frame().draw().roundedRect(toast.x(), toast.y(), toast.width(), toast.height(), 4f, 0xED111318);
@@ -1278,9 +1278,9 @@ public final class MusicTool implements ToolPage {
     }
     private static String ellipsizeFont(UiContext context, String font, float size, String value, float width) {
         if (value == null) return "";
-        if (context.frame().text().width(font, size, value) <= width) return value;
+        if (context.width(font, size, value) <= width) return value;
         String result = value;
-        while (!result.isEmpty() && context.frame().text().width(font, size, result + "...") > width) {
+        while (!result.isEmpty() && context.width(font, size, result + "...") > width) {
             result = result.substring(0, result.length() - 1);
         }
         return result + "...";
