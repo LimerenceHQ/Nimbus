@@ -6,6 +6,7 @@ import cc.nimbus.event.impl.render.EventRender2D;
 import cc.nimbus.features.hud.Draggable;
 import cc.nimbus.features.hud.HudRect;
 import cc.nimbus.features.hud.HudSize;
+import cc.nimbus.features.hud.HudViewport;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
@@ -50,10 +51,11 @@ public final class Watermark extends BasicModule {
     @EventTarget
     private void onRender2D(EventRender2D event) {
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
+        HudViewport viewport = Core.INSTANCE.getHudManager().viewport(skija.width(), skija.height());
         String label = displayText();
         HudSize size = drag.getSize();
-        HudRect bounds = drag.getRect(skija.width(), skija.height());
-        float scale = (float) drag.getScale();
+        HudRect bounds = drag.getRect(viewport);
+        float scale = drag.getRenderScale(viewport);
         int accentColor = customStyle()
                 ? accent.getValue()
                 : Core.INSTANCE.getConfigManager().clientSettings().accentColor();
@@ -61,7 +63,7 @@ public final class Watermark extends BasicModule {
                 bounds.x(), bounds.y(), bounds.width(), bounds.height(), RADIUS * scale
         ));
 
-        skija.hud().submit(frame -> drag.render(frame, local -> {
+        skija.hud().submit(frame -> drag.render(frame, viewport, local -> {
             local.draw().roundedRect(0f, 0f, size.width(), size.height(), RADIUS, BACKGROUND_COLOR);
             local.draw().rect(0f, 0f, ACCENT_WIDTH, size.height(), accentColor);
             float textY = (size.height() - local.text().height(FONT, FONT_SIZE)) * 0.5f;

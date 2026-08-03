@@ -27,27 +27,30 @@ public abstract class Draggable {
 
     public abstract HudSize getSize();
 
-    public final HudRect getRect(float screenWidth, float screenHeight) {
-        requireScreenSize(screenWidth, screenHeight);
+    public final HudRect getRect(HudViewport viewport) {
+        Objects.requireNonNull(viewport, "viewport");
         HudSize size = Objects.requireNonNull(getSize(), "getSize()");
-        float scaledWidth = (float) (size.width() * scale);
-        float scaledHeight = (float) (size.height() * scale);
-        float anchorX = (float) (x * screenWidth);
-        float anchorY = (float) (y * screenHeight);
+        float renderScale = getRenderScale(viewport);
+        float scaledWidth = size.width() * renderScale;
+        float scaledHeight = size.height() * renderScale;
+        float anchorX = (float) (x * viewport.width());
+        float anchorY = (float) (y * viewport.height());
         HudAnchor anchor = getAnchor();
         float left = anchor.isRight() ? anchorX - scaledWidth : anchorX;
         float top = anchor.isBottom() ? anchorY - scaledHeight : anchorY;
         return new HudRect(left, top, scaledWidth, scaledHeight);
     }
 
-    public final void render(SkijaFrame frame, Consumer<SkijaFrame> renderer) {
+    public final void render(SkijaFrame frame, HudViewport viewport, Consumer<SkijaFrame> renderer) {
         Objects.requireNonNull(frame, "frame");
+        Objects.requireNonNull(viewport, "viewport");
         Objects.requireNonNull(renderer, "renderer");
-        HudRect rect = getRect(frame.width(), frame.height());
+        HudRect rect = getRect(viewport);
         frame.canvas().save();
         try {
             frame.canvas().translate(rect.x(), rect.y());
-            frame.canvas().scale((float) scale, (float) scale);
+            float renderScale = getRenderScale(viewport);
+            frame.canvas().scale(renderScale, renderScale);
             renderer.accept(frame);
         } finally {
             frame.canvas().restore();
@@ -60,15 +63,15 @@ public abstract class Draggable {
         updatePosition(clamp01(x), clamp01(y));
     }
 
-    public final void moveTo(float left, float top, float screenWidth, float screenHeight) {
-        requireScreenSize(screenWidth, screenHeight);
-        HudRect current = getRect(screenWidth, screenHeight);
-        float clampedLeft = clamp(left, 0f, Math.max(0f, screenWidth - current.width()));
-        float clampedTop = clamp(top, 0f, Math.max(0f, screenHeight - current.height()));
-        boolean right = clampedLeft + current.width() * 0.5f >= screenWidth * 0.5f;
-        boolean bottom = clampedTop + current.height() * 0.5f >= screenHeight * 0.5f;
-        double nextX = (right ? clampedLeft + current.width() : clampedLeft) / screenWidth;
-        double nextY = (bottom ? clampedTop + current.height() : clampedTop) / screenHeight;
+    public final void moveTo(float left, float top, HudViewport viewport) {
+        Objects.requireNonNull(viewport, "viewport");
+        HudRect current = getRect(viewport);
+        float clampedLeft = clamp(left, 0f, Math.max(0f, viewport.width() - current.width()));
+        float clampedTop = clamp(top, 0f, Math.max(0f, viewport.height() - current.height()));
+        boolean right = clampedLeft + current.width() * 0.5f >= viewport.width() * 0.5f;
+        boolean bottom = clampedTop + current.height() * 0.5f >= viewport.height() * 0.5f;
+        double nextX = (right ? clampedLeft + current.width() : clampedLeft) / viewport.width();
+        double nextY = (bottom ? clampedTop + current.height() : clampedTop) / viewport.height();
         updatePosition(clamp01(nextX), clamp01(nextY));
     }
 
@@ -96,6 +99,10 @@ public abstract class Draggable {
         return scale;
     }
 
+    public final float getRenderScale(HudViewport viewport) {
+        return (float) (Objects.requireNonNull(viewport, "viewport").scale() * scale);
+    }
+
     public final HudAnchor getAnchor() {
         return HudAnchor.from(x, y);
     }
@@ -109,12 +116,6 @@ public abstract class Draggable {
         this.x = x;
         this.y = y;
         changeListener.run();
-    }
-
-    private static void requireScreenSize(float width, float height) {
-        if (!Float.isFinite(width) || !Float.isFinite(height) || width <= 0f || height <= 0f) {
-            throw new IllegalArgumentException("Screen size must be finite and positive");
-        }
     }
 
     private static void requireFinite(double value, String name) {

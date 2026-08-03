@@ -8,8 +8,10 @@ import cc.nimbus.event.impl.game.EventScreenChange;
 import cc.nimbus.event.impl.input.EventMouseButton;
 import cc.nimbus.event.impl.input.EventMouseScroll;
 import cc.nimbus.event.impl.render.EventRender2D;
+import cc.nimbus.features.client.ClientSettings;
 import cc.nimbus.features.hud.Draggable;
 import cc.nimbus.features.hud.HudRect;
+import cc.nimbus.features.hud.HudViewport;
 import cc.nimbus.features.module.api.BasicModule;
 import com.mojang.blaze3d.platform.Window;
 import io.github.humbleui.skija.Paint;
@@ -36,15 +38,21 @@ public final class HudManager implements InstanceManager {
 
     private final ModuleManager moduleManager;
     private final RenderManager renderManager;
+    private final ClientSettings clientSettings;
     private final Map<Draggable, EditorState> states = new IdentityHashMap<>();
     private Draggable dragging;
     private float dragOffsetX;
     private float dragOffsetY;
     private long lastFrameNanos;
 
-    public HudManager(ModuleManager moduleManager, RenderManager renderManager) {
+    public HudManager(ModuleManager moduleManager, RenderManager renderManager, ClientSettings clientSettings) {
         this.moduleManager = Objects.requireNonNull(moduleManager, "moduleManager");
         this.renderManager = Objects.requireNonNull(renderManager, "renderManager");
+        this.clientSettings = Objects.requireNonNull(clientSettings, "clientSettings");
+    }
+
+    public HudViewport viewport(float width, float height) {
+        return HudViewport.fit(width, height, clientSettings.hudScale.getValue().floatValue());
     }
 
     @Override
@@ -64,7 +72,7 @@ public final class HudManager implements InstanceManager {
         if (event.getAction() == GLFW.GLFW_PRESS) {
             ScreenSpace screen = screenSpace();
             Point mouse = mousePosition(screen);
-            Item hit = findHit(mouse.x(), mouse.y(), screen.width(), screen.height());
+            Item hit = findHit(mouse.x(), mouse.y(), screen.viewport());
             if (hit == null) return;
             dragging = hit.draggable();
             dragOffsetX = mouse.x() - hit.rect().x();
@@ -85,7 +93,7 @@ public final class HudManager implements InstanceManager {
         if (!isEditing() || !controlDown() || Math.abs(event.getY()) < 0.0001) return;
         ScreenSpace screen = screenSpace();
         Point mouse = mousePosition(screen);
-        Item hit = findHit(mouse.x(), mouse.y(), screen.width(), screen.height());
+        Item hit = findHit(mouse.x(), mouse.y(), screen.viewport());
         if (hit == null) return;
 
         HudRect oldRect = hit.rect();
@@ -94,12 +102,12 @@ public final class HudManager implements InstanceManager {
         float anchorY = (mouse.y() - oldRect.y()) / oldRect.height();
         hit.draggable().setScale(oldScale + event.getY() * Draggable.SCALE_STEP);
         if (Double.compare(oldScale, hit.draggable().getScale()) != 0) {
-            HudRect newRect = hit.draggable().getRect(screen.width(), screen.height());
+            HudRect newRect = hit.draggable().getRect(screen.viewport());
             float left = mouse.x() - anchorX * newRect.width();
             float top = mouse.y() - anchorY * newRect.height();
-            hit.draggable().moveTo(left, top, screen.width(), screen.height());
+            hit.draggable().moveTo(left, top, screen.viewport());
             EditorState state = state(hit.draggable());
-            HudRect moved = hit.draggable().getRect(screen.width(), screen.height());
+            HudRect moved = hit.draggable().getRect(screen.viewport());
             state.targetX = moved.x();
             state.targetY = moved.y();
             if (dragging == hit.draggable()) {
@@ -125,7 +133,7 @@ public final class HudManager implements InstanceManager {
         float deltaSeconds = frameDeltaSeconds();
         ScreenSpace screen = screenSpace();
         Point mouse = mousePosition(screen);
-        List<Item> items = collect(screen.width(), screen.height());
+        List<Item> items = collect(screen.viewport());
         Set<Draggable> active = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
         items.forEach(item -> active.add(item.draggable()));
         states.keySet().removeIf(draggable -> !active.contains(draggable));
@@ -140,7 +148,7 @@ public final class HudManager implements InstanceManager {
         }
 
         if (dragging != null) {
-            HudRect rect = dragging.getRect(screen.width(), screen.height());
+            HudRect rect = dragging.getRect(screen.viewport());
             EditorState state = state(dragging);
             state.targetX = clamp(mouse.x() - dragOffsetX, 0f, Math.max(0f, screen.width() - rect.width()));
             state.targetY = clamp(mouse.y() - dragOffsetY, 0f, Math.max(0f, screen.height() - rect.height()));
@@ -152,7 +160,7 @@ public final class HudManager implements InstanceManager {
             EditorState state = entry.getValue();
             if (!state.moving) continue;
             Draggable draggable = entry.getKey();
-            HudRect rect = draggable.getRect(screen.width(), screen.height());
+            HudRect rect = draggable.getRect(screen.viewport());
             float nextX = lerp(rect.x(), state.targetX, follow);
             float nextY = lerp(rect.y(), state.targetY, follow);
             if (Math.abs(nextX - state.targetX) < 0.05f && Math.abs(nextY - state.targetY) < 0.05f) {
@@ -160,10 +168,10 @@ public final class HudManager implements InstanceManager {
                 nextY = state.targetY;
                 if (draggable != dragging) state.moving = false;
             }
-            draggable.moveTo(nextX, nextY, screen.width(), screen.height());
+            draggable.moveTo(nextX, nextY, screen.viewport());
         }
 
-        items = collect(screen.width(), screen.height());
+        items = collect(screen.viewport());
         List<Overlay> overlays = new ArrayList<>();
         for (Item item : items) {
             float hover = state(item.draggable()).hover;
@@ -201,19 +209,19 @@ public final class HudManager implements InstanceManager {
         });
     }
 
-    private Item findHit(float x, float y, float screenWidth, float screenHeight) {
-        return collect(screenWidth, screenHeight).stream()
+    private Item findHit(float x, float y, HudViewport viewport) {
+        return collect(viewport).stream()
                 .filter(item -> item.rect().contains(x, y))
                 .min(Comparator.comparingDouble(item -> item.rect().area()))
                 .orElse(null);
     }
 
-    private List<Item> collect(float screenWidth, float screenHeight) {
+    private List<Item> collect(HudViewport viewport) {
         List<Item> result = new ArrayList<>();
         for (BasicModule module : moduleManager.getModules()) {
             if (!module.isEnabled()) continue;
             for (Draggable draggable : module.getDraggables()) {
-                HudRect rect = draggable.getRect(screenWidth, screenHeight);
+                HudRect rect = draggable.getRect(viewport);
                 if (rect.width() > 0f && rect.height() > 0f) result.add(new Item(draggable, rect));
             }
         }
@@ -237,7 +245,7 @@ public final class HudManager implements InstanceManager {
             for (var entry : states.entrySet()) {
                 EditorState state = entry.getValue();
                 if (state.moving) {
-                    entry.getKey().moveTo(state.targetX, state.targetY, screen.width(), screen.height());
+                    entry.getKey().moveTo(state.targetX, state.targetY, screen.viewport());
                 }
             }
         }
@@ -256,13 +264,13 @@ public final class HudManager implements InstanceManager {
                 || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
     }
 
-    private static ScreenSpace screenSpace() {
+    private ScreenSpace screenSpace() {
         Window window = Minecraft.getInstance().getWindow();
         float width = window.getWidth();
         float height = window.getHeight();
         float scaleX = width / Math.max(1f, window.getGuiScaledWidth());
         float scaleY = height / Math.max(1f, window.getGuiScaledHeight());
-        return new ScreenSpace(width, height, Math.max(scaleX, scaleY));
+        return new ScreenSpace(viewport(width, height), Math.max(scaleX, scaleY));
     }
 
     private static Point mousePosition(ScreenSpace screen) {
@@ -300,7 +308,10 @@ public final class HudManager implements InstanceManager {
     }
 
     private record Point(float x, float y) {}
-    private record ScreenSpace(float width, float height, float pixelScale) {}
+    private record ScreenSpace(HudViewport viewport, float pixelScale) {
+        private float width() { return viewport.width(); }
+        private float height() { return viewport.height(); }
+    }
     private record Item(Draggable draggable, HudRect rect) {}
     private record Overlay(HudRect rect, float hover, boolean dragging) {}
 }

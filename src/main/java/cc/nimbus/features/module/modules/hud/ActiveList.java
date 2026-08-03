@@ -7,6 +7,7 @@ import cc.nimbus.features.hud.Draggable;
 import cc.nimbus.features.hud.HudAnchor;
 import cc.nimbus.features.hud.HudRect;
 import cc.nimbus.features.hud.HudSize;
+import cc.nimbus.features.hud.HudViewport;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
@@ -63,9 +64,10 @@ public final class ActiveList extends BasicModule {
         if (entries.isEmpty()) return;
 
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
+        HudViewport viewport = Core.INSTANCE.getHudManager().viewport(skija.width(), skija.height());
         HudAnchor anchor = drag.getAnchor();
-        HudRect bounds = drag.getRect(skija.width(), skija.height());
-        float scale = (float) drag.getScale();
+        HudRect bounds = drag.getRect(viewport);
+        float scale = drag.getRenderScale(viewport);
         boolean drawBackground = background.getValue();
         int accentColor = customStyle()
                 ? accent.getValue()
@@ -79,7 +81,7 @@ public final class ActiveList extends BasicModule {
         }
 
         List<Entry> frameEntries = List.copyOf(entries);
-        skija.hud().submit(frame -> drag.render(frame, local -> {
+        skija.hud().submit(frame -> drag.render(frame, viewport, local -> {
             try (Path backgroundPath = backgroundPath(
                     frameEntries, anchor, totalWidth, totalHeight, 0f, 0f, 1f);
                  Paint backgroundPaint = new Paint().setAntiAlias(true).setColor(BACKGROUND_COLOR);

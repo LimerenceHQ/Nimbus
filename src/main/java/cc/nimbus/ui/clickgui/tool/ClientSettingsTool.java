@@ -97,7 +97,7 @@ public final class ClientSettingsTool implements ToolPage {
     private static List<Setting<?>> settings(Tab tab) {
         ClientSettings value = Core.INSTANCE.getConfigManager().clientSettings();
         return switch (tab) {
-            case GENERAL -> List.of(value.clientName, value.style, value.accent);
+            case GENERAL -> List.of(value.clientName, value.style, value.accent, value.hudScale);
             case SURFACE -> List.of(value.postProcessing, value.splitRegions, value.texture, value.textureOpacity);
             case BLUR -> List.of(value.blurMode, value.blurRadius, value.blurPasses, value.downSample,
                     value.upSample, value.blurRefresh, value.blurRefreshLimit);

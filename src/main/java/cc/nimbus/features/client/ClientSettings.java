@@ -23,6 +23,7 @@ public final class ClientSettings {
             "Style", new String[]{NIMBUS_STYLE, CUSTOM_STYLE}, NIMBUS_STYLE
     );
     public final ColorSetting accent = new ColorSetting("Accent", 0x66FFFFFF);
+    public final NumberSetting hudScale = new NumberSetting("HUD Scale", 1, 0.5, 2, 0.05);
 
     public final BooleanSetting postProcessing = new BooleanSetting("Post Processing", true);
     public final BooleanSetting splitRegions = new BooleanSetting(
@@ -84,7 +85,7 @@ public final class ClientSettings {
     );
 
     private final List<Setting<?>> settings = List.of(
-            clientName, style, accent,
+            clientName, style, accent, hudScale,
             postProcessing, splitRegions, texture, textureOpacity,
             blurMode, blurRadius, blurPasses, downSample, upSample,
             blurRefresh, blurRefreshLimit,
