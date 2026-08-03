@@ -70,6 +70,8 @@ public final class ClickGuiView {
     private UiRect searchBounds;
     private String tooltip = "";
     private String previousTooltip = "";
+    private List<String> tooltipLines = List.of();
+    private float tooltipWrapWidth = -1f;
     private long tooltipSince;
     private boolean searchOpen;
     private boolean leftDown;
@@ -422,15 +424,36 @@ public final class ClickGuiView {
         if (!tooltip.equals(previousTooltip)) {
             previousTooltip = tooltip;
             tooltipSince = context.nowMillis();
+            tooltipLines = List.of();
+            tooltipWrapWidth = -1f;
         }
         if (tooltip.isBlank() || context.nowMillis() - tooltipSince < 550L) return;
-        float width = Math.min(270f, context.width(UiContext.FONT, 10f, tooltip) + 16f);
-        UiRect bounds = new UiRect(Math.min(context.mouseX() + 12f, logicalWidth - width - 8f),
-                Math.min(context.mouseY() + 14f, logicalHeight - 31f), width, 25f);
+
+        float contentLimit = Math.max(80f, Math.min(326f, logicalWidth - 30f));
+        if (tooltipLines.isEmpty() || tooltipWrapWidth != contentLimit) {
+            tooltipLines = wrap(context, tooltip, contentLimit, 10f);
+            tooltipWrapWidth = contentLimit;
+        }
+        double measuredWidth = tooltipLines.stream()
+                .mapToDouble(line -> context.width(UiContext.FONT, 10f, line))
+                .max()
+                .orElse(0d);
+        float lineHeight = context.height(UiContext.FONT, 10f) + 2f;
+        float width = (float) measuredWidth + 14f;
+        float height = tooltipLines.size() * lineHeight + 8f;
+        float x = Math.clamp(context.mouseX() + 12f, 8f, Math.max(8f, logicalWidth - width - 8f));
+        float below = context.mouseY() + 14f;
+        float y = below + height <= logicalHeight - 8f
+                ? below
+                : context.mouseY() - height - 8f;
+        y = Math.clamp(y, 8f, Math.max(8f, logicalHeight - height - 8f));
+        UiRect bounds = new UiRect(x, y, width, height);
         context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f,
                 0xE80E1012);
-        context.textIn(ellipsize(context, tooltip, width - 14f),
-                new UiRect(bounds.x() + 7f, bounds.y(), width - 14f, bounds.height()), 10f, ClickGuiTheme.TEXT);
+        for (int index = 0; index < tooltipLines.size(); index++) {
+            context.text(tooltipLines.get(index), bounds.x() + 7f, bounds.y() + 4f + index * lineHeight,
+                    10f, ClickGuiTheme.TEXT);
+        }
     }
 
     public boolean mouseClicked(float x, float y, int button, UiContext context) {
@@ -710,6 +733,40 @@ public final class ClickGuiView {
             result = result.substring(0, result.length() - 1);
         }
         return result + "...";
+    }
+
+    private static List<String> wrap(UiContext context, String value, float width, float size) {
+        List<String> lines = new ArrayList<>();
+        for (String paragraph : value.split("\\R", -1)) {
+            if (paragraph.isEmpty()) {
+                lines.add("");
+                continue;
+            }
+            int lineStart = 0;
+            int cursor = 0;
+            int lastWhitespace = -1;
+            while (cursor < paragraph.length()) {
+                int next = paragraph.offsetByCodePoints(cursor, 1);
+                if (Character.isWhitespace(paragraph.codePointAt(cursor))) lastWhitespace = cursor;
+                String candidate = paragraph.substring(lineStart, next).stripTrailing();
+                if (context.width(UiContext.FONT, size, candidate) > width) {
+                    int lineEnd = lastWhitespace >= lineStart ? lastWhitespace : cursor;
+                    if (lineEnd == lineStart) lineEnd = next;
+                    lines.add(paragraph.substring(lineStart, lineEnd).strip());
+                    lineStart = lineEnd;
+                    while (lineStart < paragraph.length()
+                            && Character.isWhitespace(paragraph.codePointAt(lineStart))) {
+                        lineStart = paragraph.offsetByCodePoints(lineStart, 1);
+                    }
+                    cursor = lineStart;
+                    lastWhitespace = -1;
+                    continue;
+                }
+                cursor = next;
+            }
+            if (lineStart < paragraph.length()) lines.add(paragraph.substring(lineStart).strip());
+        }
+        return lines.isEmpty() ? List.of("") : List.copyOf(lines);
     }
 
     private enum RailAction { SEARCH, MUSIC, CONFIG, CLIENT }
