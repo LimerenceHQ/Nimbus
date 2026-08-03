@@ -229,7 +229,9 @@ public final class ClickGuiView {
         if (searchProgress > .01f) {
             float width = 216f * searchProgress;
             searchBounds = new UiRect(x - 10f - width, y + 2f, width, 30f);
-            if (width > 54f) search.render(context, searchBounds, "Search modules", 10.5f, false);
+            if (width > 54f) {
+                search.render(context, searchBounds, "Search modules", 10.5f, false, 0x780A0B0D);
+            }
         } else searchBounds = null;
     }
 

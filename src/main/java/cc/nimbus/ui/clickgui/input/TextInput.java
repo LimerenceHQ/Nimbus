@@ -79,8 +79,14 @@ public final class TextInput {
     }
 
     public void render(UiContext context, UiRect bounds, String placeholder, float size, boolean secure) {
+        int background = focused ? context.theme().accent(0x42) : ClickGuiTheme.CONTROL;
+        render(context, bounds, placeholder, size, secure, background);
+    }
+
+    public void render(UiContext context, UiRect bounds, String placeholder, float size, boolean secure,
+                       int background) {
         context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f,
-                focused ? context.theme().accent(0x42) : ClickGuiTheme.CONTROL);
+                background);
         context.frame().draw().outline(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f, 1f,
                 focused ? context.theme().accent(0x55) : ClickGuiTheme.STROKE);
 
