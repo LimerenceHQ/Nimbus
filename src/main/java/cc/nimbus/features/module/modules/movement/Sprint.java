@@ -15,12 +15,12 @@ import net.minecraft.client.Minecraft;
 public final class Sprint extends BasicModule {
     @Override
     protected void onEnable() {
-        Minecraft.getInstance().options.keySprint.setDown(false);
+        setSprintKey(false);
     }
 
     @Override
     protected void onDisable() {
-        Minecraft.getInstance().options.keySprint.setDown(false);
+        setSprintKey(false);
     }
 
     @EventTarget
@@ -29,12 +29,15 @@ public final class Sprint extends BasicModule {
 
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null || minecraft.player.input == null) {
-            minecraft.options.keySprint.setDown(false);
+            setSprintKey(false);
             return;
         }
 
-        minecraft.options.keySprint.setDown(
-                minecraft.player.input.getMoveVector().lengthSquared() > 0.0f
-        );
+        setSprintKey(minecraft.player.input.getMoveVector().lengthSquared() > 0.0f);
+    }
+
+    private static void setSprintKey(boolean down) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.options != null) minecraft.options.keySprint.setDown(down);
     }
 }
