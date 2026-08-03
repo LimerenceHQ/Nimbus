@@ -13,10 +13,6 @@ import net.minecraft.client.Minecraft;
         category = ModuleCategory.Move
 )
 public final class Sprint extends BasicModule {
-    public Sprint() {
-        setHidden(true);
-    }
-
     @Override
     protected void onEnable() {
         Minecraft.getInstance().options.keySprint.setDown(false);
