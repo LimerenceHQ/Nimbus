@@ -6,6 +6,7 @@ import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.input.EventKeyPress;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
+import cc.nimbus.features.module.modules.combat.SettingPreview;
 import cc.nimbus.features.module.modules.hud.ActiveList;
 import cc.nimbus.features.module.modules.hud.Watermark;
 import cc.nimbus.features.module.modules.movement.Sprint;
@@ -39,6 +40,7 @@ public final class ModuleManager implements InstanceManager {
         clear();
         try {
             registerModules(
+                    new SettingPreview(),
                     new ClickGui(),
                     new ActiveList(),
                     new Watermark(),

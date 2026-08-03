@@ -377,7 +377,6 @@ public final class ConfigManager implements InstanceManager {
                 else if (setting instanceof ColorSetting target) readColor(target, value);
                 else if (setting instanceof FoldSetting target) target.setValue(value.getAsBoolean());
                 else if (setting instanceof TextSetting target) target.setValue(value.getAsString());
-                else if (setting instanceof StringSetting target) target.setValue(value.getAsString());
                 else if (setting instanceof MultiSelectSetting target && value.isJsonArray()) {
                     Set<String> selected = new LinkedHashSet<>();
                     value.getAsJsonArray().forEach(item -> selected.add(item.getAsString()));

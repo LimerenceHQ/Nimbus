@@ -7,6 +7,7 @@ import cc.nimbus.ui.screen.AbstractSkijaScreen;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.types.RRect;
+import io.github.humbleui.types.Rect;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
@@ -17,8 +18,13 @@ import org.lwjgl.glfw.GLFW;
 
 public final class ClickGuiScreen extends AbstractSkijaScreen {
     private static final float PREFERRED_UI_SCALE = 1.34f;
+    private static final long ENTER_NANOS = 340_000_000L;
+    private static final long EXIT_NANOS = 210_000_000L;
     private final ClickGuiView view;
+    private final long openedAtNanos = System.nanoTime();
     private long lastFrameNanos = System.nanoTime();
+    private long closingAtNanos;
+    private boolean closeScheduled;
     private float scale = 1f;
     private float originX;
     private float originY;
@@ -43,6 +49,8 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
         long now = System.nanoTime();
         float delta = Math.clamp((now - lastFrameNanos) / 1_000_000_000f, 0f, .05f);
         lastFrameNanos = now;
+        float visibility = visibility(now);
+        float offsetY = (1f - visibility) * 12f;
 
         frame.postProcess().add(RRect.makeXYWH(0f, 0f, width, height, 0f));
         frame.postProcess().draw();
@@ -52,41 +60,64 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
         try {
             canvas.translate(originX, originY);
             canvas.scale(scale, scale);
+            int layer = canvas.saveLayerAlpha(Rect.makeXYWH(0f, 0f, logicalWidth, logicalHeight),
+                    Math.round(255f * visibility));
+            canvas.translate(0f, offsetY);
             lastContext = new UiContext(frame,
                     ClickGuiTheme.from(Core.INSTANCE.getConfigManager().clientSettings()),
-                    logicalX(framebufferMouseX()), logicalY(framebufferMouseY()), delta,
+                    logicalX(framebufferMouseX()), logicalY(framebufferMouseY()) - offsetY, delta,
                     System.currentTimeMillis());
-            view.render(lastContext, logicalWidth, logicalHeight);
+            try {
+                view.render(lastContext, logicalWidth, logicalHeight);
+            } finally {
+                canvas.restoreToCount(layer);
+            }
         } finally {
             canvas.restoreToCount(save);
+        }
+        if (closingAtNanos != 0L && visibility <= .001f && !closeScheduled) {
+            closeScheduled = true;
+            minecraft.execute(this::finishClose);
         }
     }
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (lastContext == null) return true;
+        if (!acceptsInput() || lastContext == null) return true;
         return view.mouseClicked(logicalX(framebufferX(event.x())), logicalY(framebufferY(event.y())),
                 event.button(), lastContext);
     }
 
-    @Override public void mouseMoved(double x, double y) { view.mouseMoved(logicalX(framebufferX(x)), logicalY(framebufferY(y))); }
-    @Override public boolean mouseReleased(MouseButtonEvent event) { view.mouseReleased(); return true; }
+    @Override public void mouseMoved(double x, double y) {
+        if (acceptsInput()) view.mouseMoved(logicalX(framebufferX(x)), logicalY(framebufferY(y)));
+    }
+    @Override public boolean mouseReleased(MouseButtonEvent event) {
+        if (acceptsInput()) view.mouseReleased();
+        return true;
+    }
     @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
+        if (!acceptsInput()) return true;
         return view.mouseScrolled(logicalX(framebufferX(x)), logicalY(framebufferY(y)), vertical);
     }
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        if (event.key() == GLFW.GLFW_KEY_RIGHT_SHIFT) { onClose(); return true; }
+        if (closingAtNanos != 0L) return true;
+        if (event.key() == GLFW.GLFW_KEY_RIGHT_SHIFT) { requestClose(); return true; }
         if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
-            if (!view.cancelTransient()) onClose();
+            if (!view.cancelTransient()) requestClose();
             return true;
         }
         return view.keyPressed(event) || super.keyPressed(event);
     }
 
-    @Override public boolean charTyped(CharacterEvent event) { return view.charTyped(event) || super.charTyped(event); }
-    @Override public boolean preeditUpdated(PreeditEvent event) { return view.preeditUpdated(event) || super.preeditUpdated(event); }
+    @Override public boolean charTyped(CharacterEvent event) {
+        return !acceptsInput() || view.charTyped(event) || super.charTyped(event);
+    }
+    @Override public boolean preeditUpdated(PreeditEvent event) {
+        return !acceptsInput() || view.preeditUpdated(event) || super.preeditUpdated(event);
+    }
+    @Override public void onClose() { requestClose(); }
     @Override protected void removedSkijaScreen() { view.close(); }
     @Override public boolean isPauseScreen() { return false; }
 
@@ -97,4 +128,32 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
 
     private float logicalX(float value) { return (value - originX) / scale; }
     private float logicalY(float value) { return (value - originY) / scale; }
+
+    private boolean acceptsInput() {
+        return closingAtNanos == 0L && System.nanoTime() - openedAtNanos >= ENTER_NANOS * 3L / 4L;
+    }
+
+    private void requestClose() {
+        if (closingAtNanos == 0L) closingAtNanos = System.nanoTime();
+    }
+
+    private void finishClose() {
+        if (minecraft.gui.screen() == this) super.onClose();
+    }
+
+    private float visibility(long now) {
+        if (closingAtNanos != 0L) {
+            return 1f - smooth(Math.clamp((now - closingAtNanos) / (float) EXIT_NANOS, 0f, 1f));
+        }
+        return easeOutCubic(Math.clamp((now - openedAtNanos) / (float) ENTER_NANOS, 0f, 1f));
+    }
+
+    private static float smooth(float value) {
+        return value * value * (3f - 2f * value);
+    }
+
+    private static float easeOutCubic(float value) {
+        float inverse = 1f - value;
+        return 1f - inverse * inverse * inverse;
+    }
 }

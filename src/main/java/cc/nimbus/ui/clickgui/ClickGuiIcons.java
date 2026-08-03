@@ -1,6 +1,20 @@
 package cc.nimbus.ui.clickgui;
 
 public final class ClickGuiIcons {
+    // Material-style filled geometry is kept separate from the music player's stroke icon set.
+    public static final String CATEGORY_COMBAT = filled("<path d='M13 2h-2l-1 7H6.5c-.82 0-1.15.56-.69 1.22L10 16.2 9 22h2l7.18-10.22c.47-.66.13-1.22-.68-1.22H14L15 4h-2V2Z'/>");
+    public static final String CATEGORY_MOVE = filled("<path d='m12 2-8 19 8-3.5 8 3.5L12 2Zm0 5.2 3.7 9.5-3.7-1.62-3.7 1.62L12 7.2Z'/>");
+    public static final String CATEGORY_PLAYER = filled("<path d='M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5Zm0 2c-4.14 0-7.5 2.24-7.5 5v2h15v-2c0-2.76-3.36-5-7.5-5Z'/>");
+    public static final String CATEGORY_RENDER = filled("<path d='M12 4.5C6.75 4.5 2.27 7.76.45 12c1.82 4.24 6.3 7.5 11.55 7.5s9.73-3.26 11.55-7.5C21.73 7.76 17.25 4.5 12 4.5Zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z'/>");
+    public static final String CATEGORY_EXPLOIT = filled("<path d='m8 6-6 6 6 6 1.4-1.4L4.8 12l4.6-4.6L8 6Zm8 0-1.4 1.4 4.6 4.6-4.6 4.6L16 18l6-6-6-6Zm-5.1 14h2.05L15.1 4h-2.05L10.9 20Z'/>");
+    public static final String CATEGORY_HUD = filled("<path d='M3 3h8v8H3V3Zm10 0h8v5h-8V3ZM3 13h8v8H3v-8Zm10-3h8v11h-8V10Z'/>");
+    public static final String RAIL_SEARCH = filled("<path d='M9.5 3a6.5 6.5 0 1 0 3.98 11.64L19.85 21 21 19.85l-6.36-6.37A6.5 6.5 0 0 0 9.5 3Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z'/>");
+    public static final String RAIL_MUSIC = filled("<path d='M12 3v11.55A4 4 0 1 0 14 18V8h6V3h-8Z'/>");
+    public static final String RAIL_CONFIG = filled("<path d='M4 6h10v2H4V6Zm14-2h2v6h-2V4Zm-4 8h6v2h-6v-2ZM4 12h6v2H4v-2Zm6-2h2v6h-2v-6ZM4 18h12v2H4v-2Zm16-2h-2v6h2v-6Z'/>");
+    public static final String RAIL_SETTINGS = filled("<path d='m19.43 12.98.04-.98-.04-.98 2.11-1.65-2-3.46-2.49 1a7.15 7.15 0 0 0-1.69-.98L15 3.25h-4l-.36 2.68c-.61.25-1.17.58-1.69.98l-2.49-1-2 3.46 2.11 1.65-.04.98.04.98-2.11 1.65 2 3.46 2.49-1c.52.4 1.08.73 1.69.98l.36 2.68h4l.36-2.68c.61-.25 1.17-.58 1.69-.98l2.49 1 2-3.46-2.11-1.65ZM13 15.5A3.5 3.5 0 1 1 13 8a3.5 3.5 0 0 1 0 7.5Z'/>");
+    public static final String EXPAND_MORE = filled("<path d='m7.41 8.59 4.59 4.58 4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z'/>");
+    public static final String EXPAND_LESS = filled("<path d='m7.41 15.41 4.59-4.58 4.59 4.58L18 14l-6-6-6 6 1.41 1.41Z'/>");
+    public static final String CHECK = filled("<path d='m9 16.17-3.59-3.58L4 14l5 5L20 8l-1.41-1.41L9 16.17Z'/>");
     public static final String SEARCH = svg("<circle cx='11' cy='11' r='7'/><path d='m20 20-4-4'/>");
     public static final String CONFIG = svg("<path d='M4 6h16M4 12h16M4 18h16'/><circle cx='8' cy='6' r='2'/><circle cx='16' cy='12' r='2'/><circle cx='10' cy='18' r='2'/>");
     public static final String MUSIC = svg("<path d='M9 18V5l10-2v13'/><circle cx='6' cy='18' r='3'/><circle cx='16' cy='16' r='3'/>");
@@ -32,5 +46,9 @@ public final class ClickGuiIcons {
 
     private static String svg(String body) {
         return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" + body + "</svg>";
+    }
+
+    private static String filled(String body) {
+        return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'>" + body + "</svg>";
     }
 }

@@ -85,10 +85,16 @@ public final class TextInput {
 
     public void render(UiContext context, UiRect bounds, String placeholder, float size, boolean secure,
                        int background) {
+        render(context, bounds, placeholder, size, secure, background,
+                focused ? context.theme().accent(0x55) : ClickGuiTheme.STROKE);
+    }
+
+    public void render(UiContext context, UiRect bounds, String placeholder, float size, boolean secure,
+                       int background, int outline) {
         context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f,
                 background);
         context.frame().draw().outline(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f, 1f,
-                focused ? context.theme().accent(0x55) : ClickGuiTheme.STROKE);
+                outline);
 
         String raw = editor.getValue();
         String display = secure ? "*".repeat(raw.length()) : raw;

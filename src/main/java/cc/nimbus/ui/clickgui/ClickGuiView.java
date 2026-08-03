@@ -13,6 +13,7 @@ import cc.nimbus.ui.clickgui.tool.ClientSettingsTool;
 import cc.nimbus.ui.clickgui.tool.ConfigTool;
 import cc.nimbus.ui.clickgui.tool.MusicTool;
 import cc.nimbus.ui.clickgui.tool.ToolPage;
+import cc.nimbus.utils.client.input.Keyboard;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
@@ -31,10 +32,10 @@ import java.util.Map;
 public final class ClickGuiView {
     public static final float MIN_WIDTH = 1000f;
     public static final float MIN_HEIGHT = 620f;
-    private static final float PANEL_GAP = 8f;
-    private static final float PANEL_HEADER = 29f;
-    private static final float MODULE_HEIGHT = 27f;
-    private static final float RAIL_SIZE = 34f;
+    private static final float PANEL_GAP = 10f;
+    private static final float PANEL_HEADER = 36f;
+    private static final float MODULE_HEIGHT = 31f;
+    private static final float RAIL_SIZE = 38f;
     private static final ModuleCategory[] CATEGORIES = {
             ModuleCategory.Combat, ModuleCategory.Move, ModuleCategory.Player,
             ModuleCategory.Render, ModuleCategory.Exploit, ModuleCategory.HUD
@@ -51,6 +52,13 @@ public final class ClickGuiView {
     private final Map<String, Float> expansion = new HashMap<>();
     private final Map<String, Float> activeAnimations = new HashMap<>();
     private final Map<String, Float> hoverAnimations = new HashMap<>();
+    private final Map<String, Float> bindingAnimations = new HashMap<>();
+    private final Map<String, Float> keyVisibilityAnimations = new HashMap<>();
+    private final Map<String, Float> keyPulseAnimations = new HashMap<>();
+    private final Map<String, Integer> observedKeys = new HashMap<>();
+    private final Map<String, String> displayedKeys = new HashMap<>();
+    private final EnumMap<RailAction, Float> railHoverAnimations = new EnumMap<>(RailAction.class);
+    private final EnumMap<RailAction, Float> railActiveAnimations = new EnumMap<>(RailAction.class);
     private final long openedAt = System.currentTimeMillis();
     private BasicModule binding;
     private ClickGuiSession.Tool activeTool = ClickGuiSession.Tool.NONE;
@@ -91,8 +99,8 @@ public final class ClickGuiView {
         railHits.clear();
         columnBounds.clear();
         tooltip = "";
-        controls.beginFrame();
-        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 15f);
+        controls.beginFrame(context.deltaSeconds());
+        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 12f);
         searchProgress = animate(searchProgress, searchOpen ? 1f : 0f, speed);
         toolProgress = animate(toolProgress, session.tool() == ClickGuiSession.Tool.NONE ? 0f : 1f, speed);
         columnsProgress = animate(columnsProgress, session.tool() == ClickGuiSession.Tool.NONE ? 1f : 0f, speed);
@@ -129,59 +137,67 @@ public final class ClickGuiView {
                         || module.getDisplayName().toLowerCase(Locale.ROOT).contains(query)
                         || module.getDescription().toLowerCase(Locale.ROOT).contains(query))
                 .toList();
-        float contentHeight = 4f;
+        float contentHeight = 7f;
         for (BasicModule module : modules) {
             boolean expanded = module.getName().equals(session.expanded(category)) && !module.getSettings().isEmpty();
             float progress = expansion(module, expanded, speed);
-            contentHeight += MODULE_HEIGHT + 1f;
-            if (progress > .001f) contentHeight += controls.height(module.getSettings(), width - 10f) * progress + 4f;
+            contentHeight += MODULE_HEIGHT + 2f;
+            if (progress > .001f) {
+                contentHeight += (controls.height(module.getSettings(), width - 23f) + 6f) * progress;
+            }
         }
-        float maximumHeight = logicalHeight - 92f;
+        float maximumHeight = logicalHeight - 82f;
         float panelHeight = Math.min(maximumHeight, PANEL_HEADER + Math.max(MODULE_HEIGHT + 6f, contentHeight));
         float opening = opening(index, context.nowMillis());
-        float y = 44f - (1f - opening) * 12f - (1f - columnsProgress) * 18f;
+        float y = 40f - (1f - opening) * 14f - (1f - columnsProgress) * 18f;
         UiRect panel = new UiRect(x, y, width, panelHeight);
         columnBounds.put(category, panel);
         int layer = context.frame().canvas().saveLayerAlpha(
                 Rect.makeXYWH(panel.x(), panel.y(), panel.width(), panel.height()),
                 Math.round(255f * opening * columnsProgress));
         try {
-            context.frame().draw().roundedRect(panel.x(), panel.y(), panel.width(), panel.height(), 4f,
+            context.frame().draw().roundedRect(panel.x(), panel.y(), panel.width(), panel.height(), 7f,
                     ClickGuiTheme.PANEL);
-            context.frame().draw().outline(panel.x(), panel.y(), panel.width(), panel.height(), 4f, 1f,
+            context.frame().draw().outline(panel.x(), panel.y(), panel.width(), panel.height(), 7f, 1f,
                     ClickGuiTheme.STROKE);
-            context.medium(category.getName(), panel.x() + 10f, panel.y() + 7f, 11f, ClickGuiTheme.TEXT);
+            icon(context, categoryIcon(category), panel.x() + 11f, panel.y() + 10f, 16f,
+                    ClickGuiTheme.TEXT);
+            context.medium(category.getName(), panel.x() + 34f, panel.y() + 9f, 11.5f, ClickGuiTheme.TEXT);
+            context.medium(Integer.toString(modules.size()), panel.x() + panel.width() - 20f,
+                    panel.y() + 9f, 10f, ClickGuiTheme.MUTED);
             context.frame().draw().rect(panel.x(), panel.y() + PANEL_HEADER - 1f, panel.width(), 1f,
                     ClickGuiTheme.STROKE);
-            UiRect viewport = new UiRect(panel.x() + 4f, panel.y() + PANEL_HEADER,
-                    panel.width() - 8f, panel.height() - PANEL_HEADER - 4f);
+            UiRect viewport = new UiRect(panel.x() + 5f, panel.y() + PANEL_HEADER,
+                    panel.width() - 10f, panel.height() - PANEL_HEADER - 5f);
             float minimum = Math.min(0f, viewport.height() - contentHeight);
             float scroll = Math.clamp(session.scroll(category), minimum, 0f);
             session.scroll(category, scroll);
             int clip = context.clip(viewport, 2f);
             try {
-                float rowY = viewport.y() + 3f + scroll;
+                float rowY = viewport.y() + 7f + scroll;
                 for (BasicModule module : modules) {
                     boolean expanded = module.getName().equals(session.expanded(category))
                             && !module.getSettings().isEmpty();
                     float progress = expansion.getOrDefault(module.getName(), expanded ? 1f : 0f);
                     UiRect row = new UiRect(viewport.x(), rowY, viewport.width(), MODULE_HEIGHT);
                     if (row.intersects(viewport)) renderModule(context, row, module, category, expanded, speed);
-                    rowY += MODULE_HEIGHT + 1f;
-                    float settingsHeight = controls.height(module.getSettings(), viewport.width() - 6f) * progress;
+                    rowY += MODULE_HEIGHT + 2f;
+                    float settingsHeight = controls.height(module.getSettings(), viewport.width() - 13f) * progress;
                     if (settingsHeight > .5f) {
-                        UiRect settings = new UiRect(viewport.x() + 3f, rowY + 2f,
-                                viewport.width() - 6f, settingsHeight);
+                        UiRect settings = new UiRect(viewport.x() + 9f, rowY + 1f,
+                                viewport.width() - 13f, settingsHeight);
                         if (settings.intersects(viewport)) {
+                            context.frame().draw().roundedRect(viewport.x() + 3f, settings.y(), 2f,
+                                    settings.height(), 1f, context.theme().accent(0x46));
                             int settingsClip = context.clip(settings, 2f);
                             try {
                                 controls.render(context, module.getSettings(), settings.x(), settings.y(),
-                                        settings.width(), viewport);
+                                        settings.width(), intersection(settings, viewport));
                             } finally {
                                 context.restore(settingsClip);
                             }
                         }
-                        rowY += settingsHeight + 4f;
+                        rowY += settingsHeight + 6f * progress;
                     }
                 }
                 if (modules.isEmpty()) context.centered("No modules", viewport, 10f, ClickGuiTheme.MUTED);
@@ -198,37 +214,74 @@ public final class ClickGuiView {
         boolean hover = columnsInteractive && row.contains(context.mouseX(), context.mouseY());
         float active = animate(activeAnimations, module.getName(), module.isEnabled(), speed);
         float hovered = animate(hoverAnimations, module.getName(), hover, speed);
-        int background = mix(0x00000000, 0x20FFFFFF, active);
+        float bindingProgress = animate(bindingAnimations, module.getName(), binding == module, speed);
+        Integer previousKey = observedKeys.put(module.getName(), module.getKey());
+        if (previousKey != null && previousKey != module.getKey()) keyPulseAnimations.put(module.getName(), 1f);
+        float keyPulse = animate(keyPulseAnimations.getOrDefault(module.getName(), 0f), 0f, speed * .72f);
+        keyPulseAnimations.put(module.getName(), keyPulse);
+        if (module.getKey() != 0) displayedKeys.put(module.getName(), Keyboard.getKeyName(module.getKey()));
+        float keyVisibility = animate(keyVisibilityAnimations.getOrDefault(module.getName(),
+                        module.getKey() == 0 ? 0f : 1f), module.getKey() == 0 ? 0f : 1f, speed);
+        keyVisibilityAnimations.put(module.getName(), keyVisibility);
+        int background = mix(0x00000000, 0x18FFFFFF, active);
         background = mix(background, ClickGuiTheme.HOVER, hovered * (1f - active * .4f));
+        background = mix(background, context.theme().accent(0x30), bindingProgress);
         if ((background >>> 24) != 0) {
-            context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 2f, background);
+            context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 5f, background);
         }
-        String label = binding == module ? "Listening..." : module.getDisplayName();
-        context.textIn(label, new UiRect(row.x() + 7f, row.y(), row.width() - 27f, row.height()),
-                10.5f, module.isEnabled() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
-        if (!module.getSettings().isEmpty()) {
-            context.centered(expanded ? "-" : "+",
-                    new UiRect(row.x() + row.width() - 22f, row.y(), 18f, row.height()),
-                    12f, expanded ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+        if (active > .01f) {
+            context.frame().draw().roundedRect(row.x(), row.y() + 7f, 2.5f * active,
+                    row.height() - 14f, 1.25f, context.theme().accent(0x70));
+        }
+        boolean hasSettings = !module.getSettings().isEmpty();
+        float right = row.x() + row.width() - (hasSettings ? 27f : 7f);
+        String keyName = displayedKeys.getOrDefault(module.getName(), "");
+        float keyWidth = Math.clamp(context.width(UiContext.FONT, 8.5f, keyName) + 10f, 27f, 49f);
+        UiRect keyBounds = new UiRect(right - keyWidth, row.y() + 7f, keyWidth, 17f);
+        float keyAlpha = keyVisibility * (1f - bindingProgress);
+        if (keyAlpha > .001f) {
+            int keyLayer = context.frame().canvas().saveLayerAlpha(
+                    Rect.makeXYWH(keyBounds.x(), keyBounds.y(), keyBounds.width(), keyBounds.height()),
+                    Math.round(255f * keyAlpha));
+            try {
+                context.frame().draw().roundedRect(keyBounds.x(), keyBounds.y(), keyBounds.width(),
+                        keyBounds.height(), 4f, mix(0x16FFFFFF, context.theme().accent(0x44), keyPulse));
+                context.centered(ellipsize(context, keyName, keyBounds.width() - 6f, 8.5f), keyBounds, 8.5f,
+                        mix(ClickGuiTheme.MUTED, ClickGuiTheme.TEXT, keyPulse));
+            } finally {
+                context.frame().canvas().restoreToCount(keyLayer);
+            }
+        }
+        String label = binding == module ? "Press a key..." : module.getDisplayName();
+        float labelRight = binding == module ? right : lerp(right, keyBounds.x() - 5f, keyVisibility);
+        context.textIn(ellipsize(context, label, Math.max(20f, labelRight - row.x() - 9f), 11f),
+                new UiRect(row.x() + 9f, row.y(), Math.max(20f, labelRight - row.x() - 9f), row.height()),
+                11f, binding == module || module.isEnabled() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+        if (hasSettings) {
+            float disclosure = expansion.getOrDefault(module.getName(), expanded ? 1f : 0f);
+            iconAlpha(context, ClickGuiIcons.EXPAND_MORE, row.x() + row.width() - 22f,
+                    row.y() + 8f - disclosure, 14f, ClickGuiTheme.MUTED, 1f - disclosure);
+            iconAlpha(context, ClickGuiIcons.EXPAND_LESS, row.x() + row.width() - 22f,
+                    row.y() + 9f - disclosure, 14f, ClickGuiTheme.TEXT, disclosure);
         }
         if (columnsInteractive) moduleHits.add(new ModuleHit(row, module, category));
         if (hover) tooltip = module.getDescription();
     }
 
     private void renderRail(UiContext context) {
-        float x = logicalWidth - 47f;
+        float x = logicalWidth - 51f;
         float y = (logicalHeight - (RAIL_SIZE * 4f + 8f * 3f)) * .5f;
         rail(context, new UiRect(x, y, RAIL_SIZE, RAIL_SIZE), RailAction.SEARCH,
-                ClickGuiIcons.SEARCH, "Search");
-        rail(context, new UiRect(x, y + 42f, RAIL_SIZE, RAIL_SIZE), RailAction.MUSIC,
-                ClickGuiIcons.MUSIC, "Music");
-        rail(context, new UiRect(x, y + 84f, RAIL_SIZE, RAIL_SIZE), RailAction.CONFIG,
-                ClickGuiIcons.CONFIG, "Config");
-        rail(context, new UiRect(x, y + 126f, RAIL_SIZE, RAIL_SIZE), RailAction.CLIENT,
-                ClickGuiIcons.SETTINGS, "Client Settings");
+                ClickGuiIcons.RAIL_SEARCH, "Search");
+        rail(context, new UiRect(x, y + 46f, RAIL_SIZE, RAIL_SIZE), RailAction.MUSIC,
+                ClickGuiIcons.RAIL_MUSIC, "Music");
+        rail(context, new UiRect(x, y + 92f, RAIL_SIZE, RAIL_SIZE), RailAction.CONFIG,
+                ClickGuiIcons.RAIL_CONFIG, "Config");
+        rail(context, new UiRect(x, y + 138f, RAIL_SIZE, RAIL_SIZE), RailAction.CLIENT,
+                ClickGuiIcons.RAIL_SETTINGS, "Client Settings");
         if (searchProgress > .01f) {
             float width = 216f * searchProgress;
-            searchBounds = new UiRect(x - 10f - width, y + 2f, width, 30f);
+            searchBounds = new UiRect(x - 10f - width, y + 3f, width, 32f);
             if (width > 54f) {
                 search.render(context, searchBounds, "Search modules", 10.5f, false, 0x780A0B0D);
             }
@@ -243,12 +296,18 @@ public final class ClickGuiView {
             case CLIENT -> session.tool() == ClickGuiSession.Tool.CLIENT;
         };
         boolean hover = bounds.contains(context.mouseX(), context.mouseY());
-        int background = selected ? ClickGuiTheme.RAIL_ACTIVE
-                : hover ? ClickGuiTheme.RAIL_HOVER : ClickGuiTheme.RAIL;
-        context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 4f,
+        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 14f);
+        float hoverProgress = animate(railHoverAnimations.getOrDefault(action, 0f), hover ? 1f : 0f, speed);
+        float activeProgress = animate(railActiveAnimations.getOrDefault(action, selected ? 1f : 0f),
+                selected ? 1f : 0f, speed);
+        railHoverAnimations.put(action, hoverProgress);
+        railActiveAnimations.put(action, activeProgress);
+        int background = mix(ClickGuiTheme.RAIL, ClickGuiTheme.RAIL_HOVER, hoverProgress);
+        background = mix(background, ClickGuiTheme.RAIL_ACTIVE, activeProgress);
+        context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 8f,
                 background);
-        icon(context, svg, bounds.x() + 8f, bounds.y() + 8f, 18f,
-                selected ? ClickGuiTheme.RAIL_ICON_ACTIVE : ClickGuiTheme.RAIL_ICON);
+        icon(context, svg, bounds.x() + 9f, bounds.y() + 9f, 20f,
+                mix(ClickGuiTheme.RAIL_ICON, ClickGuiTheme.RAIL_ICON_ACTIVE, activeProgress));
         railHits.add(new RailHit(bounds, action));
         if (hover) tooltip = title;
     }
@@ -378,8 +437,10 @@ public final class ClickGuiView {
             if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) hit.module().toggle();
             else if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && !hit.module().getSettings().isEmpty()) {
                 String expanded = session.expanded(hit.category());
-                session.expanded(hit.category(), hit.module().getName().equals(expanded) ? null : hit.module().getName());
-                controls.clearTransient();
+                boolean closing = hit.module().getName().equals(expanded);
+                session.expanded(hit.category(), closing ? null : hit.module().getName());
+                if (closing) controls.finishInput();
+                else controls.clearTransient();
             } else if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE) binding = hit.module();
             else return false;
             focus.clear();
@@ -539,7 +600,7 @@ public final class ClickGuiView {
     }
 
     private float opening(int index, long now) {
-        float value = Math.clamp((now - openedAt - index * 24L) / 220f, 0f, 1f);
+        float value = Math.clamp((now - openedAt - index * 28L) / 320f, 0f, 1f);
         return 1f - (float) Math.pow(1f - value, 3d);
     }
 
@@ -559,6 +620,14 @@ public final class ClickGuiView {
         return from + (to - from) * Math.clamp(progress, 0f, 1f);
     }
 
+    private static UiRect intersection(UiRect first, UiRect second) {
+        float left = Math.max(first.x(), second.x());
+        float top = Math.max(first.y(), second.y());
+        float right = Math.min(first.x() + first.width(), second.x() + second.width());
+        float bottom = Math.min(first.y() + first.height(), second.y() + second.height());
+        return new UiRect(left, top, Math.max(0f, right - left), Math.max(0f, bottom - top));
+    }
+
     private static int mix(int from, int to, float progress) {
         float value = Math.clamp(progress, 0f, 1f);
         int a = Math.round((from >>> 24) + ((to >>> 24) - (from >>> 24)) * value);
@@ -574,10 +643,38 @@ public final class ClickGuiView {
         }
     }
 
+    private static void iconAlpha(UiContext context, String svg, float x, float y, float size,
+                                  int color, float alpha) {
+        float value = Math.clamp(alpha, 0f, 1f);
+        if (value <= .001f) return;
+        int layer = context.frame().canvas().saveLayerAlpha(
+                Rect.makeXYWH(x, y, size, size), Math.round(255f * value));
+        try {
+            icon(context, svg, x, y, size, color);
+        } finally {
+            context.frame().canvas().restoreToCount(layer);
+        }
+    }
+
+    private static String categoryIcon(ModuleCategory category) {
+        return switch (category) {
+            case Combat -> ClickGuiIcons.CATEGORY_COMBAT;
+            case Move -> ClickGuiIcons.CATEGORY_MOVE;
+            case Player -> ClickGuiIcons.CATEGORY_PLAYER;
+            case Render -> ClickGuiIcons.CATEGORY_RENDER;
+            case Exploit -> ClickGuiIcons.CATEGORY_EXPLOIT;
+            case HUD -> ClickGuiIcons.CATEGORY_HUD;
+        };
+    }
+
     private static String ellipsize(UiContext context, String value, float width) {
-        if (value == null || context.width(UiContext.FONT, 10f, value) <= width) return value;
+        return ellipsize(context, value, width, 10f);
+    }
+
+    private static String ellipsize(UiContext context, String value, float width, float size) {
+        if (value == null || context.width(UiContext.FONT, size, value) <= width) return value;
         String result = value;
-        while (!result.isEmpty() && context.width(UiContext.FONT, 10f, result + "...") > width) {
+        while (!result.isEmpty() && context.width(UiContext.FONT, size, result + "...") > width) {
             result = result.substring(0, result.length() - 1);
         }
         return result + "...";

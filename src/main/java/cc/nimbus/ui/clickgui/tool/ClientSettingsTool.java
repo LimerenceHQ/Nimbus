@@ -7,6 +7,7 @@ import cc.nimbus.ui.clickgui.component.SettingControls;
 import cc.nimbus.ui.clickgui.component.UiContext;
 import cc.nimbus.ui.clickgui.component.UiRect;
 import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
+import io.github.humbleui.types.Rect;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.PreeditEvent;
@@ -21,7 +22,11 @@ public final class ClientSettingsTool implements ToolPage {
     private Tab selected = Tab.GENERAL;
     private UiRect contentBounds;
     private float scroll;
+    private float targetScroll;
     private float maximumScroll;
+    private float indicatorX = Float.NaN;
+    private float indicatorWidth;
+    private float tabTransition = 1f;
 
     public ClientSettingsTool(SettingControls controls) {
         this.controls = controls;
@@ -35,28 +40,53 @@ public final class ClientSettingsTool implements ToolPage {
                 10.5f, ClickGuiTheme.MUTED);
         float tabY = bounds.y() + 67f;
         float tabWidth = (bounds.width() - 44f - 18f) / 4f;
+        float selectedX = 0f;
         for (int index = 0; index < Tab.values().length; index++) {
             Tab tab = Tab.values()[index];
-            UiRect tabBounds = new UiRect(bounds.x() + 22f + index * (tabWidth + 6f), tabY, tabWidth, 28f);
-            if (tab == selected || tabBounds.contains(context.mouseX(), context.mouseY())) {
-                context.frame().draw().roundedRect(tabBounds.x(), tabBounds.y(), tabBounds.width(), tabBounds.height(),
-                        3f, tab == selected ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
-            }
-            context.centered(tab.label, tabBounds, 10.5f,
+            UiRect tabBounds = new UiRect(bounds.x() + 22f + index * (tabWidth + 6f), tabY, tabWidth, 31f);
+            boolean hover = tabBounds.contains(context.mouseX(), context.mouseY());
+            context.centered(tab.label, tabBounds, 11f,
                     tab == selected ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+            if (hover && tab != selected) {
+                context.frame().draw().roundedRect(tabBounds.x() + tabBounds.width() * .3f,
+                        tabBounds.y() + tabBounds.height() - 2f, tabBounds.width() * .4f, 2f, 1f,
+                        ClickGuiTheme.HOVER);
+            }
+            if (tab == selected) selectedX = tabBounds.x();
             tabs.add(new TabHit(tabBounds, tab));
         }
 
-        contentBounds = new UiRect(bounds.x() + 22f, tabY + 42f, bounds.width() - 44f,
-                bounds.height() - (tabY - bounds.y()) - 64f);
+        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 14f);
+        if (!Float.isFinite(indicatorX)) {
+            indicatorX = selectedX;
+            indicatorWidth = tabWidth;
+        }
+        indicatorX = animate(indicatorX, selectedX, speed);
+        indicatorWidth = animate(indicatorWidth, tabWidth, speed);
+        context.frame().draw().roundedRect(indicatorX + indicatorWidth * .27f, tabY + 29f,
+                indicatorWidth * .46f, 2.5f, 1.25f, context.theme().accent(0xB0));
+        context.frame().draw().rect(bounds.x() + 22f, tabY + 34f, bounds.width() - 44f, 1f,
+                0x12FFFFFF);
+
+        contentBounds = new UiRect(bounds.x() + 22f, tabY + 43f, bounds.width() - 44f,
+                bounds.height() - (tabY - bounds.y()) - 65f);
         List<Setting<?>> settings = settings(selected);
         float contentHeight = controls.height(settings, contentBounds.width());
         maximumScroll = Math.max(0f, contentHeight - contentBounds.height());
-        scroll = Math.clamp(scroll, -maximumScroll, 0f);
+        targetScroll = Math.clamp(targetScroll, -maximumScroll, 0f);
+        scroll = animate(scroll, targetScroll, speed);
+        tabTransition = animate(tabTransition, 1f, speed);
         int save = context.clip(contentBounds, 3f);
         try {
-            controls.render(context, settings, contentBounds.x(), contentBounds.y() + scroll,
-                    contentBounds.width(), contentBounds);
+            int layer = context.frame().canvas().saveLayerAlpha(
+                    Rect.makeXYWH(contentBounds.x(), contentBounds.y(), contentBounds.width(), contentBounds.height()),
+                    Math.round((.55f + .45f * tabTransition) * 255f));
+            try {
+                controls.render(context, settings, contentBounds.x() + (1f - tabTransition) * 10f,
+                        contentBounds.y() + scroll, contentBounds.width(), contentBounds);
+            } finally {
+                context.frame().canvas().restoreToCount(layer);
+            }
         } finally {
             context.restore(save);
         }
@@ -70,6 +100,8 @@ public final class ClientSettingsTool implements ToolPage {
                 if (selected != tab.tab()) {
                     selected = tab.tab();
                     scroll = 0f;
+                    targetScroll = 0f;
+                    tabTransition = 0f;
                     controls.clearTransient();
                 }
                 return true;
@@ -88,7 +120,7 @@ public final class ClientSettingsTool implements ToolPage {
     @Override
     public boolean mouseScrolled(float x, float y, double delta) {
         if (contentBounds == null || !contentBounds.contains(x, y)) return false;
-        scroll = Math.clamp(scroll + (float) delta * 24f, -maximumScroll, 0f);
+        targetScroll = Math.clamp(targetScroll + (float) delta * 28f, -maximumScroll, 0f);
         return true;
     }
 
@@ -112,4 +144,9 @@ public final class ClientSettingsTool implements ToolPage {
         Tab(String label) { this.label = label; }
     }
     private record TabHit(UiRect bounds, Tab tab) { }
+
+    private static float animate(float value, float target, float speed) {
+        float result = value + (target - value) * speed;
+        return Math.abs(result - target) < .002f ? target : result;
+    }
 }

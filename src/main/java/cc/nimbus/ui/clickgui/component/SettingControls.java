@@ -7,14 +7,15 @@ import cc.nimbus.features.module.api.setting.impl.FoldSetting;
 import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
-import cc.nimbus.features.module.api.setting.impl.StringSetting;
 import cc.nimbus.features.module.api.setting.impl.TextSetting;
+import cc.nimbus.ui.clickgui.ClickGuiIcons;
 import cc.nimbus.ui.clickgui.input.FocusManager;
 import cc.nimbus.ui.clickgui.input.MultilineTextInput;
 import cc.nimbus.ui.clickgui.input.TextInput;
 import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Point;
+import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
@@ -27,11 +28,15 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public final class SettingControls {
-    private static final float ROW_HEIGHT = 30f;
-    private static final float GAP = 4f;
-    private static final float OPTION_HEIGHT = 23f;
+    private static final float ROW_HEIGHT = 32f;
+    private static final float NUMBER_HEIGHT = 42f;
+    private static final float STACKED_TEXT_HEIGHT = 58f;
+    private static final float STACKED_TEXT_THRESHOLD = 175f;
+    private static final float GAP = 2f;
+    private static final float OPTION_HEIGHT = 26f;
     private static final float COLOR_AREA_HEIGHT = 124f;
 
     private final FocusManager focus;
@@ -39,6 +44,14 @@ public final class SettingControls {
     private final MultilineTextInput multilineEditor;
     private final List<Hit> hits = new ArrayList<>();
     private final Map<Setting<?>, Float> animations = new IdentityHashMap<>();
+    private final Map<Setting<?>, Float> hoverAnimations = new IdentityHashMap<>();
+    private final Map<Setting<?>, Float> focusAnimations = new IdentityHashMap<>();
+    private final Map<Setting<?>, Float> dragAnimations = new IdentityHashMap<>();
+    private final Map<Setting<?>, Float> disclosureAnimations = new IdentityHashMap<>();
+    private final Map<Setting<?>, Float> visibilityAnimations = new IdentityHashMap<>();
+    private final Map<OptionKey, Float> optionAnimations = new java.util.HashMap<>();
+    private final Set<Setting<?>> disclosuresUpdated = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<Setting<?>> visibilityUpdated = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
     private Setting<?> editing;
     private Setting<?> openOptions;
     private NumberSetting draggingNumber;
@@ -46,6 +59,8 @@ public final class SettingControls {
     private ColorSetting openColor;
     private HitKind colorDragKind;
     private UiRect hitClip;
+    private float disclosureSpeed = 1f;
+    private boolean hitsEnabled = true;
 
     public SettingControls(FocusManager focus) {
         this.focus = focus;
@@ -53,17 +68,21 @@ public final class SettingControls {
         multilineEditor = new MultilineTextInput(Minecraft.getInstance().font, 8192);
     }
 
-    public void beginFrame() {
+    public void beginFrame(float deltaSeconds) {
         hits.clear();
+        disclosuresUpdated.clear();
+        visibilityUpdated.clear();
+        disclosureSpeed = 1f - (float) Math.exp(-deltaSeconds * 14f);
     }
 
     public float height(List<Setting<?>> settings, float width) {
         float total = 0f;
         for (Setting<?> setting : settings) {
-            if (setting.isHidden()) continue;
-            total += settingHeight(setting, width) + GAP;
+            float visibility = visibility(setting);
+            if (visibility <= .001f) continue;
+            total += (settingHeight(setting, width) + GAP) * visibility;
         }
-        return Math.max(0f, total - GAP);
+        return Math.max(0f, total);
     }
 
     public float render(UiContext context, List<Setting<?>> settings, float x, float y, float width) {
@@ -77,11 +96,28 @@ public final class SettingControls {
         float currentY = y;
         try {
             for (Setting<?> setting : settings) {
-                if (setting.isHidden()) continue;
-                float height = settingHeight(setting, width);
-                UiRect bounds = new UiRect(x, currentY, width, height);
-                if (clipBounds == null || bounds.intersects(clipBounds)) renderSetting(context, setting, bounds);
-                currentY += height + GAP;
+                float visibility = visibility(setting);
+                if (visibility <= .001f) continue;
+                float fullHeight = settingHeight(setting, width);
+                float visibleHeight = fullHeight * visibility;
+                UiRect bounds = new UiRect(x, currentY, width, fullHeight);
+                UiRect visibleBounds = new UiRect(x, currentY, width, visibleHeight);
+                if (clipBounds == null || visibleBounds.intersects(clipBounds)) {
+                    int clip = context.clip(visibleBounds, 0f);
+                    int layer = context.frame().canvas().saveLayerAlpha(
+                            Rect.makeXYWH(visibleBounds.x(), visibleBounds.y(), visibleBounds.width(),
+                                    visibleBounds.height()), Math.round(255f * visibility));
+                    boolean previousHitsEnabled = hitsEnabled;
+                    hitsEnabled = !setting.isHidden() && visibility >= 1f;
+                    try {
+                        renderSetting(context, setting, bounds);
+                    } finally {
+                        hitsEnabled = previousHitsEnabled;
+                        context.frame().canvas().restoreToCount(layer);
+                        context.restore(clip);
+                    }
+                }
+                currentY += (fullHeight + GAP) * visibility;
             }
         } finally {
             hitClip = previousClip;
@@ -208,8 +244,6 @@ public final class SettingControls {
             }
         } else if (target instanceof TextSetting text) {
             text.setValue(value);
-        } else if (target instanceof StringSetting string) {
-            string.setValue(value);
         }
         editing = null;
         multilineEditor.focused(false);
@@ -226,6 +260,13 @@ public final class SettingControls {
         colorDragKind = null;
     }
 
+    public void finishInput() {
+        commitEditor();
+        draggingNumber = null;
+        draggingColor = null;
+        colorDragKind = null;
+    }
+
     public boolean cancelTransient() {
         boolean active = editing != null || openOptions != null || openColor != null
                 || draggingNumber != null || draggingColor != null;
@@ -234,24 +275,36 @@ public final class SettingControls {
     }
 
     private void renderSetting(UiContext context, Setting<?> setting, UiRect bounds) {
-        context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f,
-                ClickGuiTheme.CONTROL);
-        context.frame().draw().outline(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f, 1f,
-                ClickGuiTheme.STROKE);
         UiRect row = new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT);
-        context.textIn(ellipsize(context, setting.getName(), bounds.width() * 0.55f),
-                new UiRect(bounds.x() + 7f, bounds.y(), bounds.width() * 0.55f, ROW_HEIGHT),
+        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 13f);
+        float hover = animate(hoverAnimations.getOrDefault(setting, 0f),
+                new UiRect(bounds.x(), bounds.y(), bounds.width(),
+                        Math.min(bounds.height(), setting instanceof NumberSetting ? NUMBER_HEIGHT : ROW_HEIGHT))
+                        .contains(context.mouseX(), context.mouseY()) ? 1f : 0f, speed);
+        hoverAnimations.put(setting, hover);
+        if (hover > .01f) {
+            context.frame().draw().roundedRect(bounds.x(), bounds.y() + 1f, bounds.width(),
+                    Math.min(bounds.height(), setting instanceof NumberSetting ? NUMBER_HEIGHT : ROW_HEIGHT) - 2f,
+                    5f, alpha(ClickGuiTheme.HOVER, hover));
+        }
+        context.frame().draw().rect(bounds.x() + 7f, bounds.y() + bounds.height() - 1f,
+                bounds.width() - 14f, 1f, 0x0CFFFFFF);
+        boolean stackedText = setting instanceof TextSetting text && !text.isMultiline()
+                && bounds.width() < STACKED_TEXT_THRESHOLD;
+        float labelHeight = stackedText ? 25f : setting instanceof NumberSetting ? 28f : ROW_HEIGHT;
+        float labelWidth = labelWidth(setting, bounds.width(), stackedText);
+        context.textIn(ellipsize(context, setting.getName(), labelWidth),
+                new UiRect(bounds.x() + 8f, bounds.y(), labelWidth, labelHeight),
                 11f, ClickGuiTheme.TEXT);
 
         if (setting instanceof BooleanSetting value) renderBoolean(context, value, row);
         else if (setting instanceof FoldSetting value) renderFold(context, value, row);
-        else if (setting instanceof NumberSetting value) renderNumber(context, value, row);
+        else if (setting instanceof NumberSetting value) renderNumber(context, value, bounds);
         else if (setting instanceof ModeSetting value) renderMode(context, value, bounds);
         else if (setting instanceof MultiSelectSetting value) renderMulti(context, value, bounds);
         else if (setting instanceof ColorSetting value) renderColor(context, value, bounds);
         else if (setting instanceof TextSetting value && value.isMultiline()) renderMultilineText(context, value, bounds);
-        else if (setting instanceof TextSetting value) renderText(context, value, row, value.isSecure());
-        else if (setting instanceof StringSetting value) renderText(context, value, row, false);
+        else if (setting instanceof TextSetting value) renderText(context, value, bounds, value.isSecure());
         else {
             context.textIn("Unsupported: " + setting.getClass().getSimpleName(),
                     new UiRect(bounds.x() + 7f, bounds.y() + ROW_HEIGHT, bounds.width() - 14f, 22f),
@@ -260,84 +313,142 @@ public final class SettingControls {
     }
 
     private void renderBoolean(UiContext context, BooleanSetting setting, UiRect row) {
-        UiRect toggle = new UiRect(row.x() + row.width() - 32f, row.y() + 8f, 24f, 14f);
+        UiRect toggle = new UiRect(row.x() + row.width() - 38f, row.y() + 7f, 30f, 18f);
         float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 14f);
         float progress = animations.getOrDefault(setting, setting.getValue() ? 1f : 0f);
         progress += ((setting.getValue() ? 1f : 0f) - progress) * speed;
         animations.put(setting, progress);
         context.frame().draw().roundedRect(toggle.x(), toggle.y(), toggle.width(), toggle.height(), 7f,
-                progress > .01f ? context.theme().accent(Math.round(0x20 + 0x35 * progress)) : 0x35000000);
-        float knobX = toggle.x() + 2f + 10f * progress;
-        context.frame().draw().roundedRect(knobX, toggle.y() + 2f, 10f, 10f, 5f, 0xDFFFFFFF);
+                mix(0x30FFFFFF, context.theme().accent(0x72), progress));
+        float knobX = toggle.x() + 2f + 12f * progress;
+        context.frame().draw().roundedRect(knobX, toggle.y() + 2f, 14f, 14f, 7f,
+                mix(0xFFC9CBD0, 0xFFFFFFFF, progress));
         addHit(new Hit(setting, HitKind.BOOLEAN, row, null));
     }
 
     private void renderFold(UiContext context, FoldSetting setting, UiRect row) {
-        String value = setting.getValue() ? "-" : "+";
-        context.centered(value, new UiRect(row.x() + row.width() - 28f, row.y(), 22f, row.height()),
-                14f, ClickGuiTheme.TEXT);
+        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 14f);
+        float progress = animate(animations.getOrDefault(setting, setting.getValue() ? 1f : 0f),
+                setting.getValue() ? 1f : 0f, speed);
+        animations.put(setting, progress);
+        iconAlpha(context, ClickGuiIcons.EXPAND_MORE, row.x() + row.width() - 26f,
+                row.y() + 7f - progress, 18f, ClickGuiTheme.MUTED, 1f - progress);
+        iconAlpha(context, ClickGuiIcons.EXPAND_LESS, row.x() + row.width() - 26f,
+                row.y() + 8f - progress, 18f, ClickGuiTheme.MUTED, progress);
         addHit(new Hit(setting, HitKind.FOLD, row, null));
     }
 
-    private void renderNumber(UiContext context, NumberSetting setting, UiRect row) {
-        UiRect valueBounds = new UiRect(row.x() + row.width() - 58f, row.y() + 4f, 50f, 21f);
+    private void renderNumber(UiContext context, NumberSetting setting, UiRect bounds) {
+        UiRect valueBounds = new UiRect(bounds.x() + bounds.width() - 58f, bounds.y() + 3f, 50f, 22f);
+        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 15f);
+        float focused = animate(focusAnimations.getOrDefault(setting, editing == setting ? 1f : 0f),
+                editing == setting ? 1f : 0f, speed);
+        focusAnimations.put(setting, focused);
+        int valueBackground = mix(ClickGuiTheme.CONTROL, context.theme().accent(0x38), focused);
+        int valueOutline = mix(ClickGuiTheme.STROKE, context.theme().accent(0x64), focused);
         if (editing == setting) {
-            editor.render(context, valueBounds, "0", 10.5f, false);
+            editor.render(context, valueBounds, "0", 10.5f, false, valueBackground, valueOutline);
         } else {
+            context.frame().draw().roundedRect(valueBounds.x(), valueBounds.y(), valueBounds.width(),
+                    valueBounds.height(), 4f, valueBackground);
+            context.frame().draw().outline(valueBounds.x(), valueBounds.y(), valueBounds.width(),
+                    valueBounds.height(), 4f, 1f, valueOutline);
             context.centered(format(setting.getValue()), valueBounds, 10.5f, ClickGuiTheme.MUTED);
         }
-        UiRect track = new UiRect(row.x() + 7f, row.y() + row.height() - 5f, row.width() - 14f, 2f);
+        UiRect track = new UiRect(bounds.x() + 8f, bounds.y() + bounds.height() - 9f,
+                bounds.width() - 16f, 4f);
         double min = setting.getMinimum().doubleValue();
         double max = setting.getMaximum().doubleValue();
         float progress = max <= min ? 0f : (float) ((setting.getValue().doubleValue() - min) / (max - min));
-        context.frame().draw().rect(track.x(), track.y(), track.width(), track.height(), 0x28FFFFFF);
-        context.frame().draw().rect(track.x(), track.y(), track.width() * Math.clamp(progress, 0f, 1f),
-                track.height(), context.theme().accent(0x55));
+        float clamped = Math.clamp(progress, 0f, 1f);
+        float dragging = animate(dragAnimations.getOrDefault(setting, draggingNumber == setting ? 1f : 0f),
+                draggingNumber == setting ? 1f : 0f, speed);
+        dragAnimations.put(setting, dragging);
+        context.frame().draw().roundedRect(track.x(), track.y(), track.width(), track.height(), 2f,
+                mix(0x28FFFFFF, 0x38FFFFFF, dragging));
+        context.frame().draw().roundedRect(track.x(), track.y(), track.width() * clamped,
+                track.height(), 2f, context.theme().accent(0x70));
+        try (Paint thumb = new Paint().setAntiAlias(true).setColor(0xFFF3F4F6)) {
+            context.frame().canvas().drawCircle(track.x() + track.width() * clamped,
+                    track.y() + track.height() * .5f, 4f + 1.25f * dragging, thumb);
+        }
         addHit(new Hit(setting, HitKind.NUMBER_TRACK,
-                new UiRect(track.x(), row.y() + 16f, track.width(), 14f), null));
+                new UiRect(track.x(), track.y() - 6f, track.width(), 16f), null));
         addHit(new Hit(setting, HitKind.NUMBER_VALUE, valueBounds, null));
     }
 
     private void renderMode(UiContext context, ModeSetting setting, UiRect bounds) {
-        UiRect value = new UiRect(bounds.x() + bounds.width() * 0.56f, bounds.y() + 5f,
-                bounds.width() * 0.44f - 7f, 20f);
-        context.centered(ellipsize(context, setting.getValue(), value.width() - 8f), value,
-                10f, ClickGuiTheme.MUTED);
+        UiRect value = new UiRect(bounds.x() + bounds.width() * 0.52f, bounds.y(),
+                bounds.width() * 0.48f - 29f, ROW_HEIGHT);
+        rightText(context, ellipsize(context, setting.getValue(), value.width()), value, 10.5f,
+                ClickGuiTheme.MUTED);
+        float disclosure = disclosureAnimations.getOrDefault(setting, openOptions == setting ? 1f : 0f);
+        disclosureIcon(context, bounds, disclosure);
         addHit(new Hit(setting, HitKind.MODE, new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT), null));
-        if (openOptions != setting) return;
-        float y = bounds.y() + ROW_HEIGHT;
-        for (String option : setting.getModes()) {
-            UiRect optionBounds = new UiRect(bounds.x() + 5f, y, bounds.width() - 10f, OPTION_HEIGHT);
-            if (setting.is(option)) {
-                context.frame().draw().roundedRect(optionBounds.x(), optionBounds.y(), optionBounds.width(),
-                        optionBounds.height(), 2f, context.theme().accent(0x32));
+        if (disclosure <= .001f) return;
+        int clip = context.clip(bounds, 0f);
+        int layer = context.frame().canvas().saveLayerAlpha(
+                Rect.makeXYWH(bounds.x(), bounds.y() + ROW_HEIGHT, bounds.width(),
+                        Math.max(1f, bounds.height() - ROW_HEIGHT)), Math.round(255f * disclosure));
+        try {
+            float y = bounds.y() + ROW_HEIGHT;
+            for (String option : setting.getModes()) {
+                UiRect optionBounds = new UiRect(bounds.x() + 5f, y, bounds.width() - 10f, OPTION_HEIGHT);
+                boolean selected = setting.is(option);
+                float selectedProgress = optionProgress(context, setting, option, selected);
+                context.textIn(option, new UiRect(optionBounds.x() + 9f, optionBounds.y(),
+                        optionBounds.width() - 36f, optionBounds.height()), 10.5f,
+                        mix(ClickGuiTheme.MUTED, ClickGuiTheme.TEXT, selectedProgress));
+                iconAlpha(context, ClickGuiIcons.CHECK, optionBounds.x() + optionBounds.width() - 23f,
+                        optionBounds.y() + 5f, 16f, context.theme().accent(0xC0), selectedProgress);
+                if (openOptions == setting && disclosure >= .98f) {
+                    addHit(new Hit(setting, HitKind.MODE_OPTION, optionBounds, option));
+                }
+                y += OPTION_HEIGHT;
             }
-            context.textIn(option, new UiRect(optionBounds.x() + 5f, optionBounds.y(), optionBounds.width() - 10f,
-                    optionBounds.height()), 10.5f, setting.is(option) ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
-            addHit(new Hit(setting, HitKind.MODE_OPTION, optionBounds, option));
-            y += OPTION_HEIGHT;
+        } finally {
+            context.frame().canvas().restoreToCount(layer);
+            context.restore(clip);
         }
     }
 
     private void renderMulti(UiContext context, MultiSelectSetting setting, UiRect bounds) {
-        String summary = setting.getValue().isEmpty() ? "None" : String.join(", ", setting.getValue());
-        UiRect value = new UiRect(bounds.x() + bounds.width() * 0.56f, bounds.y() + 5f,
-                bounds.width() * 0.44f - 7f, 20f);
-        context.centered(ellipsize(context, summary, value.width() - 8f), value, 10f, ClickGuiTheme.MUTED);
+        String summary = bounds.width() < 160f
+                ? setting.getValue().size() + "/" + setting.getModes().length
+                : multiSummary(setting);
+        UiRect value = new UiRect(bounds.x() + bounds.width() * 0.52f, bounds.y(),
+                bounds.width() * 0.48f - 29f, ROW_HEIGHT);
+        rightText(context, ellipsize(context, summary, value.width()), value, 10.5f, ClickGuiTheme.MUTED);
+        float disclosure = disclosureAnimations.getOrDefault(setting, openOptions == setting ? 1f : 0f);
+        disclosureIcon(context, bounds, disclosure);
         addHit(new Hit(setting, HitKind.MULTI, new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT), null));
-        if (openOptions != setting) return;
-        float y = bounds.y() + ROW_HEIGHT;
-        for (String option : setting.getModes()) {
-            boolean selected = setting.isSelected(option);
-            UiRect optionBounds = new UiRect(bounds.x() + 5f, y, bounds.width() - 10f, OPTION_HEIGHT);
-            if (selected) {
-                context.frame().draw().roundedRect(optionBounds.x(), optionBounds.y(), optionBounds.width(),
-                        optionBounds.height(), 2f, context.theme().accent(0x32));
+        if (disclosure <= .001f) return;
+        int clip = context.clip(bounds, 0f);
+        int layer = context.frame().canvas().saveLayerAlpha(
+                Rect.makeXYWH(bounds.x(), bounds.y() + ROW_HEIGHT, bounds.width(),
+                        Math.max(1f, bounds.height() - ROW_HEIGHT)), Math.round(255f * disclosure));
+        try {
+            float y = bounds.y() + ROW_HEIGHT;
+            for (String option : setting.getModes()) {
+                boolean selected = setting.isSelected(option);
+                UiRect optionBounds = new UiRect(bounds.x() + 5f, y, bounds.width() - 10f, OPTION_HEIGHT);
+                UiRect check = new UiRect(optionBounds.x() + 7f, optionBounds.y() + 6f, 14f, 14f);
+                float selectedProgress = optionProgress(context, setting, option, selected);
+                context.frame().draw().roundedRect(check.x(), check.y(), check.width(), check.height(), 3f,
+                        mix(0x20FFFFFF, context.theme().accent(0x78), selectedProgress));
+                iconAlpha(context, ClickGuiIcons.CHECK, check.x() + 1f, check.y() + 1f, 12f,
+                        ClickGuiTheme.TEXT, selectedProgress);
+                context.textIn(option, new UiRect(optionBounds.x() + 28f, optionBounds.y(),
+                        optionBounds.width() - 35f, optionBounds.height()), 10.5f,
+                        mix(ClickGuiTheme.MUTED, ClickGuiTheme.TEXT, selectedProgress));
+                if (openOptions == setting && disclosure >= .98f) {
+                    addHit(new Hit(setting, HitKind.MULTI_OPTION, optionBounds, option));
+                }
+                y += OPTION_HEIGHT;
             }
-            context.textIn(option, new UiRect(optionBounds.x() + 5f, optionBounds.y(), optionBounds.width() - 10f,
-                    optionBounds.height()), 10.5f, selected ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
-            addHit(new Hit(setting, HitKind.MULTI_OPTION, optionBounds, option));
-            y += OPTION_HEIGHT;
+        } finally {
+            context.frame().canvas().restoreToCount(layer);
+            context.restore(clip);
         }
     }
 
@@ -348,36 +459,70 @@ public final class SettingControls {
         context.frame().draw().outline(swatch.x(), swatch.y(), swatch.width(), swatch.height(), 3f, 1f,
                 ClickGuiTheme.STROKE);
         addHit(new Hit(setting, HitKind.COLOR, new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT), null));
-        if (!setting.isExpanded()) return;
-
-        float pickerY = bounds.y() + ROW_HEIGHT + 2f;
-        UiRect saturationBrightness = new UiRect(bounds.x() + 7f, pickerY, bounds.width() - 14f, 60f);
-        drawSaturationBrightness(context, saturationBrightness, setting.getHue());
-        UiRect hue = new UiRect(saturationBrightness.x(), pickerY + 66f, saturationBrightness.width(), 8f);
-        drawHue(context, hue);
-        UiRect alpha = new UiRect(saturationBrightness.x(), pickerY + 80f, saturationBrightness.width(), 8f);
-        drawAlpha(context, alpha, setting);
-        addHit(new Hit(setting, HitKind.COLOR_SB, saturationBrightness, null));
-        addHit(new Hit(setting, HitKind.COLOR_HUE, hue, null));
-        addHit(new Hit(setting, HitKind.COLOR_ALPHA, alpha, null));
-        UiRect rainbow = new UiRect(saturationBrightness.x(), pickerY + 94f, saturationBrightness.width(), 20f);
-        if (setting.isRainbow()) {
-            context.frame().draw().roundedRect(rainbow.x(), rainbow.y(), rainbow.width(), rainbow.height(), 2f,
-                    context.theme().accent(0x32));
+        float disclosure = disclosureAnimations.getOrDefault(setting, setting.isExpanded() ? 1f : 0f);
+        if (disclosure <= .001f) return;
+        int clip = context.clip(bounds, 0f);
+        int layer = context.frame().canvas().saveLayerAlpha(
+                Rect.makeXYWH(bounds.x(), bounds.y() + ROW_HEIGHT, bounds.width(),
+                        Math.max(1f, bounds.height() - ROW_HEIGHT)), Math.round(255f * disclosure));
+        try {
+            float pickerY = bounds.y() + ROW_HEIGHT + 2f;
+            UiRect saturationBrightness = new UiRect(bounds.x() + 7f, pickerY, bounds.width() - 14f, 60f);
+            drawSaturationBrightness(context, saturationBrightness, setting.getHue());
+            UiRect hue = new UiRect(saturationBrightness.x(), pickerY + 66f, saturationBrightness.width(), 8f);
+            drawHue(context, hue);
+            UiRect alpha = new UiRect(saturationBrightness.x(), pickerY + 80f,
+                    saturationBrightness.width(), 8f);
+            drawAlpha(context, alpha, setting);
+            if (setting.isExpanded() && disclosure >= .98f) {
+                addHit(new Hit(setting, HitKind.COLOR_SB, saturationBrightness, null));
+                addHit(new Hit(setting, HitKind.COLOR_HUE, hue, null));
+                addHit(new Hit(setting, HitKind.COLOR_ALPHA, alpha, null));
+            }
+            UiRect rainbow = new UiRect(saturationBrightness.x(), pickerY + 94f,
+                    saturationBrightness.width(), 20f);
+            context.textIn("Rainbow", new UiRect(rainbow.x() + 2f, rainbow.y(), rainbow.width() - 38f,
+                    rainbow.height()), 10f, setting.isRainbow() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+            float rainbowProgress = animations.getOrDefault(setting, setting.isRainbow() ? 1f : 0f);
+            rainbowProgress = animate(rainbowProgress, setting.isRainbow() ? 1f : 0f,
+                    1f - (float) Math.exp(-context.deltaSeconds() * 14f));
+            animations.put(setting, rainbowProgress);
+            UiRect toggle = new UiRect(rainbow.x() + rainbow.width() - 30f, rainbow.y() + 3f, 28f, 16f);
+            context.frame().draw().roundedRect(toggle.x(), toggle.y(), toggle.width(), toggle.height(), 8f,
+                    mix(0x30FFFFFF, context.theme().accent(0x72), rainbowProgress));
+            context.frame().draw().roundedRect(toggle.x() + 2f + 12f * rainbowProgress,
+                    toggle.y() + 2f, 12f, 12f, 6f,
+                    mix(0xFFC9CBD0, 0xFFFFFFFF, rainbowProgress));
+            if (setting.isExpanded() && disclosure >= .98f) {
+                addHit(new Hit(setting, HitKind.COLOR_RAINBOW, rainbow, null));
+            }
+        } finally {
+            context.frame().canvas().restoreToCount(layer);
+            context.restore(clip);
         }
-        context.textIn("Rainbow", new UiRect(rainbow.x() + 5f, rainbow.y(), rainbow.width() - 10f,
-                rainbow.height()), 10f, setting.isRainbow() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
-        addHit(new Hit(setting, HitKind.COLOR_RAINBOW, rainbow, null));
     }
 
-    private void renderText(UiContext context, Setting<String> setting, UiRect row, boolean secure) {
-        UiRect input = new UiRect(row.x() + row.width() * 0.47f, row.y() + 4f,
-                row.width() * 0.53f - 7f, 22f);
+    private void renderText(UiContext context, Setting<String> setting, UiRect bounds, boolean secure) {
+        boolean stacked = bounds.width() < STACKED_TEXT_THRESHOLD;
+        UiRect input = stacked
+                ? new UiRect(bounds.x() + 8f, bounds.y() + 27f, bounds.width() - 16f, 25f)
+                : new UiRect(bounds.x() + bounds.width() * .46f, bounds.y() + 4f,
+                bounds.width() * .54f - 8f, 24f);
+        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 15f);
+        float focused = animate(focusAnimations.getOrDefault(setting, editing == setting ? 1f : 0f),
+                editing == setting ? 1f : 0f, speed);
+        focusAnimations.put(setting, focused);
+        int inputBackground = mix(ClickGuiTheme.CONTROL, context.theme().accent(0x38), focused);
+        int inputOutline = mix(ClickGuiTheme.STROKE, context.theme().accent(0x64), focused);
         if (editing == setting) {
             String placeholder = setting instanceof TextSetting text && text.getPlaceholder() != null
                     ? text.getPlaceholder() : "Value";
-            editor.render(context, input, placeholder, 10.5f, secure);
+            editor.render(context, input, placeholder, 10.5f, secure, inputBackground, inputOutline);
         } else {
+            context.frame().draw().roundedRect(input.x(), input.y(), input.width(), input.height(), 4f,
+                    inputBackground);
+            context.frame().draw().outline(input.x(), input.y(), input.width(), input.height(), 4f, 1f,
+                    inputOutline);
             String value = setting.getValue();
             if (secure && value != null) value = "*".repeat(value.length());
             context.centered(ellipsize(context, value == null || value.isEmpty() ? "Empty" : value,
@@ -393,6 +538,8 @@ public final class SettingControls {
             multilineEditor.render(context, input,
                     setting.getPlaceholder() == null ? "Value" : setting.getPlaceholder(), 10.5f, setting.isSecure());
         } else {
+            context.frame().draw().roundedRect(input.x(), input.y(), input.width(), input.height(), 4f,
+                    ClickGuiTheme.CONTROL);
             String value = setting.getValue();
             if (setting.isSecure() && value != null) value = "*".repeat(value.length());
             context.text(value == null || value.isEmpty() ? "Empty" : value.replace('\n', ' '),
@@ -419,22 +566,45 @@ public final class SettingControls {
     }
 
     private float settingHeight(Setting<?> setting, float width) {
-        if (setting instanceof ModeSetting mode && openOptions == setting) {
-            return ROW_HEIGHT + mode.getModes().length * OPTION_HEIGHT + 2f;
+        if (setting instanceof ModeSetting mode) {
+            float progress = disclosure(setting, openOptions == setting);
+            return ROW_HEIGHT + (mode.getModes().length * OPTION_HEIGHT + 2f) * progress;
         }
-        if (setting instanceof MultiSelectSetting multi && openOptions == setting) {
-            return ROW_HEIGHT + multi.getModes().length * OPTION_HEIGHT + 2f;
+        if (setting instanceof MultiSelectSetting multi) {
+            float progress = disclosure(setting, openOptions == setting);
+            return ROW_HEIGHT + (multi.getModes().length * OPTION_HEIGHT + 2f) * progress;
         }
-        if (setting instanceof ColorSetting color && color.isExpanded()) {
-            return ROW_HEIGHT + COLOR_AREA_HEIGHT;
+        if (setting instanceof ColorSetting color) {
+            return ROW_HEIGHT + COLOR_AREA_HEIGHT * disclosure(setting, color.isExpanded());
         }
-        if (setting instanceof TextSetting text && text.isMultiline()) return 96f;
+        if (setting instanceof NumberSetting) return NUMBER_HEIGHT;
+        if (setting instanceof TextSetting text && text.isMultiline()) return 104f;
+        if (setting instanceof TextSetting) return width < STACKED_TEXT_THRESHOLD ? STACKED_TEXT_HEIGHT : ROW_HEIGHT;
         if (!(setting instanceof BooleanSetting || setting instanceof FoldSetting || setting instanceof NumberSetting
                 || setting instanceof ModeSetting || setting instanceof MultiSelectSetting
-                || setting instanceof ColorSetting || setting instanceof StringSetting || setting instanceof TextSetting)) {
+                || setting instanceof ColorSetting || setting instanceof TextSetting)) {
             return 54f;
         }
         return ROW_HEIGHT;
+    }
+
+    private float visibility(Setting<?> setting) {
+        boolean target = !setting.isHidden();
+        float value = visibilityAnimations.getOrDefault(setting, target ? 1f : 0f);
+        if (visibilityUpdated.add(setting)) {
+            value = animate(value, target ? 1f : 0f, disclosureSpeed);
+            visibilityAnimations.put(setting, value);
+        }
+        return value;
+    }
+
+    private float disclosure(Setting<?> setting, boolean target) {
+        float value = disclosureAnimations.getOrDefault(setting, target ? 1f : 0f);
+        if (disclosuresUpdated.add(setting)) {
+            value = animate(value, target ? 1f : 0f, disclosureSpeed);
+            disclosureAnimations.put(setting, value);
+        }
+        return value;
     }
 
     private Hit findHit(float x, float y) {
@@ -446,7 +616,7 @@ public final class SettingControls {
     }
 
     private void addHit(Hit hit) {
-        if (hitClip == null || hit.bounds().intersects(hitClip)) {
+        if (hitsEnabled && (hitClip == null || hit.bounds().intersects(hitClip))) {
             hits.add(new Hit(hit.setting(), hit.kind(), hit.bounds(), hit.option(), hitClip));
         }
     }
@@ -506,6 +676,88 @@ public final class SettingControls {
         }
     }
 
+    private static void rightText(UiContext context, String value, UiRect bounds, float size, int color) {
+        float width = context.width(UiContext.FONT, size, value);
+        float y = bounds.y() + (bounds.height() - context.height(UiContext.FONT, size)) * .5f;
+        context.text(value, bounds.x() + Math.max(0f, bounds.width() - width), y, size, color);
+    }
+
+    private static void icon(UiContext context, String svg, float x, float y, float size, int color) {
+        try (Paint paint = new Paint().setAntiAlias(true).setColor(color)) {
+            context.frame().draw().svg(svg, x, y, size, paint);
+        }
+    }
+
+    private static void iconAlpha(UiContext context, String svg, float x, float y, float size,
+                                  int color, float alpha) {
+        float value = Math.clamp(alpha, 0f, 1f);
+        if (value <= .001f) return;
+        int layer = context.frame().canvas().saveLayerAlpha(
+                Rect.makeXYWH(x, y, size, size), Math.round(255f * value));
+        try {
+            icon(context, svg, x, y, size, color);
+        } finally {
+            context.frame().canvas().restoreToCount(layer);
+        }
+    }
+
+    private static void disclosureIcon(UiContext context, UiRect bounds, float progress) {
+        iconAlpha(context, ClickGuiIcons.EXPAND_MORE, bounds.x() + bounds.width() - 26f,
+                bounds.y() + 7f - progress, 18f, ClickGuiTheme.MUTED, 1f - progress);
+        iconAlpha(context, ClickGuiIcons.EXPAND_LESS, bounds.x() + bounds.width() - 26f,
+                bounds.y() + 8f - progress, 18f, ClickGuiTheme.MUTED, progress);
+    }
+
+    private float optionProgress(UiContext context, Setting<?> setting, String option, boolean target) {
+        OptionKey key = new OptionKey(setting, option);
+        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 16f);
+        float progress = animate(optionAnimations.getOrDefault(key, target ? 1f : 0f),
+                target ? 1f : 0f, speed);
+        optionAnimations.put(key, progress);
+        return progress;
+    }
+
+    private static float labelWidth(Setting<?> setting, float width, boolean stackedText) {
+        if (stackedText) return width - 16f;
+        float available = switch (setting) {
+            case NumberSetting ignored -> width - 70f;
+            case BooleanSetting ignored -> width - 50f;
+            case FoldSetting ignored -> width - 38f;
+            case ModeSetting ignored -> width * .52f - 12f;
+            case MultiSelectSetting ignored -> width * .52f - 12f;
+            case ColorSetting ignored -> width - 41f;
+            case TextSetting ignored -> width * .46f - 12f;
+            default -> width - 16f;
+        };
+        return Math.max(24f, available);
+    }
+
+    private static String multiSummary(MultiSelectSetting setting) {
+        int selected = setting.getValue().size();
+        if (selected == 0) return "None";
+        if (selected == 1) return setting.getValue().iterator().next();
+        return selected + " selected";
+    }
+
+    private static float animate(float value, float target, float speed) {
+        float result = value + (target - value) * speed;
+        return Math.abs(result - target) < .002f ? target : result;
+    }
+
+    private static int alpha(int color, float progress) {
+        int alpha = Math.round((color >>> 24) * Math.clamp(progress, 0f, 1f));
+        return color & 0x00FFFFFF | alpha << 24;
+    }
+
+    private static int mix(int from, int to, float progress) {
+        float value = Math.clamp(progress, 0f, 1f);
+        int a = Math.round((from >>> 24) + ((to >>> 24) - (from >>> 24)) * value);
+        int r = Math.round((from >> 16 & 0xFF) + ((to >> 16 & 0xFF) - (from >> 16 & 0xFF)) * value);
+        int g = Math.round((from >> 8 & 0xFF) + ((to >> 8 & 0xFF) - (from >> 8 & 0xFF)) * value);
+        int b = Math.round((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * value);
+        return a << 24 | r << 16 | g << 8 | b;
+    }
+
     private static String format(Number value) {
         if (value == null) return "0";
         double number = value.doubleValue();
@@ -546,4 +798,6 @@ public final class SettingControls {
             this(setting, kind, bounds, option, null);
         }
     }
+
+    private record OptionKey(Setting<?> setting, String option) { }
 }
