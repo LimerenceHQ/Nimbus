@@ -20,7 +20,6 @@ public final class ClickGuiSession {
         CACHED,
         PLAYLIST,
         NOW_PLAYING,
-        SETTINGS,
         LOGIN
     }
 

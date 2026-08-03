@@ -66,7 +66,9 @@ public final class ClickGuiView {
     private boolean leftDown;
     private float searchProgress;
     private float toolProgress;
+    private float columnsProgress = 1f;
     private float switchProgress = 1f;
+    private boolean columnsInteractive = true;
     private float logicalWidth;
     private float logicalHeight;
 
@@ -93,13 +95,15 @@ public final class ClickGuiView {
         float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 15f);
         searchProgress = animate(searchProgress, searchOpen ? 1f : 0f, speed);
         toolProgress = animate(toolProgress, session.tool() == ClickGuiSession.Tool.NONE ? 0f : 1f, speed);
+        columnsProgress = animate(columnsProgress, session.tool() == ClickGuiSession.Tool.NONE ? 1f : 0f, speed);
+        columnsInteractive = session.tool() == ClickGuiSession.Tool.NONE && columnsProgress > .98f;
         switchProgress = animate(switchProgress, 1f, speed);
         if (outgoingTool != ClickGuiSession.Tool.NONE && switchProgress >= 1f) {
             ToolPage outgoing = tools.get(outgoingTool);
             if (outgoing != null) outgoing.closed();
             outgoingTool = ClickGuiSession.Tool.NONE;
         }
-        renderColumns(context, speed);
+        if (columnsProgress > .005f) renderColumns(context, speed);
         renderTool(context);
         renderRail(context);
         renderTooltip(context);
@@ -135,11 +139,12 @@ public final class ClickGuiView {
         float maximumHeight = logicalHeight - 92f;
         float panelHeight = Math.min(maximumHeight, PANEL_HEADER + Math.max(MODULE_HEIGHT + 6f, contentHeight));
         float opening = opening(index, context.nowMillis());
-        float y = 44f - (1f - opening) * 12f;
+        float y = 44f - (1f - opening) * 12f - (1f - columnsProgress) * 18f;
         UiRect panel = new UiRect(x, y, width, panelHeight);
         columnBounds.put(category, panel);
         int layer = context.frame().canvas().saveLayerAlpha(
-                Rect.makeXYWH(panel.x(), panel.y(), panel.width(), panel.height()), Math.round(255f * opening));
+                Rect.makeXYWH(panel.x(), panel.y(), panel.width(), panel.height()),
+                Math.round(255f * opening * columnsProgress));
         try {
             context.frame().draw().roundedRect(panel.x(), panel.y(), panel.width(), panel.height(), 4f,
                     ClickGuiTheme.PANEL);
@@ -190,7 +195,7 @@ public final class ClickGuiView {
 
     private void renderModule(UiContext context, UiRect row, BasicModule module, ModuleCategory category,
                               boolean expanded, float speed) {
-        boolean hover = row.contains(context.mouseX(), context.mouseY());
+        boolean hover = columnsInteractive && row.contains(context.mouseX(), context.mouseY());
         float active = animate(activeAnimations, module.getName(), module.isEnabled(), speed);
         float hovered = animate(hoverAnimations, module.getName(), hover, speed);
         int background = mix(0x00000000, 0x20FFFFFF, active);
@@ -206,7 +211,7 @@ public final class ClickGuiView {
                     new UiRect(row.x() + row.width() - 22f, row.y(), 18f, row.height()),
                     12f, expanded ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
         }
-        moduleHits.add(new ModuleHit(row, module, category));
+        if (columnsInteractive) moduleHits.add(new ModuleHit(row, module, category));
         if (hover) tooltip = module.getDescription();
     }
 
@@ -326,6 +331,7 @@ public final class ClickGuiView {
     }
 
     private void renderTooltip(UiContext context) {
+        if (!columnsInteractive) return;
         if (!tooltip.equals(previousTooltip)) {
             previousTooltip = tooltip;
             tooltipSince = context.nowMillis();
@@ -382,9 +388,9 @@ public final class ClickGuiView {
     }
 
     public void mouseMoved(float x, float y) {
-        controls.mouseMoved(x, y, leftDown);
+        if (session.tool() == ClickGuiSession.Tool.NONE) controls.mouseMoved(x, y, leftDown);
         ToolPage page = tools.get(activeTool);
-        if (page != null) page.mouseMoved(x, y, leftDown);
+        if (session.tool() != ClickGuiSession.Tool.NONE && page != null) page.mouseMoved(x, y, leftDown);
     }
 
     public void mouseReleased() {
@@ -399,6 +405,7 @@ public final class ClickGuiView {
             ToolPage page = tools.get(activeTool);
             return page == null || page.mouseScrolled(x, y, delta);
         }
+        if (session.tool() != ClickGuiSession.Tool.NONE) return true;
         for (var entry : columnBounds.entrySet()) {
             if (!entry.getValue().contains(x, y)) continue;
             session.scroll(entry.getKey(), session.scroll(entry.getKey()) + (float) delta * 24f);
@@ -510,6 +517,7 @@ public final class ClickGuiView {
         }
         session.tool(tool);
         if (tool == ClickGuiSession.Tool.NONE) return;
+        for (ModuleCategory category : CATEGORIES) session.expanded(category, null);
         if (activeTool != ClickGuiSession.Tool.NONE) {
             outgoingTool = activeTool;
             switchProgress = 0f;

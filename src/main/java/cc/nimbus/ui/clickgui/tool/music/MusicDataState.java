@@ -7,6 +7,7 @@ import cc.nimbus.features.music.lyrics.WordLine;
 import cc.nimbus.features.music.model.CachedSong;
 import cc.nimbus.features.music.model.Music;
 import cc.nimbus.features.music.model.Playlist;
+import cc.nimbus.features.music.model.User;
 import cc.nimbus.features.music.playback.PlaybackState;
 import cc.nimbus.features.music.resource.Artwork;
 import cc.nimbus.managers.MusicManager;
@@ -51,6 +52,7 @@ public final class MusicDataState {
 
     public void opened(ClickGuiSession.MusicRoute route) {
         generation++;
+        cachedSongs = manager.cachedSongs();
         load(route);
     }
 
@@ -111,7 +113,12 @@ public final class MusicDataState {
         long token = ++routeGeneration;
         loading = true;
         error = "";
-        runRoute(manager.playlistSongs(playlist.id()), token, values -> songs = values);
+        CompletableFuture<Playlist> detail = manager.playlist(playlist.id());
+        CompletableFuture<List<Music>> tracks = manager.playlistSongs(playlist.id());
+        runRoute(detail.thenCombine(tracks, PlaylistResult::new), token, value -> {
+            selectedPlaylist = value.playlist() == null ? playlist : value.playlist();
+            songs = value.songs();
+        });
     }
 
     public void refreshCached() {
@@ -139,6 +146,13 @@ public final class MusicDataState {
         return artwork.get(key);
     }
 
+    public Artwork thumbnail(Music music, int size) {
+        if (music == null) return null;
+        String key = "music-thumbnail:" + music.id() + ':' + size;
+        requestEncoded(key, manager.cover(music, size));
+        return artwork.get(key);
+    }
+
     public Artwork artwork(Playlist playlist, int size) {
         if (playlist == null) return null;
         String key = "playlist:" + playlist.id() + ':' + size;
@@ -151,6 +165,23 @@ public final class MusicDataState {
             }));
         }
         return artwork.get(key);
+    }
+
+    public Artwork artwork(User user, int size) {
+        if (user == null) return null;
+        String key = "user:" + user.id() + ':' + size;
+        requestEncoded(key, manager.avatar(user, size));
+        return artwork.get(key);
+    }
+
+    private void requestEncoded(String key, CompletableFuture<byte[]> future) {
+        if (artwork.containsKey(key) || !pendingArtwork.add(key)) return;
+        long token = generation;
+        future.whenComplete((bytes, failure) -> main(() -> {
+            pendingArtwork.remove(key);
+            if (token != generation || failure != null || bytes == null) return;
+            artwork.put(key, new Artwork(bytes, null));
+        }));
     }
 
     private void requestArtwork(String key, CompletableFuture<Artwork> future) {
@@ -207,11 +238,29 @@ public final class MusicDataState {
 
     private static LyricsView parse(Lyrics value) {
         if (value == null) return LyricsView.EMPTY;
+        List<TimedLine> lines = LyricsParser.lines(value.line());
+        List<TimedLine> translated = LyricsParser.lines(value.translated());
         return new LyricsView(
-                LyricsParser.lines(value.line()),
-                LyricsParser.lines(value.translated()),
+                lines,
+                alignTranslations(lines, translated),
                 LyricsParser.words(value.words())
         );
+    }
+
+    private static List<String> alignTranslations(List<TimedLine> lines, List<TimedLine> translated) {
+        if (lines.isEmpty() || translated.isEmpty()) return List.of();
+        List<String> result = new ArrayList<>(lines.size());
+        int translatedIndex = 0;
+        for (TimedLine line : lines) {
+            while (translatedIndex + 1 < translated.size()
+                    && Math.abs(translated.get(translatedIndex + 1).timeMs() - line.timeMs())
+                    <= Math.abs(translated.get(translatedIndex).timeMs() - line.timeMs())) {
+                translatedIndex++;
+            }
+            TimedLine nearest = translated.get(translatedIndex);
+            result.add(Math.abs(nearest.timeMs() - line.timeMs()) <= 1200 ? nearest.text() : "");
+        }
+        return List.copyOf(result);
     }
 
     private static void main(Runnable action) {
@@ -234,14 +283,20 @@ public final class MusicDataState {
     public boolean loading() { return loading; }
     public String error() { return error; }
 
-    public record LyricsView(List<TimedLine> lines, List<TimedLine> translated, List<WordLine> words) {
+    public record LyricsView(List<TimedLine> lines, List<String> translations, List<WordLine> words) {
         private static final LyricsView EMPTY = new LyricsView(List.of(), List.of(), List.of());
         public LyricsView {
             lines = List.copyOf(lines);
-            translated = List.copyOf(translated);
+            translations = List.copyOf(translations);
             words = List.copyOf(words);
+        }
+
+        public boolean hasTranslations() { return !translations.isEmpty(); }
+        public String translation(int index) {
+            return index >= 0 && index < translations.size() ? translations.get(index) : "";
         }
     }
     private record SearchResult(List<Music> songs, List<Playlist> playlists) { }
     private record RecommendedResult(List<Playlist> playlists, List<Music> songs) { }
+    private record PlaylistResult(Playlist playlist, List<Music> songs) { }
 }

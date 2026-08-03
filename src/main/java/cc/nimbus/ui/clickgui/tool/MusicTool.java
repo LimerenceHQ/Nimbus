@@ -24,9 +24,10 @@ import cc.nimbus.ui.clickgui.input.TextInput;
 import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
 import cc.nimbus.ui.clickgui.tool.music.MusicDataState;
 import cc.nimbus.utils.render.font.NimbusFonts;
-import io.github.humbleui.skija.FilterTileMode;
 import io.github.humbleui.skija.Image;
+import io.github.humbleui.skija.FilterTileMode;
 import io.github.humbleui.skija.Paint;
+import io.github.humbleui.skija.SaveLayerRec;
 import io.github.humbleui.types.Point;
 import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
@@ -41,14 +42,14 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 public final class MusicTool implements ToolPage {
-    private static final float SIDEBAR_WIDTH = 178f;
-    private static final float PLAYER_HEIGHT = 72f;
-    private static final float HEADER_HEIGHT = 56f;
+    private static final float SIDEBAR_WIDTH = 194f;
+    private static final float PLAYER_HEIGHT = 76f;
+    private static final float HEADER_HEIGHT = 58f;
+    private static final float LYRIC_ROW_HEIGHT = 68f;
     private static final int IMAGE_PLACEHOLDER = 0x351F2329;
 
     private final ClickGuiSession session;
@@ -69,34 +70,44 @@ public final class MusicTool implements ToolPage {
     private UiRect searchBounds;
     private UiRect seekBounds;
     private UiRect volumeBounds;
+    private UiRect rateBounds;
     private UiRect countryBounds;
     private UiRect phoneBounds;
     private UiRect captchaBounds;
     private UiRect queueBounds;
     private float contentScroll;
+    private float targetContentScroll;
     private float maximumContentScroll;
     private float sidebarScroll;
+    private float targetSidebarScroll;
     private float maximumSidebarScroll;
     private float queueScroll;
+    private float targetQueueScroll;
     private float maximumQueueScroll;
     private float routeProgress;
     private float coverBlend;
     private float queueProgress;
     private float previewProgress;
+    private float translationProgress = 1f;
     private boolean queueOpen;
     private boolean coverPreview;
+    private boolean translationsEnabled = true;
     private boolean draggingSeek;
     private boolean draggingVolume;
+    private boolean draggingRate;
     private boolean disposed = true;
     private LoginTab loginTab = LoginTab.QR;
     private MusicConfig.Hotkey bindingHotkey;
-    private byte[] qrImage = new byte[0];
+    private Artwork qrArtwork;
     private boolean qrRequesting;
     private boolean qrChecking;
     private long nextQrCheck;
     private long generation;
     private String message = "";
     private long messageUntil;
+    private ClickGuiSession.MusicRoute previousRoute = ClickGuiSession.MusicRoute.RECOMMENDED;
+    private long marqueeSongId = -1L;
+    private long marqueeStartedAt;
 
     public MusicTool(ClickGuiSession session, FocusManager focus) {
         this.session = session;
@@ -115,25 +126,40 @@ public final class MusicTool implements ToolPage {
     @Override
     public void render(UiContext context, UiRect bounds) {
         PlaybackState playback = manager.state();
+        long currentSongId = playback.music() == null ? -1L : playback.music().id();
+        if (currentSongId != marqueeSongId) {
+            marqueeSongId = currentSongId;
+            marqueeStartedAt = context.nowMillis();
+        }
         data.observePlayback(playback);
         hits.clear();
         float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 14f);
+        float scrollSpeed = 1f - (float) Math.exp(-context.deltaSeconds() * 18f);
+        contentScroll = animate(contentScroll, targetContentScroll, scrollSpeed);
+        sidebarScroll = animate(sidebarScroll, targetSidebarScroll, scrollSpeed);
+        queueScroll = animate(queueScroll, targetQueueScroll, scrollSpeed);
         routeProgress = animate(routeProgress, 1f, speed);
         coverBlend = data.currentArtwork() == null ? 0f : animate(coverBlend, 1f, speed * .72f);
         queueProgress = animate(queueProgress, queueOpen ? 1f : 0f, speed);
         previewProgress = animate(previewProgress, coverPreview ? 1f : 0f, speed);
+        translationProgress = animate(translationProgress, translationsEnabled ? 1f : 0f, speed);
 
-        sidebarBounds = new UiRect(bounds.x(), bounds.y(), SIDEBAR_WIDTH, bounds.height() - PLAYER_HEIGHT);
-        bodyBounds = new UiRect(bounds.x() + SIDEBAR_WIDTH, bounds.y() + HEADER_HEIGHT,
+        boolean nowPlaying = session.musicRoute() == ClickGuiSession.MusicRoute.NOW_PLAYING;
+        sidebarBounds = nowPlaying ? null
+                : new UiRect(bounds.x(), bounds.y(), SIDEBAR_WIDTH, bounds.height() - PLAYER_HEIGHT);
+        bodyBounds = nowPlaying
+                ? bounds
+                : new UiRect(bounds.x() + SIDEBAR_WIDTH, bounds.y() + HEADER_HEIGHT,
                 bounds.width() - SIDEBAR_WIDTH, bounds.height() - HEADER_HEIGHT - PLAYER_HEIGHT);
-        context.frame().draw().rect(bounds.x() + SIDEBAR_WIDTH, bounds.y(), 1f,
-                bounds.height() - PLAYER_HEIGHT, ClickGuiTheme.STROKE);
+        if (!nowPlaying) {
+            context.frame().draw().rect(bounds.x() + SIDEBAR_WIDTH, bounds.y(), 1f,
+                    bounds.height() - PLAYER_HEIGHT, ClickGuiTheme.STROKE);
+            renderSidebar(context, bounds);
+            renderHeader(context, bounds);
+        }
+        renderRoute(context, playback);
         context.frame().draw().rect(bounds.x(), bounds.y() + bounds.height() - PLAYER_HEIGHT,
                 bounds.width(), 1f, ClickGuiTheme.STROKE);
-
-        renderSidebar(context, bounds);
-        renderHeader(context, bounds);
-        renderRoute(context, playback);
         renderPlayer(context, bounds, playback);
         if (queueProgress > .005f) renderQueue(context, bounds, playback);
         else queueBounds = null;
@@ -143,30 +169,46 @@ public final class MusicTool implements ToolPage {
     }
 
     private void renderSidebar(UiContext context, UiRect bounds) {
-        try (Paint paint = new Paint().setAntiAlias(true).setColor(ClickGuiTheme.TEXT)) {
-            context.frame().draw().svgResource("assets/nimbus/image/logo.svg",
-                    bounds.x() + 16f, bounds.y() + 15f, 27f, paint);
-        }
-        context.draw(NimbusFonts.DISPLAY, 15f, "Nimbus Music",
-                bounds.x() + 50f, bounds.y() + 20f, ClickGuiTheme.TEXT);
+        context.center(NimbusFonts.DISPLAY, 18.5f, "Nimbus Music",
+                bounds.x() + SIDEBAR_WIDTH * .5f, bounds.y() + 12f, ClickGuiTheme.TEXT);
 
-        sidebarClipBounds = new UiRect(bounds.x() + 8f, bounds.y() + 55f,
-                SIDEBAR_WIDTH - 16f, bounds.height() - PLAYER_HEIGHT - 63f);
+        User profile = manager.profile();
+        UiRect account = new UiRect(bounds.x() + 8f, bounds.y() + 53f, SIDEBAR_WIDTH - 16f, 38f);
+        boolean accountActive = session.musicRoute() == ClickGuiSession.MusicRoute.LOGIN;
+        if (accountActive || account.contains(context.mouseX(), context.mouseY())) {
+            context.frame().draw().roundedRect(account.x(), account.y(), account.width(), account.height(), 4f,
+                    accountActive ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
+        }
+        UiRect avatar = new UiRect(account.x() + 5f, account.y() + 5f, 28f, 28f);
+        if (profile == null) {
+            context.frame().draw().roundedRect(avatar.x(), avatar.y(), avatar.width(), avatar.height(), 14f,
+                    IMAGE_PLACEHOLDER);
+            icon(context, ClickGuiIcons.USER, avatar.x() + 6f, avatar.y() + 6f, 16f, ClickGuiTheme.MUTED);
+        } else {
+            drawArtwork(context, data.artwork(profile, 96), "profile:" + profile.id(), avatar, 14f, 255);
+        }
+        context.medium(profile == null ? "Sign In" : ellipsize(context, profile.name(), account.width() - 48f),
+                account.x() + 42f, account.y() + 12f, 10.5f,
+                accountActive ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+        hits.add(new Hit(account, Action.NAVIGATE, ClickGuiSession.MusicRoute.LOGIN));
+
+        sidebarClipBounds = new UiRect(bounds.x() + 8f, bounds.y() + 99f,
+                SIDEBAR_WIDTH - 16f, bounds.height() - PLAYER_HEIGHT - 107f);
         int clip = context.clip(sidebarClipBounds, 3f);
         try {
             float y = sidebarClipBounds.y() + sidebarScroll;
-            y = group(context, "DISCOVER", y);
+            float contentStart = y;
+            y = group(context, "DISCOVER:", y);
             y = nav(context, "Recommended", ClickGuiIcons.HOME, ClickGuiSession.MusicRoute.RECOMMENDED, y);
             y = nav(context, "Featured", ClickGuiIcons.SPARKLES, ClickGuiSession.MusicRoute.FEATURED, y);
             y = nav(context, "Search", ClickGuiIcons.SEARCH, ClickGuiSession.MusicRoute.SEARCH, y);
             y += 8f;
-            y = group(context, "MY MUSIC", y);
+            y = group(context, "MY MUSIC:", y);
             y = nav(context, "Liked Music", ClickGuiIcons.HEART, ClickGuiSession.MusicRoute.LIKED, y);
             y = nav(context, "Cached Songs", ClickGuiIcons.CACHE, ClickGuiSession.MusicRoute.CACHED, y);
             y = nav(context, "Now Playing", ClickGuiIcons.MUSIC, ClickGuiSession.MusicRoute.NOW_PLAYING, y);
             y += 8f;
 
-            User profile = manager.profile();
             if (profile != null) {
                 List<Playlist> created = manager.accountPlaylists().stream()
                         .filter(playlist -> playlist.creator() != null && playlist.creator().id() == profile.id())
@@ -174,22 +216,18 @@ public final class MusicTool implements ToolPage {
                 List<Playlist> subscribed = manager.accountPlaylists().stream()
                         .filter(Playlist::subscribed).toList();
                 if (!created.isEmpty()) {
-                    y = group(context, "PLAYLISTS", y);
+                    y = group(context, "PLAYLISTS:", y);
                     for (Playlist playlist : created) y = playlistNav(context, playlist, y);
                     y += 7f;
                 }
                 if (!subscribed.isEmpty()) {
-                    y = group(context, "SUBSCRIBED", y);
+                    y = group(context, "SUBSCRIBED:", y);
                     for (Playlist playlist : subscribed) y = playlistNav(context, playlist, y);
                     y += 7f;
                 }
             }
-            y = group(context, "ACCOUNT", y);
-            y = nav(context, profile == null ? "Sign In" : profile.name(), ClickGuiIcons.USER,
-                    ClickGuiSession.MusicRoute.LOGIN, y);
-            y = nav(context, "Music Settings", ClickGuiIcons.SETTINGS,
-                    ClickGuiSession.MusicRoute.SETTINGS, y);
-            maximumSidebarScroll = Math.max(0f, y - sidebarClipBounds.y() - sidebarClipBounds.height());
+            maximumSidebarScroll = Math.max(0f, y - contentStart - sidebarClipBounds.height());
+            targetSidebarScroll = Math.clamp(targetSidebarScroll, -maximumSidebarScroll, 0f);
             sidebarScroll = Math.clamp(sidebarScroll, -maximumSidebarScroll, 0f);
         } finally {
             context.restore(clip);
@@ -197,12 +235,12 @@ public final class MusicTool implements ToolPage {
     }
 
     private float group(UiContext context, String label, float y) {
-        context.text(label, sidebarBounds.x() + 10f, y + 3f, 8.5f, 0xFFA4A8B0);
-        return y + 21f;
+        context.medium(label, sidebarBounds.x() + 10f, y + 3f, 9.2f, 0xFFF2F3F5);
+        return y + 22f;
     }
 
     private float nav(UiContext context, String label, String icon, ClickGuiSession.MusicRoute route, float y) {
-        UiRect row = new UiRect(sidebarBounds.x() + 4f, y, SIDEBAR_WIDTH - 18f, 28f);
+        UiRect row = new UiRect(sidebarClipBounds.x(), y, sidebarClipBounds.width(), 28f);
         if (!row.intersects(sidebarClipBounds)) return y + 31f;
         boolean active = session.musicRoute() == route;
         boolean hover = row.contains(context.mouseX(), context.mouseY());
@@ -216,19 +254,21 @@ public final class MusicTool implements ToolPage {
     }
 
     private float playlistNav(UiContext context, Playlist playlist, float y) {
-        UiRect row = new UiRect(sidebarBounds.x() + 4f, y, SIDEBAR_WIDTH - 18f, 27f);
-        if (!row.intersects(sidebarClipBounds)) return y + 30f;
+        UiRect row = new UiRect(sidebarClipBounds.x(), y, sidebarClipBounds.width(), 38f);
+        if (!row.intersects(sidebarClipBounds)) return y + 41f;
         boolean active = data.selectedPlaylist() != null && data.selectedPlaylist().id() == playlist.id()
                 && session.musicRoute() == ClickGuiSession.MusicRoute.PLAYLIST;
         if (active || row.contains(context.mouseX(), context.mouseY())) {
             context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
                     active ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
         }
-        context.textIn(ellipsize(context, playlist.name(), row.width() - 17f),
-                new UiRect(row.x() + 8f, row.y(), row.width() - 12f, row.height()), 9.8f,
+        UiRect cover = new UiRect(row.x() + 5f, row.y() + 5f, 28f, 28f);
+        drawArtwork(context, data.artwork(playlist, 96), "sidebar-playlist:" + playlist.id(), cover, 3f, 255);
+        context.textIn(ellipsize(context, playlist.name(), row.width() - 48f),
+                new UiRect(row.x() + 41f, row.y(), row.width() - 46f, row.height()), 9.8f,
                 active ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
         hits.add(new Hit(row, Action.OPEN_PLAYLIST, playlist, sidebarClipBounds));
-        return y + 30f;
+        return y + 41f;
     }
 
     private void renderHeader(UiContext context, UiRect bounds) {
@@ -256,11 +296,11 @@ public final class MusicTool implements ToolPage {
                 case CACHED -> renderCached(context, shifted, y);
                 case PLAYLIST -> renderPlaylist(context, shifted, y);
                 case NOW_PLAYING -> renderNowPlaying(context, shifted, playback);
-                case SETTINGS -> renderSettings(context, shifted, y);
                 case LOGIN -> renderLogin(context, shifted, y);
             };
             maximumContentScroll = session.musicRoute() == ClickGuiSession.MusicRoute.NOW_PLAYING
                     ? 0f : Math.max(0f, end - shifted.y() - shifted.height() - contentScroll + 14f);
+            targetContentScroll = Math.clamp(targetContentScroll, -maximumContentScroll, 0f);
             contentScroll = Math.clamp(contentScroll, -maximumContentScroll, 0f);
         } finally {
             context.restore(clip);
@@ -276,7 +316,10 @@ public final class MusicTool implements ToolPage {
         y = playlistGrid(context, bounds, y, data.playlists(), 8);
         if (!data.songs().isEmpty()) {
             y += 10f;
+            float sectionY = y;
             y = section(context, "Songs for You", bounds, y);
+            control(context, new UiRect(bounds.x() + bounds.width() - 46f, sectionY - 6f, 28f, 28f),
+                    ClickGuiIcons.PLAY, Action.PLAY_ALL, bodyBounds);
             y = songList(context, bounds, y, data.songs());
         }
         return y;
@@ -330,22 +373,31 @@ public final class MusicTool implements ToolPage {
         List<Long> ids = cached.stream().map(value -> value.music().id()).toList();
         for (int index = 0; index < cached.size(); index++) {
             CachedSong value = cached.get(index);
-            UiRect row = new UiRect(bounds.x() + 14f, y, bounds.width() - 28f, 38f);
+            UiRect row = new UiRect(bounds.x() + 14f, y, bounds.width() - 28f, 48f);
             if (row.intersects(bodyBounds)) {
                 hoverRow(context, row, "cached:" + value.music().id());
-                context.textIn(value.music().name(), new UiRect(row.x() + 9f, row.y(), row.width() * .46f, 22f),
-                        10.5f, ClickGuiTheme.TEXT);
-                context.text(value.music().artistsText(), row.x() + 9f, row.y() + 22f, 9f, ClickGuiTheme.MUTED);
+                UiRect cover = new UiRect(row.x() + 7f, row.y() + 6f, 36f, 36f);
+                drawArtwork(context, data.thumbnail(value.music(), 128), "cached-cover:" + value.music().id(),
+                        cover, 4f, 255);
+                context.draw(NimbusFonts.CONTENT_MEDIUM, 10.8f,
+                        ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 10.8f,
+                                value.music().name(), row.width() * .38f),
+                        row.x() + 53f, row.y() + 8f, ClickGuiTheme.TEXT);
+                context.draw(NimbusFonts.CONTENT_MEDIUM, 9.2f,
+                        ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 9.2f,
+                                value.music().artistsText(), row.width() * .38f),
+                        row.x() + 53f, row.y() + 27f, ClickGuiTheme.MUTED);
                 String detail = value.qualities().stream().map(Quality::apiValue).reduce((a, b) -> a + ", " + b).orElse("")
                         + "  " + formatBytes(value.sizeBytes());
-                context.text(detail, row.x() + row.width() * .55f, row.y() + 13f, 9.5f, ClickGuiTheme.MUTED);
-                UiRect delete = new UiRect(row.x() + row.width() - 27f, row.y() + 7f, 24f, 24f);
+                context.medium(detail, row.x() + row.width() * .62f, row.y() + 17f, 9.5f,
+                        ClickGuiTheme.MUTED);
+                UiRect delete = new UiRect(row.x() + row.width() - 29f, row.y() + 12f, 24f, 24f);
                 icon(context, ClickGuiIcons.TRASH, delete.x() + 5f, delete.y() + 5f, 14f, ClickGuiTheme.MUTED);
                 hits.add(new Hit(delete, Action.DELETE_CACHED, value.music().id(), bodyBounds));
                 hits.add(new Hit(new UiRect(row.x(), row.y(), row.width() - 31f, row.height()),
                         Action.PLAY_CACHED, new CachedSelection(ids, index), bodyBounds));
             }
-            y += 41f;
+            y += 52f;
         }
         return y;
     }
@@ -353,163 +405,241 @@ public final class MusicTool implements ToolPage {
     private float renderPlaylist(UiContext context, UiRect bounds, float y) {
         Playlist playlist = data.selectedPlaylist();
         if (playlist == null) return error(context, bounds, y);
-        Artwork artwork = data.artwork(playlist, 320);
-        UiRect cover = new UiRect(bounds.x() + 18f, y, 94f, 94f);
+        Artwork artwork = data.artwork(playlist, 512);
+        UiRect cover = new UiRect(bounds.x() + 18f, y, 156f, 156f);
         drawArtwork(context, artwork, "playlist:" + playlist.id(), cover, 4f, 255);
-        context.draw(NimbusFonts.CONTENT_MEDIUM, 19f, playlist.name(),
-                cover.x() + cover.width() + 16f, y + 10f, ClickGuiTheme.TEXT);
-        context.text(playlist.trackCount() + " tracks", cover.x() + cover.width() + 16f,
-                y + 42f, 10f, ClickGuiTheme.MUTED);
-        context.text(ellipsize(context, playlist.description(), bounds.width() - 160f),
-                cover.x() + cover.width() + 16f, y + 64f, 9.5f, ClickGuiTheme.MUTED);
-        if (!data.loading() && !data.songs().isEmpty()) {
-            UiRect smart = new UiRect(bounds.x() + bounds.width() - 120f, y + 11f, 96f, 29f);
-            Music current = manager.state().music();
-            Music seed = data.songs().stream()
-                    .filter(song -> current != null && song.id() == current.id())
-                    .findFirst().orElse(data.songs().getFirst());
-            button(context, smart, "Smart Play", Action.INTELLIGENT,
-                    new SmartSelection(seed.id(), playlist.id()));
+        float infoX = cover.x() + cover.width() + 18f;
+        float infoWidth = bounds.x() + bounds.width() - infoX - 22f;
+        context.draw(NimbusFonts.CONTENT_MEDIUM, 22f,
+                ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 22f, playlist.name(), infoWidth),
+                infoX, cover.y(), ClickGuiTheme.TEXT);
+        User creator = playlist.creator();
+        UiRect avatar = new UiRect(infoX, cover.y() + 38f, 34f, 34f);
+        if (creator == null) {
+            context.frame().draw().roundedRect(avatar.x(), avatar.y(), avatar.width(), avatar.height(), 16f,
+                    IMAGE_PLACEHOLDER);
+            icon(context, ClickGuiIcons.USER, avatar.x() + 7f, avatar.y() + 7f, 18f, ClickGuiTheme.MUTED);
+        } else {
+            drawArtwork(context, data.artwork(creator, 128), "playlist-creator:" + creator.id(),
+                    avatar, 16f, 255);
+            context.draw(NimbusFonts.CONTENT_MEDIUM, 10.5f, creator.name(), avatar.x() + 44f,
+                    avatar.y() + 1f, ClickGuiTheme.TEXT);
+            context.medium("ID: " + creator.id(), avatar.x() + 44f, avatar.y() + 19f, 9.2f,
+                    ClickGuiTheme.MUTED);
         }
-        y += 112f;
+        context.medium(playlist.trackCount() + " songs  /  " + formatCount(playlist.playCount()) + " plays",
+                infoX, cover.y() + 82f, 10f, ClickGuiTheme.MUTED);
+        context.draw(NimbusFonts.CONTENT_MEDIUM, 9.8f,
+                ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 9.8f,
+                        playlist.description().isBlank() ? "No description" : playlist.description(), infoWidth),
+                infoX, cover.y() + 103f, ClickGuiTheme.MUTED);
+        if (!data.loading() && !data.songs().isEmpty()) {
+            UiRect playAll = new UiRect(infoX, cover.y() + 125f, 112f, 31f);
+            button(context, playAll, "Play All", Action.PLAY_ALL, null);
+        }
+        y = cover.y() + cover.height() + 18f;
         if (data.loading()) return loading(context, bounds, y);
         return songList(context, bounds, y, data.songs());
     }
 
     private float renderNowPlaying(UiContext context, UiRect bounds, PlaybackState playback) {
+        renderDynamicBackground(context, bounds, data.currentArtwork());
+        UiRect content = new UiRect(bounds.x(), bounds.y(), bounds.width(), bounds.height() - PLAYER_HEIGHT);
+        UiRect back = new UiRect(content.x() + 18f, content.y() + 16f, 86f, 31f);
+        if (back.contains(context.mouseX(), context.mouseY())) {
+            context.frame().draw().roundedRect(back.x(), back.y(), back.width(), back.height(), 4f,
+                    0x20FFFFFF);
+        }
+        icon(context, ClickGuiIcons.BACK, back.x() + 7f, back.y() + 7f, 17f, ClickGuiTheme.TEXT);
+        context.medium("Back", back.x() + 31f, back.y() + 9f, 10.5f, ClickGuiTheme.TEXT);
+        hits.add(new Hit(back, Action.BACK_FROM_NOW_PLAYING, null));
+
         Music music = playback.music();
         if (music == null) {
-            context.centered("Nothing is playing", bounds, 12f, ClickGuiTheme.MUTED);
+            context.centered("Nothing is playing", content, 12f, ClickGuiTheme.MUTED);
             return bounds.y() + bounds.height();
         }
-        renderDynamicBackground(context, bounds, data.currentArtwork());
-        float coverSize = Math.min(248f, bounds.height() - 86f);
-        UiRect cover = new UiRect(bounds.x() + 28f, bounds.y() + (bounds.height() - coverSize) * .5f - 8f,
+        float leftWidth = Math.min(content.width() * .38f, 390f);
+        float coverSize = Math.min(leftWidth - 74f, content.height() - 154f);
+        UiRect cover = new UiRect(content.x() + 46f,
+                content.y() + (content.height() - coverSize) * .5f - 16f,
                 coverSize, coverSize);
         drawCurrentArtwork(context, music, cover);
         hits.add(new Hit(cover, Action.PREVIEW_COVER, null));
-        context.draw(NimbusFonts.CONTENT_MEDIUM, 18f, music.name(), cover.x(),
-                cover.y() + cover.height() + 13f, ClickGuiTheme.TEXT);
-        context.text(music.artistsText(), cover.x(), cover.y() + cover.height() + 38f, 10.5f, ClickGuiTheme.MUTED);
-        float iconY = cover.y() + cover.height() + 7f;
+        float titleY = cover.y() + cover.height() + 15f;
+        UiRect titleBounds = new UiRect(cover.x(), titleY, Math.max(40f, cover.width() - 68f),
+                context.height(NimbusFonts.CONTENT_MEDIUM, 20f) + 2f);
+        drawMarquee(context, NimbusFonts.CONTENT_MEDIUM, 20f, music.name(), titleBounds, ClickGuiTheme.TEXT);
+        context.draw(NimbusFonts.CONTENT_MEDIUM, 11f,
+                ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 11f, music.artistsText(), cover.width() - 92f),
+                cover.x(), cover.y() + cover.height() + 43f, 0xD0E0E3E8);
+        float iconY = cover.y() + cover.height() + 10f;
         UiRect like = new UiRect(cover.x() + cover.width() - 54f, iconY, 24f, 24f);
         UiRect cache = new UiRect(cover.x() + cover.width() - 24f, iconY, 24f, 24f);
         icon(context, ClickGuiIcons.HEART, like.x() + 4f, like.y() + 4f, 16f,
-                manager.likedIds().contains(music.id()) ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
-        icon(context, ClickGuiIcons.DOWNLOAD, cache.x() + 4f, cache.y() + 4f, 16f, ClickGuiTheme.MUTED);
+                manager.likedIds().contains(music.id()) ? 0xFFFF5264 : 0xFFFFFFFF);
+        icon(context, ClickGuiIcons.DOWNLOAD, cache.x() + 4f, cache.y() + 4f, 16f,
+                manager.isCached(music.id()) ? 0xFF777D86 : 0xFFFFFFFF);
         hits.add(new Hit(like, Action.LIKE_CURRENT, null));
         hits.add(new Hit(cache, Action.CACHE_CURRENT, null));
+        UiRect quality = new UiRect(cover.x() + cover.width() - 84f, cover.y() + cover.height() + 66f, 84f, 22f);
+        context.frame().draw().roundedRect(quality.x(), quality.y(), quality.width(), quality.height(), 3f,
+                quality.contains(context.mouseX(), context.mouseY()) ? 0x20FFFFFF : 0x12FFFFFF);
+        context.centered(manager.config().quality().apiValue(), quality, 9f, ClickGuiTheme.TEXT);
+        hits.add(new Hit(quality, Action.QUALITY, null));
 
-        UiRect lyrics = new UiRect(cover.x() + cover.width() + 36f, bounds.y() + 18f,
-                bounds.x() + bounds.width() - cover.x() - cover.width() - 58f, bounds.height() - 36f);
+        UiRect lyrics = new UiRect(content.x() + leftWidth + 28f, content.y() + 20f,
+                content.width() - leftWidth - 54f, content.height() - 40f);
         renderLyrics(context, lyrics, playback);
         return bounds.y() + bounds.height();
     }
 
     private void renderDynamicBackground(UiContext context, UiRect bounds, Artwork artwork) {
+        context.frame().draw().rect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 0xFF101318);
         if (artwork == null || !manager.config().dynamicBackground()
                 || !Core.INSTANCE.getConfigManager().clientSettings().postProcessing.getValue()) return;
-        Image image = image(context, artwork, "now-bg");
-        if (image == null) return;
         int clip = context.clip(bounds, 0f);
-        try (Paint imagePaint = new Paint().setAntiAlias(true).setAlpha(62);
-             Paint colorPaint = new Paint().setAntiAlias(true)) {
-            imagePaint.setImageFilter(context.frame().effects().imageBlur(28f, 28f, FilterTileMode.CLAMP));
-            float zoom = 28f;
-            context.frame().draw().image(image, bounds.x() - zoom, bounds.y() - zoom,
-                    bounds.width() + zoom * 2f, bounds.height() + zoom * 2f, imagePaint);
-            float drift = (float) ((Math.sin(System.currentTimeMillis() / 5500d) + 1d) * .5d);
-            int first = alpha(artwork.color(0), 42);
-            int second = alpha(artwork.color(1), 18);
-            int third = alpha(artwork.color(2), 34);
-            colorPaint.setShader(context.frame().effects().linearGradient(
-                    new Point(bounds.x() + bounds.width() * drift, bounds.y()),
-                    new Point(bounds.x() + bounds.width() * (1f - drift), bounds.y() + bounds.height()),
-                    new int[]{first, second, third}));
-            context.frame().draw().rect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), colorPaint);
-            context.frame().draw().rect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 0x300A0B0D);
+        try (Paint firstPaint = new Paint().setAntiAlias(true);
+             Paint secondPaint = new Paint().setAntiAlias(true)) {
+            double time = System.currentTimeMillis() / 7000d;
+            float firstDrift = (float) ((Math.sin(time) + 1d) * .5d);
+            float secondDrift = (float) ((Math.cos(time * .73d) + 1d) * .5d);
+            firstPaint.setShader(context.frame().effects().linearGradient(
+                    new Point(bounds.x() + bounds.width() * firstDrift, bounds.y()),
+                    new Point(bounds.x() + bounds.width() * (1f - firstDrift), bounds.y() + bounds.height()),
+                    new int[]{alpha(artwork.color(0), 158), alpha(artwork.color(1), 54),
+                            alpha(artwork.color(2), 132)}));
+            secondPaint.setShader(context.frame().effects().linearGradient(
+                    new Point(bounds.x(), bounds.y() + bounds.height() * secondDrift),
+                    new Point(bounds.x() + bounds.width(), bounds.y() + bounds.height() * (1f - secondDrift)),
+                    new int[]{alpha(artwork.color(2), 92), 0x00101318, alpha(artwork.color(0), 74)}));
+            context.frame().draw().rect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), firstPaint);
+            context.frame().draw().rect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), secondPaint);
+            context.frame().draw().rect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 0x42080A0D);
         } finally {
             context.restore(clip);
         }
     }
 
     private void renderLyrics(UiContext context, UiRect bounds, PlaybackState playback) {
-        List<TimedLine> lines = data.lyrics().lines();
+        MusicDataState.LyricsView lyrics = data.lyrics();
+        List<TimedLine> lines = lyrics.lines();
         if (lines.isEmpty()) {
             context.centered("Lyrics unavailable", bounds, 11f, ClickGuiTheme.MUTED);
             return;
         }
         int now = Math.round(playback.progressSeconds() * 1000f);
         int active = activeLine(lines, now);
-        float centerY = bounds.y() + bounds.height() * .5f;
-        for (int index = Math.max(0, active - 4); index <= Math.min(lines.size() - 1, active + 4); index++) {
-            float distance = index - active;
-            float y = centerY + distance * 46f - 12f;
-            TimedLine line = lines.get(index);
-            int color = index == active ? ClickGuiTheme.TEXT : 0x8FA8ABB2;
-            float size = index == active ? 13f : 10.5f;
-            if (index == active && !data.lyrics().words().isEmpty()) {
-                drawWordProgress(context, line.text(), bounds.x(), y, bounds.width(), size, now);
-            } else {
-                context.draw(NimbusFonts.CONTENT, size,
-                        ellipsizeFont(context, NimbusFonts.CONTENT, size, line.text(), bounds.width()),
-                        bounds.x(), y, color);
-            }
-            String translated = translated(index, line.timeMs());
-            if (!translated.isBlank()) {
-                context.draw(NimbusFonts.CONTENT, 9.5f,
-                        ellipsizeFont(context, NimbusFonts.CONTENT, 9.5f, translated, bounds.width()),
-                        bounds.x(), y + 22f, index == active ? 0xD8D5D7DC : 0x708F939B);
-            }
-        }
-    }
+        float lyricPosition = lyricTarget(lines, active, now);
 
-    private void drawWordProgress(UiContext context, String fallback, float x, float y, float width,
-                                  float size, int now) {
-        WordLine wordLine = data.lyrics().words().stream()
-                .filter(line -> now >= line.startMs() && now <= line.startMs() + line.durationMs())
-                .findFirst().orElse(null);
-        String text = wordLine == null || wordLine.text().isBlank() ? fallback : wordLine.text();
-        text = ellipsizeFont(context, NimbusFonts.CONTENT, size, text, width);
-        context.draw(NimbusFonts.CONTENT, size, text, x, y, 0x78FFFFFF);
-        float highlighted = 0f;
-        if (wordLine != null) {
-            for (TimedWord word : wordLine.words()) {
-                float wordWidth = context.width(NimbusFonts.CONTENT, size, word.text());
-                if (now >= word.endMs()) highlighted += wordWidth;
-                else if (now > word.startMs()) {
-                    float progress = (now - word.startMs()) / (float) Math.max(1, word.endMs() - word.startMs());
-                    highlighted += wordWidth * Math.clamp(progress, 0f, 1f);
-                    break;
-                } else break;
+        context.draw(NimbusFonts.CONTENT_MEDIUM, 15f, "Lyrics", bounds.x(), bounds.y() + 4f,
+                ClickGuiTheme.TEXT);
+        float footerInset = lyrics.hasTranslations() ? 34f : 0f;
+        if (lyrics.hasTranslations()) {
+            String label = "Translation";
+            float labelWidth = context.width(NimbusFonts.BODY_MEDIUM, 9.5f, label);
+            float width = labelWidth + 43f;
+            UiRect toggle = new UiRect(bounds.x() + bounds.width() - width, bounds.y() + bounds.height() - 26f,
+                    width, 24f);
+            if (toggle.contains(context.mouseX(), context.mouseY())) {
+                context.frame().draw().roundedRect(toggle.x(), toggle.y(), toggle.width(), toggle.height(), 4f,
+                        0x14FFFFFF);
             }
+            drawCenteredY(context, NimbusFonts.BODY_MEDIUM, 9.5f, label, toggle.x() + 4f,
+                    toggle.y(), toggle.height(), translationsEnabled ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+            UiRect track = new UiRect(toggle.x() + width - 30f, toggle.y() + 6f, 26f, 12f);
+            context.frame().draw().roundedRect(track.x(), track.y(), track.width(), track.height(), 6f,
+                    alpha(0xFFFFFFFF, Math.round(40f + 72f * translationProgress)));
+            float knobX = track.x() + 3f + 12f * translationProgress;
+            context.frame().draw().roundedRect(knobX, track.y() + 2f, 8f, 8f, 4f,
+                    alpha(0xFFFFFFFF, Math.round(168f + 87f * translationProgress)));
+            hits.add(new Hit(toggle, Action.TOGGLE_TRANSLATION, null));
         }
-        int clip = context.clip(new UiRect(x, y - 2f, Math.min(width, highlighted), size + 8f), 0f);
+
+        UiRect viewport = new UiRect(bounds.x(), bounds.y() + 40f, bounds.width(),
+                bounds.height() - 40f - footerInset);
+        int clip = context.clip(viewport, 0f);
+        float centerY = viewport.y() + viewport.height() * .48f;
+        float rowHeight = translationsEnabled && lyrics.hasTranslations() ? LYRIC_ROW_HEIGHT : 52f;
+        int first = Math.max(0, (int) Math.floor(lyricPosition) - 6);
+        int last = Math.min(lines.size() - 1, (int) Math.ceil(lyricPosition) + 6);
+        WordLine wordLine = activeWordLine(lyrics.words(), now);
         try {
-            context.draw(NimbusFonts.CONTENT, size, text, x, y, ClickGuiTheme.TEXT);
+            for (int index = first; index <= last; index++) {
+                float distance = index - lyricPosition;
+                float rowY = centerY + distance * rowHeight - rowHeight * .5f;
+                UiRect row = new UiRect(viewport.x(), rowY, viewport.width(), rowHeight);
+                if (!row.intersects(viewport)) continue;
+                TimedLine line = lines.get(index);
+                boolean selected = index == active;
+                boolean hover = viewport.contains(context.mouseX(), context.mouseY())
+                        && row.contains(context.mouseX(), context.mouseY());
+                if (hover) context.frame().draw().roundedRect(row.x(), row.y() + 3f,
+                        row.width(), row.height() - 6f, 5f, 0x14FFFFFF);
+                int lineAlpha = selected ? 255 : Math.max(58, Math.round(170f - Math.abs(distance) * 23f));
+                float textX = row.x() + 10f;
+                float textWidth = row.width() - 20f;
+                String original = selected && wordLine != null && !wordLine.text().isBlank()
+                        ? wordLine.text() : line.text();
+                float size = fitTextSize(context, NimbusFonts.CONTENT_MEDIUM,
+                        selected ? 18f : 13.5f, selected ? 11.5f : 10.5f, original, textWidth);
+                float lineY = row.y() + (row.height() - context.height(NimbusFonts.CONTENT_MEDIUM, size)) * .5f
+                        - (translationsEnabled && !lyrics.translation(index).isBlank() ? 9f : 0f);
+                if (selected && wordLine != null) {
+                    drawWordProgress(context, wordLine, line.text(), textX, lineY, textWidth, size, now);
+                } else {
+                    context.draw(NimbusFonts.CONTENT_MEDIUM, size, line.text(), textX, lineY,
+                            alpha(ClickGuiTheme.TEXT, lineAlpha));
+                }
+                String translated = translationsEnabled ? lyrics.translation(index) : "";
+                if (!translated.isBlank()) {
+                    float translatedSize = fitTextSize(context, NimbusFonts.CONTENT_MEDIUM,
+                            selected ? 11f : 10f, 8.5f, translated, textWidth);
+                    context.draw(NimbusFonts.CONTENT_MEDIUM, translatedSize, translated,
+                            textX, lineY + (selected ? 28f : 23f),
+                            alpha(0xFFE1E4E9, selected ? 214 : Math.max(48, lineAlpha - 58)));
+                }
+                hits.add(new Hit(row, Action.SEEK_LYRIC, line.timeMs(), viewport));
+            }
         } finally {
             context.restore(clip);
         }
     }
 
-    private String translated(int index, int time) {
-        List<TimedLine> translated = data.lyrics().translated();
-        if (translated.isEmpty()) return "";
-        if (index < translated.size() && Math.abs(translated.get(index).timeMs() - time) < 1200) {
-            return translated.get(index).text();
+    private void drawWordProgress(UiContext context, WordLine wordLine, String fallback, float x, float y,
+                                  float width, float size, int now) {
+        String text = wordLine.text().isBlank() ? fallback : wordLine.text();
+        context.draw(NimbusFonts.CONTENT_MEDIUM, size, text, x, y, 0x78FFFFFF);
+        float highlighted = 0f;
+        int cursor = 0;
+        for (TimedWord word : wordLine.words()) {
+            int start = text.indexOf(word.text(), cursor);
+            if (start < 0) start = Math.min(cursor, text.length());
+            int end = Math.min(text.length(), start + word.text().length());
+            float startWidth = context.width(NimbusFonts.CONTENT_MEDIUM, size, text.substring(0, start));
+            float endWidth = context.width(NimbusFonts.CONTENT_MEDIUM, size, text.substring(0, end));
+            if (now >= word.endMs()) highlighted = endWidth;
+            else if (now > word.startMs()) {
+                float progress = (now - word.startMs()) / (float) Math.max(1, word.endMs() - word.startMs());
+                highlighted = startWidth + (endWidth - startWidth) * Math.clamp(progress, 0f, 1f);
+                break;
+            } else break;
+            cursor = end;
         }
-        return translated.stream().filter(line -> Math.abs(line.timeMs() - time) < 600)
-                .findFirst().map(TimedLine::text).orElse("");
+        int clip = context.clip(new UiRect(x, y - 2f, Math.min(width, highlighted),
+                context.height(NimbusFonts.CONTENT_MEDIUM, size) + 4f), 0f);
+        try {
+            context.draw(NimbusFonts.CONTENT_MEDIUM, size, text, x, y, ClickGuiTheme.TEXT);
+        } finally {
+            context.restore(clip);
+        }
     }
 
-    private float renderSettings(UiContext context, UiRect bounds, float y) {
-        y = heading(context, "Music Settings", "Playback, cache and shortcuts", bounds, y);
+    private float renderPreferences(UiContext context, UiRect bounds, float y) {
         MusicConfig config = manager.config();
-        y = settingRow(context, bounds, y, "Quality", config.quality().apiValue(), Action.QUALITY);
         y = settingRow(context, bounds, y, "Prefetch", config.prefetch() ? "On" : "Off", Action.PREFETCH);
         y = settingRow(context, bounds, y, "Dynamic Background",
                 config.dynamicBackground() ? "On" : "Off", Action.DYNAMIC_BACKGROUND);
-        y = settingRow(context, bounds, y, "Playback Rate", formatRate(config.rate()), Action.RATE);
         y = settingRow(context, bounds, y, "Cache Limit", formatBytes(config.cacheLimitBytes()), Action.CACHE_LIMIT);
         y += 8f;
         y = section(context, "Hotkeys", bounds, y);
@@ -542,31 +672,42 @@ public final class MusicTool implements ToolPage {
         y = heading(context, profile == null ? "Sign In" : profile.name(),
                 profile == null ? "Netease Cloud Music" : profile.signature(), bounds, y);
         if (profile != null) {
-            UiRect logout = new UiRect(bounds.x() + 18f, y + 12f, 150f, 31f);
+            UiRect avatar = new UiRect(bounds.x() + 18f, y + 4f, 54f, 54f);
+            drawArtwork(context, data.artwork(profile, 160), "account-profile:" + profile.id(), avatar, 27f, 255);
+            context.draw(NimbusFonts.CONTENT_MEDIUM, 11f, profile.name(), avatar.x() + 68f,
+                    avatar.y() + 7f, ClickGuiTheme.TEXT);
+            context.medium("ID: " + profile.id(), avatar.x() + 68f, avatar.y() + 30f, 9.5f,
+                    ClickGuiTheme.MUTED);
+            context.medium("VIP Level: " + profile.vipType(), avatar.x() + 68f, avatar.y() + 46f, 9.2f,
+                    profile.vipType() > 0 ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+            UiRect logout = new UiRect(bounds.x() + bounds.width() - 134f, y + 15f, 112f, 31f);
             button(context, logout, "Sign Out", Action.LOGOUT, null);
-            return y + 60f;
+            y += 78f;
+            y = section(context, "Music Settings", bounds, y);
+            return renderPreferences(context, bounds, y);
         }
         UiRect qrTab = new UiRect(bounds.x() + 18f, y, 92f, 28f);
         UiRect smsTab = new UiRect(qrTab.x() + 98f, y, 92f, 28f);
         tab(context, qrTab, "QR Code", loginTab == LoginTab.QR, Action.LOGIN_QR);
         tab(context, smsTab, "SMS", loginTab == LoginTab.SMS, Action.LOGIN_SMS);
         y += 44f;
-        if (loginTab == LoginTab.QR) return renderQrLogin(context, bounds, y);
-        return renderSmsLogin(context, bounds, y);
+        y = loginTab == LoginTab.QR ? renderQrLogin(context, bounds, y) : renderSmsLogin(context, bounds, y);
+        y += 10f;
+        y = section(context, "Music Settings", bounds, y);
+        return renderPreferences(context, bounds, y);
     }
 
     private float renderQrLogin(UiContext context, UiRect bounds, float y) {
         UiRect image = new UiRect(bounds.x() + 18f, y, 190f, 190f);
-        if (qrImage.length == 0) {
+        if (qrArtwork == null) {
             context.frame().draw().roundedRect(image.x(), image.y(), image.width(), image.height(), 4f,
                     IMAGE_PLACEHOLDER);
             context.centered(qrRequesting ? "Loading..." : "QR Code", image, 11f, ClickGuiTheme.MUTED);
         } else {
-            Artwork qr = new Artwork(qrImage, null);
-            drawArtwork(context, qr, "login-qr", image, 4f, 255);
+            drawArtwork(context, qrArtwork, "login-qr", image, 4f, 255);
         }
         UiRect request = new UiRect(image.x() + image.width() + 24f, y + 24f, 150f, 31f);
-        button(context, request, qrImage.length == 0 ? "Generate QR" : "Refresh QR", Action.REQUEST_QR, null);
+        button(context, request, qrArtwork == null ? "Generate QR" : "Refresh QR", Action.REQUEST_QR, null);
         context.text("Scan with Netease Cloud Music", request.x(), request.y() + 48f, 10f, ClickGuiTheme.MUTED);
         return y + 212f;
     }
@@ -596,9 +737,9 @@ public final class MusicTool implements ToolPage {
                 IMAGE_PLACEHOLDER);
         if (music != null) {
             hits.add(new Hit(cover, Action.NOW_PLAYING, null));
-            context.draw(NimbusFonts.CONTENT_MEDIUM, 11f, ellipsizeFont(context,
-                    NimbusFonts.CONTENT_MEDIUM, 11f, music.name(), 180f), cover.x() + 61f, y + 16f,
-                    ClickGuiTheme.TEXT);
+            drawMarquee(context, NimbusFonts.CONTENT_MEDIUM, 11f, music.name(),
+                    new UiRect(cover.x() + 61f, y + 16f, 180f,
+                            context.height(NimbusFonts.CONTENT_MEDIUM, 11f) + 2f), ClickGuiTheme.TEXT);
             context.draw(NimbusFonts.CONTENT, 9f, ellipsizeFont(context,
                     NimbusFonts.CONTENT, 9f, music.artistsText(), 180f), cover.x() + 61f, y + 37f,
                     ClickGuiTheme.MUTED);
@@ -629,15 +770,28 @@ public final class MusicTool implements ToolPage {
         UiRect mode = new UiRect(right - 62f, y + 22f, 25f, 25f);
         icon(context, ClickGuiIcons.QUEUE, queue.x() + 5f, queue.y() + 5f, 15f,
                 queueOpen ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
-        icon(context, manager.config().playMode() == PlayMode.SHUFFLE ? ClickGuiIcons.SHUFFLE : ClickGuiIcons.REPEAT,
-                mode.x() + 5f, mode.y() + 5f, 15f, ClickGuiTheme.MUTED);
+        String modeIcon = switch (manager.config().playMode()) {
+            case SINGLE -> ClickGuiIcons.REPEAT_ONE;
+            case LOOP_LIST -> ClickGuiIcons.REPEAT;
+            case SHUFFLE -> ClickGuiIcons.SHUFFLE;
+            case INTELLIGENCE -> ClickGuiIcons.SPARKLES;
+        };
+        icon(context, modeIcon, mode.x() + 5f, mode.y() + 5f, 15f, ClickGuiTheme.MUTED);
         hits.add(new Hit(queue, Action.TOGGLE_QUEUE, null));
         hits.add(new Hit(mode, Action.MODE, null));
-        volumeBounds = new UiRect(right - 145f, y + 34f, 70f, 3f);
-        icon(context, ClickGuiIcons.VOLUME, volumeBounds.x() - 24f, y + 27f, 15f, ClickGuiTheme.MUTED);
-        context.frame().draw().rect(volumeBounds.x(), volumeBounds.y(), volumeBounds.width(), 3f, 0x25FFFFFF);
-        context.frame().draw().rect(volumeBounds.x(), volumeBounds.y(), volumeBounds.width() * playback.volume(),
-                3f, 0xB8FFFFFF);
+        icon(context, ClickGuiIcons.SPEED, right - 178f, y + 13f, 14f, ClickGuiTheme.MUTED);
+        rateBounds = new UiRect(right - 153f, y + 21f, 78f, 3f);
+        float rateProgress = (playback.rate() - .5f) / 1.5f;
+        drawSlider(context, rateBounds, rateProgress);
+        if (draggingRate) drawSliderValue(context, rateBounds, rateProgress, formatRate(playback.rate()));
+        hits.add(new Hit(new UiRect(rateBounds.x(), rateBounds.y() - 6f, rateBounds.width(), 15f),
+                Action.RATE, null));
+
+        volumeBounds = new UiRect(right - 153f, y + 51f, 78f, 3f);
+        icon(context, ClickGuiIcons.VOLUME, volumeBounds.x() - 25f, y + 43f, 15f, ClickGuiTheme.MUTED);
+        drawSlider(context, volumeBounds, playback.volume());
+        if (draggingVolume) drawSliderValue(context, volumeBounds, playback.volume(),
+                String.format(java.util.Locale.ROOT, "%.1f", playback.volume()));
         hits.add(new Hit(new UiRect(volumeBounds.x(), volumeBounds.y() - 5f, volumeBounds.width(), 13f),
                 Action.VOLUME, null));
     }
@@ -645,46 +799,63 @@ public final class MusicTool implements ToolPage {
     private void renderQueue(UiContext context, UiRect bounds, PlaybackState playback) {
         float width = Math.min(300f, bounds.width() * .4f);
         float x = bounds.x() + bounds.width() - width + (1f - queueProgress) * width;
-        queueBounds = new UiRect(x, bounds.y() + HEADER_HEIGHT,
-                width, bounds.height() - HEADER_HEIGHT - PLAYER_HEIGHT);
-        int layer = context.frame().canvas().saveLayerAlpha(
-                Rect.makeXYWH(queueBounds.x(), queueBounds.y(), queueBounds.width(), queueBounds.height()),
-                Math.round(queueProgress * 255f));
+        float topInset = session.musicRoute() == ClickGuiSession.MusicRoute.NOW_PLAYING ? 0f : HEADER_HEIGHT;
+        queueBounds = new UiRect(x, bounds.y() + topInset,
+                width, bounds.height() - topInset - PLAYER_HEIGHT);
+        Rect panelBounds = Rect.makeXYWH(queueBounds.x(), queueBounds.y(),
+                queueBounds.width(), queueBounds.height());
+        int panelClip = context.clip(queueBounds, 0f);
         try {
-            context.frame().draw().rect(queueBounds.x(), queueBounds.y(), queueBounds.width(), queueBounds.height(),
-                    0xA00E1013);
-            context.frame().draw().rect(queueBounds.x(), queueBounds.y(), 1f, queueBounds.height(), ClickGuiTheme.STROKE);
-            context.medium("Queue", queueBounds.x() + 16f, queueBounds.y() + 15f, 14f, ClickGuiTheme.TEXT);
-            PlaybackQueueState queue = manager.queueState();
-            UiRect viewport = new UiRect(queueBounds.x(), queueBounds.y() + 47f, queueBounds.width(),
-                    queueBounds.height() - 47f);
-            float y = viewport.y() + queueScroll;
-            int clip = context.clip(viewport, 0f);
-            try {
-                for (int index = 0; index < queue.songs().size(); index++) {
-                    Music music = queue.songs().get(index);
-                    UiRect row = new UiRect(queueBounds.x() + 8f, y, queueBounds.width() - 16f, 34f);
-                    if (!row.intersects(viewport)) {
-                        y += 37f;
-                        continue;
+            try (Paint layerPaint = new Paint().setAlpha(Math.round(queueProgress * 255f))) {
+                int layer = context.frame().canvas().saveLayer(new SaveLayerRec(panelBounds, layerPaint,
+                        context.frame().effects().imageBlur(12f, 12f, FilterTileMode.CLAMP)));
+                try {
+                    context.frame().draw().rect(queueBounds.x(), queueBounds.y(), queueBounds.width(),
+                            queueBounds.height(), 0xA00E1013);
+                    context.frame().draw().rect(queueBounds.x(), queueBounds.y(), 1f, queueBounds.height(),
+                            ClickGuiTheme.STROKE);
+                    context.medium("Queue", queueBounds.x() + 16f, queueBounds.y() + 15f, 14f,
+                            ClickGuiTheme.TEXT);
+                    PlaybackQueueState queue = manager.queueState();
+                    UiRect viewport = new UiRect(queueBounds.x(), queueBounds.y() + 47f, queueBounds.width(),
+                            queueBounds.height() - 47f);
+                    float y = viewport.y() + queueScroll;
+                    int clip = context.clip(viewport, 0f);
+                    try {
+                        for (int index = 0; index < queue.songs().size(); index++) {
+                            Music music = queue.songs().get(index);
+                            UiRect row = new UiRect(queueBounds.x() + 8f, y, queueBounds.width() - 16f, 42f);
+                            if (!row.intersects(viewport)) {
+                                y += 45f;
+                                continue;
+                            }
+                            if (index == queue.index() || row.contains(context.mouseX(), context.mouseY())) {
+                                context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
+                                        index == queue.index() ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
+                            }
+                            UiRect cover = new UiRect(row.x() + 6f, row.y() + 5f, 32f, 32f);
+                            drawArtwork(context, data.thumbnail(music, 96), "queue-cover:" + music.id(),
+                                    cover, 4f, 255);
+                            drawCenteredY(context, NimbusFonts.CONTENT_MEDIUM, 9.8f,
+                                    ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 9.8f,
+                                            music.name(), row.width() - 56f),
+                                    row.x() + 48f, row.y(), row.height(),
+                                    index == queue.index() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+                            if (queueProgress > .85f) hits.add(new Hit(row, Action.PLAY_AT, index, viewport));
+                            y += 45f;
+                        }
+                        maximumQueueScroll = Math.max(0f, queue.songs().size() * 45f - viewport.height());
+                        targetQueueScroll = Math.clamp(targetQueueScroll, -maximumQueueScroll, 0f);
+                        queueScroll = Math.clamp(queueScroll, -maximumQueueScroll, 0f);
+                    } finally {
+                        context.restore(clip);
                     }
-                    if (index == queue.index() || row.contains(context.mouseX(), context.mouseY())) {
-                        context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
-                                index == queue.index() ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
-                    }
-                    context.textIn(ellipsize(context, music.name(), row.width() - 24f),
-                            new UiRect(row.x() + 8f, row.y(), row.width() - 16f, row.height()), 9.8f,
-                            index == queue.index() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
-                    if (queueProgress > .85f) hits.add(new Hit(row, Action.PLAY_AT, index, viewport));
-                    y += 37f;
+                } finally {
+                    context.frame().canvas().restoreToCount(layer);
                 }
-                maximumQueueScroll = Math.max(0f, queue.songs().size() * 37f - viewport.height());
-                queueScroll = Math.clamp(queueScroll, -maximumQueueScroll, 0f);
-            } finally {
-                context.restore(clip);
             }
         } finally {
-            context.frame().canvas().restoreToCount(layer);
+            context.restore(panelClip);
         }
     }
 
@@ -728,11 +899,11 @@ public final class MusicTool implements ToolPage {
 
     private float playlistGrid(UiContext context, UiRect bounds, float y, List<Playlist> playlists, int limit) {
         int count = Math.min(limit, playlists.size());
-        int columns = Math.clamp((int) (bounds.width() / 145f), 3, 5);
-        float gap = 12f;
+        int columns = Math.clamp((int) (bounds.width() / 172f), 3, 5);
+        float gap = 14f;
         float width = (bounds.width() - 36f - gap * (columns - 1)) / columns;
-        float imageSize = Math.min(116f, width);
-        float rowHeight = imageSize + 44f;
+        float imageSize = width;
+        float rowHeight = imageSize + 50f;
         for (int index = 0; index < count; index++) {
             int column = index % columns;
             int row = index / columns;
@@ -741,17 +912,17 @@ public final class MusicTool implements ToolPage {
             Playlist playlist = playlists.get(index);
             UiRect hit = new UiRect(x, top, width, rowHeight - 6f);
             if (!hit.intersects(bodyBounds)) continue;
-            Artwork artwork = data.artwork(playlist, 256);
+            Artwork artwork = data.artwork(playlist, 512);
             UiRect cover = new UiRect(x, top, imageSize, imageSize);
             drawArtwork(context, artwork, "playlist:" + playlist.id(), cover, 4f, 255);
             float hover = hover(context, "playlist:" + playlist.id(), hit.contains(context.mouseX(), context.mouseY()));
             if (hover > .01f) context.frame().draw().outline(cover.x(), cover.y(), cover.width(), cover.height(),
                     4f, 1f, alpha(0xFFFFFFFF, Math.round(36f * hover)));
-            context.draw(NimbusFonts.CONTENT_MEDIUM, 10f,
-                    ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 10f, playlist.name(), width),
+            context.draw(NimbusFonts.CONTENT_MEDIUM, 10.8f,
+                    ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 10.8f, playlist.name(), width),
                     x, top + imageSize + 8f, ClickGuiTheme.TEXT);
-            context.text(formatCount(playlist.playCount()) + " plays", x, top + imageSize + 25f,
-                    8.7f, ClickGuiTheme.MUTED);
+            context.medium(formatCount(playlist.playCount()) + " plays", x, top + imageSize + 28f,
+                    9f, ClickGuiTheme.MUTED);
             hits.add(new Hit(hit, Action.OPEN_PLAYLIST, playlist, bodyBounds));
         }
         int rows = (count + columns - 1) / columns;
@@ -761,22 +932,30 @@ public final class MusicTool implements ToolPage {
     private float songList(UiContext context, UiRect bounds, float y, List<Music> songs) {
         for (int index = 0; index < songs.size(); index++) {
             Music music = songs.get(index);
-            UiRect row = new UiRect(bounds.x() + 14f, y, bounds.width() - 28f, 37f);
+            UiRect row = new UiRect(bounds.x() + 14f, y, bounds.width() - 28f, 48f);
             if (row.intersects(bodyBounds)) {
                 hoverRow(context, row, "song:" + music.id());
-                context.textIn(Integer.toString(index + 1), new UiRect(row.x() + 6f, row.y(), 26f, row.height()),
-                        9f, ClickGuiTheme.MUTED);
-                context.draw(NimbusFonts.CONTENT_MEDIUM, 10.5f,
-                        ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 10.5f, music.name(), row.width() * .43f),
-                        row.x() + 34f, row.y() + 6f, ClickGuiTheme.TEXT);
-                context.draw(NimbusFonts.CONTENT, 9f,
-                        ellipsizeFont(context, NimbusFonts.CONTENT, 9f, music.artistsText(), row.width() * .3f),
-                        row.x() + row.width() * .55f, row.y() + 9f, ClickGuiTheme.MUTED);
-                context.text(time(music.durationMs() / 1000f), row.x() + row.width() - 45f,
-                        row.y() + 9f, 9f, ClickGuiTheme.MUTED);
+                drawCenteredY(context, NimbusFonts.BODY_MEDIUM, 9.2f, Integer.toString(index + 1),
+                        row.x() + 4f, row.y(), row.height(), ClickGuiTheme.MUTED);
+                UiRect cover = new UiRect(row.x() + 32f, row.y() + 6f, 36f, 36f);
+                drawArtwork(context, data.thumbnail(music, 128), "song-cover:" + music.id(), cover, 4f, 255);
+                float titleX = row.x() + 80f;
+                float artistX = row.x() + row.width() * .64f;
+                float timeX = row.x() + row.width() - 48f;
+                drawCenteredY(context, NimbusFonts.CONTENT_MEDIUM, 10.8f,
+                        ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 10.8f,
+                                music.name(), artistX - titleX - 14f),
+                        titleX, row.y(), row.height(), ClickGuiTheme.TEXT);
+                context.draw(NimbusFonts.CONTENT_MEDIUM, 9.5f,
+                        ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 9.5f,
+                                music.artistsText(), timeX - artistX - 12f),
+                        artistX, row.y() + (row.height() - context.height(NimbusFonts.CONTENT_MEDIUM, 9.5f)) * .5f,
+                        ClickGuiTheme.MUTED);
+                drawCenteredY(context, NimbusFonts.BODY_MEDIUM, 9.2f,
+                        time(music.durationMs() / 1000f), timeX, row.y(), row.height(), ClickGuiTheme.MUTED);
                 hits.add(new Hit(row, Action.PLAY_SONG, new SongSelection(songs, index), bodyBounds));
             }
-            y += 40f;
+            y += 52f;
         }
         return y;
     }
@@ -813,6 +992,10 @@ public final class MusicTool implements ToolPage {
     }
 
     private void control(UiContext context, UiRect bounds, String svg, Action action) {
+        control(context, bounds, svg, action, null);
+    }
+
+    private void control(UiContext context, UiRect bounds, String svg, Action action, UiRect clip) {
         if (bounds.contains(context.mouseX(), context.mouseY())) {
             context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(),
                     bounds.width() * .5f, ClickGuiTheme.HOVER);
@@ -820,7 +1003,27 @@ public final class MusicTool implements ToolPage {
         float size = Math.min(18f, bounds.width() - 10f);
         icon(context, svg, bounds.x() + (bounds.width() - size) * .5f,
                 bounds.y() + (bounds.height() - size) * .5f, size, ClickGuiTheme.TEXT);
-        hits.add(new Hit(bounds, action, null));
+        hits.add(new Hit(bounds, action, null, clip));
+    }
+
+    private void drawSlider(UiContext context, UiRect bounds, float progress) {
+        float value = Math.clamp(progress, 0f, 1f);
+        context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 1.5f,
+                0x28FFFFFF);
+        context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width() * value, bounds.height(), 1.5f,
+                0xC8FFFFFF);
+        float knobX = bounds.x() + bounds.width() * value - 2.5f;
+        context.frame().draw().roundedRect(knobX, bounds.y() - 1f, 5f, 5f, 2.5f, 0xFFFFFFFF);
+    }
+
+    private void drawSliderValue(UiContext context, UiRect bounds, float progress, String value) {
+        float width = context.width(NimbusFonts.BODY_MEDIUM, 8.5f, value) + 10f;
+        float x = Math.clamp(bounds.x() + bounds.width() * progress - width * .5f,
+                bounds.x() - 4f, bounds.x() + bounds.width() - width + 4f);
+        UiRect tooltip = new UiRect(x, bounds.y() - 20f, width, 15f);
+        context.frame().draw().roundedRect(tooltip.x(), tooltip.y(), tooltip.width(), tooltip.height(), 3f,
+                0xD81A1C20);
+        context.centered(value, tooltip, 8.5f, ClickGuiTheme.TEXT);
     }
 
     private float loading(UiContext context, UiRect bounds, float y) {
@@ -910,6 +1113,9 @@ public final class MusicTool implements ToolPage {
                 SongSelection selection = (SongSelection) hit.value();
                 manager.play(selection.songs(), selection.index());
             }
+            case PLAY_ALL -> {
+                if (!data.songs().isEmpty()) manager.play(data.songs(), 0);
+            }
             case PLAY_CACHED -> {
                 CachedSelection selection = (CachedSelection) hit.value();
                 manager.playCached(selection.ids(), selection.index());
@@ -924,25 +1130,26 @@ public final class MusicTool implements ToolPage {
             case MODE -> cycleMode();
             case TOGGLE_QUEUE -> {
                 queueOpen = !queueOpen;
-                if (!queueOpen) queueScroll = 0f;
+                if (!queueOpen) {
+                    queueScroll = 0f;
+                    targetQueueScroll = 0f;
+                }
             }
             case PLAY_AT -> manager.playAt((int) hit.value());
             case SEEK -> { draggingSeek = true; updateSeek(mouseX); }
             case VOLUME -> { draggingVolume = true; updateVolume(mouseX); }
             case NOW_PLAYING -> navigate(ClickGuiSession.MusicRoute.NOW_PLAYING);
+            case BACK_FROM_NOW_PLAYING -> navigate(previousRoute);
             case PREVIEW_COVER -> coverPreview = true;
             case CLOSE_PREVIEW -> coverPreview = false;
             case LIKE_CURRENT -> likeCurrent();
             case CACHE_CURRENT -> cacheCurrent();
-            case INTELLIGENT -> {
-                SmartSelection selection = (SmartSelection) hit.value();
-                run(manager.playIntelligent(selection.songId(), selection.playlistId(), 50),
-                        songs -> show("Smart queue ready: " + songs.size() + " songs"));
-            }
+            case SEEK_LYRIC -> manager.seek((int) hit.value() / 1000d);
+            case TOGGLE_TRANSLATION -> translationsEnabled = !translationsEnabled;
             case QUALITY -> cycleQuality();
             case PREFETCH -> manager.prefetch(!manager.config().prefetch());
             case DYNAMIC_BACKGROUND -> manager.dynamicBackground(!manager.config().dynamicBackground());
-            case RATE -> cycleRate();
+            case RATE -> { draggingRate = true; updateRate(mouseX); }
             case CACHE_LIMIT -> cycleCacheLimit();
             case HOTKEY_PREVIOUS -> bindingHotkey = MusicConfig.Hotkey.PREVIOUS;
             case HOTKEY_NEXT -> bindingHotkey = MusicConfig.Hotkey.NEXT;
@@ -956,7 +1163,7 @@ public final class MusicTool implements ToolPage {
             case LOGIN_SMS -> {
                 loginTab = LoginTab.SMS;
                 manager.cancelLogin();
-                qrImage = new byte[0];
+                qrArtwork = null;
                 qrRequesting = false;
                 qrChecking = false;
             }
@@ -975,30 +1182,36 @@ public final class MusicTool implements ToolPage {
         if (!leftDown) {
             draggingSeek = false;
             draggingVolume = false;
+            draggingRate = false;
             return;
         }
         if (draggingSeek) updateSeek(x);
         if (draggingVolume) updateVolume(x);
+        if (draggingRate) updateRate(x);
     }
 
     @Override
     public void mouseReleased() {
         draggingSeek = false;
         draggingVolume = false;
+        draggingRate = false;
     }
 
     @Override
     public boolean mouseScrolled(float x, float y, double delta) {
         if (queueOpen && queueBounds != null && queueBounds.contains(x, y)) {
-            queueScroll = Math.clamp(queueScroll + (float) delta * 26f, -maximumQueueScroll, 0f);
+            targetQueueScroll = Math.clamp(targetQueueScroll + (float) delta * 34f,
+                    -maximumQueueScroll, 0f);
             return true;
         }
         if (sidebarBounds != null && sidebarBounds.contains(x, y)) {
-            sidebarScroll = Math.clamp(sidebarScroll + (float) delta * 24f, -maximumSidebarScroll, 0f);
+            targetSidebarScroll = Math.clamp(targetSidebarScroll + (float) delta * 34f,
+                    -maximumSidebarScroll, 0f);
             return true;
         }
         if (bodyBounds != null && bodyBounds.contains(x, y)) {
-            contentScroll = Math.clamp(contentScroll + (float) delta * 28f, -maximumContentScroll, 0f);
+            targetContentScroll = Math.clamp(targetContentScroll + (float) delta * 40f,
+                    -maximumContentScroll, 0f);
             return true;
         }
         return false;
@@ -1051,6 +1264,10 @@ public final class MusicTool implements ToolPage {
         if (queueOpen) { queueOpen = false; return true; }
         if (bindingHotkey != null) { bindingHotkey = null; return true; }
         if (focus.hasFocus()) { focus.clear(); return true; }
+        if (session.musicRoute() == ClickGuiSession.MusicRoute.NOW_PLAYING) {
+            navigate(previousRoute);
+            return true;
+        }
         return false;
     }
 
@@ -1065,37 +1282,51 @@ public final class MusicTool implements ToolPage {
         phone.value("");
         captcha.value("");
         country.value("86");
-        qrImage = new byte[0];
+        qrArtwork = null;
         qrRequesting = false;
         qrChecking = false;
         queueOpen = false;
         queueScroll = 0f;
+        targetQueueScroll = 0f;
         coverPreview = false;
         bindingHotkey = null;
         contentScroll = 0f;
+        targetContentScroll = 0f;
         sidebarScroll = 0f;
+        targetSidebarScroll = 0f;
         encoded.clear();
         hovers.clear();
         imageFades.clear();
         message = "";
+        translationsEnabled = true;
+        previousRoute = ClickGuiSession.MusicRoute.RECOMMENDED;
     }
 
     private void navigate(ClickGuiSession.MusicRoute route) {
+        ClickGuiSession.MusicRoute currentRoute = session.musicRoute();
         if (session.musicRoute() == ClickGuiSession.MusicRoute.LOGIN && route != ClickGuiSession.MusicRoute.LOGIN) {
             manager.cancelLogin();
-            qrImage = new byte[0];
+            qrArtwork = null;
             qrRequesting = false;
             qrChecking = false;
         }
+        if (route == ClickGuiSession.MusicRoute.NOW_PLAYING
+                && currentRoute != ClickGuiSession.MusicRoute.NOW_PLAYING) {
+            previousRoute = currentRoute;
+        }
         session.musicRoute(route);
         contentScroll = 0f;
+        targetContentScroll = 0f;
         routeProgress = 0f;
-        data.load(route);
+        boolean preservesRouteData = route == ClickGuiSession.MusicRoute.NOW_PLAYING
+                || (currentRoute == ClickGuiSession.MusicRoute.NOW_PLAYING && route == previousRoute);
+        if (!preservesRouteData) data.load(route);
     }
 
     private void openPlaylist(Playlist playlist) {
         session.musicRoute(ClickGuiSession.MusicRoute.PLAYLIST);
         contentScroll = 0f;
+        targetContentScroll = 0f;
         routeProgress = 0f;
         data.playlist(playlist);
     }
@@ -1105,23 +1336,21 @@ public final class MusicTool implements ToolPage {
         if (query.isEmpty()) return;
         session.musicRoute(ClickGuiSession.MusicRoute.SEARCH);
         contentScroll = 0f;
+        targetContentScroll = 0f;
         routeProgress = 0f;
         data.search(query);
     }
 
     private void cycleMode() {
         PlayMode[] values = PlayMode.values();
-        manager.mode(values[(manager.config().playMode().ordinal() + 1) % values.length]);
+        PlayMode next = values[(manager.config().playMode().ordinal() + 1) % values.length];
+        if (next == PlayMode.INTELLIGENCE) startIntelligence();
+        else manager.mode(next);
     }
 
     private void cycleQuality() {
         Quality[] values = Quality.values();
         manager.quality(values[(manager.config().quality().ordinal() + 1) % values.length]);
-    }
-
-    private void cycleRate() {
-        float value = manager.config().rate();
-        manager.rate(value < .99f ? 1f : value < 1.24f ? 1.25f : value < 1.49f ? 1.5f : .75f);
     }
 
     private void cycleCacheLimit() {
@@ -1140,7 +1369,14 @@ public final class MusicTool implements ToolPage {
 
     private void updateVolume(float mouseX) {
         if (volumeBounds == null) return;
-        manager.volume(Math.clamp((mouseX - volumeBounds.x()) / volumeBounds.width(), 0f, 1f));
+        float progress = Math.clamp((mouseX - volumeBounds.x()) / volumeBounds.width(), 0f, 1f);
+        manager.volume(Math.round(progress * 10f) / 10f);
+    }
+
+    private void updateRate(float mouseX) {
+        if (rateBounds == null) return;
+        float progress = Math.clamp((mouseX - rateBounds.x()) / rateBounds.width(), 0f, 1f);
+        manager.rate(Math.round((.5f + progress * 1.5f) * 10f) / 10f);
     }
 
     private void likeCurrent() {
@@ -1149,6 +1385,27 @@ public final class MusicTool implements ToolPage {
         boolean liked = !manager.likedIds().contains(music.id());
         run(manager.like(music.id(), liked), success -> show(success ? (liked ? "Added to liked music" : "Removed from liked music")
                 : "Unable to update liked music"));
+    }
+
+    private void startIntelligence() {
+        Playlist playlist = data.selectedPlaylist();
+        if (playlist == null || data.songs().isEmpty()) {
+            show("Open a playlist before enabling Intelligence");
+            return;
+        }
+        Music current = manager.state().music();
+        Music seed = current != null && data.songs().stream().anyMatch(song -> song.id() == current.id())
+                ? current : data.songs().getFirst();
+        PlayMode previous = manager.config().playMode();
+        manager.mode(PlayMode.INTELLIGENCE);
+        show("Building intelligence queue...");
+        long token = generation;
+        manager.playIntelligent(seed.id(), playlist.id(), 50).whenComplete((songs, failure) -> main(() -> {
+            if (failure != null && manager.config().playMode() == PlayMode.INTELLIGENCE) manager.mode(previous);
+            if (disposed || token != generation) return;
+            if (failure != null) show(message(failure));
+            else show(songs.isEmpty() ? "No intelligence recommendations" : "Intelligence playback started");
+        }));
     }
 
     private void cacheCurrent() {
@@ -1168,7 +1425,7 @@ public final class MusicTool implements ToolPage {
             if (disposed || token != generation) return;
             qrRequesting = false;
             if (failure != null) { show(message(failure)); return; }
-            qrImage = bytes == null ? new byte[0] : bytes;
+            qrArtwork = bytes == null || bytes.length == 0 ? null : new Artwork(bytes, null);
             nextQrCheck = System.currentTimeMillis() + 2000L;
         }));
     }
@@ -1184,7 +1441,7 @@ public final class MusicTool implements ToolPage {
             qrChecking = false;
             if (failure != null) { show(message(failure)); return; }
             if (status.code() == 800) {
-                qrImage = new byte[0];
+                qrArtwork = null;
                 show("QR code expired");
             } else if (status.code() == 802) show("Confirm sign in on your phone");
             else if (status.code() == 803) {
@@ -1231,13 +1488,75 @@ public final class MusicTool implements ToolPage {
         messageUntil = System.currentTimeMillis() + 2800L;
     }
 
+    private void drawMarquee(UiContext context, String font, float size, String text, UiRect bounds, int color) {
+        float textWidth = context.width(font, size, text);
+        if (textWidth <= bounds.width()) {
+            context.draw(font, size, text, bounds.x(), bounds.y(), color);
+            return;
+        }
+        float overflow = textWidth - bounds.width();
+        long hold = 1100L;
+        long travel = Math.max(1100L, Math.round(overflow / 28f * 1000f));
+        long cycle = hold * 2L + travel * 2L;
+        long elapsed = Math.floorMod(context.nowMillis() - marqueeStartedAt, cycle);
+        float offset;
+        if (elapsed < hold) offset = 0f;
+        else if (elapsed < hold + travel) {
+            offset = overflow * smoothStep((elapsed - hold) / (float) travel);
+        } else if (elapsed < hold * 2L + travel) offset = overflow;
+        else offset = overflow * (1f - smoothStep((elapsed - hold * 2L - travel) / (float) travel));
+        int clip = context.clip(bounds, 0f);
+        try {
+            context.draw(font, size, text, bounds.x() - offset, bounds.y(), color);
+        } finally {
+            context.restore(clip);
+        }
+    }
+
+    private static float lyricTarget(List<TimedLine> lines, int active, int now) {
+        if (active >= lines.size() - 1) return active;
+        int nextTime = lines.get(active + 1).timeMs();
+        int transition = Math.min(300, Math.max(140, nextTime - lines.get(active).timeMs()));
+        float progress = Math.clamp((now - (nextTime - transition)) / (float) transition, 0f, 1f);
+        return active + smoothStep(progress);
+    }
+
+    private static float smoothStep(float value) {
+        float bounded = Math.clamp(value, 0f, 1f);
+        return bounded * bounded * (3f - 2f * bounded);
+    }
+
     private static int activeLine(List<TimedLine> lines, int now) {
+        int low = 0;
+        int high = lines.size() - 1;
         int active = 0;
-        for (int index = 0; index < lines.size(); index++) {
-            if (lines.get(index).timeMs() > now) break;
-            active = index;
+        while (low <= high) {
+            int middle = low + (high - low) / 2;
+            if (lines.get(middle).timeMs() <= now) {
+                active = middle;
+                low = middle + 1;
+            } else {
+                high = middle - 1;
+            }
         }
         return active;
+    }
+
+    private static WordLine activeWordLine(List<WordLine> lines, int now) {
+        int low = 0;
+        int high = lines.size() - 1;
+        WordLine active = null;
+        while (low <= high) {
+            int middle = low + (high - low) / 2;
+            WordLine value = lines.get(middle);
+            if (value.startMs() <= now) {
+                active = value;
+                low = middle + 1;
+            } else {
+                high = middle - 1;
+            }
+        }
+        return active != null && now <= active.startMs() + active.durationMs() ? active : null;
     }
 
     private static int alpha(int color, int alpha) { return color & 0x00FFFFFF | Math.clamp(alpha, 0, 255) << 24; }
@@ -1249,7 +1568,7 @@ public final class MusicTool implements ToolPage {
         int value = Math.max(0, Math.round(seconds));
         return String.format(java.util.Locale.ROOT, "%d:%02d", value / 60, value % 60);
     }
-    private static String formatRate(float rate) { return String.format(java.util.Locale.ROOT, "%.2fx", rate); }
+    private static String formatRate(float rate) { return String.format(java.util.Locale.ROOT, "%.1fx", rate); }
     private static String formatBytes(long bytes) {
         if (bytes < 1024) return bytes + " B";
         double value = bytes;
@@ -1276,6 +1595,20 @@ public final class MusicTool implements ToolPage {
     private static String ellipsize(UiContext context, String value, float width) {
         return ellipsizeFont(context, UiContext.FONT, 10f, value, width);
     }
+    private static float fitTextSize(UiContext context, String font, float preferred, float minimum,
+                                     String value, float width) {
+        if (value == null || value.isEmpty() || context.width(font, preferred, value) <= width) return preferred;
+        float minimumWidth = context.width(font, minimum, value);
+        if (minimumWidth > width) return Math.max(7f, minimum * width / minimumWidth);
+        float low = minimum;
+        float high = preferred;
+        for (int iteration = 0; iteration < 7; iteration++) {
+            float middle = (low + high) * .5f;
+            if (context.width(font, middle, value) <= width) low = middle;
+            else high = middle;
+        }
+        return low;
+    }
     private static String ellipsizeFont(UiContext context, String font, float size, String value, float width) {
         if (value == null) return "";
         if (context.width(font, size, value) <= width) return value;
@@ -1284,6 +1617,10 @@ public final class MusicTool implements ToolPage {
             result = result.substring(0, result.length() - 1);
         }
         return result + "...";
+    }
+    private static void drawCenteredY(UiContext context, String font, float size, String value,
+                                      float x, float y, float height, int color) {
+        context.draw(font, size, value, x, y + (height - context.height(font, size)) * .5f, color);
     }
     private static void icon(UiContext context, String svg, float x, float y, float size, int color) {
         try (Paint paint = new Paint().setAntiAlias(true).setColor(color)) {
@@ -1308,9 +1645,10 @@ public final class MusicTool implements ToolPage {
 
     private enum LoginTab { QR, SMS }
     private enum Action {
-        NAVIGATE, OPEN_PLAYLIST, PLAY_SONG, PLAY_CACHED, DELETE_CACHED,
+        NAVIGATE, OPEN_PLAYLIST, PLAY_SONG, PLAY_ALL, PLAY_CACHED, DELETE_CACHED,
         PREVIOUS, NEXT, TOGGLE_PLAYBACK, MODE, TOGGLE_QUEUE, PLAY_AT, SEEK, VOLUME,
-        NOW_PLAYING, PREVIEW_COVER, CLOSE_PREVIEW, LIKE_CURRENT, CACHE_CURRENT, INTELLIGENT,
+        NOW_PLAYING, BACK_FROM_NOW_PLAYING, PREVIEW_COVER, CLOSE_PREVIEW,
+        LIKE_CURRENT, CACHE_CURRENT, SEEK_LYRIC, TOGGLE_TRANSLATION,
         QUALITY, PREFETCH, DYNAMIC_BACKGROUND, RATE, CACHE_LIMIT,
         HOTKEY_PREVIOUS, HOTKEY_NEXT, HOTKEY_PAUSE, TRIM_CACHE, CLEAR_CACHE,
         LOGIN_QR, LOGIN_SMS, REQUEST_QR, SEND_SMS, COMPLETE_SMS, LOGOUT;
@@ -1335,5 +1673,4 @@ public final class MusicTool implements ToolPage {
     private record CachedSelection(List<Long> ids, int index) {
         private CachedSelection { ids = List.copyOf(ids); }
     }
-    private record SmartSelection(long songId, long playlistId) { }
 }

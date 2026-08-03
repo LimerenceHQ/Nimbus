@@ -32,6 +32,7 @@ public final class AudioEngine {
     private volatile FloatControl gainControl;
     private volatile float lastAppliedVolume = -1.0f;
     private volatile SourceDataLine currentLine;
+    private volatile long playbackBaseFrame;
     private volatile long seekFrame = -1L;
     private final AtomicReference<float[]> spectrumRef = new AtomicReference<>(new float[0]);
     private final float[] spectrumSmooth = new float[SPECTRUM_BANDS];
@@ -138,13 +139,16 @@ public final class AudioEngine {
         float bounded = Math.max(0.5f, Math.min(2.0f, rate));
         if (Math.abs(this.rate - bounded) < 0.001f) return;
         this.rate = bounded;
-        if (baseFormat != null) seekFrame = playedFrames;
+        AudioFormat format = baseFormat;
+        if (format != null) seekFrame = Math.max(0L, Math.round(getCurrentTimeSeconds() * format.getSampleRate()));
     }
 
     public float getCurrentTimeSeconds() {
         AudioFormat fmt = baseFormat;
         if (fmt == null) return 0.0f;
-        return (float) (playedFrames / fmt.getSampleRate());
+        SourceDataLine line = currentLine;
+        long frame = line == null ? playedFrames : playbackBaseFrame + line.getLongFramePosition();
+        return (float) (frame / fmt.getSampleRate());
     }
 
     public float[] getSpectrum() {
@@ -217,6 +221,7 @@ public final class AudioEngine {
         try (SourceDataLine line = (SourceDataLine) AudioSystem.getLine(info)) {
             int bufferBytes = Math.max(output.getFrameSize() * 16384, 65536);
             line.open(output, bufferBytes);
+            playbackBaseFrame = playedFrames;
             currentLine = line;
             if (paused.get()) {
                 try {

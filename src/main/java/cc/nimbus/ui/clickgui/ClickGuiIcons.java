@@ -18,8 +18,10 @@ public final class ClickGuiIcons {
     public static final String CACHE = svg("<rect x='3' y='5' width='18' height='14' rx='2'/><path d='M7 9h10M7 13h6'/>");
     public static final String QUEUE = svg("<path d='M4 6h12M4 12h12M4 18h8'/><path d='m17 16 4 2-4 2Z'/>");
     public static final String REPEAT = svg("<path d='m17 2 4 4-4 4'/><path d='M3 11V9a3 3 0 0 1 3-3h15'/><path d='m7 22-4-4 4-4'/><path d='M21 13v2a3 3 0 0 1-3 3H3'/>");
+    public static final String REPEAT_ONE = svg("<path d='m17 2 4 4-4 4'/><path d='M3 11V9a3 3 0 0 1 3-3h15'/><path d='m7 22-4-4 4-4'/><path d='M21 13v2a3 3 0 0 1-3 3H3'/><path d='M12 9v6m-2-4 2-2'/>");
     public static final String SHUFFLE = svg("<path d='M3 7h3c4 0 6 10 10 10h5'/><path d='m18 14 3 3-3 3'/><path d='M3 17h3c1.5 0 2.8-1.4 4-3'/><path d='M14 8c.7-.6 1.3-1 2-1h5'/><path d='m18 4 3 3-3 3'/>");
     public static final String VOLUME = svg("<path d='M11 5 6 9H3v6h3l5 4Z'/><path d='M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12'/>");
+    public static final String SPEED = svg("<path d='M5 19a9 9 0 1 1 14 0'/><path d='m12 13 4-4'/><path d='M7 19h10'/>");
     public static final String TRASH = svg("<path d='M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14'/>");
     public static final String LOGOUT = svg("<path d='M10 17l5-5-5-5M15 12H3'/><path d='M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5'/>");
     public static final String USER = svg("<circle cx='12' cy='8' r='4'/><path d='M4 21a8 8 0 0 1 16 0'/>");

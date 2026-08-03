@@ -10,7 +10,6 @@ import java.util.List;
 @SuppressWarnings("ExtractMethodRecommender")
 public final class GaussianSurface extends AbstractOffSurface<GaussianSurface.Target> {
     private final Paint blur = new Paint();
-    private final Paint paint = new Paint();
 
     private float lastRadius = 0;
 
@@ -61,23 +60,30 @@ public final class GaussianSurface extends AbstractOffSurface<GaussianSurface.Ta
         this.blur.setImageFilter(blurFilter);
         this.blur.setColorFilter(saturationFilter);
 
-        if (srcs != null && !srcs.isEmpty()) {
-            float samplingMargin = target.radius() * 3F;
-            for (Rect src : srcs) {
-                Rect samplingBounds = src.inflate(samplingMargin);
-                int count = canvas.saveLayer(samplingBounds, blur);
+        float samplingMargin = target.radius() * 3F;
+        Rect fullBounds = path == null
+                ? Rect.makeWH(snapshot.getWidth(), snapshot.getHeight())
+                : path.getBounds().inflate(samplingMargin);
+        try (Shader scene = snapshot.makeShader(FilterTileMode.CLAMP, FilterTileMode.CLAMP,
+                SamplingMode.LINEAR, Matrix33.IDENTITY);
+             Paint source = new Paint().setShader(scene)) {
+            if (srcs != null && !srcs.isEmpty()) {
+                for (Rect src : srcs) {
+                    Rect samplingBounds = src.inflate(samplingMargin);
+                    int count = canvas.saveLayer(samplingBounds, blur);
+                    try {
+                        canvas.drawRect(samplingBounds, source);
+                    } finally {
+                        canvas.restoreToCount(count);
+                    }
+                }
+            } else {
+                int count = canvas.saveLayer(fullBounds, blur);
                 try {
-                    canvas.drawImageRect(snapshot, samplingBounds, samplingBounds, paint);
+                    canvas.drawRect(fullBounds, source);
                 } finally {
                     canvas.restoreToCount(count);
                 }
-            }
-        } else {
-            int count = canvas.saveLayer(null, blur);
-            try {
-                canvas.drawImage(snapshot, 0, 0, paint);
-            } finally {
-                canvas.restoreToCount(count);
             }
         }
 
@@ -112,7 +118,6 @@ public final class GaussianSurface extends AbstractOffSurface<GaussianSurface.Ta
         if (blurFilter != null && !blurFilter.isClosed()) blurFilter.close();
         if (saturationFilter != null && !saturationFilter.isClosed()) saturationFilter.close();
         if (!blur.isClosed()) blur.close();
-        if (!paint.isClosed()) paint.close();
         blurFilter = null;
         saturationFilter = null;
     }

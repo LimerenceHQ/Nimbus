@@ -270,6 +270,10 @@ public final class MusicManager implements InstanceManager {
         requireInitialized();
         return audioCache.cachedSongs();
     }
+    public boolean isCached(long musicId) {
+        requireInitialized();
+        return musicId > 0L && audioCache.cachedSong(musicId) != null;
+    }
     public CompletableFuture<CachedSong> cache(Music music) {
         Objects.requireNonNull(music, "music");
         return async(() -> {
