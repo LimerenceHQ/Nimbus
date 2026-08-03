@@ -13,7 +13,7 @@ public record UiContext(
         float deltaSeconds,
         long nowMillis
 ) {
-    private static final float FONT_SCALE = 1.12f;
+    private static final float FONT_SCALE = 1.18f;
     public static final String FONT = NimbusFonts.BODY;
     public static final String FONT_MEDIUM = NimbusFonts.BODY_MEDIUM;
 
