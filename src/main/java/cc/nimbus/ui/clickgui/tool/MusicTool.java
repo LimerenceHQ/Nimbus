@@ -25,9 +25,7 @@ import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
 import cc.nimbus.ui.clickgui.tool.music.MusicDataState;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import io.github.humbleui.skija.Image;
-import io.github.humbleui.skija.FilterTileMode;
 import io.github.humbleui.skija.Paint;
-import io.github.humbleui.skija.SaveLayerRec;
 import io.github.humbleui.types.Point;
 import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
@@ -353,6 +351,7 @@ public final class MusicTool implements ToolPage {
     }
 
     private float renderSongsPage(UiContext context, UiRect bounds, float y, String title, List<Music> songs) {
+        float headingY = y;
         y = heading(context, title, songs.size() + " songs", bounds, y);
         if (manager.profile() == null && session.musicRoute() == ClickGuiSession.MusicRoute.LIKED) {
             context.text("Sign in to view liked music", bounds.x() + 18f, y + 8f, 11f, ClickGuiTheme.MUTED);
@@ -360,6 +359,10 @@ public final class MusicTool implements ToolPage {
         }
         if (data.loading()) return loading(context, bounds, y);
         if (!data.error().isBlank()) return error(context, bounds, y);
+        if (!songs.isEmpty()) {
+            control(context, new UiRect(bounds.x() + bounds.width() - 46f, headingY - 2f, 28f, 28f),
+                    ClickGuiIcons.PLAY, Action.PLAY_ALL, bodyBounds);
+        }
         return songList(context, bounds, y, songs);
     }
 
@@ -804,58 +807,51 @@ public final class MusicTool implements ToolPage {
                 width, bounds.height() - topInset - PLAYER_HEIGHT);
         Rect panelBounds = Rect.makeXYWH(queueBounds.x(), queueBounds.y(),
                 queueBounds.width(), queueBounds.height());
-        int panelClip = context.clip(queueBounds, 0f);
+        int layer = context.frame().canvas().saveLayerAlpha(
+                panelBounds, Math.round(queueProgress * 255f));
         try {
-            try (Paint layerPaint = new Paint().setAlpha(Math.round(queueProgress * 255f))) {
-                int layer = context.frame().canvas().saveLayer(new SaveLayerRec(panelBounds, layerPaint,
-                        context.frame().effects().imageBlur(12f, 12f, FilterTileMode.CLAMP)));
-                try {
-                    context.frame().draw().rect(queueBounds.x(), queueBounds.y(), queueBounds.width(),
-                            queueBounds.height(), 0xA00E1013);
-                    context.frame().draw().rect(queueBounds.x(), queueBounds.y(), 1f, queueBounds.height(),
-                            ClickGuiTheme.STROKE);
-                    context.medium("Queue", queueBounds.x() + 16f, queueBounds.y() + 15f, 14f,
-                            ClickGuiTheme.TEXT);
-                    PlaybackQueueState queue = manager.queueState();
-                    UiRect viewport = new UiRect(queueBounds.x(), queueBounds.y() + 47f, queueBounds.width(),
-                            queueBounds.height() - 47f);
-                    float y = viewport.y() + queueScroll;
-                    int clip = context.clip(viewport, 0f);
-                    try {
-                        for (int index = 0; index < queue.songs().size(); index++) {
-                            Music music = queue.songs().get(index);
-                            UiRect row = new UiRect(queueBounds.x() + 8f, y, queueBounds.width() - 16f, 42f);
-                            if (!row.intersects(viewport)) {
-                                y += 45f;
-                                continue;
-                            }
-                            if (index == queue.index() || row.contains(context.mouseX(), context.mouseY())) {
-                                context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
-                                        index == queue.index() ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
-                            }
-                            UiRect cover = new UiRect(row.x() + 6f, row.y() + 5f, 32f, 32f);
-                            drawArtwork(context, data.thumbnail(music, 96), "queue-cover:" + music.id(),
-                                    cover, 4f, 255);
-                            drawCenteredY(context, NimbusFonts.CONTENT_MEDIUM, 9.8f,
-                                    ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 9.8f,
-                                            music.name(), row.width() - 56f),
-                                    row.x() + 48f, row.y(), row.height(),
-                                    index == queue.index() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
-                            if (queueProgress > .85f) hits.add(new Hit(row, Action.PLAY_AT, index, viewport));
-                            y += 45f;
-                        }
-                        maximumQueueScroll = Math.max(0f, queue.songs().size() * 45f - viewport.height());
-                        targetQueueScroll = Math.clamp(targetQueueScroll, -maximumQueueScroll, 0f);
-                        queueScroll = Math.clamp(queueScroll, -maximumQueueScroll, 0f);
-                    } finally {
-                        context.restore(clip);
+            context.frame().draw().rect(queueBounds.x(), queueBounds.y(), queueBounds.width(),
+                    queueBounds.height(), 0xA00E1013);
+            context.frame().draw().rect(queueBounds.x(), queueBounds.y(), 1f, queueBounds.height(),
+                    ClickGuiTheme.STROKE);
+            context.medium("Queue", queueBounds.x() + 16f, queueBounds.y() + 15f, 14f,
+                    ClickGuiTheme.TEXT);
+            PlaybackQueueState queue = manager.queueState();
+            UiRect viewport = new UiRect(queueBounds.x(), queueBounds.y() + 47f, queueBounds.width(),
+                    queueBounds.height() - 47f);
+            float y = viewport.y() + queueScroll;
+            int clip = context.clip(viewport, 0f);
+            try {
+                for (int index = 0; index < queue.songs().size(); index++) {
+                    Music music = queue.songs().get(index);
+                    UiRect row = new UiRect(queueBounds.x() + 8f, y, queueBounds.width() - 16f, 42f);
+                    if (!row.intersects(viewport)) {
+                        y += 45f;
+                        continue;
                     }
-                } finally {
-                    context.frame().canvas().restoreToCount(layer);
+                    if (index == queue.index() || row.contains(context.mouseX(), context.mouseY())) {
+                        context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
+                                index == queue.index() ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
+                    }
+                    UiRect cover = new UiRect(row.x() + 6f, row.y() + 5f, 32f, 32f);
+                    drawArtwork(context, data.thumbnail(music, 96), "queue-cover:" + music.id(),
+                            cover, 4f, 255);
+                    drawCenteredY(context, NimbusFonts.CONTENT_MEDIUM, 9.8f,
+                            ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 9.8f,
+                                    music.name(), row.width() - 56f),
+                            row.x() + 48f, row.y(), row.height(),
+                            index == queue.index() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+                    if (queueProgress > .85f) hits.add(new Hit(row, Action.PLAY_AT, index, viewport));
+                    y += 45f;
                 }
+                maximumQueueScroll = Math.max(0f, queue.songs().size() * 45f - viewport.height());
+                targetQueueScroll = Math.clamp(targetQueueScroll, -maximumQueueScroll, 0f);
+                queueScroll = Math.clamp(queueScroll, -maximumQueueScroll, 0f);
+            } finally {
+                context.restore(clip);
             }
         } finally {
-            context.restore(panelClip);
+            context.frame().canvas().restoreToCount(layer);
         }
     }
 
