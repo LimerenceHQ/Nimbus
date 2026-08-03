@@ -33,8 +33,10 @@ import java.util.Set;
 public final class SettingControls {
     private static final float ROW_HEIGHT = 32f;
     private static final float NUMBER_HEIGHT = 42f;
-    private static final float STACKED_TEXT_HEIGHT = 58f;
-    private static final float STACKED_TEXT_THRESHOLD = 175f;
+    private static final float STACKED_TEXT_HEADER_HEIGHT = 26f;
+    private static final float STACKED_TEXT_HEIGHT = 63f;
+    private static final float STACKED_TEXT_THRESHOLD = 220f;
+    private static final float MULTILINE_TEXT_HEIGHT = 132f;
     private static final float GAP = 2f;
     private static final float OPTION_HEIGHT = 26f;
     private static final float COLOR_AREA_HEIGHT = 124f;
@@ -46,7 +48,9 @@ public final class SettingControls {
     private final Map<Setting<?>, Float> animations = new IdentityHashMap<>();
     private final Map<Setting<?>, Float> hoverAnimations = new IdentityHashMap<>();
     private final Map<Setting<?>, Float> focusAnimations = new IdentityHashMap<>();
+    private final Map<Setting<?>, Float> valueHoverAnimations = new IdentityHashMap<>();
     private final Map<Setting<?>, Float> dragAnimations = new IdentityHashMap<>();
+    private final Map<NumberSetting, Double> displayedNumbers = new IdentityHashMap<>();
     private final Map<Setting<?>, Float> disclosureAnimations = new IdentityHashMap<>();
     private final Map<Setting<?>, Float> visibilityAnimations = new IdentityHashMap<>();
     private final Map<OptionKey, Float> optionAnimations = new java.util.HashMap<>();
@@ -276,22 +280,24 @@ public final class SettingControls {
 
     private void renderSetting(UiContext context, Setting<?> setting, UiRect bounds) {
         UiRect row = new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT);
+        boolean stackedText = setting instanceof TextSetting text && !text.isMultiline()
+                && bounds.width() < STACKED_TEXT_THRESHOLD;
+        float headerHeight = stackedText ? STACKED_TEXT_HEADER_HEIGHT
+                : setting instanceof NumberSetting ? NUMBER_HEIGHT : ROW_HEIGHT;
         float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 13f);
         float hover = animate(hoverAnimations.getOrDefault(setting, 0f),
-                new UiRect(bounds.x(), bounds.y(), bounds.width(),
-                        Math.min(bounds.height(), setting instanceof NumberSetting ? NUMBER_HEIGHT : ROW_HEIGHT))
+                new UiRect(bounds.x(), bounds.y(), bounds.width(), Math.min(bounds.height(), headerHeight))
                         .contains(context.mouseX(), context.mouseY()) ? 1f : 0f, speed);
         hoverAnimations.put(setting, hover);
         if (hover > .01f) {
             context.frame().draw().roundedRect(bounds.x(), bounds.y() + 1f, bounds.width(),
-                    Math.min(bounds.height(), setting instanceof NumberSetting ? NUMBER_HEIGHT : ROW_HEIGHT) - 2f,
+                    Math.min(bounds.height(), headerHeight) - 2f,
                     5f, alpha(ClickGuiTheme.HOVER, hover));
         }
         context.frame().draw().rect(bounds.x() + 7f, bounds.y() + bounds.height() - 1f,
                 bounds.width() - 14f, 1f, 0x0CFFFFFF);
-        boolean stackedText = setting instanceof TextSetting text && !text.isMultiline()
-                && bounds.width() < STACKED_TEXT_THRESHOLD;
-        float labelHeight = stackedText ? 25f : setting instanceof NumberSetting ? 28f : ROW_HEIGHT;
+        float labelHeight = stackedText ? STACKED_TEXT_HEADER_HEIGHT
+                : setting instanceof NumberSetting ? 28f : ROW_HEIGHT;
         float labelWidth = labelWidth(setting, bounds.width(), stackedText);
         context.textIn(ellipsize(context, setting.getName(), labelWidth),
                 new UiRect(bounds.x() + 8f, bounds.y(), labelWidth, labelHeight),
@@ -341,25 +347,52 @@ public final class SettingControls {
     private void renderNumber(UiContext context, NumberSetting setting, UiRect bounds) {
         UiRect valueBounds = new UiRect(bounds.x() + bounds.width() - 58f, bounds.y() + 3f, 50f, 22f);
         float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 15f);
-        float focused = animate(focusAnimations.getOrDefault(setting, editing == setting ? 1f : 0f),
+        double targetValue = setting.getValue().doubleValue();
+        double displayedValue = displayedNumbers.getOrDefault(setting, targetValue);
+        float valueSpeed = 1f - (float) Math.exp(-context.deltaSeconds()
+                * (draggingNumber == setting ? 32f : 16f));
+        displayedValue += (targetValue - displayedValue) * valueSpeed;
+        double snapDistance = Math.max(1e-7, setting.getIncrement().doubleValue() * .01);
+        if (Math.abs(targetValue - displayedValue) <= snapDistance) displayedValue = targetValue;
+        displayedNumbers.put(setting, displayedValue);
+        float focused = animate(focusAnimations.getOrDefault(setting, 0f),
                 editing == setting ? 1f : 0f, speed);
         focusAnimations.put(setting, focused);
-        int valueBackground = mix(ClickGuiTheme.CONTROL, context.theme().accent(0x38), focused);
-        int valueOutline = mix(ClickGuiTheme.STROKE, context.theme().accent(0x64), focused);
-        if (editing == setting) {
-            editor.render(context, valueBounds, "0", 10.5f, false, valueBackground, valueOutline);
-        } else {
-            context.frame().draw().roundedRect(valueBounds.x(), valueBounds.y(), valueBounds.width(),
-                    valueBounds.height(), 4f, valueBackground);
-            context.frame().draw().outline(valueBounds.x(), valueBounds.y(), valueBounds.width(),
-                    valueBounds.height(), 4f, 1f, valueOutline);
-            context.centered(format(setting.getValue()), valueBounds, 10.5f, ClickGuiTheme.MUTED);
+        float valueHover = animate(valueHoverAnimations.getOrDefault(setting, 0f),
+                valueBounds.contains(context.mouseX(), context.mouseY()) ? 1f : 0f, speed);
+        valueHoverAnimations.put(setting, valueHover);
+        int valueBackground = mix(0x00000000, 0x14FFFFFF, valueHover);
+        valueBackground = mix(valueBackground, context.theme().accent(0x32), focused);
+        int valueOutline = alpha(context.theme().accent(0x64), focused);
+        context.frame().draw().roundedRect(valueBounds.x(), valueBounds.y(), valueBounds.width(),
+                valueBounds.height(), 4f, valueBackground);
+        context.frame().draw().outline(valueBounds.x(), valueBounds.y(), valueBounds.width(),
+                valueBounds.height(), 4f, 1f, valueOutline);
+        if (focused < .999f) {
+            int valueLayer = context.frame().canvas().saveLayerAlpha(
+                    Rect.makeXYWH(valueBounds.x(), valueBounds.y(), valueBounds.width(), valueBounds.height()),
+                    Math.round(255f * (1f - focused)));
+            try {
+                context.centered(format(displayedValue), valueBounds, 10.5f, ClickGuiTheme.MUTED);
+            } finally {
+                context.frame().canvas().restoreToCount(valueLayer);
+            }
+        }
+        if (focused > .001f) {
+            int editorLayer = context.frame().canvas().saveLayerAlpha(
+                    Rect.makeXYWH(valueBounds.x(), valueBounds.y(), valueBounds.width(), valueBounds.height()),
+                    Math.round(255f * focused));
+            try {
+                editor.render(context, valueBounds, "0", 10.5f, false, valueBackground, valueOutline);
+            } finally {
+                context.frame().canvas().restoreToCount(editorLayer);
+            }
         }
         UiRect track = new UiRect(bounds.x() + 8f, bounds.y() + bounds.height() - 9f,
                 bounds.width() - 16f, 4f);
         double min = setting.getMinimum().doubleValue();
         double max = setting.getMaximum().doubleValue();
-        float progress = max <= min ? 0f : (float) ((setting.getValue().doubleValue() - min) / (max - min));
+        float progress = max <= min ? 0f : (float) ((displayedValue - min) / (max - min));
         float clamped = Math.clamp(progress, 0f, 1f);
         float dragging = animate(dragAnimations.getOrDefault(setting, draggingNumber == setting ? 1f : 0f),
                 draggingNumber == setting ? 1f : 0f, speed);
@@ -505,7 +538,7 @@ public final class SettingControls {
     private void renderText(UiContext context, Setting<String> setting, UiRect bounds, boolean secure) {
         boolean stacked = bounds.width() < STACKED_TEXT_THRESHOLD;
         UiRect input = stacked
-                ? new UiRect(bounds.x() + 8f, bounds.y() + 27f, bounds.width() - 16f, 25f)
+                ? new UiRect(bounds.x() + 8f, bounds.y() + 31f, bounds.width() - 16f, 25f)
                 : new UiRect(bounds.x() + bounds.width() * .46f, bounds.y() + 4f,
                 bounds.width() * .54f - 8f, 24f);
         float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 15f);
@@ -532,8 +565,8 @@ public final class SettingControls {
     }
 
     private void renderMultilineText(UiContext context, TextSetting setting, UiRect bounds) {
-        UiRect input = new UiRect(bounds.x() + 7f, bounds.y() + ROW_HEIGHT,
-                bounds.width() - 14f, bounds.height() - ROW_HEIGHT - 7f);
+        UiRect input = new UiRect(bounds.x() + 7f, bounds.y() + ROW_HEIGHT + 5f,
+                bounds.width() - 14f, bounds.height() - ROW_HEIGHT - 12f);
         if (editing == setting) {
             multilineEditor.render(context, input,
                     setting.getPlaceholder() == null ? "Value" : setting.getPlaceholder(), 10.5f, setting.isSecure());
@@ -578,7 +611,7 @@ public final class SettingControls {
             return ROW_HEIGHT + COLOR_AREA_HEIGHT * disclosure(setting, color.isExpanded());
         }
         if (setting instanceof NumberSetting) return NUMBER_HEIGHT;
-        if (setting instanceof TextSetting text && text.isMultiline()) return 104f;
+        if (setting instanceof TextSetting text && text.isMultiline()) return MULTILINE_TEXT_HEIGHT;
         if (setting instanceof TextSetting) return width < STACKED_TEXT_THRESHOLD ? STACKED_TEXT_HEIGHT : ROW_HEIGHT;
         if (!(setting instanceof BooleanSetting || setting instanceof FoldSetting || setting instanceof NumberSetting
                 || setting instanceof ModeSetting || setting instanceof MultiSelectSetting

@@ -47,6 +47,7 @@ public final class ClickGuiView {
     private final SettingControls controls = new SettingControls(focus);
     private final EnumMap<ClickGuiSession.Tool, ToolPage> tools = new EnumMap<>(ClickGuiSession.Tool.class);
     private final EnumMap<ModuleCategory, UiRect> columnBounds = new EnumMap<>(ModuleCategory.class);
+    private final EnumMap<ModuleCategory, Float> animatedScroll = new EnumMap<>(ModuleCategory.class);
     private final List<ModuleHit> moduleHits = new ArrayList<>();
     private final List<RailHit> railHits = new ArrayList<>();
     private final Map<String, Float> expansion = new HashMap<>();
@@ -92,7 +93,7 @@ public final class ClickGuiView {
         }
     }
 
-    public void render(UiContext context, float width, float height) {
+    public void render(UiContext context, float width, float height, float closingProgress) {
         logicalWidth = width;
         logicalHeight = height;
         moduleHits.clear();
@@ -111,13 +112,13 @@ public final class ClickGuiView {
             if (outgoing != null) outgoing.closed();
             outgoingTool = ClickGuiSession.Tool.NONE;
         }
-        if (columnsProgress > .005f) renderColumns(context, speed);
+        if (columnsProgress > .005f) renderColumns(context, speed, closingProgress);
         renderTool(context);
         renderRail(context);
         renderTooltip(context);
     }
 
-    private void renderColumns(UiContext context, float speed) {
+    private void renderColumns(UiContext context, float speed, float closingProgress) {
         float railSpace = 62f;
         float available = logicalWidth - railSpace - 48f;
         float panelWidth = Math.clamp((available - PANEL_GAP * 5f) / 6f, 150f, 210f);
@@ -126,12 +127,12 @@ public final class ClickGuiView {
         String query = search.value().strip().toLowerCase(Locale.ROOT);
         for (int index = 0; index < CATEGORIES.length; index++) {
             renderColumn(context, CATEGORIES[index], index, x + index * (panelWidth + PANEL_GAP),
-                    panelWidth, query, speed);
+                    panelWidth, query, speed, closingProgress);
         }
     }
 
     private void renderColumn(UiContext context, ModuleCategory category, int index, float x, float width,
-                              String query, float speed) {
+                              String query, float speed, float closingProgress) {
         List<BasicModule> modules = Core.INSTANCE.getModuleManager().getModulesByCategory(category).stream()
                 .filter(module -> query.isEmpty()
                         || module.getDisplayName().toLowerCase(Locale.ROOT).contains(query)
@@ -149,12 +150,13 @@ public final class ClickGuiView {
         float maximumHeight = logicalHeight - 82f;
         float panelHeight = Math.min(maximumHeight, PANEL_HEADER + Math.max(MODULE_HEIGHT + 6f, contentHeight));
         float opening = opening(index, context.nowMillis());
-        float y = 40f - (1f - opening) * 14f - (1f - columnsProgress) * 18f;
+        float exit = columnExit(index, closingProgress);
+        float y = 40f - (1f - opening) * 14f - (1f - columnsProgress) * 18f - exit * 12f;
         UiRect panel = new UiRect(x, y, width, panelHeight);
         columnBounds.put(category, panel);
         int layer = context.frame().canvas().saveLayerAlpha(
                 Rect.makeXYWH(panel.x(), panel.y(), panel.width(), panel.height()),
-                Math.round(255f * opening * columnsProgress));
+                Math.round(255f * opening * columnsProgress * (1f - exit)));
         try {
             context.frame().draw().roundedRect(panel.x(), panel.y(), panel.width(), panel.height(), 7f,
                     ClickGuiTheme.PANEL);
@@ -170,8 +172,11 @@ public final class ClickGuiView {
             UiRect viewport = new UiRect(panel.x() + 5f, panel.y() + PANEL_HEADER,
                     panel.width() - 10f, panel.height() - PANEL_HEADER - 5f);
             float minimum = Math.min(0f, viewport.height() - contentHeight);
-            float scroll = Math.clamp(session.scroll(category), minimum, 0f);
-            session.scroll(category, scroll);
+            float targetScroll = Math.clamp(session.scroll(category), minimum, 0f);
+            session.scroll(category, targetScroll);
+            float scroll = animate(Math.clamp(animatedScroll.getOrDefault(category, targetScroll), minimum, 0f),
+                    targetScroll, 1f - (float) Math.exp(-context.deltaSeconds() * 13f));
+            animatedScroll.put(category, scroll);
             int clip = context.clip(viewport, 2f);
             try {
                 float rowY = viewport.y() + 7f + scroll;
@@ -252,11 +257,32 @@ public final class ClickGuiView {
                 context.frame().canvas().restoreToCount(keyLayer);
             }
         }
-        String label = binding == module ? "Press a key..." : module.getDisplayName();
-        float labelRight = binding == module ? right : lerp(right, keyBounds.x() - 5f, keyVisibility);
-        context.textIn(ellipsize(context, label, Math.max(20f, labelRight - row.x() - 9f), 11f),
-                new UiRect(row.x() + 9f, row.y(), Math.max(20f, labelRight - row.x() - 9f), row.height()),
-                11f, binding == module || module.isEnabled() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+        float normalLabelRight = lerp(right, keyBounds.x() - 5f, keyVisibility);
+        float normalLabelWidth = Math.max(20f, normalLabelRight - row.x() - 9f);
+        if (bindingProgress < .999f) {
+            int normalLayer = context.frame().canvas().saveLayerAlpha(
+                    Rect.makeXYWH(row.x(), row.y(), row.width(), row.height()),
+                    Math.round(255f * (1f - bindingProgress)));
+            try {
+                context.textIn(ellipsize(context, module.getDisplayName(), normalLabelWidth, 11f),
+                        new UiRect(row.x() + 9f, row.y(), normalLabelWidth, row.height()), 11f,
+                        module.isEnabled() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+            } finally {
+                context.frame().canvas().restoreToCount(normalLayer);
+            }
+        }
+        if (bindingProgress > .001f) {
+            float bindingLabelWidth = Math.max(20f, right - row.x() - 9f);
+            int bindingLayer = context.frame().canvas().saveLayerAlpha(
+                    Rect.makeXYWH(row.x(), row.y(), row.width(), row.height()),
+                    Math.round(255f * bindingProgress));
+            try {
+                context.textIn("Press key", new UiRect(row.x() + 9f, row.y(), bindingLabelWidth, row.height()),
+                        11f, ClickGuiTheme.TEXT);
+            } finally {
+                context.frame().canvas().restoreToCount(bindingLayer);
+            }
+        }
         if (hasSettings) {
             float disclosure = expansion.getOrDefault(module.getName(), expanded ? 1f : 0f);
             iconAlpha(context, ClickGuiIcons.EXPAND_MORE, row.x() + row.width() - 22f,
@@ -602,6 +628,12 @@ public final class ClickGuiView {
     private float opening(int index, long now) {
         float value = Math.clamp((now - openedAt - index * 28L) / 320f, 0f, 1f);
         return 1f - (float) Math.pow(1f - value, 3d);
+    }
+
+    private static float columnExit(int index, float closingProgress) {
+        float start = (CATEGORIES.length - 1 - index) * .1f;
+        float value = Math.clamp((closingProgress - start) / .5f, 0f, 1f);
+        return value * value * (3f - 2f * value);
     }
 
     private static float animate(Map<String, Float> values, String key, boolean target, float speed) {

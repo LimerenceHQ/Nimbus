@@ -19,12 +19,13 @@ import org.lwjgl.glfw.GLFW;
 public final class ClickGuiScreen extends AbstractSkijaScreen {
     private static final float PREFERRED_UI_SCALE = 1.34f;
     private static final long ENTER_NANOS = 340_000_000L;
-    private static final long EXIT_NANOS = 210_000_000L;
+    private static final long EXIT_NANOS = 280_000_000L;
     private final ClickGuiView view;
     private final long openedAtNanos = System.nanoTime();
     private long lastFrameNanos = System.nanoTime();
     private long closingAtNanos;
     private boolean closeScheduled;
+    private boolean closeReady;
     private float scale = 1f;
     private float originX;
     private float originY;
@@ -49,8 +50,10 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
         long now = System.nanoTime();
         float delta = Math.clamp((now - lastFrameNanos) / 1_000_000_000f, 0f, .05f);
         lastFrameNanos = now;
-        float visibility = visibility(now);
-        float offsetY = (1f - visibility) * 12f;
+        float closeProgress = closeProgress(now);
+        float visibility = visibility(now, closeProgress);
+        float offsetX = closingAtNanos == 0L ? 0f : -18f * smooth(closeProgress);
+        float offsetY = closingAtNanos == 0L ? (1f - visibility) * 12f : 0f;
 
         frame.postProcess().add(RRect.makeXYWH(0f, 0f, width, height, 0f));
         frame.postProcess().draw();
@@ -62,23 +65,20 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
             canvas.scale(scale, scale);
             int layer = canvas.saveLayerAlpha(Rect.makeXYWH(0f, 0f, logicalWidth, logicalHeight),
                     Math.round(255f * visibility));
-            canvas.translate(0f, offsetY);
+            canvas.translate(offsetX, offsetY);
             lastContext = new UiContext(frame,
                     ClickGuiTheme.from(Core.INSTANCE.getConfigManager().clientSettings()),
-                    logicalX(framebufferMouseX()), logicalY(framebufferMouseY()) - offsetY, delta,
+                    logicalX(framebufferMouseX()) - offsetX, logicalY(framebufferMouseY()) - offsetY, delta,
                     System.currentTimeMillis());
             try {
-                view.render(lastContext, logicalWidth, logicalHeight);
+                view.render(lastContext, logicalWidth, logicalHeight, closeProgress);
             } finally {
                 canvas.restoreToCount(layer);
             }
         } finally {
             canvas.restoreToCount(save);
         }
-        if (closingAtNanos != 0L && visibility <= .001f && !closeScheduled) {
-            closeScheduled = true;
-            minecraft.execute(this::finishClose);
-        }
+        if (closingAtNanos != 0L && closeProgress >= 1f) closeReady = true;
     }
 
     @Override
@@ -118,6 +118,11 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
         return !acceptsInput() || view.preeditUpdated(event) || super.preeditUpdated(event);
     }
     @Override public void onClose() { requestClose(); }
+    @Override protected void extractedSkijaFramePresented() {
+        if (!closeReady || closeScheduled) return;
+        closeScheduled = true;
+        finishClose();
+    }
     @Override protected void removedSkijaScreen() { view.close(); }
     @Override public boolean isPauseScreen() { return false; }
 
@@ -141,11 +146,16 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
         if (minecraft.gui.screen() == this) super.onClose();
     }
 
-    private float visibility(long now) {
+    private float visibility(long now, float closeProgress) {
         if (closingAtNanos != 0L) {
-            return 1f - smooth(Math.clamp((now - closingAtNanos) / (float) EXIT_NANOS, 0f, 1f));
+            return 1f - smooth(Math.clamp((closeProgress - .68f) / .32f, 0f, 1f));
         }
         return easeOutCubic(Math.clamp((now - openedAtNanos) / (float) ENTER_NANOS, 0f, 1f));
+    }
+
+    private float closeProgress(long now) {
+        if (closingAtNanos == 0L) return 0f;
+        return Math.clamp((now - closingAtNanos) / (float) EXIT_NANOS, 0f, 1f);
     }
 
     private static float smooth(float value) {

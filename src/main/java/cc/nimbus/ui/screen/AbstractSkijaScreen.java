@@ -49,6 +49,13 @@ public abstract class AbstractSkijaScreen extends Screen {
         layer.render(this::renderSkija);
     }
 
+    public final void extractedFramePresented() {
+        extractedSkijaFramePresented();
+    }
+
+    protected void extractedSkijaFramePresented() {
+    }
+
     protected abstract void renderSkija(SkijaFrame frame);
 
     public int requestedSceneCaptureRate(PostProcessOptions options) {

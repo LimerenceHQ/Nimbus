@@ -28,12 +28,14 @@ public class GuiRendererMixin {
     @Unique private GuiRenderState nimbus$state;
     @Unique private GuiRenderer nimbus$renderer;
     @Unique private SkijaLayer nimbus$hudLayer;
+    @Unique private AbstractSkijaScreen nimbus$drawnScreen;
     @Unique private ClientLevel nimbus$scene;
     @Unique private static final ThreadLocal<Boolean> NIMBUS_RENDERING_AUXILIARY = ThreadLocal.withInitial(() -> false);
 
     @Inject(method = "draw", at = @At("HEAD"))
     private void nimbus$draw(CallbackInfo ci) {
         if (NIMBUS_RENDERING_AUXILIARY.get()) return;
+        nimbus$drawnScreen = null;
         Minecraft minecraft = Minecraft.getInstance();
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         skija.validateSupport();
@@ -52,6 +54,7 @@ public class GuiRendererMixin {
                 skija.captureScene(captureRate);
             }
             screen.renderExtractedFrame();
+            nimbus$drawnScreen = screen;
         }
 
         if (nimbus$renderer == null) {
@@ -88,6 +91,14 @@ public class GuiRendererMixin {
         } finally {
             NIMBUS_RENDERING_AUXILIARY.set(false);
         }
+    }
+
+    @Inject(method = "draw", at = @At("RETURN"))
+    private void nimbus$framePresented(CallbackInfo ci) {
+        if (NIMBUS_RENDERING_AUXILIARY.get()) return;
+        AbstractSkijaScreen screen = nimbus$drawnScreen;
+        nimbus$drawnScreen = null;
+        if (screen != null) screen.extractedFramePresented();
     }
 
     @Inject(method = "close", at = @At("HEAD"))
