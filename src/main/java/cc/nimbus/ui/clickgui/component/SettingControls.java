@@ -63,6 +63,7 @@ public final class SettingControls {
     private ColorSetting openColor;
     private HitKind colorDragKind;
     private UiRect hitClip;
+    private UiContext lastContext;
     private float disclosureSpeed = 1f;
     private boolean hitsEnabled = true;
 
@@ -95,6 +96,7 @@ public final class SettingControls {
 
     public float render(UiContext context, List<Setting<?>> settings, float x, float y, float width,
                         UiRect clipBounds) {
+        lastContext = context;
         UiRect previousClip = hitClip;
         hitClip = clipBounds;
         float currentY = y;
@@ -167,8 +169,8 @@ public final class SettingControls {
             case COLOR_RAINBOW -> ((ColorSetting) setting).setRainbow(!((ColorSetting) setting).isRainbow());
             case TEXT -> {
                 beginEditing(setting);
-                if (setting instanceof TextSetting text && text.isMultiline()) {
-                    multilineEditor.placeCursor(hit.bounds(), x, y);
+                if (setting instanceof TextSetting text && text.isMultiline() && lastContext != null) {
+                    multilineEditor.placeCursor(lastContext, hit.bounds(), 10.5f, x, y);
                 }
             }
         }
@@ -299,7 +301,7 @@ public final class SettingControls {
         float labelHeight = stackedText ? STACKED_TEXT_HEADER_HEIGHT
                 : setting instanceof NumberSetting ? 28f : ROW_HEIGHT;
         float labelWidth = labelWidth(setting, bounds.width(), stackedText);
-        context.textIn(ellipsize(context, setting.getName(), labelWidth),
+        context.textIn(ellipsize(context, translatedName(context, setting), labelWidth),
                 new UiRect(bounds.x() + 8f, bounds.y(), labelWidth, labelHeight),
                 11f, ClickGuiTheme.TEXT);
 
@@ -312,7 +314,8 @@ public final class SettingControls {
         else if (setting instanceof TextSetting value && value.isMultiline()) renderMultilineText(context, value, bounds);
         else if (setting instanceof TextSetting value) renderText(context, value, bounds, value.isSecure());
         else {
-            context.textIn("Unsupported: " + setting.getClass().getSimpleName(),
+            context.textIn(context.translate("nimbus.ui.unsupported", "Unsupported: %s",
+                            setting.getClass().getSimpleName()),
                     new UiRect(bounds.x() + 7f, bounds.y() + ROW_HEIGHT, bounds.width() - 14f, 22f),
                     10f, ClickGuiTheme.DANGER);
         }
@@ -411,9 +414,9 @@ public final class SettingControls {
     }
 
     private void renderMode(UiContext context, ModeSetting setting, UiRect bounds) {
-        UiRect value = new UiRect(bounds.x() + bounds.width() * 0.52f, bounds.y(),
-                bounds.width() * 0.48f - 29f, ROW_HEIGHT);
-        rightText(context, ellipsize(context, setting.getValue(), value.width()), value, 10.5f,
+        UiRect value = new UiRect(bounds.x() + bounds.width() * 0.44f, bounds.y(),
+                bounds.width() * 0.56f - 29f, ROW_HEIGHT);
+        rightText(context, ellipsize(context, translatedOption(context, setting, setting.getValue()), value.width()), value, 10.5f,
                 ClickGuiTheme.MUTED);
         float disclosure = disclosureAnimations.getOrDefault(setting, openOptions == setting ? 1f : 0f);
         disclosureIcon(context, bounds, disclosure);
@@ -429,7 +432,7 @@ public final class SettingControls {
                 UiRect optionBounds = new UiRect(bounds.x() + 5f, y, bounds.width() - 10f, OPTION_HEIGHT);
                 boolean selected = setting.is(option);
                 float selectedProgress = optionProgress(context, setting, option, selected);
-                context.textIn(option, new UiRect(optionBounds.x() + 9f, optionBounds.y(),
+                context.textIn(translatedOption(context, setting, option), new UiRect(optionBounds.x() + 9f, optionBounds.y(),
                         optionBounds.width() - 36f, optionBounds.height()), 10.5f,
                         mix(ClickGuiTheme.MUTED, ClickGuiTheme.TEXT, selectedProgress));
                 iconAlpha(context, ClickGuiIcons.CHECK, optionBounds.x() + optionBounds.width() - 23f,
@@ -446,11 +449,12 @@ public final class SettingControls {
     }
 
     private void renderMulti(UiContext context, MultiSelectSetting setting, UiRect bounds) {
-        String summary = bounds.width() < 160f
-                ? setting.getValue().size() + "/" + setting.getModes().length
-                : multiSummary(setting);
-        UiRect value = new UiRect(bounds.x() + bounds.width() * 0.52f, bounds.y(),
-                bounds.width() * 0.48f - 29f, ROW_HEIGHT);
+        UiRect value = new UiRect(bounds.x() + bounds.width() * 0.44f, bounds.y(),
+                bounds.width() * 0.56f - 29f, ROW_HEIGHT);
+        String summary = multiSummary(context, setting);
+        if (context.width(UiContext.FONT, 10.5f, summary) > value.width()) {
+            summary = setting.getValue().size() + "/" + setting.getModes().length;
+        }
         rightText(context, ellipsize(context, summary, value.width()), value, 10.5f, ClickGuiTheme.MUTED);
         float disclosure = disclosureAnimations.getOrDefault(setting, openOptions == setting ? 1f : 0f);
         disclosureIcon(context, bounds, disclosure);
@@ -471,7 +475,7 @@ public final class SettingControls {
                         mix(0x20FFFFFF, context.theme().accent(0x78), selectedProgress));
                 iconAlpha(context, ClickGuiIcons.CHECK, check.x() + 1f, check.y() + 1f, 12f,
                         ClickGuiTheme.TEXT, selectedProgress);
-                context.textIn(option, new UiRect(optionBounds.x() + 28f, optionBounds.y(),
+                context.textIn(translatedOption(context, setting, option), new UiRect(optionBounds.x() + 28f, optionBounds.y(),
                         optionBounds.width() - 35f, optionBounds.height()), 10.5f,
                         mix(ClickGuiTheme.MUTED, ClickGuiTheme.TEXT, selectedProgress));
                 if (openOptions == setting && disclosure >= .98f) {
@@ -514,7 +518,7 @@ public final class SettingControls {
             }
             UiRect rainbow = new UiRect(saturationBrightness.x(), pickerY + 94f,
                     saturationBrightness.width(), 20f);
-            context.textIn("Rainbow", new UiRect(rainbow.x() + 2f, rainbow.y(), rainbow.width() - 38f,
+            context.textIn(context.translate("nimbus.ui.rainbow", "Rainbow"), new UiRect(rainbow.x() + 2f, rainbow.y(), rainbow.width() - 38f,
                     rainbow.height()), 10f, setting.isRainbow() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
             float rainbowProgress = animations.getOrDefault(setting, setting.isRainbow() ? 1f : 0f);
             rainbowProgress = animate(rainbowProgress, setting.isRainbow() ? 1f : 0f,
@@ -549,7 +553,8 @@ public final class SettingControls {
         int inputOutline = mix(ClickGuiTheme.STROKE, context.theme().accent(0x64), focused);
         if (editing == setting) {
             String placeholder = setting instanceof TextSetting text && text.getPlaceholder() != null
-                    ? text.getPlaceholder() : "Value";
+                    ? context.translate(setting.getTranslationKey("placeholder"), text.getPlaceholder())
+                    : context.translate("nimbus.ui.value", "Value");
             editor.render(context, input, placeholder, 10.5f, secure, inputBackground, inputOutline);
         } else {
             context.frame().draw().roundedRect(input.x(), input.y(), input.width(), input.height(), 4f,
@@ -558,7 +563,8 @@ public final class SettingControls {
                     inputOutline);
             String value = setting.getValue();
             if (secure && value != null) value = "*".repeat(value.length());
-            context.centered(ellipsize(context, value == null || value.isEmpty() ? "Empty" : value,
+            context.centered(ellipsize(context, value == null || value.isEmpty()
+                            ? context.translate("nimbus.ui.empty", "Empty") : value,
                     input.width() - 8f), input, 10f, ClickGuiTheme.MUTED);
         }
         addHit(new Hit(setting, HitKind.TEXT, input, null));
@@ -569,14 +575,20 @@ public final class SettingControls {
                 bounds.width() - 14f, bounds.height() - ROW_HEIGHT - 12f);
         if (editing == setting) {
             multilineEditor.render(context, input,
-                    setting.getPlaceholder() == null ? "Value" : setting.getPlaceholder(), 10.5f, setting.isSecure());
+                    setting.getPlaceholder() == null
+                            ? context.translate("nimbus.ui.value", "Value")
+                            : context.translate(setting.getTranslationKey("placeholder"), setting.getPlaceholder()),
+                    10.5f, setting.isSecure());
         } else {
             context.frame().draw().roundedRect(input.x(), input.y(), input.width(), input.height(), 4f,
                     ClickGuiTheme.CONTROL);
+            context.frame().draw().outline(input.x(), input.y(), input.width(), input.height(), 4f, 1f,
+                    ClickGuiTheme.STROKE);
             String value = setting.getValue();
-            if (setting.isSecure() && value != null) value = "*".repeat(value.length());
-            context.text(value == null || value.isEmpty() ? "Empty" : value.replace('\n', ' '),
-                    input.x() + 7f, input.y() + 7f, 10.5f, ClickGuiTheme.MUTED);
+            String display = value == null || value.isEmpty()
+                    ? context.translate("nimbus.ui.empty", "Empty") : value;
+            MultilineTextInput.renderPreview(context, input, display, 10.5f,
+                    setting.isSecure(), ClickGuiTheme.MUTED);
         }
         addHit(new Hit(setting, HitKind.TEXT, input, null));
     }
@@ -711,7 +723,7 @@ public final class SettingControls {
 
     private static void rightText(UiContext context, String value, UiRect bounds, float size, int color) {
         float width = context.width(UiContext.FONT, size, value);
-        float y = bounds.y() + (bounds.height() - context.height(UiContext.FONT, size)) * .5f;
+        float y = bounds.y() + (bounds.height() - context.height(UiContext.FONT, size, value)) * .5f;
         context.text(value, bounds.x() + Math.max(0f, bounds.width() - width), y, size, color);
     }
 
@@ -756,8 +768,8 @@ public final class SettingControls {
             case NumberSetting ignored -> width - 70f;
             case BooleanSetting ignored -> width - 50f;
             case FoldSetting ignored -> width - 38f;
-            case ModeSetting ignored -> width * .52f - 12f;
-            case MultiSelectSetting ignored -> width * .52f - 12f;
+            case ModeSetting ignored -> width * .44f - 12f;
+            case MultiSelectSetting ignored -> width * .44f - 12f;
             case ColorSetting ignored -> width - 41f;
             case TextSetting ignored -> width * .46f - 12f;
             default -> width - 16f;
@@ -765,11 +777,19 @@ public final class SettingControls {
         return Math.max(24f, available);
     }
 
-    private static String multiSummary(MultiSelectSetting setting) {
+    private static String multiSummary(UiContext context, MultiSelectSetting setting) {
         int selected = setting.getValue().size();
-        if (selected == 0) return "None";
-        if (selected == 1) return setting.getValue().iterator().next();
-        return selected + " selected";
+        if (selected == 0) return context.translate("nimbus.ui.none", "None");
+        if (selected == 1) return translatedOption(context, setting, setting.getValue().iterator().next());
+        return context.translate("nimbus.ui.selected_count", "%s selected", selected);
+    }
+
+    private static String translatedName(UiContext context, Setting<?> setting) {
+        return context.translate(setting.getTranslationKey(), setting.getName());
+    }
+
+    private static String translatedOption(UiContext context, Setting<?> setting, String option) {
+        return context.translate(setting.getOptionTranslationKey(option), option);
     }
 
     private static float animate(float value, float target, float speed) {

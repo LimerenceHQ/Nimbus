@@ -14,6 +14,7 @@ public final class TextInput {
     private final EditBox editor;
     private String preedit = "";
     private boolean focused;
+    private float scrollX;
 
     public TextInput(Font font, int maximumLength) {
         editor = new EditBox(font, Component.empty());
@@ -32,6 +33,7 @@ public final class TextInput {
     public void value(String value) {
         editor.setValue(value == null ? "" : value);
         editor.moveCursorToEnd(false);
+        scrollX = 0f;
     }
 
     public boolean focused() {
@@ -61,7 +63,7 @@ public final class TextInput {
 
     public void placeCursor(UiContext context, UiRect bounds, float size, float mouseX) {
         String value = editor.getValue();
-        float local = Math.max(0f, mouseX - bounds.x() - 8f);
+        float local = Math.max(0f, mouseX - bounds.x() - 8f + scrollX);
         int position = value.length();
         float previousWidth = 0f;
         for (int index = 0; index < value.length();) {
@@ -101,9 +103,20 @@ public final class TextInput {
         int cursor = Math.min(editor.getCursorPosition(), display.length());
         String composed = display.substring(0, cursor) + preedit + display.substring(cursor);
         boolean empty = composed.isEmpty();
-        float textX = bounds.x() + 8f;
-        float textY = bounds.y() + (bounds.height() - context.height(UiContext.FONT, size)) * 0.5f;
-        int save = context.clip(new UiRect(bounds.x() + 2f, bounds.y(), bounds.width() - 4f, bounds.height()), 2f);
+        float availableWidth = Math.max(1f, bounds.width() - 16f);
+        float cursorWidth = context.width(UiContext.FONT, size, display.substring(0, cursor) + preedit);
+        float contentWidth = context.width(UiContext.FONT, size, composed);
+        if (focused) {
+            if (cursorWidth - scrollX > availableWidth) scrollX = cursorWidth - availableWidth;
+            if (cursorWidth - scrollX < 0f) scrollX = cursorWidth;
+            scrollX = Math.clamp(scrollX, 0f, Math.max(0f, contentWidth - availableWidth));
+        } else {
+            scrollX = 0f;
+        }
+        float textX = bounds.x() + 8f - scrollX;
+        String rendered = empty ? placeholder : composed;
+        float textY = bounds.y() + (bounds.height() - context.height(UiContext.FONT, size, rendered)) * 0.5f;
+        int save = context.clip(new UiRect(bounds.x() + 6f, bounds.y(), bounds.width() - 12f, bounds.height()), 2f);
         try {
             String selected = editor.getHighlighted();
             if (focused && !selected.isEmpty()) {

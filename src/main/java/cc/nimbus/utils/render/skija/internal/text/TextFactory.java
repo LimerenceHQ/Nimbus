@@ -32,6 +32,11 @@ public final class TextFactory {
         return layout(familyName, size, "").height();
     }
 
+    public static synchronized float getTextHeight(String familyName, float size, String text) {
+        ensureOpen();
+        return layout(familyName, size, normalize(text)).height();
+    }
+
     @ApiStatus.Internal
     private static void drawGlyphsSplice(Canvas canvas, String familyName, float size, String text, float x, float y, Paint paint) {
         ensureOpen();

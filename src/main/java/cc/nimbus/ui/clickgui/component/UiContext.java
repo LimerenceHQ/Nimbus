@@ -1,5 +1,6 @@
 package cc.nimbus.ui.clickgui.component;
 
+import cc.nimbus.core.Core;
 import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
@@ -41,14 +42,23 @@ public record UiContext(
         return frame.text().height(family, fontSize(size));
     }
 
+    public float height(String family, float size, String value) {
+        return frame.text().height(family, fontSize(size), value);
+    }
+
     public void textIn(String value, UiRect bounds, float size, int color) {
-        float textY = bounds.y() + (bounds.height() - height(FONT, size)) * 0.5f;
+        float textY = bounds.y() + (bounds.height() - height(FONT, size, value)) * 0.5f;
         text(value, bounds.x(), textY, size, color);
     }
 
     public void centered(String value, UiRect bounds, float size, int color) {
-        float textY = bounds.y() + (bounds.height() - height(FONT, size)) * 0.5f;
+        float textY = bounds.y() + (bounds.height() - height(FONT, size, value)) * 0.5f;
         center(FONT, size, value, bounds.x() + bounds.width() * 0.5f, textY, color);
+    }
+
+    public String translate(String key, String fallback, Object... arguments) {
+        if (!Core.INSTANCE.isInitialized()) return fallback;
+        return Core.INSTANCE.getI18nManager().get(key, fallback, arguments);
     }
 
     public int clip(UiRect bounds, float radius) {

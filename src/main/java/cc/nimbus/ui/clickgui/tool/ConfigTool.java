@@ -46,8 +46,10 @@ public final class ConfigTool implements ToolPage {
     public void render(UiContext context, UiRect bounds) {
         hits.clear();
         float header = 62f;
-        context.medium("Config", bounds.x() + 22f, bounds.y() + 18f, 19f, ClickGuiTheme.TEXT);
-        context.text("Manage named module configurations", bounds.x() + 22f, bounds.y() + 43f,
+        context.medium(context.translate("nimbus.config.title", "Config"),
+                bounds.x() + 22f, bounds.y() + 18f, 19f, ClickGuiTheme.TEXT);
+        context.text(context.translate("nimbus.config.description", "Manage named module configurations"),
+                bounds.x() + 22f, bounds.y() + 43f,
                 10.5f, ClickGuiTheme.MUTED);
 
         float leftWidth = Math.max(170f, bounds.width() * .39f);
@@ -80,28 +82,40 @@ public final class ConfigTool implements ToolPage {
         }
 
         inputBounds = new UiRect(listBounds.x(), bounds.y() + bounds.height() - 39f, listBounds.width(), 27f);
-        name.render(context, inputBounds, "New config", 10.5f, false);
+        name.render(context, inputBounds, context.translate("nimbus.config.new", "New config"), 10.5f, false);
 
         float rightX = dividerX + 22f;
         float rightWidth = bounds.x() + bounds.width() - rightX - 22f;
         String value = selected == null ? configs().getCurrentConfig() : selected;
-        context.text("Selected", rightX, bounds.y() + header + 14f, 10f, ClickGuiTheme.MUTED);
+        context.text(context.translate("nimbus.config.selected", "Selected"),
+                rightX, bounds.y() + header + 14f, 10f, ClickGuiTheme.MUTED);
         context.medium(value, rightX, bounds.y() + header + 34f, 16f, ClickGuiTheme.TEXT);
         boolean active = value.equalsIgnoreCase(configs().getCurrentConfig());
-        context.text(active ? (configs().isDirty() ? "Active / Dirty" : "Active / Saved") : "Saved config",
+        context.text(active
+                        ? configs().isDirty()
+                        ? context.translate("nimbus.config.active_dirty", "Active / Dirty")
+                        : context.translate("nimbus.config.active_saved", "Active / Saved")
+                        : context.translate("nimbus.config.saved", "Saved config"),
                 rightX, bounds.y() + header + 59f, 10.5f,
                 configs().isDirty() && active ? 0xFFE9C46A : ClickGuiTheme.MUTED);
 
         float buttonY = bounds.y() + header + 92f;
-        button(context, new UiRect(rightX, buttonY, (rightWidth - 8f) * .5f, 30f), "Load", Action.LOAD);
+        button(context, new UiRect(rightX, buttonY, (rightWidth - 8f) * .5f, 30f),
+                context.translate("nimbus.config.load", "Load"), Action.LOAD);
         boolean confirmingSave = value.equalsIgnoreCase(saveCandidate) && context.nowMillis() < saveUntil;
         button(context, new UiRect(rightX + (rightWidth + 8f) * .5f, buttonY,
-                (rightWidth - 8f) * .5f, 30f), confirmingSave ? "Confirm Save" : "Save", Action.SAVE);
+                (rightWidth - 8f) * .5f, 30f), confirmingSave
+                        ? context.translate("nimbus.config.confirm_save", "Confirm Save")
+                        : context.translate("nimbus.config.save", "Save"), Action.SAVE);
         button(context, new UiRect(rightX, buttonY + 39f, (rightWidth - 8f) * .5f, 30f),
-                deleteCandidate != null && context.nowMillis() < deleteUntil ? "Confirm" : "Delete", Action.DELETE);
+                deleteCandidate != null && context.nowMillis() < deleteUntil
+                        ? context.translate("nimbus.config.confirm", "Confirm")
+                        : context.translate("nimbus.config.delete", "Delete"), Action.DELETE);
         button(context, new UiRect(rightX + (rightWidth + 8f) * .5f, buttonY + 39f,
-                (rightWidth - 8f) * .5f, 30f), "Open Folder", Action.OPEN);
-        button(context, new UiRect(rightX, buttonY + 90f, rightWidth, 30f), "Create From Current", Action.CREATE);
+                (rightWidth - 8f) * .5f, 30f), context.translate("nimbus.config.open_folder", "Open Folder"),
+                Action.OPEN);
+        button(context, new UiRect(rightX, buttonY + 90f, rightWidth, 30f),
+                context.translate("nimbus.config.create_current", "Create From Current"), Action.CREATE);
 
         if (!message.isEmpty() && context.nowMillis() < messageUntil) {
             context.text(message, rightX, bounds.y() + bounds.height() - 28f, 10.5f, ClickGuiTheme.MUTED);
@@ -182,8 +196,8 @@ public final class ConfigTool implements ToolPage {
     }
 
     private void load() {
-        if (selected != null && configs().loadConfig(selected)) show("Config loaded");
-        else show("Select a config first");
+        if (selected != null && configs().loadConfig(selected)) show("nimbus.config.message.loaded", "Config loaded");
+        else show("nimbus.config.message.select_first", "Select a config first");
     }
 
     private void save() {
@@ -192,52 +206,52 @@ public final class ConfigTool implements ToolPage {
         if (!target.equalsIgnoreCase(saveCandidate) || now >= saveUntil) {
             saveCandidate = target;
             saveUntil = now + 2500L;
-            show("Click save again to confirm overwrite");
+            show("nimbus.config.message.confirm_overwrite", "Click save again to confirm overwrite");
             return;
         }
         if (configs().saveConfig(target)) {
             selected = target;
             refresh();
-            show("Config saved");
-        } else show("Save failed");
+            show("nimbus.config.message.saved", "Config saved");
+        } else show("nimbus.config.message.save_failed", "Save failed");
         saveCandidate = null;
     }
 
     private void create() {
         String value = ConfigManager.sanitizeConfigName(name.value());
         if (!ConfigManager.isValidConfigName(value)) {
-            show("Invalid config name");
+            show("nimbus.config.message.invalid_name", "Invalid config name");
             return;
         }
         if (configs.stream().anyMatch(config -> config.equalsIgnoreCase(value))) {
-            show("Config already exists");
+            show("nimbus.config.message.exists", "Config already exists");
             return;
         }
         if (configs().saveConfig(value)) {
             selected = value;
             name.value("");
             refresh();
-            show("Config created");
-        } else show("Create failed");
+            show("nimbus.config.message.created", "Config created");
+        } else show("nimbus.config.message.create_failed", "Create failed");
     }
 
     private void delete() {
         if (selected == null) {
-            show("Select a config first");
+            show("nimbus.config.message.select_first", "Select a config first");
             return;
         }
         long now = System.currentTimeMillis();
         if (!selected.equalsIgnoreCase(deleteCandidate) || now >= deleteUntil) {
             deleteCandidate = selected;
             deleteUntil = now + 2500L;
-            show("Click delete again to confirm");
+            show("nimbus.config.message.confirm_delete", "Click delete again to confirm");
             return;
         }
         if (configs().deleteConfig(selected)) {
             selected = null;
             refresh();
-            show("Config deleted");
-        } else show("This config cannot be deleted");
+            show("nimbus.config.message.deleted", "Config deleted");
+        } else show("nimbus.config.message.cannot_delete", "This config cannot be deleted");
         deleteCandidate = null;
     }
 
@@ -246,7 +260,8 @@ public final class ConfigTool implements ToolPage {
             if (!Desktop.isDesktopSupported()) throw new IllegalStateException("Desktop integration is unavailable");
             Desktop.getDesktop().open(configs().getConfigDir());
         } catch (Exception error) {
-            show(error.getMessage() == null ? "Unable to open directory" : error.getMessage());
+            show("nimbus.config.message.open_failed",
+                    error.getMessage() == null ? "Unable to open directory" : error.getMessage());
         }
     }
 
@@ -256,8 +271,8 @@ public final class ConfigTool implements ToolPage {
         scroll = 0f;
     }
 
-    private void show(String value) {
-        message = value;
+    private void show(String key, String fallback) {
+        message = Core.INSTANCE.getI18nManager().get(key, fallback);
         messageUntil = System.currentTimeMillis() + 2500L;
     }
 

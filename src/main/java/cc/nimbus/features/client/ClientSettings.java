@@ -19,6 +19,9 @@ public final class ClientSettings {
             "Client Name", "Nimbus", "Client name", false, false,
             "Name used by Nimbus-styled HUD elements.", 32
     );
+    public final ModeSetting language = new ModeSetting(
+            "Language", ClientLanguage.valuesForSetting(), ClientLanguage.FOLLOW_GAME.value()
+    );
     public final ModeSetting style = new ModeSetting(
             "Style", new String[]{NIMBUS_STYLE, CUSTOM_STYLE}, NIMBUS_STYLE
     );
@@ -85,12 +88,16 @@ public final class ClientSettings {
     );
 
     private final List<Setting<?>> settings = List.of(
-            clientName, style, accent, hudScale,
+            clientName, language, style, accent, hudScale,
             postProcessing, splitRegions, texture, textureOpacity,
             blurMode, blurRadius, blurPasses, downSample, upSample,
             blurRefresh, blurRefreshLimit,
             shadow, shadowRadius, shadowOpacity, shadowRefresh, shadowRefreshLimit
     );
+
+    public ClientSettings() {
+        settings.forEach(setting -> setting.bindTranslationScope("nimbus.client"));
+    }
 
     public List<Setting<?>> settings() {
         return settings;

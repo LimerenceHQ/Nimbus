@@ -111,7 +111,8 @@ public final class ActiveList extends BasicModule {
         List<Entry> entries = new ArrayList<>();
         for (BasicModule module : Core.INSTANCE.getModuleManager().getModules()) {
             if (!module.isEnabled() || module.isHidden() || module == this) continue;
-            String name = module.getDisplayName();
+            String name = Core.INSTANCE.getI18nManager().get(
+                    module.getDisplayNameTranslationKey(), module.getDisplayName());
             String suffix = showSuffix.getValue() && !module.getSuffix().isBlank()
                     ? " " + module.getSuffix() : "";
             float nameWidth = skija.text().width(FONT, FONT_SIZE, name);

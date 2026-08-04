@@ -137,8 +137,8 @@ public final class ClickGuiView {
                               String query, float speed, float closingProgress) {
         List<BasicModule> modules = Core.INSTANCE.getModuleManager().getModulesByCategory(category).stream()
                 .filter(module -> query.isEmpty()
-                        || module.getDisplayName().toLowerCase(Locale.ROOT).contains(query)
-                        || module.getDescription().toLowerCase(Locale.ROOT).contains(query))
+                        || localizedModuleName(context, module).toLowerCase(Locale.ROOT).contains(query)
+                        || localizedModuleDescription(context, module).toLowerCase(Locale.ROOT).contains(query))
                 .toList();
         float contentHeight = 7f;
         for (BasicModule module : modules) {
@@ -164,11 +164,15 @@ public final class ClickGuiView {
                     ClickGuiTheme.PANEL);
             context.frame().draw().outline(panel.x(), panel.y(), panel.width(), panel.height(), 7f, 1f,
                     ClickGuiTheme.STROKE);
-            icon(context, categoryIcon(category), panel.x() + 11f, panel.y() + 10f, 16f,
+            icon(context, categoryIcon(category), panel.x() + 11f,
+                    panel.y() + (PANEL_HEADER - 16f) * .5f, 16f,
                     ClickGuiTheme.TEXT);
-            context.medium(category.getName(), panel.x() + 34f, panel.y() + 9f, 11.5f, ClickGuiTheme.TEXT);
-            context.medium(Integer.toString(modules.size()), panel.x() + panel.width() - 20f,
-                    panel.y() + 9f, 10f, ClickGuiTheme.MUTED);
+            context.textIn(context.translate(category.getTranslationKey(), category.getName()),
+                    new UiRect(panel.x() + 34f, panel.y(), panel.width() - 62f, PANEL_HEADER),
+                    11.5f, ClickGuiTheme.TEXT);
+            context.centered(Integer.toString(modules.size()),
+                    new UiRect(panel.x() + panel.width() - 27f, panel.y(), 20f, PANEL_HEADER),
+                    10f, ClickGuiTheme.MUTED);
             context.frame().draw().rect(panel.x(), panel.y() + PANEL_HEADER - 1f, panel.width(), 1f,
                     ClickGuiTheme.STROKE);
             UiRect viewport = new UiRect(panel.x() + 5f, panel.y() + PANEL_HEADER,
@@ -266,7 +270,7 @@ public final class ClickGuiView {
                     Rect.makeXYWH(row.x(), row.y(), row.width(), row.height()),
                     Math.round(255f * (1f - bindingProgress)));
             try {
-                context.textIn(ellipsize(context, module.getDisplayName(), normalLabelWidth, 11f),
+                context.textIn(ellipsize(context, localizedModuleName(context, module), normalLabelWidth, 11f),
                         new UiRect(row.x() + 9f, row.y(), normalLabelWidth, row.height()), 11f,
                         module.isEnabled() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
             } finally {
@@ -279,7 +283,8 @@ public final class ClickGuiView {
                     Rect.makeXYWH(row.x(), row.y(), row.width(), row.height()),
                     Math.round(255f * bindingProgress));
             try {
-                context.textIn("Press key", new UiRect(row.x() + 9f, row.y(), bindingLabelWidth, row.height()),
+                context.textIn(context.translate("nimbus.clickgui.press_key", "Press key"),
+                        new UiRect(row.x() + 9f, row.y(), bindingLabelWidth, row.height()),
                         11f, ClickGuiTheme.TEXT);
             } finally {
                 context.frame().canvas().restoreToCount(bindingLayer);
@@ -293,25 +298,28 @@ public final class ClickGuiView {
                     row.y() + 9f - disclosure, 14f, ClickGuiTheme.TEXT, disclosure);
         }
         if (columnsInteractive) moduleHits.add(new ModuleHit(row, module, category));
-        if (hover) tooltip = module.getDescription();
+        if (hover) tooltip = localizedModuleDescription(context, module);
     }
 
     private void renderRail(UiContext context) {
         float x = logicalWidth - 51f;
         float y = (logicalHeight - (RAIL_SIZE * 4f + 8f * 3f)) * .5f;
         rail(context, new UiRect(x, y, RAIL_SIZE, RAIL_SIZE), RailAction.SEARCH,
-                ClickGuiIcons.RAIL_SEARCH, "Search");
+                ClickGuiIcons.RAIL_SEARCH, context.translate("nimbus.clickgui.search", "Search"));
         rail(context, new UiRect(x, y + 46f, RAIL_SIZE, RAIL_SIZE), RailAction.MUSIC,
-                ClickGuiIcons.RAIL_MUSIC, "Music");
+                ClickGuiIcons.RAIL_MUSIC, context.translate("nimbus.clickgui.music", "Music"));
         rail(context, new UiRect(x, y + 92f, RAIL_SIZE, RAIL_SIZE), RailAction.CONFIG,
-                ClickGuiIcons.RAIL_CONFIG, "Config");
+                ClickGuiIcons.RAIL_CONFIG, context.translate("nimbus.clickgui.config", "Config"));
         rail(context, new UiRect(x, y + 138f, RAIL_SIZE, RAIL_SIZE), RailAction.CLIENT,
-                ClickGuiIcons.RAIL_SETTINGS, "Client Settings");
+                ClickGuiIcons.RAIL_SETTINGS,
+                context.translate("nimbus.clickgui.client_settings", "Client Settings"));
         if (searchProgress > .01f) {
             float width = 216f * searchProgress;
             searchBounds = new UiRect(x - 10f - width, y + 3f, width, 32f);
             if (width > 54f) {
-                search.render(context, searchBounds, "Search modules", 10.5f, false, 0x780A0B0D);
+                search.render(context, searchBounds,
+                        context.translate("nimbus.clickgui.search_modules", "Search modules"),
+                        10.5f, false, 0x780A0B0D);
             }
         } else searchBounds = null;
     }
@@ -720,6 +728,14 @@ public final class ClickGuiView {
             case Exploit -> ClickGuiIcons.CATEGORY_EXPLOIT;
             case HUD -> ClickGuiIcons.CATEGORY_HUD;
         };
+    }
+
+    private static String localizedModuleName(UiContext context, BasicModule module) {
+        return context.translate(module.getDisplayNameTranslationKey(), module.getDisplayName());
+    }
+
+    private static String localizedModuleDescription(UiContext context, BasicModule module) {
+        return context.translate(module.getDescriptionTranslationKey(), module.getDescription());
     }
 
     private static String ellipsize(UiContext context, String value, float width) {

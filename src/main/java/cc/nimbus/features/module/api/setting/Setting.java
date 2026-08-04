@@ -1,5 +1,7 @@
 package cc.nimbus.features.module.api.setting;
 
+import cc.nimbus.utils.i18n.I18nKeys;
+
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -7,6 +9,7 @@ public class Setting<V> {
     private final String name;
     private V value;
     private final Supplier<Boolean> visibility;
+    private String translationKey;
     private Runnable changeListener = () -> {};
 
     public Setting(String name, V value, Supplier<Boolean> visibility) {
@@ -56,5 +59,25 @@ public class Setting<V> {
 
     public String getName() {
         return name;
+    }
+
+    public final void bindTranslationScope(String scope) {
+        String next = Objects.requireNonNull(scope, "scope") + ".setting." + I18nKeys.part(name);
+        if (translationKey != null && !translationKey.equals(next)) {
+            throw new IllegalStateException("Setting '" + name + "' is already bound to " + translationKey);
+        }
+        translationKey = next;
+    }
+
+    public final String getTranslationKey() {
+        return translationKey;
+    }
+
+    public final String getTranslationKey(String child) {
+        return translationKey == null ? null : translationKey + "." + I18nKeys.part(child);
+    }
+
+    public final String getOptionTranslationKey(String option) {
+        return translationKey == null ? null : translationKey + ".option." + I18nKeys.part(option);
     }
 }

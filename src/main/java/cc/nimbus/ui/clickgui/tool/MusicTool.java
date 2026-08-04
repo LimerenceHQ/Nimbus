@@ -185,7 +185,8 @@ public final class MusicTool implements ToolPage {
         } else {
             drawArtwork(context, data.artwork(profile, 96), "profile:" + profile.id(), avatar, 14f, 255);
         }
-        context.medium(profile == null ? "Sign In" : ellipsize(context, profile.name(), account.width() - 48f),
+        context.medium(profile == null ? context.translate("nimbus.music.sign_in", "Sign In")
+                        : ellipsize(context, profile.name(), account.width() - 48f),
                 account.x() + 42f, account.y() + 12f, 10.5f,
                 accountActive ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
         hits.add(new Hit(account, Action.NAVIGATE, ClickGuiSession.MusicRoute.LOGIN));
@@ -196,15 +197,21 @@ public final class MusicTool implements ToolPage {
         try {
             float y = sidebarClipBounds.y() + sidebarScroll;
             float contentStart = y;
-            y = group(context, "DISCOVER:", y);
-            y = nav(context, "Recommended", ClickGuiIcons.HOME, ClickGuiSession.MusicRoute.RECOMMENDED, y);
-            y = nav(context, "Featured", ClickGuiIcons.SPARKLES, ClickGuiSession.MusicRoute.FEATURED, y);
-            y = nav(context, "Search", ClickGuiIcons.SEARCH, ClickGuiSession.MusicRoute.SEARCH, y);
+            y = group(context, context.translate("nimbus.music.group.discover", "DISCOVER:"), y);
+            y = nav(context, context.translate("nimbus.music.recommended", "Recommended"),
+                    ClickGuiIcons.HOME, ClickGuiSession.MusicRoute.RECOMMENDED, y);
+            y = nav(context, context.translate("nimbus.music.featured", "Featured"),
+                    ClickGuiIcons.SPARKLES, ClickGuiSession.MusicRoute.FEATURED, y);
+            y = nav(context, context.translate("nimbus.music.search", "Search"),
+                    ClickGuiIcons.SEARCH, ClickGuiSession.MusicRoute.SEARCH, y);
             y += 8f;
-            y = group(context, "MY MUSIC:", y);
-            y = nav(context, "Liked Music", ClickGuiIcons.HEART, ClickGuiSession.MusicRoute.LIKED, y);
-            y = nav(context, "Cached Songs", ClickGuiIcons.CACHE, ClickGuiSession.MusicRoute.CACHED, y);
-            y = nav(context, "Now Playing", ClickGuiIcons.MUSIC, ClickGuiSession.MusicRoute.NOW_PLAYING, y);
+            y = group(context, context.translate("nimbus.music.group.my_music", "MY MUSIC:"), y);
+            y = nav(context, context.translate("nimbus.music.liked", "Liked Music"),
+                    ClickGuiIcons.HEART, ClickGuiSession.MusicRoute.LIKED, y);
+            y = nav(context, context.translate("nimbus.music.cached", "Cached Songs"),
+                    ClickGuiIcons.CACHE, ClickGuiSession.MusicRoute.CACHED, y);
+            y = nav(context, context.translate("nimbus.music.now_playing", "Now Playing"),
+                    ClickGuiIcons.MUSIC, ClickGuiSession.MusicRoute.NOW_PLAYING, y);
             y += 8f;
 
             if (profile != null) {
@@ -214,12 +221,12 @@ public final class MusicTool implements ToolPage {
                 List<Playlist> subscribed = manager.accountPlaylists().stream()
                         .filter(Playlist::subscribed).toList();
                 if (!created.isEmpty()) {
-                    y = group(context, "PLAYLISTS:", y);
+                    y = group(context, context.translate("nimbus.music.group.playlists", "PLAYLISTS:"), y);
                     for (Playlist playlist : created) y = playlistNav(context, playlist, y);
                     y += 7f;
                 }
                 if (!subscribed.isEmpty()) {
-                    y = group(context, "SUBSCRIBED:", y);
+                    y = group(context, context.translate("nimbus.music.group.subscribed", "SUBSCRIBED:"), y);
                     for (Playlist playlist : subscribed) y = playlistNav(context, playlist, y);
                     y += 7f;
                 }
@@ -272,7 +279,9 @@ public final class MusicTool implements ToolPage {
     private void renderHeader(UiContext context, UiRect bounds) {
         searchBounds = new UiRect(bounds.x() + SIDEBAR_WIDTH + 18f, bounds.y() + 14f,
                 Math.min(292f, bounds.width() - SIDEBAR_WIDTH - 78f), 29f);
-        search.render(context, searchBounds, "Search songs and playlists", 10.5f, false);
+        search.render(context, searchBounds,
+                context.translate("nimbus.music.search_placeholder", "Search songs and playlists"),
+                10.5f, false);
         icon(context, ClickGuiIcons.SEARCH, searchBounds.x() + searchBounds.width() - 22f,
                 searchBounds.y() + 7f, 14f, ClickGuiTheme.MUTED);
     }
@@ -290,7 +299,8 @@ public final class MusicTool implements ToolPage {
                 case RECOMMENDED -> renderRecommended(context, shifted, y);
                 case FEATURED -> renderFeatured(context, shifted, y);
                 case SEARCH -> renderSearch(context, shifted, y);
-                case LIKED -> renderSongsPage(context, shifted, y, "Liked Music", data.songs());
+                case LIKED -> renderSongsPage(context, shifted, y,
+                        context.translate("nimbus.music.liked", "Liked Music"), data.songs());
                 case CACHED -> renderCached(context, shifted, y);
                 case PLAYLIST -> renderPlaylist(context, shifted, y);
                 case NOW_PLAYING -> renderNowPlaying(context, shifted, playback);
@@ -307,15 +317,17 @@ public final class MusicTool implements ToolPage {
     }
 
     private float renderRecommended(UiContext context, UiRect bounds, float y) {
-        y = heading(context, "Recommended", "Made for this session", bounds, y);
+        y = heading(context, context.translate("nimbus.music.recommended", "Recommended"),
+                context.translate("nimbus.music.recommended.subtitle", "Made for this session"), bounds, y);
         if (data.loading()) return loading(context, bounds, y);
         if (!data.error().isBlank()) return error(context, bounds, y);
-        y = section(context, "Daily and Personalized Playlists", bounds, y);
+        y = section(context, context.translate("nimbus.music.daily_playlists",
+                "Daily and Personalized Playlists"), bounds, y);
         y = playlistGrid(context, bounds, y, data.playlists(), 8);
         if (!data.songs().isEmpty()) {
             y += 10f;
             float sectionY = y;
-            y = section(context, "Songs for You", bounds, y);
+            y = section(context, context.translate("nimbus.music.songs_for_you", "Songs for You"), bounds, y);
             control(context, new UiRect(bounds.x() + bounds.width() - 46f, sectionY - 6f, 28f, 28f),
                     ClickGuiIcons.PLAY, Action.PLAY_ALL, bodyBounds);
             y = songList(context, bounds, y, data.songs());
@@ -324,27 +336,32 @@ public final class MusicTool implements ToolPage {
     }
 
     private float renderFeatured(UiContext context, UiRect bounds, float y) {
-        y = heading(context, "Featured", "High quality playlists", bounds, y);
+        y = heading(context, context.translate("nimbus.music.featured", "Featured"),
+                context.translate("nimbus.music.featured.subtitle", "High quality playlists"), bounds, y);
         if (data.loading()) return loading(context, bounds, y);
         if (!data.error().isBlank()) return error(context, bounds, y);
         return playlistGrid(context, bounds, y, data.playlists(), data.playlists().size());
     }
 
     private float renderSearch(UiContext context, UiRect bounds, float y) {
-        y = heading(context, "Search", search.value().isBlank() ? "Songs and playlists" : search.value(), bounds, y);
+        y = heading(context, context.translate("nimbus.music.search", "Search"),
+                search.value().isBlank()
+                        ? context.translate("nimbus.music.search.subtitle", "Songs and playlists")
+                        : search.value(), bounds, y);
         if (data.loading()) return loading(context, bounds, y);
         if (!data.error().isBlank()) return error(context, bounds, y);
         if (data.songs().isEmpty() && data.playlists().isEmpty()) {
-            context.text("No results", bounds.x() + 18f, y + 10f, 11f, ClickGuiTheme.MUTED);
+            context.text(context.translate("nimbus.music.no_results", "No results"),
+                    bounds.x() + 18f, y + 10f, 11f, ClickGuiTheme.MUTED);
             return y + 44f;
         }
         if (!data.playlists().isEmpty()) {
-            y = section(context, "Playlists", bounds, y);
+            y = section(context, context.translate("nimbus.music.playlists", "Playlists"), bounds, y);
             y = playlistGrid(context, bounds, y, data.playlists(), Math.min(8, data.playlists().size()));
         }
         if (!data.songs().isEmpty()) {
             y += 8f;
-            y = section(context, "Songs", bounds, y);
+            y = section(context, context.translate("nimbus.music.songs", "Songs"), bounds, y);
             y = songList(context, bounds, y, data.songs());
         }
         return y;
@@ -352,9 +369,11 @@ public final class MusicTool implements ToolPage {
 
     private float renderSongsPage(UiContext context, UiRect bounds, float y, String title, List<Music> songs) {
         float headingY = y;
-        y = heading(context, title, songs.size() + " songs", bounds, y);
+        y = heading(context, title,
+                context.translate("nimbus.music.song_count", "%s songs", songs.size()), bounds, y);
         if (manager.profile() == null && session.musicRoute() == ClickGuiSession.MusicRoute.LIKED) {
-            context.text("Sign in to view liked music", bounds.x() + 18f, y + 8f, 11f, ClickGuiTheme.MUTED);
+            context.text(context.translate("nimbus.music.sign_in_liked", "Sign in to view liked music"),
+                    bounds.x() + 18f, y + 8f, 11f, ClickGuiTheme.MUTED);
             return y + 42f;
         }
         if (data.loading()) return loading(context, bounds, y);
@@ -368,9 +387,11 @@ public final class MusicTool implements ToolPage {
 
     private float renderCached(UiContext context, UiRect bounds, float y) {
         List<CachedSong> cached = data.cachedSongs();
-        y = heading(context, "Cached Songs", formatBytes(manager.cacheSizeBytes()), bounds, y);
+        y = heading(context, context.translate("nimbus.music.cached", "Cached Songs"),
+                formatBytes(manager.cacheSizeBytes()), bounds, y);
         if (cached.isEmpty()) {
-            context.text("No cached songs", bounds.x() + 18f, y + 8f, 11f, ClickGuiTheme.MUTED);
+            context.text(context.translate("nimbus.music.no_cached", "No cached songs"),
+                    bounds.x() + 18f, y + 8f, 11f, ClickGuiTheme.MUTED);
             return y + 42f;
         }
         List<Long> ids = cached.stream().map(value -> value.music().id()).toList();
@@ -434,11 +455,14 @@ public final class MusicTool implements ToolPage {
                 infoX, cover.y() + 82f, 10f, ClickGuiTheme.MUTED);
         context.draw(NimbusFonts.CONTENT_MEDIUM, 9.8f,
                 ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 9.8f,
-                        playlist.description().isBlank() ? "No description" : playlist.description(), infoWidth),
+                        playlist.description().isBlank()
+                                ? context.translate("nimbus.music.no_description", "No description")
+                                : playlist.description(), infoWidth),
                 infoX, cover.y() + 103f, ClickGuiTheme.MUTED);
         if (!data.loading() && !data.songs().isEmpty()) {
             UiRect playAll = new UiRect(infoX, cover.y() + 125f, 112f, 31f);
-            button(context, playAll, "Play All", Action.PLAY_ALL, null);
+            button(context, playAll, context.translate("nimbus.music.play_all", "Play All"),
+                    Action.PLAY_ALL, null);
         }
         y = cover.y() + cover.height() + 18f;
         if (data.loading()) return loading(context, bounds, y);
@@ -454,12 +478,14 @@ public final class MusicTool implements ToolPage {
                     0x20FFFFFF);
         }
         icon(context, ClickGuiIcons.BACK, back.x() + 7f, back.y() + 7f, 17f, ClickGuiTheme.TEXT);
-        context.medium("Back", back.x() + 31f, back.y() + 9f, 10.5f, ClickGuiTheme.TEXT);
+        context.medium(context.translate("nimbus.music.back", "Back"),
+                back.x() + 31f, back.y() + 9f, 10.5f, ClickGuiTheme.TEXT);
         hits.add(new Hit(back, Action.BACK_FROM_NOW_PLAYING, null));
 
         Music music = playback.music();
         if (music == null) {
-            context.centered("Nothing is playing", content, 12f, ClickGuiTheme.MUTED);
+            context.centered(context.translate("nimbus.music.nothing_playing", "Nothing is playing"),
+                    content, 12f, ClickGuiTheme.MUTED);
             return bounds.y() + bounds.height();
         }
         float leftWidth = Math.min(content.width() * .38f, 390f);
@@ -528,18 +554,20 @@ public final class MusicTool implements ToolPage {
         MusicDataState.LyricsView lyrics = data.lyrics();
         List<TimedLine> lines = lyrics.lines();
         if (lines.isEmpty()) {
-            context.centered("Lyrics unavailable", bounds, 11f, ClickGuiTheme.MUTED);
+            context.centered(context.translate("nimbus.music.lyrics_unavailable", "Lyrics unavailable"),
+                    bounds, 11f, ClickGuiTheme.MUTED);
             return;
         }
         int now = Math.round(playback.progressSeconds() * 1000f);
         int active = activeLine(lines, now);
         float lyricPosition = lyricTarget(lines, active, now);
 
-        context.draw(NimbusFonts.CONTENT_MEDIUM, 15f, "Lyrics", bounds.x(), bounds.y() + 4f,
+        context.draw(NimbusFonts.CONTENT_MEDIUM, 15f,
+                context.translate("nimbus.music.lyrics", "Lyrics"), bounds.x(), bounds.y() + 4f,
                 ClickGuiTheme.TEXT);
         float footerInset = lyrics.hasTranslations() ? 34f : 0f;
         if (lyrics.hasTranslations()) {
-            String label = "Translation";
+            String label = context.translate("nimbus.music.translation", "Translation");
             float labelWidth = context.width(NimbusFonts.BODY_MEDIUM, 9.5f, label);
             float width = labelWidth + 43f;
             UiRect toggle = new UiRect(bounds.x() + bounds.width() - width, bounds.y() + bounds.height() - 26f,
@@ -640,21 +668,31 @@ public final class MusicTool implements ToolPage {
 
     private float renderPreferences(UiContext context, UiRect bounds, float y) {
         MusicConfig config = manager.config();
-        y = settingRow(context, bounds, y, "Prefetch", config.prefetch() ? "On" : "Off", Action.PREFETCH);
-        y = settingRow(context, bounds, y, "Dynamic Background",
-                config.dynamicBackground() ? "On" : "Off", Action.DYNAMIC_BACKGROUND);
-        y = settingRow(context, bounds, y, "Cache Limit", formatBytes(config.cacheLimitBytes()), Action.CACHE_LIMIT);
+        String on = context.translate("nimbus.ui.on", "On");
+        String off = context.translate("nimbus.ui.off", "Off");
+        y = settingRow(context, bounds, y, context.translate("nimbus.music.prefetch", "Prefetch"),
+                config.prefetch() ? on : off, Action.PREFETCH);
+        y = settingRow(context, bounds, y,
+                context.translate("nimbus.music.dynamic_background", "Dynamic Background"),
+                config.dynamicBackground() ? on : off, Action.DYNAMIC_BACKGROUND);
+        y = settingRow(context, bounds, y, context.translate("nimbus.music.cache_limit", "Cache Limit"),
+                formatBytes(config.cacheLimitBytes()), Action.CACHE_LIMIT);
         y += 8f;
-        y = section(context, "Hotkeys", bounds, y);
-        y = settingRow(context, bounds, y, "Previous", hotkey(config.hotkey(MusicConfig.Hotkey.PREVIOUS)), Action.HOTKEY_PREVIOUS);
-        y = settingRow(context, bounds, y, "Next", hotkey(config.hotkey(MusicConfig.Hotkey.NEXT)), Action.HOTKEY_NEXT);
-        y = settingRow(context, bounds, y, "Play / Pause", hotkey(config.hotkey(MusicConfig.Hotkey.PAUSE)), Action.HOTKEY_PAUSE);
+        y = section(context, context.translate("nimbus.music.hotkeys", "Hotkeys"), bounds, y);
+        y = settingRow(context, bounds, y, context.translate("nimbus.music.previous", "Previous"),
+                hotkey(config.hotkey(MusicConfig.Hotkey.PREVIOUS)), Action.HOTKEY_PREVIOUS);
+        y = settingRow(context, bounds, y, context.translate("nimbus.music.next", "Next"),
+                hotkey(config.hotkey(MusicConfig.Hotkey.NEXT)), Action.HOTKEY_NEXT);
+        y = settingRow(context, bounds, y, context.translate("nimbus.music.play_pause", "Play / Pause"),
+                hotkey(config.hotkey(MusicConfig.Hotkey.PAUSE)), Action.HOTKEY_PAUSE);
         y += 8f;
         float width = (bounds.width() - 44f) * .5f;
         UiRect trim = new UiRect(bounds.x() + 18f, y, width, 30f);
         UiRect clear = new UiRect(trim.x() + width + 8f, y, width, 30f);
-        button(context, trim, "Trim Cache", Action.TRIM_CACHE, null);
-        button(context, clear, "Clear Cache", Action.CLEAR_CACHE, null);
+        button(context, trim, context.translate("nimbus.music.trim_cache", "Trim Cache"),
+                Action.TRIM_CACHE, null);
+        button(context, clear, context.translate("nimbus.music.clear_cache", "Clear Cache"),
+                Action.CLEAR_CACHE, null);
         return y + 46f;
     }
 
@@ -663,7 +701,8 @@ public final class MusicTool implements ToolPage {
         hoverRow(context, row, "setting:" + action);
         context.textIn(name, new UiRect(row.x() + 9f, row.y(), row.width() * .55f, row.height()),
                 10.5f, ClickGuiTheme.TEXT);
-        context.textIn(bindingHotkey != null && action.hotkey() == bindingHotkey ? "Listening..." : value,
+        context.textIn(bindingHotkey != null && action.hotkey() == bindingHotkey
+                        ? context.translate("nimbus.music.listening", "Listening...") : value,
                 new UiRect(row.x() + row.width() * .62f, row.y(), row.width() * .34f, row.height()),
                 10f, ClickGuiTheme.MUTED);
         hits.add(new Hit(row, action, null));
@@ -672,7 +711,7 @@ public final class MusicTool implements ToolPage {
 
     private float renderLogin(UiContext context, UiRect bounds, float y) {
         User profile = manager.profile();
-        y = heading(context, profile == null ? "Sign In" : profile.name(),
+        y = heading(context, profile == null ? context.translate("nimbus.music.sign_in", "Sign In") : profile.name(),
                 profile == null ? "Netease Cloud Music" : profile.signature(), bounds, y);
         if (profile != null) {
             UiRect avatar = new UiRect(bounds.x() + 18f, y + 4f, 54f, 54f);
@@ -681,22 +720,26 @@ public final class MusicTool implements ToolPage {
                     avatar.y() + 7f, ClickGuiTheme.TEXT);
             context.medium("ID: " + profile.id(), avatar.x() + 68f, avatar.y() + 30f, 9.5f,
                     ClickGuiTheme.MUTED);
-            context.medium("VIP Level: " + profile.vipType(), avatar.x() + 68f, avatar.y() + 46f, 9.2f,
+            context.medium(context.translate("nimbus.music.vip_level", "VIP Level: %s", profile.vipType()),
+                    avatar.x() + 68f, avatar.y() + 46f, 9.2f,
                     profile.vipType() > 0 ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
             UiRect logout = new UiRect(bounds.x() + bounds.width() - 134f, y + 15f, 112f, 31f);
-            button(context, logout, "Sign Out", Action.LOGOUT, null);
+            button(context, logout, context.translate("nimbus.music.sign_out", "Sign Out"),
+                    Action.LOGOUT, null);
             y += 78f;
-            y = section(context, "Music Settings", bounds, y);
+            y = section(context, context.translate("nimbus.music.settings", "Music Settings"), bounds, y);
             return renderPreferences(context, bounds, y);
         }
         UiRect qrTab = new UiRect(bounds.x() + 18f, y, 92f, 28f);
         UiRect smsTab = new UiRect(qrTab.x() + 98f, y, 92f, 28f);
-        tab(context, qrTab, "QR Code", loginTab == LoginTab.QR, Action.LOGIN_QR);
-        tab(context, smsTab, "SMS", loginTab == LoginTab.SMS, Action.LOGIN_SMS);
+        tab(context, qrTab, context.translate("nimbus.music.qr_code", "QR Code"),
+                loginTab == LoginTab.QR, Action.LOGIN_QR);
+        tab(context, smsTab, context.translate("nimbus.music.sms", "SMS"),
+                loginTab == LoginTab.SMS, Action.LOGIN_SMS);
         y += 44f;
         y = loginTab == LoginTab.QR ? renderQrLogin(context, bounds, y) : renderSmsLogin(context, bounds, y);
         y += 10f;
-        y = section(context, "Music Settings", bounds, y);
+        y = section(context, context.translate("nimbus.music.settings", "Music Settings"), bounds, y);
         return renderPreferences(context, bounds, y);
     }
 
@@ -705,13 +748,17 @@ public final class MusicTool implements ToolPage {
         if (qrArtwork == null) {
             context.frame().draw().roundedRect(image.x(), image.y(), image.width(), image.height(), 4f,
                     IMAGE_PLACEHOLDER);
-            context.centered(qrRequesting ? "Loading..." : "QR Code", image, 11f, ClickGuiTheme.MUTED);
+            context.centered(qrRequesting ? context.translate("nimbus.ui.loading", "Loading...")
+                    : context.translate("nimbus.music.qr_code", "QR Code"), image, 11f, ClickGuiTheme.MUTED);
         } else {
             drawArtwork(context, qrArtwork, "login-qr", image, 4f, 255);
         }
         UiRect request = new UiRect(image.x() + image.width() + 24f, y + 24f, 150f, 31f);
-        button(context, request, qrArtwork == null ? "Generate QR" : "Refresh QR", Action.REQUEST_QR, null);
-        context.text("Scan with Netease Cloud Music", request.x(), request.y() + 48f, 10f, ClickGuiTheme.MUTED);
+        button(context, request, qrArtwork == null
+                ? context.translate("nimbus.music.generate_qr", "Generate QR")
+                : context.translate("nimbus.music.refresh_qr", "Refresh QR"), Action.REQUEST_QR, null);
+        context.text(context.translate("nimbus.music.scan_qr", "Scan with Netease Cloud Music"),
+                request.x(), request.y() + 48f, 10f, ClickGuiTheme.MUTED);
         return y + 212f;
     }
 
@@ -719,15 +766,16 @@ public final class MusicTool implements ToolPage {
         countryBounds = new UiRect(bounds.x() + 18f, y, 64f, 29f);
         phoneBounds = new UiRect(countryBounds.x() + 72f, y, Math.min(240f, bounds.width() - 126f), 29f);
         country.render(context, countryBounds, "86", 10.5f, false);
-        phone.render(context, phoneBounds, "Phone number", 10.5f, false);
+        phone.render(context, phoneBounds, context.translate("nimbus.music.phone", "Phone number"), 10.5f, false);
         UiRect send = new UiRect(phoneBounds.x() + phoneBounds.width() + 8f, y,
                 Math.max(88f, bounds.x() + bounds.width() - phoneBounds.x() - phoneBounds.width() - 26f), 29f);
-        button(context, send, "Send Code", Action.SEND_SMS, null);
+        button(context, send, context.translate("nimbus.music.send_code", "Send Code"), Action.SEND_SMS, null);
         y += 41f;
         captchaBounds = new UiRect(bounds.x() + 18f, y, Math.min(240f, bounds.width() - 130f), 29f);
-        captcha.render(context, captchaBounds, "Verification code", 10.5f, false);
+        captcha.render(context, captchaBounds,
+                context.translate("nimbus.music.verification_code", "Verification code"), 10.5f, false);
         UiRect login = new UiRect(captchaBounds.x() + captchaBounds.width() + 8f, y, 112f, 29f);
-        button(context, login, "Sign In", Action.COMPLETE_SMS, null);
+        button(context, login, context.translate("nimbus.music.sign_in", "Sign In"), Action.COMPLETE_SMS, null);
         return y + 52f;
     }
 
@@ -747,7 +795,8 @@ public final class MusicTool implements ToolPage {
                     NimbusFonts.CONTENT, 9f, music.artistsText(), 180f), cover.x() + 61f, y + 37f,
                     ClickGuiTheme.MUTED);
         } else {
-            context.text("Nothing playing", cover.x() + 61f, y + 25f, 10.5f, ClickGuiTheme.MUTED);
+            context.text(context.translate("nimbus.music.nothing_playing_short", "Nothing playing"),
+                    cover.x() + 61f, y + 25f, 10.5f, ClickGuiTheme.MUTED);
         }
 
         float center = bounds.x() + bounds.width() * .5f;
@@ -814,7 +863,8 @@ public final class MusicTool implements ToolPage {
                     queueBounds.height(), 0xA00E1013);
             context.frame().draw().rect(queueBounds.x(), queueBounds.y(), 1f, queueBounds.height(),
                     ClickGuiTheme.STROKE);
-            context.medium("Queue", queueBounds.x() + 16f, queueBounds.y() + 15f, 14f,
+            context.medium(context.translate("nimbus.music.queue", "Queue"),
+                    queueBounds.x() + 16f, queueBounds.y() + 15f, 14f,
                     ClickGuiTheme.TEXT);
             PlaybackQueueState queue = manager.queueState();
             UiRect viewport = new UiRect(queueBounds.x(), queueBounds.y() + 47f, queueBounds.width(),
@@ -945,7 +995,8 @@ public final class MusicTool implements ToolPage {
                 context.draw(NimbusFonts.CONTENT_MEDIUM, 9.5f,
                         ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 9.5f,
                                 music.artistsText(), timeX - artistX - 12f),
-                        artistX, row.y() + (row.height() - context.height(NimbusFonts.CONTENT_MEDIUM, 9.5f)) * .5f,
+                        artistX, row.y() + (row.height() - context.height(
+                                NimbusFonts.CONTENT_MEDIUM, 9.5f, music.artistsText())) * .5f,
                         ClickGuiTheme.MUTED);
                 drawCenteredY(context, NimbusFonts.BODY_MEDIUM, 9.2f,
                         time(music.durationMs() / 1000f), timeX, row.y(), row.height(), ClickGuiTheme.MUTED);
@@ -1023,12 +1074,15 @@ public final class MusicTool implements ToolPage {
     }
 
     private float loading(UiContext context, UiRect bounds, float y) {
-        context.text("Loading...", bounds.x() + 18f, y + 8f, 11f, ClickGuiTheme.MUTED);
+        context.text(context.translate("nimbus.ui.loading", "Loading..."),
+                bounds.x() + 18f, y + 8f, 11f, ClickGuiTheme.MUTED);
         return y + 42f;
     }
 
     private float error(UiContext context, UiRect bounds, float y) {
-        context.text(data.error().isBlank() ? "Content unavailable" : data.error(),
+        context.text(data.error().isBlank()
+                        ? context.translate("nimbus.music.content_unavailable", "Content unavailable")
+                        : data.error(),
                 bounds.x() + 18f, y + 8f, 10.5f, ClickGuiTheme.DANGER);
         return y + 42f;
     }
@@ -1118,7 +1172,8 @@ public final class MusicTool implements ToolPage {
             }
             case DELETE_CACHED -> run(manager.removeCached((long) hit.value()), removed -> {
                 data.refreshCached();
-                show(removed ? "Cached song removed" : "Unable to remove cached song");
+                show(removed ? tr("nimbus.music.message.cache_removed", "Cached song removed")
+                        : tr("nimbus.music.message.cache_remove_failed", "Unable to remove cached song"));
             });
             case PREVIOUS -> manager.previous();
             case NEXT -> manager.next();
@@ -1150,10 +1205,11 @@ public final class MusicTool implements ToolPage {
             case HOTKEY_PREVIOUS -> bindingHotkey = MusicConfig.Hotkey.PREVIOUS;
             case HOTKEY_NEXT -> bindingHotkey = MusicConfig.Hotkey.NEXT;
             case HOTKEY_PAUSE -> bindingHotkey = MusicConfig.Hotkey.PAUSE;
-            case TRIM_CACHE -> run(manager.trimCache(), bytes -> show("Freed " + formatBytes(bytes)));
+            case TRIM_CACHE -> run(manager.trimCache(), bytes -> show(
+                    tr("nimbus.music.message.freed", "Freed %s", formatBytes(bytes))));
             case CLEAR_CACHE -> run(manager.clearCache(), bytes -> {
                 data.refreshCached();
-                show("Freed " + formatBytes(bytes));
+                show(tr("nimbus.music.message.freed", "Freed %s", formatBytes(bytes)));
             });
             case LOGIN_QR -> loginTab = LoginTab.QR;
             case LOGIN_SMS -> {
@@ -1379,14 +1435,16 @@ public final class MusicTool implements ToolPage {
         Music music = manager.state().music();
         if (music == null) return;
         boolean liked = !manager.likedIds().contains(music.id());
-        run(manager.like(music.id(), liked), success -> show(success ? (liked ? "Added to liked music" : "Removed from liked music")
-                : "Unable to update liked music"));
+        run(manager.like(music.id(), liked), success -> show(success
+                ? liked ? tr("nimbus.music.message.liked", "Added to liked music")
+                : tr("nimbus.music.message.unliked", "Removed from liked music")
+                : tr("nimbus.music.message.like_failed", "Unable to update liked music")));
     }
 
     private void startIntelligence() {
         Playlist playlist = data.selectedPlaylist();
         if (playlist == null || data.songs().isEmpty()) {
-            show("Open a playlist before enabling Intelligence");
+            show(tr("nimbus.music.message.open_playlist", "Open a playlist before enabling Intelligence"));
             return;
         }
         Music current = manager.state().music();
@@ -1394,13 +1452,15 @@ public final class MusicTool implements ToolPage {
                 ? current : data.songs().getFirst();
         PlayMode previous = manager.config().playMode();
         manager.mode(PlayMode.INTELLIGENCE);
-        show("Building intelligence queue...");
+        show(tr("nimbus.music.message.building_intelligence", "Building intelligence queue..."));
         long token = generation;
         manager.playIntelligent(seed.id(), playlist.id(), 50).whenComplete((songs, failure) -> main(() -> {
             if (failure != null && manager.config().playMode() == PlayMode.INTELLIGENCE) manager.mode(previous);
             if (disposed || token != generation) return;
             if (failure != null) show(message(failure));
-            else show(songs.isEmpty() ? "No intelligence recommendations" : "Intelligence playback started");
+            else show(songs.isEmpty()
+                    ? tr("nimbus.music.message.no_intelligence", "No intelligence recommendations")
+                    : tr("nimbus.music.message.intelligence_started", "Intelligence playback started"));
         }));
     }
 
@@ -1409,7 +1469,7 @@ public final class MusicTool implements ToolPage {
         if (music == null) return;
         run(manager.cache(music), cached -> {
             data.refreshCached();
-            show("Cached " + cached.music().name());
+            show(tr("nimbus.music.message.cached", "Cached %s", cached.music().name()));
         });
     }
 
@@ -1438,10 +1498,12 @@ public final class MusicTool implements ToolPage {
             if (failure != null) { show(message(failure)); return; }
             if (status.code() == 800) {
                 qrArtwork = null;
-                show("QR code expired");
-            } else if (status.code() == 802) show("Confirm sign in on your phone");
+                show(tr("nimbus.music.message.qr_expired", "QR code expired"));
+            } else if (status.code() == 802) {
+                show(tr("nimbus.music.message.confirm_phone", "Confirm sign in on your phone"));
+            }
             else if (status.code() == 803) {
-                show("Signed in");
+                show(tr("nimbus.music.message.signed_in", "Signed in"));
                 navigate(ClickGuiSession.MusicRoute.RECOMMENDED);
             }
         }));
@@ -1449,13 +1511,14 @@ public final class MusicTool implements ToolPage {
 
     private void sendSms() {
         run(manager.requestSmsLogin(phone.value(), country.value()), status ->
-                show(status.successful() ? "Verification code sent" : status.message()));
+                show(status.successful()
+                        ? tr("nimbus.music.message.code_sent", "Verification code sent") : status.message()));
     }
 
     private void completeSms() {
         run(manager.completeSmsLogin(captcha.value()), status -> {
             if (status.successful()) {
-                show("Signed in");
+                show(tr("nimbus.music.message.signed_in", "Signed in"));
                 navigate(ClickGuiSession.MusicRoute.RECOMMENDED);
             } else show(status.message());
         });
@@ -1580,7 +1643,7 @@ public final class MusicTool implements ToolPage {
         return Long.toString(value);
     }
     private static String hotkey(int[] keys) {
-        if (keys.length == 0) return "Unbound";
+        if (keys.length == 0) return tr("nimbus.music.unbound", "Unbound");
         List<String> values = new ArrayList<>(keys.length);
         for (int key : keys) {
             String name = GLFW.glfwGetKeyName(key, 0);
@@ -1616,7 +1679,7 @@ public final class MusicTool implements ToolPage {
     }
     private static void drawCenteredY(UiContext context, String font, float size, String value,
                                       float x, float y, float height, int color) {
-        context.draw(font, size, value, x, y + (height - context.height(font, size)) * .5f, color);
+        context.draw(font, size, value, x, y + (height - context.height(font, size, value)) * .5f, color);
     }
     private static void icon(UiContext context, String svg, float x, float y, float size, int color) {
         try (Paint paint = new Paint().setAntiAlias(true).setColor(color)) {
@@ -1624,6 +1687,10 @@ public final class MusicTool implements ToolPage {
         }
     }
     private static void main(Runnable action) { Minecraft.getInstance().execute(action); }
+    private static String tr(String key, String fallback, Object... arguments) {
+        return Core.INSTANCE.isInitialized()
+                ? Core.INSTANCE.getI18nManager().get(key, fallback, arguments) : fallback;
+    }
     private static String message(Throwable error) {
         Throwable value = error;
         while (value.getCause() != null) value = value.getCause();

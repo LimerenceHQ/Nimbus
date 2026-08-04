@@ -3,6 +3,7 @@ package cc.nimbus.features.module.api;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.features.hud.Draggable;
 import cc.nimbus.features.module.api.setting.Setting;
+import cc.nimbus.utils.i18n.I18nKeys;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -145,6 +146,14 @@ public abstract class BasicModule extends ToggleElement {
         return description.isEmpty() ? "This module has no description." : description;
     }
 
+    public String getDisplayNameTranslationKey() {
+        return translationScope() + ".name";
+    }
+
+    public String getDescriptionTranslationKey() {
+        return translationScope() + ".description";
+    }
+
     public ModuleCategory getCategory() {
         return category;
     }
@@ -222,6 +231,7 @@ public abstract class BasicModule extends ToggleElement {
                     field.setAccessible(true);
                     Object value = field.get(this);
                     if (value instanceof Setting<?> setting && settings.add(setting)) {
+                        setting.bindTranslationScope(translationScope());
                         setting.setChangeListener(this::changed);
                     } else if (value instanceof Draggable draggable && draggables.add(draggable)) {
                         String key = draggable.getName().toLowerCase(Locale.ROOT);
@@ -237,9 +247,16 @@ public abstract class BasicModule extends ToggleElement {
             }
         }
         for (Setting<?> setting : additionalSettings) {
-            if (settings.add(setting)) setting.setChangeListener(this::changed);
+            if (settings.add(setting)) {
+                setting.bindTranslationScope(translationScope());
+                setting.setChangeListener(this::changed);
+            }
         }
         return new Members(List.copyOf(settings), List.copyOf(draggables));
+    }
+
+    private String translationScope() {
+        return "nimbus.module." + I18nKeys.part(name);
     }
 
     private void changed() {

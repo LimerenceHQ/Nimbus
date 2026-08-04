@@ -13,6 +13,7 @@ Nimbus.onInitializeClient()
    ├─ ModuleManager
    ├─ HudManager
    ├─ ConfigManager
+   ├─ I18nManager
    ├─ AccountManager
    ├─ MusicManager
    └─ CommandManager
@@ -79,9 +80,10 @@ default Core core() {
 2. ModuleManager
 3. HudManager
 4. ConfigManager
-5. AccountManager
-6. MusicManager
-7. CommandManager
+5. I18nManager
+6. AccountManager
+7. MusicManager
+8. CommandManager
 ```
 
 shutdown 使用相反顺序：
@@ -90,10 +92,11 @@ shutdown 使用相反顺序：
 1. CommandManager
 2. MusicManager
 3. AccountManager
-4. ConfigManager
-5. HudManager
-6. ModuleManager
-7. RenderManager
+4. I18nManager
+5. ConfigManager
+6. HudManager
+7. ModuleManager
+8. RenderManager
 ```
 
 Core 先用局部变量创建全部 Manager，全部成功后才提交到字段：
@@ -213,6 +216,7 @@ public ExampleManager getExampleManager() {
 | `ModuleManager` | Module 注册、索引、按键映射和自动启用 | EventBus |
 | `HudManager` | HUD 元素注册、编辑状态和拖拽布局 | ModuleManager、RenderManager |
 | `ConfigManager` | 命名 Module 配置、全局 Client Settings、自动保存和配置文件切换 | ModuleManager、EventBus |
+| `I18nManager` | Nimbus 独立语言选择、翻译加载、英文回退和参数格式化 | ClientSettings、Minecraft LanguageManager |
 | `AccountManager` | Alt 账户列表、最后账户、登录与账户文件 | Minecraft client |
 | `MusicManager` | 网易云账号、歌曲数据、播放队列、音频/图片缓存和播放器生命周期 | EventBus、Minecraft client |
 | `CommandManager` | Command 注册、执行、建议和聊天拦截 | EventBus |
@@ -332,6 +336,21 @@ addSettings(enabled, range, mode);
 
 Setting 变化会通过 `bindStateListeners(...)` 通知 ModuleManager 的 change listener；ConfigManager 正是通过这条链路自动标记 dirty。
 
+Setting 构造器中的 `name` 是稳定配置键，不得传入翻译结果：
+
+```java
+public final BooleanSetting showSuffix = new BooleanSetting("Show suffix", true);
+```
+
+`BasicModule` 在自动发现 Setting 时同时绑定翻译作用域。显示层使用 `Setting.getTranslationKey()`，Mode 和 MultiSelect 选项使用 `getOptionTranslationKey(...)`。例如：
+
+```text
+nimbus.module.array_list.setting.show_suffix
+nimbus.client.setting.blur.option.gaussian
+```
+
+配置仍保存 `Show suffix` 和 `Gaussian`，切换语言不会改变配置身份或业务判断。
+
 新增 Setting 类型时，至少检查：
 
 - `Setting.normalize(...)`。
@@ -358,7 +377,7 @@ nimbus/
 
 Client Settings、Module 配置与 Account 配置是独立领域：
 
-- `ConfigManager` 管 `client.json`，保存 Client Name、Style、Accent 和完整后处理参数。
+- `ConfigManager` 管 `client.json`，保存 Language、Client Name、Style、Accent 和完整后处理参数。
 - `ConfigManager` 管 `configs/*.json`。
 - `AccountManager` 管 `accounts/accounts.json` 和 `accounts/last.json`。
 
@@ -406,14 +425,34 @@ profile.json.tmp
 - `ColorSetting`
 - `FoldSetting`
 - `TextSetting`
-- `StringSetting`
 - `MultiSelectSetting`
 
 配置读取按 Module 和 Setting 名称忽略大小写。损坏的单个条目会记录错误并跳过，不应让整个文件中其他正常条目失效。
 
 配置名称只允许 sanitize 后不发生变化的安全字符；不要把未经检查的输入拼进 Path。
 
-### 8.4 ClickGUI 与 Client Settings
+### 8.4 I18N 与语言切换
+
+Nimbus 使用 `I18nManager` 独立于 Minecraft 切换语言，选项为 Follow Game、English 和 Simplified Chinese。选择保存在 `client.json`，修改后下一帧生效，不需要重启或重开 ClickGUI。
+
+语言资源位于：
+
+```text
+assets/nimbus/lang/en_us.json
+assets/nimbus/lang/zh_cn.json
+```
+
+`en_us` 是完整基线；当前语言缺少 key 时先回退英文，再回退调用处提供的原始文案。Manager 复用 Minecraft 的 `Language.loadFromJson(...)` 解析标准语言 JSON，不维护另一种文件格式。
+
+Skija 显示层通过 `UiContext.translate(...)` 获取字符串。原版 Widget 在 Nimbus 独立语言模式下使用：
+
+```java
+Component.literal(Core.INSTANCE.getI18nManager().get(key, fallback));
+```
+
+不要使用 `Component.translatable(...)` 读取 Nimbus 独立语言；它始终服从 Minecraft 当前语言。歌名、歌手、歌词、用户名等服务端内容不经过本地翻译。
+
+### 8.5 ClickGUI 与 Client Settings
 
 `ClickGui` Module 持有进程级 `ClickGuiSession`，默认绑定为右 Shift。Session 只保存六列滚动、各列展开项、当前工具窗口和 Music 路由，不写入配置，也不升级为 Manager。关闭 Screen 时清除搜索、输入焦点、绑定监听、登录敏感字段、确认状态和异步页面数据。
 

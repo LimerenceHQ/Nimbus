@@ -35,8 +35,10 @@ public final class ClientSettingsTool implements ToolPage {
     @Override
     public void render(UiContext context, UiRect bounds) {
         tabs.clear();
-        context.medium("Client Settings", bounds.x() + 22f, bounds.y() + 18f, 19f, ClickGuiTheme.TEXT);
-        context.text("Global identity and rendering preferences", bounds.x() + 22f, bounds.y() + 43f,
+        context.medium(context.translate("nimbus.client_settings.title", "Client Settings"),
+                bounds.x() + 22f, bounds.y() + 18f, 19f, ClickGuiTheme.TEXT);
+        context.medium(context.translate("nimbus.client_settings.description",
+                        "Global identity and rendering preferences"), bounds.x() + 22f, bounds.y() + 43f,
                 10.5f, ClickGuiTheme.MUTED);
         float tabY = bounds.y() + 67f;
         float tabWidth = (bounds.width() - 44f - 18f) / 4f;
@@ -45,7 +47,7 @@ public final class ClientSettingsTool implements ToolPage {
             Tab tab = Tab.values()[index];
             UiRect tabBounds = new UiRect(bounds.x() + 22f + index * (tabWidth + 6f), tabY, tabWidth, 31f);
             boolean hover = tabBounds.contains(context.mouseX(), context.mouseY());
-            context.centered(tab.label, tabBounds, 11f,
+            context.centered(context.translate(tab.translationKey, tab.label), tabBounds, 11f,
                     tab == selected ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
             if (hover && tab != selected) {
                 context.frame().draw().roundedRect(tabBounds.x() + tabBounds.width() * .3f,
@@ -129,7 +131,7 @@ public final class ClientSettingsTool implements ToolPage {
     private static List<Setting<?>> settings(Tab tab) {
         ClientSettings value = Core.INSTANCE.getConfigManager().clientSettings();
         return switch (tab) {
-            case GENERAL -> List.of(value.clientName, value.style, value.accent, value.hudScale);
+            case GENERAL -> List.of(value.clientName, value.language, value.style, value.accent, value.hudScale);
             case SURFACE -> List.of(value.postProcessing, value.splitRegions, value.texture, value.textureOpacity);
             case BLUR -> List.of(value.blurMode, value.blurRadius, value.blurPasses, value.downSample,
                     value.upSample, value.blurRefresh, value.blurRefreshLimit);
@@ -139,9 +141,16 @@ public final class ClientSettingsTool implements ToolPage {
     }
 
     private enum Tab {
-        GENERAL("General"), SURFACE("Surface"), BLUR("Blur"), SHADOW("Shadow");
+        GENERAL("General", "nimbus.client_settings.tab.general"),
+        SURFACE("Surface", "nimbus.client_settings.tab.surface"),
+        BLUR("Blur", "nimbus.client_settings.tab.blur"),
+        SHADOW("Shadow", "nimbus.client_settings.tab.shadow");
         private final String label;
-        Tab(String label) { this.label = label; }
+        private final String translationKey;
+        Tab(String label, String translationKey) {
+            this.label = label;
+            this.translationKey = translationKey;
+        }
     }
     private record TabHit(UiRect bounds, Tab tab) { }
 

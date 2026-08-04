@@ -1,5 +1,6 @@
 package cc.nimbus.ui.menu;
 
+import cc.nimbus.core.Core;
 import cc.nimbus.ui.alt.AccountScreen;
 import cc.nimbus.ui.screen.AbstractSkijaScreen;
 import cc.nimbus.utils.render.skija.api.PostProcessOptions;
@@ -46,7 +47,12 @@ public class TitleScreen extends AbstractSkijaScreen {
             float center = width * .5F;
             float top = height * .5F - 145F * scale;
             frame.text().center(NimbusFonts.DISPLAY, 46, "Nimbus", center, top + 26F * scale, 0xFFFFFFFF);
-            String[] labels = {"Singleplayer", "Multiplayer", "Alt Manager", "Settings"};
+            String[] labels = {
+                    tr("nimbus.menu.singleplayer", "Singleplayer"),
+                    tr("nimbus.menu.multiplayer", "Multiplayer"),
+                    tr("nimbus.menu.alt_manager", "Alt Manager"),
+                    tr("nimbus.menu.settings", "Settings")
+            };
             for (int i = 0; i < labels.length; i++) {
                 float x = center - BUTTON_WIDTH * scale / 2F;
                 float y = top + 78F * scale + i * (BUTTON_HEIGHT + BUTTON_GAP) * scale;
@@ -118,5 +124,9 @@ public class TitleScreen extends AbstractSkijaScreen {
     public int requestedSceneCaptureRate(PostProcessOptions options) {
         int refreshRate = minecraft.getWindow().getRefreshRate();
         return refreshRate > 0 ? refreshRate : 60;
+    }
+
+    private static String tr(String key, String fallback) {
+        return Core.INSTANCE.getI18nManager().get(key, fallback);
     }
 }
