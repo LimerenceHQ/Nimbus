@@ -61,9 +61,23 @@ public record UiContext(
         text(value, bounds.x(), textY, size, color);
     }
 
+    public void visualTextIn(String value, UiRect bounds, float size, int color) {
+        float scaledSize = fontSize(size);
+        float textY = bounds.y() + bounds.height() * .5f
+                - frame.text().visualCenterY(FONT, scaledSize, value);
+        frame.text().draw(FONT, scaledSize, value, bounds.x(), textY, color);
+    }
+
     public void centered(String value, UiRect bounds, float size, int color) {
         float textY = bounds.y() + (bounds.height() - height(FONT, size, value)) * 0.5f;
         center(FONT, size, value, bounds.x() + bounds.width() * 0.5f, textY, color);
+    }
+
+    public void visualCentered(String value, UiRect bounds, float size, int color) {
+        float scaledSize = fontSize(size);
+        float textY = bounds.y() + bounds.height() * .5f
+                - frame.text().visualCenterY(FONT, scaledSize, value);
+        frame.text().center(FONT, scaledSize, value, bounds.x() + bounds.width() * .5f, textY, color);
     }
 
     public String translate(String key, String fallback, Object... arguments) {
