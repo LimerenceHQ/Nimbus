@@ -40,6 +40,12 @@ public final class ClickGuiView {
             ModuleCategory.Combat, ModuleCategory.Move, ModuleCategory.Player,
             ModuleCategory.Render, ModuleCategory.Exploit, ModuleCategory.HUD
     };
+    private static final CategoryIcon COMBAT_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_COMBAT, 16f, 0f);
+    private static final CategoryIcon MOVE_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_MOVE, 17f, 0f);
+    private static final CategoryIcon PLAYER_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_PLAYER, 20f, 0f);
+    private static final CategoryIcon RENDER_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_RENDER, 18f, 1.5f);
+    private static final CategoryIcon EXPLOIT_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_EXPLOIT, 20f, 0f);
+    private static final CategoryIcon HUD_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_HUD, 18f, 0f);
 
     private final ClickGuiSession session;
     private final FocusManager focus = new FocusManager();
@@ -164,10 +170,16 @@ public final class ClickGuiView {
                     ClickGuiTheme.PANEL);
             context.frame().draw().outline(panel.x(), panel.y(), panel.width(), panel.height(), 7f, 1f,
                     ClickGuiTheme.STROKE);
-            icon(context, categoryIcon(category), panel.x() + 11f,
-                    panel.y() + (PANEL_HEADER - 16f) * .5f, 16f,
-                    ClickGuiTheme.TEXT);
-            context.textIn(context.translate(category.getTranslationKey(), category.getName()),
+            String categoryLabel = context.translate(category.getTranslationKey(), category.getName());
+            CategoryIcon categoryIcon = categoryIcon(category);
+            float iconCenterX = panel.x() + 19f;
+            float textTop = panel.y() + (PANEL_HEADER - context.height(UiContext.FONT, 11.5f,
+                    categoryLabel)) * .5f;
+            float iconCenterY = textTop + context.visualCenterY(UiContext.FONT, 11.5f, categoryLabel);
+            icon(context, categoryIcon.svg(), iconCenterX - categoryIcon.size() * .5f,
+                    iconCenterY - categoryIcon.size() * .5f + categoryIcon.offsetY(),
+                    categoryIcon.size(), ClickGuiTheme.TEXT);
+            context.textIn(categoryLabel,
                     new UiRect(panel.x() + 34f, panel.y(), panel.width() - 62f, PANEL_HEADER),
                     11.5f, ClickGuiTheme.TEXT);
             context.centered(Integer.toString(modules.size()),
@@ -240,10 +252,6 @@ public final class ClickGuiView {
         if ((background >>> 24) != 0) {
             context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 5f, background);
         }
-        if (active > .01f) {
-            context.frame().draw().roundedRect(row.x(), row.y() + 7f, 2.5f * active,
-                    row.height() - 14f, 1.25f, context.theme().accent(0x70));
-        }
         boolean hasSettings = !module.getSettings().isEmpty();
         float right = row.x() + row.width() - (hasSettings ? 27f : 7f);
         String keyName = displayedKeys.getOrDefault(module.getName(), "");
@@ -265,12 +273,20 @@ public final class ClickGuiView {
         }
         float normalLabelRight = lerp(right, keyBounds.x() - 5f, keyVisibility);
         float normalLabelWidth = Math.max(20f, normalLabelRight - row.x() - 9f);
+        String moduleLabel = ellipsize(context, localizedModuleName(context, module), normalLabelWidth, 11f);
+        float labelTop = row.y() + (row.height() - context.height(UiContext.FONT, 11f, moduleLabel)) * .5f;
+        float labelCenter = labelTop + context.visualCenterY(UiContext.FONT, 11f, moduleLabel);
+        if (active > .01f) {
+            float indicatorHeight = Math.min(17f, row.height() - 10f);
+            context.frame().draw().roundedRect(row.x(), labelCenter - indicatorHeight * .5f,
+                    2.5f * active, indicatorHeight, 1.25f, context.theme().accent(0x70));
+        }
         if (bindingProgress < .999f) {
             int normalLayer = context.frame().canvas().saveLayerAlpha(
                     Rect.makeXYWH(row.x(), row.y(), row.width(), row.height()),
                     Math.round(255f * (1f - bindingProgress)));
             try {
-                context.textIn(ellipsize(context, localizedModuleName(context, module), normalLabelWidth, 11f),
+                context.textIn(moduleLabel,
                         new UiRect(row.x() + 9f, row.y(), normalLabelWidth, row.height()), 11f,
                         module.isEnabled() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
             } finally {
@@ -719,15 +735,18 @@ public final class ClickGuiView {
         }
     }
 
-    private static String categoryIcon(ModuleCategory category) {
+    private static CategoryIcon categoryIcon(ModuleCategory category) {
         return switch (category) {
-            case Combat -> ClickGuiIcons.CATEGORY_COMBAT;
-            case Move -> ClickGuiIcons.CATEGORY_MOVE;
-            case Player -> ClickGuiIcons.CATEGORY_PLAYER;
-            case Render -> ClickGuiIcons.CATEGORY_RENDER;
-            case Exploit -> ClickGuiIcons.CATEGORY_EXPLOIT;
-            case HUD -> ClickGuiIcons.CATEGORY_HUD;
+            case Combat -> COMBAT_ICON;
+            case Move -> MOVE_ICON;
+            case Player -> PLAYER_ICON;
+            case Render -> RENDER_ICON;
+            case Exploit -> EXPLOIT_ICON;
+            case HUD -> HUD_ICON;
         };
+    }
+
+    private record CategoryIcon(String svg, float size, float offsetY) {
     }
 
     private static String localizedModuleName(UiContext context, BasicModule module) {

@@ -46,6 +46,16 @@ public record UiContext(
         return frame.text().height(family, fontSize(size), value);
     }
 
+    public void visualLeft(String family, float size, String value, float x, float y, int color) {
+        float scaledSize = fontSize(size);
+        frame.text().draw(family, scaledSize, value,
+                x - frame.text().visualLeft(family, scaledSize, value), y, color);
+    }
+
+    public float visualCenterY(String family, float size, String value) {
+        return frame.text().visualCenterY(family, fontSize(size), value);
+    }
+
     public void textIn(String value, UiRect bounds, float size, int color) {
         float textY = bounds.y() + (bounds.height() - height(FONT, size, value)) * 0.5f;
         text(value, bounds.x(), textY, size, color);

@@ -716,12 +716,20 @@ public final class MusicTool implements ToolPage {
         if (profile != null) {
             UiRect avatar = new UiRect(bounds.x() + 18f, y + 4f, 54f, 54f);
             drawArtwork(context, data.artwork(profile, 160), "account-profile:" + profile.id(), avatar, 27f, 255);
-            context.draw(NimbusFonts.CONTENT_MEDIUM, 11f, profile.name(), avatar.x() + 68f,
-                    avatar.y() + 7f, ClickGuiTheme.TEXT);
-            context.medium("ID: " + profile.id(), avatar.x() + 68f, avatar.y() + 30f, 9.5f,
-                    ClickGuiTheme.MUTED);
-            context.medium(context.translate("nimbus.music.vip_level", "VIP Level: %s", profile.vipType()),
-                    avatar.x() + 68f, avatar.y() + 46f, 9.2f,
+            String id = "ID: " + profile.id();
+            String vip = context.translate("nimbus.music.vip_level", "VIP Level: %s", profile.vipType());
+            float nameHeight = context.height(NimbusFonts.CONTENT_MEDIUM, 11f, profile.name());
+            float idHeight = context.height(UiContext.FONT_MEDIUM, 9.5f, id);
+            float vipHeight = context.height(UiContext.FONT_MEDIUM, 9.2f, vip);
+            float gap = 2.5f;
+            float textY = avatar.y() + (avatar.height() - nameHeight - idHeight - vipHeight - gap * 2f) * .5f;
+            float textX = avatar.x() + 68f;
+            context.draw(NimbusFonts.CONTENT_MEDIUM, 11f, profile.name(), textX, textY,
+                    ClickGuiTheme.TEXT);
+            textY += nameHeight + gap;
+            context.medium(id, textX, textY, 9.5f, ClickGuiTheme.MUTED);
+            textY += idHeight + gap;
+            context.medium(vip, textX, textY, 9.2f,
                     profile.vipType() > 0 ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
             UiRect logout = new UiRect(bounds.x() + bounds.width() - 134f, y + 15f, 112f, 31f);
             button(context, logout, context.translate("nimbus.music.sign_out", "Sign Out"),

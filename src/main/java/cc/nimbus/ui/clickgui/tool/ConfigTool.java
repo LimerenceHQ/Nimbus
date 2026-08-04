@@ -45,12 +45,10 @@ public final class ConfigTool implements ToolPage {
     @Override
     public void render(UiContext context, UiRect bounds) {
         hits.clear();
-        float header = 62f;
-        context.medium(context.translate("nimbus.config.title", "Config"),
-                bounds.x() + 22f, bounds.y() + 18f, 19f, ClickGuiTheme.TEXT);
-        context.text(context.translate("nimbus.config.description", "Manage named module configurations"),
-                bounds.x() + 22f, bounds.y() + 43f,
-                10.5f, ClickGuiTheme.MUTED);
+        float header = ToolHeader.HEIGHT;
+        ToolHeader.render(context, bounds,
+                context.translate("nimbus.config.title", "Config"),
+                context.translate("nimbus.config.description", "Manage named module configurations"));
 
         float leftWidth = Math.max(170f, bounds.width() * .39f);
         float dividerX = bounds.x() + leftWidth;

@@ -35,11 +35,10 @@ public final class ClientSettingsTool implements ToolPage {
     @Override
     public void render(UiContext context, UiRect bounds) {
         tabs.clear();
-        context.medium(context.translate("nimbus.client_settings.title", "Client Settings"),
-                bounds.x() + 22f, bounds.y() + 18f, 19f, ClickGuiTheme.TEXT);
-        context.medium(context.translate("nimbus.client_settings.description",
-                        "Global identity and rendering preferences"), bounds.x() + 22f, bounds.y() + 43f,
-                10.5f, ClickGuiTheme.MUTED);
+        ToolHeader.render(context, bounds,
+                context.translate("nimbus.client_settings.title", "Client Settings"),
+                context.translate("nimbus.client_settings.description",
+                        "Global identity and rendering preferences"));
         float tabY = bounds.y() + 67f;
         float tabWidth = (bounds.width() - 44f - 18f) / 4f;
         float selectedX = 0f;

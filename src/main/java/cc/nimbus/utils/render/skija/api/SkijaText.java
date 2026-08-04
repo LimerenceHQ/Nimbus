@@ -25,6 +25,14 @@ public final class SkijaText {
         return TextFactory.getTextHeight(family, size, normalize(text));
     }
 
+    public float visualLeft(String family, float size, String text) {
+        return TextFactory.getTextVisualLeft(family, size, normalize(text));
+    }
+
+    public float visualCenterY(String family, float size, String text) {
+        return TextFactory.getTextVisualCenterY(family, size, normalize(text));
+    }
+
     public void draw(String family, float size, String text, float x, float y, int color) {
         try (Paint paint = paint(color)) {
             TextFactory.drawText(canvas, family, size, normalize(text), x, y, paint);
