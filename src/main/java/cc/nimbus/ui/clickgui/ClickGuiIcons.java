@@ -14,7 +14,7 @@ public final class ClickGuiIcons {
     public static final String RAIL_SEARCH_GOOGLE = googleIcon("<path d='M9.5 3a6.5 6.5 0 1 0 3.98 11.64L19.85 21 21 19.85l-6.36-6.37A6.5 6.5 0 0 0 9.5 3Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z'/>");
     public static final String RAIL_MUSIC_GOOGLE = googleIcon("<path d='M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6Z'/>");
     public static final String RAIL_CONFIG_GOOGLE = googleIcon("<path d='M17 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4Zm2 16H5V5h11.17L19 7.83V19Zm-7-7a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM6 6h9v4H6V6Z'/>");
-    public static final String RAIL_SETTINGS_GOOGLE = googleIcon("<path d='M19.43 12.98c.04-.32.07-.65.07-.98s-.02-.66-.07-.98l2.11-1.65-2-3.46-2.49 1a7.2 7.2 0 0 0-1.7-.98L15 3h-4l-.35 2.93a7.2 7.2 0 0 0-1.7.98l-2.49-1-2 3.46 2.11 1.65c-.04.32-.07.65-.07.98s.02.66.07.98l-2.11 1.65 2 3.46 2.49-1c.52.4 1.1.73 1.7.98L11 21h4l.35-2.93c.6-.25 1.18-.58 1.7-.98l2.49 1 2-3.46-2.11-1.65ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z'/>");
+    public static final String RAIL_SETTINGS_GOOGLE = RAIL_SETTINGS;
     public static final String EXPAND_MORE = materialIcon("<path d='M465-364.5q-7-2.5-13-8.5L268-557q-11-11-11-28t11-28q11-11 28-11t28 11l156 156 156-156q11-11 28-11t28 11q11 11 11 28t-11 28L508-373q-6 6-13 8.5t-15 2.5q-8 0-15-2.5Z'/>");
     public static final String EXPAND_LESS = materialIcon("<path d='M480-529 324-373q-11 11-28 11t-28-11q-11-11-11-28t11-28l184-184q6-6 13-8.5t15-2.5q8 0 15 2.5t13 8.5l184 184q11 11 11 28t-11 28q-11 11-28 11t-28-11L480-529Z'/>");
     public static final String CHECK = materialIcon("<path d='m382-354 339-339q12-12 28-12t28 12q12 12 12 28.5T777-636L410-268q-12 12-28 12t-28-12L182-440q-12-12-11.5-28.5T183-497q12-12 28.5-12t28.5 12l142 143Z'/>");
