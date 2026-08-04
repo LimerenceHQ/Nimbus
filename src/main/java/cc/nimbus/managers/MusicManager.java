@@ -9,6 +9,10 @@ import cc.nimbus.features.music.MusicConfig;
 import cc.nimbus.features.music.Quality;
 import cc.nimbus.features.music.internal.net.NeteaseHttp;
 import cc.nimbus.features.music.lyrics.Lyrics;
+import cc.nimbus.features.music.model.Album;
+import cc.nimbus.features.music.model.AlbumDetails;
+import cc.nimbus.features.music.model.Artist;
+import cc.nimbus.features.music.model.ArtistDetails;
 import cc.nimbus.features.music.model.Music;
 import cc.nimbus.features.music.model.CachedSong;
 import cc.nimbus.features.music.model.Playlist;
@@ -111,6 +115,14 @@ public final class MusicManager implements InstanceManager {
     public CompletableFuture<Music> song(long id) { return async(() -> api().song(requireId(id))); }
     public CompletableFuture<Playlist> playlist(long id) { return async(() -> api().playlist(requireId(id))); }
     public CompletableFuture<List<Music>> playlistSongs(long id) { return async(() -> api().playlistSongs(requireId(id))); }
+    public CompletableFuture<AlbumDetails> album(long id) { return async(() -> api().album(requireId(id))); }
+    public CompletableFuture<List<Album>> newAlbums(int limit) { return async(() -> api().newAlbums(limit)); }
+    public CompletableFuture<List<Album>> subscribedAlbums(int limit) {
+        return async(() -> api().subscribedAlbums(limit));
+    }
+    public CompletableFuture<ArtistDetails> artist(long id) {
+        return async(() -> api().artist(requireId(id)));
+    }
     public CompletableFuture<List<Playlist>> dailyRecommendedPlaylists() { return async(() -> api().dailyRecommendedPlaylists()); }
     public CompletableFuture<List<Music>> dailyRecommendedSongs() { return async(() -> api().dailyRecommendedSongs()); }
     public CompletableFuture<List<Playlist>> personalizedPlaylists(int limit) {
@@ -353,6 +365,21 @@ public final class MusicManager implements InstanceManager {
         String separator = playlist.coverUrl().contains("?") ? "&" : "?";
         return artwork().load("playlist:" + playlist.id() + ':' + bounded,
                 playlist.coverUrl() + separator + "param=" + bounded + 'y' + bounded, io());
+    }
+    public CompletableFuture<byte[]> cover(Album album, int size) {
+        Objects.requireNonNull(album, "album");
+        int bounded = Math.max(32, Math.min(2048, size));
+        String separator = album.pictureUrl().contains("?") ? "&" : "?";
+        return artwork().load("album:" + album.id() + ':' + bounded,
+                album.pictureUrl() + separator + "param=" + bounded + 'y' + bounded, io());
+    }
+    public CompletableFuture<byte[]> portrait(Artist artist, int size) {
+        Objects.requireNonNull(artist, "artist");
+        int bounded = Math.max(32, Math.min(2048, size));
+        if (artist.pictureUrl().isBlank()) return CompletableFuture.completedFuture(new byte[0]);
+        String separator = artist.pictureUrl().contains("?") ? "&" : "?";
+        return artwork().load("artist:" + artist.id() + ':' + bounded,
+                artist.pictureUrl() + separator + "param=" + bounded + 'y' + bounded, io());
     }
     public CompletableFuture<byte[]> avatar(User user, int size) {
         Objects.requireNonNull(user, "user");

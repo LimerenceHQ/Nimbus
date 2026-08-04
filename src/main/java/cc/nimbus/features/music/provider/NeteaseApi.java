@@ -3,6 +3,10 @@ package cc.nimbus.features.music.provider;
 import cc.nimbus.features.music.Quality;
 import cc.nimbus.features.music.internal.net.NeteaseHttp;
 import cc.nimbus.features.music.lyrics.Lyrics;
+import cc.nimbus.features.music.model.Album;
+import cc.nimbus.features.music.model.AlbumDetails;
+import cc.nimbus.features.music.model.Artist;
+import cc.nimbus.features.music.model.ArtistDetails;
 import cc.nimbus.features.music.model.Music;
 import cc.nimbus.features.music.model.Playlist;
 import cc.nimbus.features.music.model.User;
@@ -89,6 +93,47 @@ public final class NeteaseApi implements AutoCloseable {
             if (element.isJsonObject() && element.getAsJsonObject().has("id")) ids.add(element.getAsJsonObject().get("id").getAsLong());
         }
         return songs(ids);
+    }
+    public AlbumDetails album(long id) {
+        JsonObject body = request("/api/v1/album/" + id, Map.of(), NeteaseHttp.Crypto.WEAPI).body();
+        JsonObject value = object(body, "album");
+        Album album = value == null ? null : GSON.fromJson(value, Album.class);
+        return new AlbumDetails(album, mapArray(body, "songs", Music.class));
+    }
+    public List<Album> newAlbums(int limit) {
+        Map<String, Object> data = Map.of(
+                "area", "ALL",
+                "limit", Math.max(1, Math.min(100, limit)),
+                "offset", 0,
+                "total", true
+        );
+        return mapArray(request("/api/album/new", data, NeteaseHttp.Crypto.WEAPI).body(),
+                "albums", Album.class);
+    }
+    public List<Album> subscribedAlbums(int limit) {
+        Map<String, Object> data = Map.of(
+                "limit", Math.max(1, Math.min(100, limit)),
+                "offset", 0,
+                "total", true
+        );
+        return mapArray(request("/api/album/sublist", data, NeteaseHttp.Crypto.WEAPI).body(),
+                "data", Album.class);
+    }
+    public ArtistDetails artist(long id) {
+        JsonObject songsBody = request("/api/v1/artist/" + id, Map.of(), NeteaseHttp.Crypto.WEAPI).body();
+        JsonObject songsArtist = object(songsBody, "artist");
+
+        JsonObject detailBody = request("/api/artist/head/info/get", Map.of("id", id),
+                NeteaseHttp.Crypto.EAPI).body();
+        JsonObject detailData = object(detailBody, "data");
+        JsonObject detailArtist = object(detailData, "artist");
+        Artist artist = GSON.fromJson(detailArtist != null ? detailArtist : songsArtist, Artist.class);
+
+        List<Music> popularSongs = mapArray(songsBody, "hotSongs", Music.class);
+        List<Album> albums = mapArray(request("/api/artist/albums/" + id,
+                Map.of("limit", 50, "offset", 0, "total", true),
+                NeteaseHttp.Crypto.WEAPI).body(), "hotAlbums", Album.class);
+        return new ArtistDetails(artist, popularSongs, albums);
     }
     public List<Playlist> userPlaylists(long userId, int limit) {
         JsonObject body = request("/api/user/playlist", Map.of("uid", userId, "limit", limit, "offset", 0, "includeVideo", true), NeteaseHttp.Crypto.WEAPI).body();

@@ -56,12 +56,9 @@ public final class Watermark extends BasicModule {
         HudSize size = drag.getSize();
         HudRect bounds = drag.getRect(viewport);
         float scale = drag.getRenderScale(viewport);
-        int accentColor = customStyle()
-                ? accent.getValue()
-                : Core.INSTANCE.getConfigManager().clientSettings().accentColor();
-        skija.postProcess().add(RRect.makeXYWH(
-                bounds.x(), bounds.y(), bounds.width(), bounds.height(), RADIUS * scale
-        ));
+        int accentColor = customStyle() ? accent.getValue() : Core.INSTANCE.getConfigManager().clientSettings().accentColor();
+
+        skija.postProcess().add(RRect.makeXYWH(bounds.x(), bounds.y(), bounds.width(), bounds.height(), RADIUS * scale));
 
         skija.hud().submit(frame -> drag.render(frame, viewport, local -> {
             local.draw().roundedRect(0f, 0f, size.width(), size.height(), RADIUS, BACKGROUND_COLOR);

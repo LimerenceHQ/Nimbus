@@ -20,6 +20,9 @@ public final class ClickGuiIcons {
     public static final String SETTINGS = RAIL_SETTINGS;
     public static final String CLOSE = materialIcon("<path d='M480-424 284-228q-11 11-28 11t-28-11q-11-11-11-28t11-28l196-196-196-196q-11-11-11-28t11-28q11-11 28-11t28 11l196 196 196-196q11-11 28-11t28 11q11 11 11 28t-11 28L536-480l196 196q11 11 11 28t-11 28q-11 11-28 11t-28-11L480-424Z'/>");
     public static final String BACK = materialIcon("<path d='m313-440 196 196q12 12 11.5 28T508-188q-12 11-28 11.5T452-188L188-452q-6-6-8.5-13t-2.5-15q0-8 2.5-15t8.5-13l264-264q11-11 27.5-11t28.5 11q12 12 12 28.5T508-715L313-520h447q17 0 28.5 11.5T800-480q0 17-11.5 28.5T760-440H313Z'/>");
+    public static final String COVER_FLOW = materialIcon("<path d='M200-200v-560h560v560H200Zm80-80h400v-400H280v400ZM40-320v-320h80v320H40Zm800 0v-320h80v320h-80Z'/>");
+    public static final String CHEVRON_LEFT = materialIcon("<path d='M560-240 320-480l240-240 56 56-184 184 184 184-56 56Z'/>");
+    public static final String CHEVRON_RIGHT = materialIcon("<path d='m400-240-56-56 184-184-184-184 56-56 240 240-240 240Z'/>");
     public static final String PLAY = materialIcon("<path d='M320-273v-414q0-17 12-28.5t28-11.5q5 0 10.5 1.5T381-721l326 207q9 6 13.5 15t4.5 19q0 10-4.5 19T707-446L381-239q-5 3-10.5 4.5T360-233q-16 0-28-11.5T320-273Zm80-207Zm0 134 210-134-210-134v268Z'/>");
     public static final String PAUSE = materialIcon("<path d='M600-200q-33 0-56.5-23.5T520-280v-400q0-33 23.5-56.5T600-760h80q33 0 56.5 23.5T760-680v400q0 33-23.5 56.5T680-200h-80Zm-320 0q-33 0-56.5-23.5T200-280v-400q0-33 23.5-56.5T280-760h80q33 0 56.5 23.5T440-680v400q0 33-23.5 56.5T360-200h-80Zm320-80h80v-400h-80v400Zm-320 0h80v-400h-80v400Zm0-400v400-400Zm320 0v400-400Z'/>");
     public static final String PREVIOUS = materialIcon("<path d='M220-280v-400q0-17 11.5-28.5T260-720q17 0 28.5 11.5T300-680v400q0 17-11.5 28.5T260-240q-17 0-28.5-11.5T220-280Zm458-1L430-447q-9-6-13.5-14.5T412-480q0-10 4.5-18.5T430-513l248-166q5-4 11-5t11-1q16 0 28 11t12 29v330q0 18-12 29t-28 11q-5 0-11-1t-11-5Zm-18-199Zm0 90v-180l-136 90 136 90Z'/>");
@@ -39,11 +42,30 @@ public final class ClickGuiIcons {
     public static final String LOGOUT = materialIcon("<path d='M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h240q17 0 28.5 11.5T480-800q0 17-11.5 28.5T440-760H200v560h240q17 0 28.5 11.5T480-160q0 17-11.5 28.5T440-120H200Zm487-320H400q-17 0-28.5-11.5T360-480q0-17 11.5-28.5T400-520h287l-75-75q-11-11-11-27t11-28q11-12 28-12.5t29 11.5l143 143q12 12 12 28t-12 28L669-309q-12 12-28.5 11.5T612-310q-11-12-10.5-28.5T613-366l74-74Z'/>");
     public static final String USER = CATEGORY_PLAYER;
     public static final String FOLDER = materialIcon("<path d='M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h207q16 0 30.5 6t25.5 17l57 57h320q33 0 56.5 23.5T880-640v400q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H447l-80-80H160v480Zm0 0v-480 480Z'/>");
+    public static final String PLAYER_PLAY = googleIcon("<path d='M8 5v14l11-7z'/>");
+    public static final String PLAYER_PAUSE = googleIcon("<path d='M6 19h4V5H6v14Zm8-14v14h4V5h-4Z'/>");
+    public static final String PLAYER_PREVIOUS = googleIcon("<path d='M6 6h2v12H6Zm3.5 6 8.5 6V6l-8.5 6Z'/>");
+    public static final String PLAYER_NEXT = googleIcon("<path d='m6 18 8.5-6L6 6v12ZM16 6v12h2V6h-2Z'/>");
+    public static final String PLAYER_REPEAT = googleIcon("<path d='M7 7h10v3l4-4-4-4v3H7C4.79 5 3 6.79 3 9v3h2V9c0-1.1.9-2 2-2Zm10 10H7v-3l-4 4 4 4v-3h10c2.21 0 4-1.79 4-4v-3h-2v3c0 1.1-.9 2-2 2Z'/>");
+    public static final String PLAYER_REPEAT_ONE = googleIcon("<path d='M7 7h10v3l4-4-4-4v3H7C4.79 5 3 6.79 3 9v3h2V9c0-1.1.9-2 2-2Zm10 10H7v-3l-4 4 4 4v-3h10c2.21 0 4-1.79 4-4v-3h-2v3c0 1.1-.9 2-2 2Zm-4-2V9h-1l-2 1v1h1.5v4H13Z'/>");
+    public static final String PLAYER_SHUFFLE = googleIcon("<path d='m16 3 2.29 2.29-4.88 4.88 1.42 1.42 4.88-4.88L22 9V3h-6ZM4.27 5.69l5.15 5.15 1.41-1.41-5.14-5.16L4.27 5.69Zm14.44 11.6-4.88-4.88-1.42 1.42 4.88 4.88L16 20h6v-6l-3.29 3.29ZM4.27 18.31l1.42 1.42 5.14-5.16-1.41-1.41-5.15 5.15Z'/>");
+    public static final String PLAYER_VOLUME = googleIcon("<path d='M3 9v6h4l5 5V4L7 9H3Zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05A4.49 4.49 0 0 0 16.5 12Zm-2.5-8.97v2.06A7 7 0 0 1 14 18.91v2.06c4.01-.91 7-4.49 7-8.97s-2.99-8.06-7-8.97Z'/>");
+    public static final String PLAYER_QUEUE = googleIcon("<path d='M15 6H3v2h12V6Zm0 4H3v2h12v-2ZM3 16h8v-2H3v2Zm14-10v8.18A3 3 0 1 0 19 17V8h3V6h-5Z'/>");
+    public static final String PLAYER_BACK = googleIcon("<path d='M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2Z'/>");
+    public static final String PLAYER_HEART = googleIcon("<path d='m12 21.35-1.45-1.32C5.4 15.36 2 12.27 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09A6.01 6.01 0 0 1 16.5 3C19.58 3 22 5.42 22 8.5c0 3.77-3.4 6.86-8.55 11.54L12 21.35Z'/>");
+    public static final String PLAYER_DOWNLOAD = googleIcon("<path d='M19 9h-4V3H9v6H5l7 7 7-7ZM5 18v2h14v-2H5Z'/>");
+    public static final String MUSIC_RECOMMENDED = googleIcon("<path d='M12 3 2 12h3v8h6v-6h2v6h6v-8h3L12 3Z'/>");
+    public static final String MUSIC_FEATURED = googleIcon("<path d='m9 4.5 1.72 3.78L14.5 10l-3.78 1.72L9 15.5l-1.72-3.78L3.5 10l3.78-1.72L9 4.5Zm7-2 1.08 2.42L19.5 6l-2.42 1.08L16 9.5l-1.08-2.42L12.5 6l2.42-1.08L16 2.5Zm1 11 1.08 2.42L20.5 17l-2.42 1.08L17 20.5l-1.08-2.42L13.5 17l2.42-1.08L17 13.5Z'/>");
+    public static final String MUSIC_SEARCH = googleIcon("<path d='M9.5 3a6.5 6.5 0 1 0 3.98 11.64L19.85 21 21 19.85l-6.36-6.37A6.5 6.5 0 0 0 9.5 3Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z'/>");
 
     private ClickGuiIcons() {
     }
 
     private static String materialIcon(String body) {
         return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960' fill='currentColor'>" + body + "</svg>";
+    }
+
+    private static String googleIcon(String body) {
+        return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'>" + body + "</svg>";
     }
 }

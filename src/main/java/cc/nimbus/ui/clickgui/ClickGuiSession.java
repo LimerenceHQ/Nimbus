@@ -15,10 +15,13 @@ public final class ClickGuiSession {
     public enum MusicRoute {
         RECOMMENDED,
         FEATURED,
+        COVER_FLOW,
         SEARCH,
         LIKED,
         CACHED,
         PLAYLIST,
+        ALBUM,
+        ARTIST,
         NOW_PLAYING,
         LOGIN
     }

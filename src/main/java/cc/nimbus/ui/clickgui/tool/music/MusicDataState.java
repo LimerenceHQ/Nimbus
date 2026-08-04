@@ -4,6 +4,9 @@ import cc.nimbus.features.music.lyrics.Lyrics;
 import cc.nimbus.features.music.lyrics.LyricsParser;
 import cc.nimbus.features.music.lyrics.TimedLine;
 import cc.nimbus.features.music.lyrics.WordLine;
+import cc.nimbus.features.music.model.Album;
+import cc.nimbus.features.music.model.Artist;
+import cc.nimbus.features.music.model.ArtistDetails;
 import cc.nimbus.features.music.model.CachedSong;
 import cc.nimbus.features.music.model.Music;
 import cc.nimbus.features.music.model.Playlist;
@@ -38,8 +41,11 @@ public final class MusicDataState {
     private long currentSongId = -1L;
     private List<Music> songs = List.of();
     private List<Playlist> playlists = List.of();
+    private List<Album> albums = List.of();
     private List<CachedSong> cachedSongs = List.of();
     private Playlist selectedPlaylist;
+    private Album selectedAlbum;
+    private ArtistDetails selectedArtist;
     private Artwork currentArtwork;
     private Artwork previousArtwork;
     private LyricsView lyrics = LyricsView.EMPTY;
@@ -53,7 +59,21 @@ public final class MusicDataState {
     public void opened(ClickGuiSession.MusicRoute route) {
         generation++;
         cachedSongs = manager.cachedSongs();
-        load(route);
+        switch (route) {
+            case PLAYLIST -> {
+                if (selectedPlaylist == null) load(route);
+                else playlist(selectedPlaylist);
+            }
+            case ALBUM -> {
+                if (selectedAlbum == null) load(route);
+                else album(selectedAlbum);
+            }
+            case ARTIST -> {
+                if (selectedArtist == null || selectedArtist.artist() == null) load(route);
+                else artist(selectedArtist.artist());
+            }
+            default -> load(route);
+        }
     }
 
     public void closed() {
@@ -64,8 +84,8 @@ public final class MusicDataState {
         artwork.clear();
         songs = List.of();
         playlists = List.of();
+        albums = List.of();
         cachedSongs = List.of();
-        selectedPlaylist = null;
         currentSongId = -1L;
         currentArtwork = null;
         previousArtwork = null;
@@ -80,10 +100,14 @@ public final class MusicDataState {
         error = "";
         songs = List.of();
         playlists = List.of();
+        albums = List.of();
         selectedPlaylist = null;
+        selectedAlbum = null;
+        selectedArtist = null;
         switch (route) {
             case RECOMMENDED -> loadRecommended(token);
             case FEATURED -> runRoute(manager.featuredPlaylists(40), token, values -> playlists = values);
+            case COVER_FLOW -> loadCoverFlow(token);
             case LIKED -> {
                 if (manager.profile() == null) finishRoute(token);
                 else runRoute(manager.likedSongs(200), token, values -> songs = values);
@@ -110,6 +134,7 @@ public final class MusicDataState {
 
     public void playlist(Playlist playlist) {
         selectedPlaylist = playlist;
+        selectedAlbum = null;
         long token = ++routeGeneration;
         loading = true;
         error = "";
@@ -118,6 +143,32 @@ public final class MusicDataState {
         runRoute(detail.thenCombine(tracks, PlaylistResult::new), token, value -> {
             selectedPlaylist = value.playlist() == null ? playlist : value.playlist();
             songs = value.songs();
+        });
+    }
+
+    public void album(Album album) {
+        selectedPlaylist = null;
+        selectedAlbum = album;
+        long token = ++routeGeneration;
+        loading = true;
+        error = "";
+        runRoute(manager.album(album.id()), token, value -> {
+            selectedAlbum = value.album() == null ? album : value.album();
+            songs = value.songs();
+        });
+    }
+
+    public void artist(Artist artist) {
+        selectedPlaylist = null;
+        selectedAlbum = null;
+        selectedArtist = new ArtistDetails(artist, List.of(), List.of());
+        long token = ++routeGeneration;
+        loading = true;
+        error = "";
+        runRoute(manager.artist(artist.id()), token, value -> {
+            selectedArtist = value;
+            songs = value.popularSongs();
+            albums = value.albums();
         });
     }
 
@@ -167,6 +218,20 @@ public final class MusicDataState {
         return artwork.get(key);
     }
 
+    public Artwork artwork(Album album, int size) {
+        if (album == null) return null;
+        String key = "album:" + album.id() + ':' + size;
+        requestEncoded(key, manager.cover(album, size));
+        return artwork.get(key);
+    }
+
+    public Artwork artwork(Artist artist, int size) {
+        if (artist == null) return null;
+        String key = "artist:" + artist.id() + ':' + size;
+        requestEncoded(key, manager.portrait(artist, size));
+        return artwork.get(key);
+    }
+
     public Artwork artwork(User user, int size) {
         if (user == null) return null;
         String key = "user:" + user.id() + ':' + size;
@@ -209,6 +274,38 @@ public final class MusicDataState {
             playlists = value.playlists();
             songs = value.songs();
         });
+    }
+
+    private void loadCoverFlow(long token) {
+        CompletableFuture<List<Playlist>> personal = manager.personalizedPlaylists(20);
+        CompletableFuture<List<Playlist>> featured = manager.featuredPlaylists(20);
+        CompletableFuture<List<Album>> recentAlbums = manager.newAlbums(40);
+        CompletableFuture<List<Album>> subscribedAlbums = manager.profile() == null
+                ? CompletableFuture.completedFuture(List.of()) : manager.subscribedAlbums(30);
+        CompletableFuture<CoverFlowResult> result = personal.thenCombine(featured,
+                        (recommended, curated) -> mergePlaylists(manager.accountPlaylists(), recommended, curated))
+                .thenCombine(recentAlbums.thenCombine(subscribedAlbums, MusicDataState::mergeAlbums),
+                        CoverFlowResult::new);
+        runRoute(result, token, value -> {
+            playlists = value.playlists();
+            albums = value.albums();
+        });
+    }
+
+    @SafeVarargs
+    private static List<Playlist> mergePlaylists(List<Playlist>... sources) {
+        Map<Long, Playlist> merged = new LinkedHashMap<>();
+        for (List<Playlist> source : sources) {
+            for (Playlist playlist : source) merged.putIfAbsent(playlist.id(), playlist);
+        }
+        return List.copyOf(merged.values());
+    }
+
+    private static List<Album> mergeAlbums(List<Album> first, List<Album> second) {
+        Map<Long, Album> merged = new LinkedHashMap<>();
+        for (Album album : second) merged.putIfAbsent(album.id(), album);
+        for (Album album : first) merged.putIfAbsent(album.id(), album);
+        return List.copyOf(merged.values());
     }
 
     private <T> void runRoute(CompletableFuture<T> future, long token, Consumer<T> success) {
@@ -275,8 +372,11 @@ public final class MusicDataState {
 
     public List<Music> songs() { return songs; }
     public List<Playlist> playlists() { return playlists; }
+    public List<Album> albums() { return albums; }
     public List<CachedSong> cachedSongs() { return cachedSongs; }
     public Playlist selectedPlaylist() { return selectedPlaylist; }
+    public Album selectedAlbum() { return selectedAlbum; }
+    public ArtistDetails selectedArtist() { return selectedArtist; }
     public Artwork currentArtwork() { return currentArtwork; }
     public Artwork previousArtwork() { return previousArtwork; }
     public LyricsView lyrics() { return lyrics; }
@@ -299,4 +399,5 @@ public final class MusicDataState {
     private record SearchResult(List<Music> songs, List<Playlist> playlists) { }
     private record RecommendedResult(List<Playlist> playlists, List<Music> songs) { }
     private record PlaylistResult(Playlist playlist, List<Music> songs) { }
+    private record CoverFlowResult(List<Playlist> playlists, List<Album> albums) { }
 }

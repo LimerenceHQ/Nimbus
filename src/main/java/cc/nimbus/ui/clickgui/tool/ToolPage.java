@@ -40,6 +40,10 @@ public interface ToolPage {
         return false;
     }
 
+    default boolean showHostCloseButton() {
+        return true;
+    }
+
     default void closed() {
     }
 }

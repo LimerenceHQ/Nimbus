@@ -120,7 +120,9 @@ public final class ClickGuiView {
             if (outgoing != null) outgoing.closed();
             outgoingTool = ClickGuiSession.Tool.NONE;
         }
-        if (columnsProgress > .005f) renderColumns(context, speed, closingProgress);
+        UiContext columnContext = session.tool() == ClickGuiSession.Tool.NONE
+                ? context : context.withoutPointer();
+        if (columnsProgress > .005f) renderColumns(columnContext, speed, closingProgress);
         renderTool(context);
         renderRail(context);
         renderTooltip(context);
@@ -397,13 +399,18 @@ public final class ClickGuiView {
             } finally {
                 context.restore(clip);
             }
-            closeBounds = new UiRect(x + width - 37f, y + 12f, 26f, 26f);
-            if (closeBounds.contains(context.mouseX(), context.mouseY())) {
-                context.frame().draw().roundedRect(closeBounds.x(), closeBounds.y(), closeBounds.width(),
-                        closeBounds.height(), 3f, ClickGuiTheme.HOVER);
+            ToolPage activePage = tools.get(activeTool);
+            if (activePage != null && activePage.showHostCloseButton()) {
+                closeBounds = new UiRect(x + width - 37f, y + 12f, 26f, 26f);
+                if (closeBounds.contains(context.mouseX(), context.mouseY())) {
+                    context.frame().draw().roundedRect(closeBounds.x(), closeBounds.y(), closeBounds.width(),
+                            closeBounds.height(), 3f, ClickGuiTheme.HOVER);
+                }
+                icon(context, ClickGuiIcons.CLOSE, closeBounds.x() + 6f, closeBounds.y() + 6f, 14f,
+                        ClickGuiTheme.MUTED);
+            } else {
+                closeBounds = null;
             }
-            icon(context, ClickGuiIcons.CLOSE, closeBounds.x() + 6f, closeBounds.y() + 6f, 14f,
-                    ClickGuiTheme.MUTED);
         } finally {
             context.frame().canvas().restoreToCount(layer);
         }
@@ -424,20 +431,20 @@ public final class ClickGuiView {
 
     private UiRect toolRect(ClickGuiSession.Tool tool) {
         float widthRatio = switch (tool) {
-            case MUSIC -> .72f;
+            case MUSIC -> .82f;
             case CLIENT -> .56f;
             case CONFIG -> .46f;
             default -> 0f;
         };
         float heightRatio = switch (tool) {
-            case MUSIC -> .76f;
+            case MUSIC -> .84f;
             case CLIENT -> .66f;
             case CONFIG -> .56f;
             default -> 0f;
         };
-        float width = Math.clamp(logicalWidth * widthRatio, tool == ClickGuiSession.Tool.MUSIC ? 720f : 440f,
+        float width = Math.clamp(logicalWidth * widthRatio, tool == ClickGuiSession.Tool.MUSIC ? 820f : 440f,
                 logicalWidth - 90f);
-        float height = Math.clamp(logicalHeight * heightRatio, tool == ClickGuiSession.Tool.MUSIC ? 500f : 360f,
+        float height = Math.clamp(logicalHeight * heightRatio, tool == ClickGuiSession.Tool.MUSIC ? 560f : 360f,
                 logicalHeight - 70f);
         return new UiRect((logicalWidth - width) * .5f, (logicalHeight - height) * .5f, width, height);
     }

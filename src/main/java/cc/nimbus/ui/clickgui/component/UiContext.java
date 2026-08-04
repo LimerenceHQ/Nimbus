@@ -62,10 +62,14 @@ public record UiContext(
     }
 
     public void visualTextIn(String value, UiRect bounds, float size, int color) {
+        visualTextIn(FONT, value, bounds, size, color);
+    }
+
+    public void visualTextIn(String family, String value, UiRect bounds, float size, int color) {
         float scaledSize = fontSize(size);
         float textY = bounds.y() + bounds.height() * .5f
-                - frame.text().visualCenterY(FONT, scaledSize, value);
-        frame.text().draw(FONT, scaledSize, value, bounds.x(), textY, color);
+                - frame.text().visualCenterY(family, scaledSize, value);
+        frame.text().draw(family, scaledSize, value, bounds.x(), textY, color);
     }
 
     public void centered(String value, UiRect bounds, float size, int color) {
@@ -83,6 +87,11 @@ public record UiContext(
     public String translate(String key, String fallback, Object... arguments) {
         if (!Core.INSTANCE.isInitialized()) return fallback;
         return Core.INSTANCE.getI18nManager().get(key, fallback, arguments);
+    }
+
+    public UiContext withoutPointer() {
+        return new UiContext(frame, theme, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY,
+                deltaSeconds, nowMillis);
     }
 
     public int clip(UiRect bounds, float radius) {
