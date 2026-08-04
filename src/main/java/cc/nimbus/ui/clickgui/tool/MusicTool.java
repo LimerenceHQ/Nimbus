@@ -44,10 +44,12 @@ import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -70,6 +72,13 @@ public final class MusicTool implements ToolPage {
     private final Map<String, Float> hovers = boundedAnimations();
     private final Map<String, Float> imageFades = boundedAnimations();
     private final Map<Artwork, byte[]> encoded = new IdentityHashMap<>();
+    private final Map<String, List<Music>> coverFlowTracks = new LinkedHashMap<>(8, .75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, List<Music>> eldest) {
+            return size() > 24;
+        }
+    };
+    private final Set<String> pendingCoverFlowTracks = new HashSet<>();
     private final CoverFlowState coverFlow = new CoverFlowState();
     private UiRect sidebarBounds;
     private UiRect sidebarClipBounds;
@@ -100,6 +109,10 @@ public final class MusicTool implements ToolPage {
     private float routeProgress;
     private float routeDirection = 1f;
     private float coverBlend;
+    private int artworkDirection = 1;
+    private int flippedCoverFlowIndex = -1;
+    private float coverFlowFlipProgress;
+    private boolean coverFlowFlipped;
     private float queueProgress;
     private float previewProgress;
     private float translationProgress = 1f;
@@ -178,6 +191,10 @@ public final class MusicTool implements ToolPage {
         queueScroll += queueScrollVelocity * scrollDt;
         routeProgress = animate(routeProgress, 1f, speed);
         coverBlend = data.currentArtwork() == null ? 0f : animate(coverBlend, 1f, speed * .72f);
+        int selectedCover = coverFlowItemCount() == 0 ? -1 : coverFlow.selectedIndex(coverFlowItemCount());
+        float flipTarget = coverFlowFlipped && flippedCoverFlowIndex == selectedCover && selectedCover >= 0 ? 1f : 0f;
+        coverFlowFlipProgress = animate(coverFlowFlipProgress, flipTarget, speed * .9f);
+        if (!coverFlowFlipped && coverFlowFlipProgress <= .001f) flippedCoverFlowIndex = -1;
         queueProgress = animate(queueProgress, queueOpen ? 1f : 0f, speed);
         previewProgress = animate(previewProgress, coverPreview ? 1f : 0f, speed);
         translationProgress = animate(translationProgress, translationsEnabled ? 1f : 0f, speed);
@@ -235,7 +252,7 @@ public final class MusicTool implements ToolPage {
         if (profile == null) {
             context.frame().draw().roundedRect(avatar.x(), avatar.y(), avatar.width(), avatar.height(), 14f,
                     IMAGE_PLACEHOLDER);
-            icon(context, ClickGuiIcons.USER, avatar.x() + 6f, avatar.y() + 6f, 16f, ClickGuiTheme.MUTED);
+            icon(context, ClickGuiIcons.MUSIC_USER, avatar.x() + 6f, avatar.y() + 6f, 16f, ClickGuiTheme.MUTED);
         } else {
             drawArtwork(context, data.artwork(profile, 96), "profile:" + profile.id(), avatar, 14f, 255);
         }
@@ -261,14 +278,14 @@ public final class MusicTool implements ToolPage {
             y += 8f;
             y = group(context, context.translate("nimbus.music.group.my_music", "MY MUSIC:"), y);
             y = nav(context, context.translate("nimbus.music.liked", "Liked Music"),
-                    ClickGuiIcons.HEART, ClickGuiSession.MusicRoute.LIKED, y);
+                    ClickGuiIcons.MUSIC_LIKED, ClickGuiSession.MusicRoute.LIKED, y);
             y = nav(context, context.translate("nimbus.music.cached", "Cached Songs"),
-                    ClickGuiIcons.CACHE, ClickGuiSession.MusicRoute.CACHED, y);
+                    ClickGuiIcons.MUSIC_CACHED, ClickGuiSession.MusicRoute.CACHED, y);
             y += 8f;
 
             y = group(context, context.translate("nimbus.music.group.playlists", "PLAYLISTS:"), y);
             y = nav(context, context.translate("nimbus.music.cover_flow", "Cover Flow"),
-                    ClickGuiIcons.COVER_FLOW, ClickGuiSession.MusicRoute.COVER_FLOW, y);
+                    ClickGuiIcons.MUSIC_COVER_FLOW, ClickGuiSession.MusicRoute.COVER_FLOW, y);
 
             if (profile != null) {
                 List<Playlist> created = manager.accountPlaylists().stream()
@@ -308,7 +325,7 @@ public final class MusicTool implements ToolPage {
         boolean hover = row.contains(context.mouseX(), context.mouseY());
         if (active || hover) context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
                 active ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
-        icon(context, icon, row.x() + 7f, row.y() + 7f, 14f, active ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+        icon(context, icon, row.x() + 6f, row.y() + 6f, 16f, active ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
         context.textIn(label, new UiRect(row.x() + 28f, row.y(), row.width() - 33f, row.height()),
                 10f, active ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
         hits.add(new Hit(row, Action.NAVIGATE, route, sidebarClipBounds));
@@ -444,6 +461,9 @@ public final class MusicTool implements ToolPage {
         for (CoverFlowLayout.Slot slot : layout.slots()) {
             Object value = items.get(slot.index());
             UiRect card = slot.bounds();
+            CoverFlowCard hit = new CoverFlowCard(slot.index(), value);
+            // Keep the card hit below the back-side controls in z-order.
+            hits.add(new Hit(card, Action.COVER_ITEM, hit, bodyBounds));
             context.frame().draw().roundedRect(card.x() + 2f, card.y() + 5f,
                     card.width(), card.height(), 7f, alpha(0xFF000000, Math.round(slot.prominence() * 72f)));
             Artwork artwork;
@@ -456,16 +476,21 @@ public final class MusicTool implements ToolPage {
                 artwork = data.artwork(album, 768);
                 key = "cover-flow-album:" + album.id();
             }
-            drawArtworkReflection(context, artwork, key, card, slot.prominence());
-            drawArtwork(context, artwork, key, card, 6f, slot.alpha());
+            float flip = slot.index() == flippedCoverFlowIndex ? coverFlowFlipProgress : 0f;
+            if (flip >= .5f) {
+                drawCoverFlowBack(context, card, value, artwork, key, flip);
+            } else {
+                UiRect front = flip <= .001f ? card
+                        : scaleAroundCenter(card, Math.max(.02f, 1f - flip * 2f), 1f);
+                drawArtworkReflection(context, artwork, key, front, slot.prominence());
+                drawArtwork(context, artwork, key, front, 6f, slot.alpha());
+            }
             boolean hover = card.contains(context.mouseX(), context.mouseY());
             if (slot.index() == selected || hover) {
                 int outlineAlpha = slot.index() == selected ? 82 : 42;
                 context.frame().draw().outline(card.x(), card.y(), card.width(), card.height(),
                         6f, 1f, alpha(0xFFFFFFFF, outlineAlpha));
             }
-            CoverFlowCard hit = new CoverFlowCard(slot.index(), value);
-            hits.add(new Hit(card, Action.COVER_ITEM, hit, bodyBounds));
         }
 
         Object current = items.get(selected);
@@ -533,6 +558,126 @@ public final class MusicTool implements ToolPage {
         } finally {
             context.restore(fadeClip);
         }
+    }
+
+    private void drawCoverFlowBack(UiContext context, UiRect card, Object value,
+                                   Artwork artwork, String artworkKey, float progress) {
+        float scale = Math.max(.02f, progress * 2f - 1f);
+        UiRect back = scaleAroundCenter(card, scale, 1f);
+        context.frame().draw().roundedRect(back.x(), back.y(), back.width(), back.height(), 7f, 0xF21A1D23);
+        context.frame().draw().outline(back.x(), back.y(), back.width(), back.height(), 7f, 1f, 0x26FFFFFF);
+
+        float reveal = smoothStep(Math.clamp((scale - .28f) / .72f, 0f, 1f));
+        if (reveal <= .001f) return;
+        int clip = context.clip(back, 7f);
+        int layer = context.frame().canvas().saveLayerAlpha(
+                Rect.makeXYWH(card.x(), card.y(), card.width(), card.height()), Math.round(reveal * 255f));
+        try {
+            float padding = 15f;
+            float headerHeight = Math.clamp(card.height() * .27f, 58f, 76f);
+            float coverSize = Math.max(40f, headerHeight - 18f);
+            UiRect cover = new UiRect(card.x() + padding, card.y() + 9f, coverSize, coverSize);
+            drawArtwork(context, artwork, artworkKey + ":back", cover, 4f, 255);
+
+            String title;
+            String detail;
+            if (value instanceof Playlist playlist) {
+                title = playlist.name();
+                detail = playlist.trackCount() + " " + tr("nimbus.music.songs", "Songs");
+            } else {
+                Album album = (Album) value;
+                title = album.name();
+                detail = album.artistsText() + "  /  " + album.trackCount() + " "
+                        + tr("nimbus.music.songs", "Songs");
+            }
+            float textX = cover.x() + cover.width() + 11f;
+            float textWidth = card.x() + card.width() - padding - textX;
+            context.draw(NimbusFonts.CONTENT_MEDIUM, 12.5f,
+                    ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 12.5f, title, textWidth),
+                    textX, cover.y() + 7f, ClickGuiTheme.TEXT);
+            context.draw(NimbusFonts.BODY_MEDIUM, 9f,
+                    ellipsizeFont(context, NimbusFonts.BODY_MEDIUM, 9f, detail, textWidth),
+                    textX, cover.y() + 31f, ClickGuiTheme.MUTED);
+
+            float dividerY = card.y() + headerHeight;
+            context.frame().draw().rect(card.x() + padding, dividerY,
+                    card.width() - padding * 2f, 1f, 0x20FFFFFF);
+            drawCoverFlowTracks(context, card, value, dividerY + 7f, padding, reveal);
+
+            float buttonY = card.y() + card.height() - 41f;
+            float available = card.width() - padding * 2f;
+            float playWidth = Math.max(74f, available * .48f);
+            UiRect play = new UiRect(card.x() + padding, buttonY, playWidth, 28f);
+            UiRect open = new UiRect(play.x() + play.width() + 7f, buttonY,
+                    available - play.width() - 7f, 28f);
+            coverFlowBackButton(context, play, ClickGuiIcons.PLAYER_PLAY,
+                    tr("nimbus.music.play", "Play"), true, Action.COVER_PLAY, value, reveal);
+            coverFlowBackButton(context, open, ClickGuiIcons.OPEN_IN_NEW,
+                    tr("nimbus.music.open", "Open"), false, Action.COVER_OPEN, value, reveal);
+        } finally {
+            context.frame().canvas().restoreToCount(layer);
+            context.restore(clip);
+        }
+    }
+
+    private void drawCoverFlowTracks(UiContext context, UiRect card, Object value,
+                                     float y, float padding, float reveal) {
+        String key = coverFlowCollectionKey(value);
+        List<Music> tracks = coverFlowTracks.get(key);
+        float bottom = card.y() + card.height() - 48f;
+        if (tracks == null) {
+            String label = pendingCoverFlowTracks.contains(key)
+                    ? tr("nimbus.ui.loading", "Loading...")
+                    : tr("nimbus.music.no_songs", "No songs");
+            context.center(NimbusFonts.BODY_MEDIUM, 9f, label,
+                    card.x() + card.width() * .5f, y + 14f, ClickGuiTheme.MUTED);
+            return;
+        }
+        int visible = Math.min(tracks.size(), Math.max(1, (int) ((bottom - y) / 24f)));
+        float width = card.width() - padding * 2f;
+        for (int index = 0; index < visible; index++) {
+            Music music = tracks.get(index);
+            UiRect row = new UiRect(card.x() + padding, y + index * 24f, width, 22f);
+            boolean hover = reveal > .94f && row.contains(context.mouseX(), context.mouseY());
+            if (hover) context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
+                    0x16FFFFFF);
+            context.center(NimbusFonts.BODY_MEDIUM, 8.5f, Integer.toString(index + 1),
+                    row.x() + 9f, row.y() + 4f, ClickGuiTheme.MUTED);
+            context.textIn(ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 9.3f,
+                            music.name(), row.width() - 34f),
+                    new UiRect(row.x() + 23f, row.y(), row.width() - 27f, row.height()),
+                    9.3f, hover ? ClickGuiTheme.TEXT : 0xD8FFFFFF);
+            if (reveal > .94f) hits.add(new Hit(row, Action.PLAY_SONG,
+                    new SongSelection(tracks, index), bodyBounds));
+        }
+    }
+
+    private void coverFlowBackButton(UiContext context, UiRect bounds, String svg, String label,
+                                     boolean primary, Action action, Object value, float reveal) {
+        boolean hover = reveal > .94f && bounds.contains(context.mouseX(), context.mouseY());
+        float hoverProgress = hover(context, "cover-back:" + action + ':' + coverFlowCollectionKey(value), hover);
+        int background = primary
+                ? alpha(0xFFFFFFFF, Math.round(32f + hoverProgress * 20f))
+                : alpha(0xFFFFFFFF, Math.round(10f + hoverProgress * 15f));
+        context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 5f, background);
+        context.frame().draw().outline(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 5f, 1f,
+                primary ? 0x2EFFFFFF : 0x20FFFFFF);
+        float iconSize = 16f;
+        float gap = 5f;
+        float textWidth = context.width(NimbusFonts.BODY_MEDIUM, 9.2f, label);
+        float x = Math.round(bounds.x() + (bounds.width() - iconSize - gap - textWidth) * .5f);
+        icon(context, svg, x, Math.round(bounds.y() + (bounds.height() - iconSize) * .5f),
+                iconSize, ClickGuiTheme.TEXT);
+        drawCenteredY(context, NimbusFonts.BODY_MEDIUM, 9.2f, label,
+                x + iconSize + gap, bounds.y(), bounds.height(), ClickGuiTheme.TEXT);
+        if (reveal > .94f) hits.add(new Hit(bounds, action, value, bodyBounds));
+    }
+
+    private static UiRect scaleAroundCenter(UiRect bounds, float xScale, float yScale) {
+        float width = bounds.width() * xScale;
+        float height = bounds.height() * yScale;
+        return new UiRect(bounds.x() + (bounds.width() - width) * .5f,
+                bounds.y() + (bounds.height() - height) * .5f, width, height);
     }
 
     private void coverFlowTab(UiContext context, UiRect bounds, String label,
@@ -654,7 +799,7 @@ public final class MusicTool implements ToolPage {
         if (creator == null) {
             context.frame().draw().roundedRect(avatar.x(), avatar.y(), avatar.width(), avatar.height(), 16f,
                     IMAGE_PLACEHOLDER);
-            icon(context, ClickGuiIcons.USER, avatar.x() + 7f, avatar.y() + 7f, 18f, ClickGuiTheme.MUTED);
+            icon(context, ClickGuiIcons.MUSIC_USER, avatar.x() + 7f, avatar.y() + 7f, 18f, ClickGuiTheme.MUTED);
         } else {
             drawArtwork(context, data.artwork(creator, 128), "playlist-creator:" + creator.id(),
                     avatar, 16f, 255);
@@ -837,9 +982,9 @@ public final class MusicTool implements ToolPage {
         control(context, new UiRect(centerX + 40f, controlsY + 4f, 30f, 30f),
                 ClickGuiIcons.PLAYER_NEXT, Action.NEXT);
 
-        float volumeY = controlsY + 50f;
-        icon(context, ClickGuiIcons.PLAYER_VOLUME, cover.x(), volumeY - 6f, 18f, 0xC8FFFFFF);
-        volumeBounds = new UiRect(cover.x() + 25f, volumeY, cover.width() - 25f, 3f);
+        float volumeY = Math.round(controlsY + 50f);
+        icon(context, ClickGuiIcons.PLAYER_VOLUME, Math.round(cover.x()), volumeY - 9f, 20f, 0xC8FFFFFF);
+        volumeBounds = new UiRect(Math.round(cover.x() + 25f), volumeY, Math.round(cover.width() - 25f), 2f);
         drawSlider(context, volumeBounds, playback.volume());
         hits.add(new Hit(new UiRect(volumeBounds.x(), volumeBounds.y() - 7f,
                 volumeBounds.width(), 17f), Action.VOLUME, null));
@@ -952,7 +1097,7 @@ public final class MusicTool implements ToolPage {
         int first = Math.max(0, (int) Math.floor(viewPosition) - visibleRadius);
         int last = Math.min(lines.size() - 1, (int) Math.ceil(viewPosition) + visibleRadius);
         int nextLineTime = active + 1 < lines.size() ? lines.get(active + 1).timeMs() : Integer.MAX_VALUE;
-        WordLine wordLine = activeWordLine(lyrics.words(), lines.get(active).timeMs(), nextLineTime, now);
+        WordLine wordLine = wordLineForLine(lyrics.words(), lines.get(active).timeMs(), nextLineTime);
         boolean hoveringLyrics = viewport.contains(context.mouseX(), context.mouseY());
         try {
             for (int index = first; index <= last; index++) {
@@ -1487,7 +1632,7 @@ public final class MusicTool implements ToolPage {
         context.frame().draw().outline(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f, 1f,
                 ClickGuiTheme.STROKE);
         String label = context.translate("nimbus.music.play_all", "Play All");
-        float iconSize = 19f + hover;
+        float iconSize = 19f;
         float gap = 6f;
         float textWidth = context.width(UiContext.FONT, 10f, label);
         float x = bounds.x() + (bounds.width() - iconSize - gap - textWidth) * .5f;
@@ -1591,10 +1736,23 @@ public final class MusicTool implements ToolPage {
         Artwork previous = data.previousArtwork();
         Artwork current = data.currentArtwork();
         if (previous != null && coverBlend < .999f) {
-            drawArtwork(context, previous, "current-previous", bounds, 4f, Math.round(255f * (1f - coverBlend)));
-        }
-        if (current != null) {
-            drawArtwork(context, current, "current:" + music.id(), bounds, 4f, Math.round(255f * coverBlend));
+            float progress = smoothStep(coverBlend);
+            int clip = context.clip(bounds, 4f);
+            try {
+                UiRect outgoing = new UiRect(bounds.x() - artworkDirection * bounds.width() * progress,
+                        bounds.y(), bounds.width(), bounds.height());
+                drawArtwork(context, previous, "current-previous", outgoing, 4f,
+                        Math.round(255f * (1f - progress * .22f)));
+                if (current != null) {
+                    UiRect incoming = new UiRect(bounds.x() + artworkDirection * bounds.width() * (1f - progress),
+                            bounds.y(), bounds.width(), bounds.height());
+                    drawArtwork(context, current, "current:" + music.id(), incoming, 4f, 255);
+                }
+            } finally {
+                context.restore(clip);
+            }
+        } else if (current != null) {
+            drawArtwork(context, current, "current:" + music.id(), bounds, 4f, 255);
         } else if (previous == null) {
             context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 4f,
                     IMAGE_PLACEHOLDER);
@@ -1693,8 +1851,8 @@ public final class MusicTool implements ToolPage {
                 show(removed ? tr("nimbus.music.message.cache_removed", "Cached song removed")
                         : tr("nimbus.music.message.cache_remove_failed", "Unable to remove cached song"));
             });
-            case PREVIOUS -> manager.previous();
-            case NEXT -> manager.next();
+            case PREVIOUS -> { artworkDirection = -1; manager.previous(); }
+            case NEXT -> { artworkDirection = 1; manager.next(); }
             case TOGGLE_PLAYBACK -> manager.togglePause();
             case MODE -> cycleMode();
             case TOGGLE_QUEUE -> {
@@ -1730,20 +1888,35 @@ public final class MusicTool implements ToolPage {
             case COVER_PLAYLISTS -> {
                 coverFlowKind = CoverFlowKind.PLAYLISTS;
                 coverFlow.reset();
+                coverFlowFlipped = false;
+                flippedCoverFlowIndex = -1;
                 routeProgress = 0f;
             }
             case COVER_ALBUMS -> {
                 coverFlowKind = CoverFlowKind.ALBUMS;
                 coverFlow.reset();
+                coverFlowFlipped = false;
+                flippedCoverFlowIndex = -1;
                 routeProgress = 0f;
             }
-            case COVER_PREVIOUS -> coverFlow.select(
-                    coverFlow.selectedIndex(coverFlowItemCount()) - 1, coverFlowItemCount());
-            case COVER_NEXT -> coverFlow.select(
-                    coverFlow.selectedIndex(coverFlowItemCount()) + 1, coverFlowItemCount());
+            case COVER_PREVIOUS -> {
+                coverFlow.select(coverFlow.selectedIndex(coverFlowItemCount()) - 1, coverFlowItemCount());
+                coverFlowFlipped = false;
+                flippedCoverFlowIndex = -1;
+            }
+            case COVER_NEXT -> {
+                coverFlow.select(coverFlow.selectedIndex(coverFlowItemCount()) + 1, coverFlowItemCount());
+                coverFlowFlipped = false;
+                flippedCoverFlowIndex = -1;
+            }
             case COVER_ITEM -> {
                 pressedCoverFlowCard = (CoverFlowCard) hit.value();
                 coverFlow.beginDrag(mouseX);
+            }
+            case COVER_PLAY -> playCoverFlowItem(hit.value());
+            case COVER_OPEN -> {
+                coverFlowFlipped = false;
+                openCoverFlowItem(hit.value());
             }
             case TOGGLE_TRANSLATION -> translationsEnabled = !translationsEnabled;
             case QUALITY -> cycleQuality();
@@ -1798,10 +1971,21 @@ public final class MusicTool implements ToolPage {
             boolean click = coverFlow.endDrag(coverFlowItemCount());
             if (click && pressedCoverFlowCard != null) {
                 if (pressedCoverFlowCard.index() == coverFlow.selectedIndex(coverFlowItemCount())) {
-                    openCoverFlowItem(pressedCoverFlowCard.value());
+                    if (flippedCoverFlowIndex == pressedCoverFlowCard.index() && coverFlowFlipProgress > .85f) {
+                        coverFlowFlipped = false;
+                    } else {
+                        flippedCoverFlowIndex = pressedCoverFlowCard.index();
+                        coverFlowFlipped = true;
+                        requestCoverFlowTracks(pressedCoverFlowCard.value());
+                    }
                 } else {
                     coverFlow.select(pressedCoverFlowCard.index(), coverFlowItemCount());
+                    coverFlowFlipped = false;
+                    flippedCoverFlowIndex = -1;
                 }
+            } else if (!click) {
+                coverFlowFlipped = false;
+                flippedCoverFlowIndex = -1;
             }
             pressedCoverFlowCard = null;
         }
@@ -1825,6 +2009,8 @@ public final class MusicTool implements ToolPage {
         }
         if (coverFlowBounds != null && coverFlowBounds.contains(x, y)) {
             coverFlow.scroll(delta, coverFlowItemCount());
+            coverFlowFlipped = false;
+            flippedCoverFlowIndex = -1;
             return true;
         }
         if (sidebarBounds != null && sidebarBounds.contains(x, y)) {
@@ -1870,10 +2056,14 @@ public final class MusicTool implements ToolPage {
         if (session.musicRoute() == ClickGuiSession.MusicRoute.COVER_FLOW) {
             if (event.key() == GLFW.GLFW_KEY_LEFT) {
                 coverFlow.select(coverFlow.selectedIndex(coverFlowItemCount()) - 1, coverFlowItemCount());
+                coverFlowFlipped = false;
+                flippedCoverFlowIndex = -1;
                 return true;
             }
             if (event.key() == GLFW.GLFW_KEY_RIGHT) {
                 coverFlow.select(coverFlow.selectedIndex(coverFlowItemCount()) + 1, coverFlowItemCount());
+                coverFlowFlipped = false;
+                flippedCoverFlowIndex = -1;
                 return true;
             }
             if (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER) {
@@ -1935,6 +2125,11 @@ public final class MusicTool implements ToolPage {
         coverFlow.reset();
         coverFlowKind = CoverFlowKind.PLAYLISTS;
         pressedCoverFlowCard = null;
+        coverFlowFlipped = false;
+        flippedCoverFlowIndex = -1;
+        coverFlowFlipProgress = 0f;
+        coverFlowTracks.clear();
+        pendingCoverFlowTracks.clear();
         lyricPosition = Float.NaN;
         lyricVelocity = 0f;
         lyricScroll = 0f;
@@ -2015,6 +2210,48 @@ public final class MusicTool implements ToolPage {
     private void openCoverFlowItem(Object value) {
         if (value instanceof Playlist playlist) openPlaylist(playlist);
         else if (value instanceof Album album) openAlbum(album);
+    }
+
+    private void playCoverFlowItem(Object value) {
+        artworkDirection = 1;
+        List<Music> tracks = coverFlowTracks.get(coverFlowCollectionKey(value));
+        if (tracks != null && !tracks.isEmpty()) {
+            manager.play(tracks, 0);
+            return;
+        }
+        if (value instanceof Playlist playlist) {
+            run(manager.playPlaylist(playlist.id(), 0), loaded -> coverFlowTracks.put(
+                    coverFlowCollectionKey(value), loaded));
+        } else if (value instanceof Album album) {
+            run(manager.playAlbum(album.id(), 0), loaded -> coverFlowTracks.put(
+                    coverFlowCollectionKey(value), loaded));
+        }
+    }
+
+    private void requestCoverFlowTracks(Object value) {
+        String key = coverFlowCollectionKey(value);
+        if (coverFlowTracks.containsKey(key) || !pendingCoverFlowTracks.add(key)) return;
+        long owner = generation;
+        CompletableFuture<List<Music>> future;
+        if (value instanceof Playlist playlist) {
+            future = manager.playlistSongs(playlist.id());
+        } else if (value instanceof Album album) {
+            future = manager.album(album.id()).thenApply(details -> details.songs());
+        } else {
+            pendingCoverFlowTracks.remove(key);
+            return;
+        }
+        future.whenComplete((tracks, failure) -> main(() -> {
+            pendingCoverFlowTracks.remove(key);
+            if (disposed || owner != generation || failure != null) return;
+            coverFlowTracks.put(key, tracks == null ? List.of() : List.copyOf(tracks));
+        }));
+    }
+
+    private static String coverFlowCollectionKey(Object value) {
+        if (value instanceof Playlist playlist) return "playlist:" + playlist.id();
+        if (value instanceof Album album) return "album:" + album.id();
+        return "unknown";
     }
 
     private void openSelectedCoverFlowItem() {
@@ -2296,22 +2533,24 @@ public final class MusicTool implements ToolPage {
         return active;
     }
 
-    private static WordLine activeWordLine(List<WordLine> lines, int lineStart, int nextLineStart, int now) {
+    private static WordLine wordLineForLine(List<WordLine> lines, int lineStart, int nextLineStart) {
         int low = 0;
         int high = lines.size() - 1;
-        WordLine active = null;
+        int first = lines.size();
+        int minimumStart = lineStart - 120;
         while (low <= high) {
             int middle = low + (high - low) / 2;
             WordLine value = lines.get(middle);
-            if (value.startMs() <= now) {
-                active = value;
-                low = middle + 1;
-            } else {
+            if (value.startMs() >= minimumStart) {
+                first = middle;
                 high = middle - 1;
+            } else {
+                low = middle + 1;
             }
         }
-        if (active == null || now > active.startMs() + active.durationMs()) return null;
-        return active.startMs() >= lineStart - 750 && active.startMs() < nextLineStart ? active : null;
+        if (first >= lines.size()) return null;
+        WordLine candidate = lines.get(first);
+        return candidate.startMs() < nextLineStart ? candidate : null;
     }
 
     private static int alpha(int color, int alpha) { return color & 0x00FFFFFF | Math.clamp(alpha, 0, 255) << 24; }
@@ -2439,7 +2678,7 @@ public final class MusicTool implements ToolPage {
         PREVIOUS, NEXT, TOGGLE_PLAYBACK, MODE, TOGGLE_QUEUE, PLAY_AT, SEEK, VOLUME,
         NOW_PLAYING, BACK_FROM_NOW_PLAYING, PREVIEW_COVER, CLOSE_PREVIEW,
         LIKE_CURRENT, CACHE_CURRENT, SEEK_LYRIC, LYRIC_SCROLL, TOGGLE_TRANSLATION,
-        COVER_PLAYLISTS, COVER_ALBUMS, COVER_PREVIOUS, COVER_NEXT, COVER_ITEM,
+        COVER_PLAYLISTS, COVER_ALBUMS, COVER_PREVIOUS, COVER_NEXT, COVER_ITEM, COVER_PLAY, COVER_OPEN,
         QUALITY, CYCLE_RATE, PREFETCH, DYNAMIC_BACKGROUND, CACHE_LIMIT,
         HOTKEY_PREVIOUS, HOTKEY_NEXT, HOTKEY_PAUSE, TRIM_CACHE, CLEAR_CACHE,
         LOGIN_QR, LOGIN_SMS, REQUEST_QR, SEND_SMS, COMPLETE_SMS, LOGOUT;

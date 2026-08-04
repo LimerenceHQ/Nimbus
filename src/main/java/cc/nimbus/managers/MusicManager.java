@@ -326,6 +326,14 @@ public final class MusicManager implements InstanceManager {
             return songs;
         });
     }
+    public CompletableFuture<List<Music>> playAlbum(long id, int index) {
+        return album(id).thenApply(details -> {
+            List<Music> songs = details.songs();
+            if (songs.isEmpty()) throw new IllegalStateException("Album is empty: " + id);
+            playback().play(songs, index);
+            return songs;
+        });
+    }
     public Music next() { return playback().next(); }
     public Music previous() { return playback().previous(); }
     public Music playAt(int index) { return playback().playAt(index); }

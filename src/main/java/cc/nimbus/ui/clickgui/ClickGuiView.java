@@ -319,16 +319,16 @@ public final class ClickGuiView {
     }
 
     private void renderRail(UiContext context) {
-        float x = logicalWidth - 51f;
-        float y = (logicalHeight - (RAIL_SIZE * 4f + 8f * 3f)) * .5f;
+        float x = Math.round(logicalWidth - 51f);
+        float y = Math.round((logicalHeight - (RAIL_SIZE * 4f + 8f * 3f)) * .5f);
         rail(context, new UiRect(x, y, RAIL_SIZE, RAIL_SIZE), RailAction.SEARCH,
-                ClickGuiIcons.RAIL_SEARCH, context.translate("nimbus.clickgui.search", "Search"));
+                ClickGuiIcons.RAIL_SEARCH_GOOGLE, context.translate("nimbus.clickgui.search", "Search"));
         rail(context, new UiRect(x, y + 46f, RAIL_SIZE, RAIL_SIZE), RailAction.MUSIC,
-                ClickGuiIcons.RAIL_MUSIC, context.translate("nimbus.clickgui.music", "Music"));
+                ClickGuiIcons.RAIL_MUSIC_GOOGLE, context.translate("nimbus.clickgui.music", "Music"));
         rail(context, new UiRect(x, y + 92f, RAIL_SIZE, RAIL_SIZE), RailAction.CONFIG,
-                ClickGuiIcons.RAIL_CONFIG, context.translate("nimbus.clickgui.config", "Config"));
+                ClickGuiIcons.RAIL_CONFIG_GOOGLE, context.translate("nimbus.clickgui.config", "Config"));
         rail(context, new UiRect(x, y + 138f, RAIL_SIZE, RAIL_SIZE), RailAction.CLIENT,
-                ClickGuiIcons.RAIL_SETTINGS,
+                ClickGuiIcons.RAIL_SETTINGS_GOOGLE,
                 context.translate("nimbus.clickgui.client_settings", "Client Settings"));
         if (searchProgress > .01f) {
             float width = 216f * searchProgress;
@@ -359,7 +359,9 @@ public final class ClickGuiView {
         background = mix(background, ClickGuiTheme.RAIL_ACTIVE, activeProgress);
         context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 8f,
                 background);
-        icon(context, svg, bounds.x() + 9f, bounds.y() + 9f, 20f,
+        float iconX = Math.round(bounds.x() + (bounds.width() - 20f) * .5f);
+        float iconY = Math.round(bounds.y() + (bounds.height() - 20f) * .5f);
+        icon(context, svg, iconX, iconY, 20f,
                 mix(ClickGuiTheme.RAIL_ICON, ClickGuiTheme.RAIL_ICON_ACTIVE, activeProgress));
         railHits.add(new RailHit(bounds, action));
         if (hover) tooltip = title;

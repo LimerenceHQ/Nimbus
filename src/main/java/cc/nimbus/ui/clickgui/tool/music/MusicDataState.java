@@ -211,7 +211,7 @@ public final class MusicDataState {
             long token = generation;
             manager.cover(playlist, size).whenComplete((bytes, failure) -> main(() -> {
                 pendingArtwork.remove(key);
-                if (token != generation || failure != null || bytes == null) return;
+                if (token != generation || failure != null || bytes == null || bytes.length == 0) return;
                 artwork.put(key, new Artwork(bytes, null));
             }));
         }
@@ -226,7 +226,7 @@ public final class MusicDataState {
     }
 
     public Artwork artwork(Artist artist, int size) {
-        if (artist == null) return null;
+        if (artist == null || artist.pictureUrl().isBlank()) return null;
         String key = "artist:" + artist.id() + ':' + size;
         requestEncoded(key, manager.portrait(artist, size));
         return artwork.get(key);
@@ -244,7 +244,7 @@ public final class MusicDataState {
         long token = generation;
         future.whenComplete((bytes, failure) -> main(() -> {
             pendingArtwork.remove(key);
-            if (token != generation || failure != null || bytes == null) return;
+            if (token != generation || failure != null || bytes == null || bytes.length == 0) return;
             artwork.put(key, new Artwork(bytes, null));
         }));
     }
