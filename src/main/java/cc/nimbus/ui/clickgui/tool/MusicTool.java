@@ -478,7 +478,7 @@ public final class MusicTool implements ToolPage {
             }
             float flip = slot.index() == flippedCoverFlowIndex ? coverFlowFlipProgress : 0f;
             if (flip >= .5f) {
-                drawCoverFlowBack(context, card, value, artwork, key, flip);
+                drawCoverFlowBack(context, card, value, flip);
             } else {
                 UiRect front = flip <= .001f ? card
                         : scaleAroundCenter(card, Math.max(.02f, 1f - flip * 2f), 1f);
@@ -560,12 +560,19 @@ public final class MusicTool implements ToolPage {
         }
     }
 
-    private void drawCoverFlowBack(UiContext context, UiRect card, Object value,
-                                   Artwork artwork, String artworkKey, float progress) {
+    private void drawCoverFlowBack(UiContext context, UiRect card, Object value, float progress) {
         float scale = Math.max(.02f, progress * 2f - 1f);
         UiRect back = scaleAroundCenter(card, scale, 1f);
-        context.frame().draw().roundedRect(back.x(), back.y(), back.width(), back.height(), 7f, 0xF21A1D23);
-        context.frame().draw().outline(back.x(), back.y(), back.width(), back.height(), 7f, 1f, 0x26FFFFFF);
+        int backClip = context.clip(back, 7f);
+        try (Paint background = new Paint().setAntiAlias(true)) {
+            background.setShader(context.frame().effects().linearGradient(
+                    new Point(card.x(), card.y()), new Point(card.x(), card.y() + card.height()),
+                    new int[]{0xF522252B, 0xFA0D0F12}));
+            context.frame().draw().rect(back.x(), back.y(), back.width(), back.height(), background);
+        } finally {
+            context.restore(backClip);
+        }
+        context.frame().draw().outline(back.x(), back.y(), back.width(), back.height(), 7f, 1f, 0x24FFFFFF);
 
         float reveal = smoothStep(Math.clamp((scale - .28f) / .72f, 0f, 1f));
         if (reveal <= .001f) return;
@@ -573,43 +580,41 @@ public final class MusicTool implements ToolPage {
         int layer = context.frame().canvas().saveLayerAlpha(
                 Rect.makeXYWH(card.x(), card.y(), card.width(), card.height()), Math.round(reveal * 255f));
         try {
-            float padding = 15f;
-            float headerHeight = Math.clamp(card.height() * .27f, 58f, 76f);
-            float coverSize = Math.max(40f, headerHeight - 18f);
-            UiRect cover = new UiRect(card.x() + padding, card.y() + 9f, coverSize, coverSize);
-            drawArtwork(context, artwork, artworkKey + ":back", cover, 4f, 255);
-
+            float padding = 16f;
             String title;
             String detail;
+            String kind;
             if (value instanceof Playlist playlist) {
                 title = playlist.name();
                 detail = playlist.trackCount() + " " + tr("nimbus.music.songs", "Songs");
+                kind = tr("nimbus.music.playlist", "PLAYLIST");
             } else {
                 Album album = (Album) value;
                 title = album.name();
                 detail = album.artistsText() + "  /  " + album.trackCount() + " "
                         + tr("nimbus.music.songs", "Songs");
+                kind = tr("nimbus.music.album", "ALBUM");
             }
-            float textX = cover.x() + cover.width() + 11f;
-            float textWidth = card.x() + card.width() - padding - textX;
-            context.draw(NimbusFonts.CONTENT_MEDIUM, 12.5f,
-                    ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 12.5f, title, textWidth),
-                    textX, cover.y() + 7f, ClickGuiTheme.TEXT);
-            context.draw(NimbusFonts.BODY_MEDIUM, 9f,
-                    ellipsizeFont(context, NimbusFonts.BODY_MEDIUM, 9f, detail, textWidth),
-                    textX, cover.y() + 31f, ClickGuiTheme.MUTED);
+            float textWidth = card.width() - padding * 2f;
+            context.draw(NimbusFonts.BODY_MEDIUM, 8.2f, kind,
+                    card.x() + padding, card.y() + 13f, 0x78FFFFFF);
+            context.draw(NimbusFonts.CONTENT_MEDIUM, 13.5f,
+                    ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 13.5f, title, textWidth),
+                    card.x() + padding, card.y() + 31f, ClickGuiTheme.TEXT);
+            context.draw(NimbusFonts.BODY_MEDIUM, 8.8f,
+                    ellipsizeFont(context, NimbusFonts.BODY_MEDIUM, 8.8f, detail, textWidth),
+                    card.x() + padding, card.y() + 54f, 0x94FFFFFF);
 
-            float dividerY = card.y() + headerHeight;
+            float dividerY = card.y() + 73f;
             context.frame().draw().rect(card.x() + padding, dividerY,
                     card.width() - padding * 2f, 1f, 0x20FFFFFF);
-            drawCoverFlowTracks(context, card, value, dividerY + 7f, padding, reveal);
+            drawCoverFlowTracks(context, card, value, dividerY + 6f, padding, reveal);
 
-            float buttonY = card.y() + card.height() - 41f;
-            float available = card.width() - padding * 2f;
-            float playWidth = Math.max(74f, available * .48f);
-            UiRect play = new UiRect(card.x() + padding, buttonY, playWidth, 28f);
-            UiRect open = new UiRect(play.x() + play.width() + 7f, buttonY,
-                    available - play.width() - 7f, 28f);
+            float footerY = card.y() + card.height() - 47f;
+            context.frame().draw().rect(card.x() + padding, footerY,
+                    card.width() - padding * 2f, 1f, 0x20FFFFFF);
+            UiRect play = new UiRect(card.x() + padding, footerY + 8f, 82f, 30f);
+            UiRect open = new UiRect(card.x() + card.width() - padding - 78f, footerY + 8f, 78f, 30f);
             coverFlowBackButton(context, play, ClickGuiIcons.PLAYER_PLAY,
                     tr("nimbus.music.play", "Play"), true, Action.COVER_PLAY, value, reveal);
             coverFlowBackButton(context, open, ClickGuiIcons.OPEN_IN_NEW,
@@ -641,12 +646,18 @@ public final class MusicTool implements ToolPage {
             boolean hover = reveal > .94f && row.contains(context.mouseX(), context.mouseY());
             if (hover) context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
                     0x16FFFFFF);
-            context.center(NimbusFonts.BODY_MEDIUM, 8.5f, Integer.toString(index + 1),
-                    row.x() + 9f, row.y() + 4f, ClickGuiTheme.MUTED);
-            context.textIn(ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 9.3f,
-                            music.name(), row.width() - 34f),
-                    new UiRect(row.x() + 23f, row.y(), row.width() - 27f, row.height()),
-                    9.3f, hover ? ClickGuiTheme.TEXT : 0xD8FFFFFF);
+            String number = Integer.toString(index + 1);
+            drawCenteredY(context, NimbusFonts.BODY_MEDIUM, 8.5f, number,
+                    row.x() + 9f - context.width(NimbusFonts.BODY_MEDIUM, 8.5f, number) * .5f,
+                    row.y(), row.height(), ClickGuiTheme.MUTED);
+            drawCenteredY(context, NimbusFonts.CONTENT_MEDIUM, 9.3f,
+                    ellipsizeFont(context, NimbusFonts.CONTENT_MEDIUM, 9.3f,
+                            music.name(), row.width() - 70f),
+                    row.x() + 23f, row.y(), row.height(), hover ? ClickGuiTheme.TEXT : 0xD8FFFFFF);
+            String duration = time(music.durationMs() / 1000f);
+            drawCenteredY(context, NimbusFonts.BODY_MEDIUM, 8.2f, duration,
+                    row.x() + row.width() - context.width(NimbusFonts.BODY_MEDIUM, 8.2f, duration),
+                    row.y(), row.height(), 0x78FFFFFF);
             if (reveal > .94f) hits.add(new Hit(row, Action.PLAY_SONG,
                     new SongSelection(tracks, index), bodyBounds));
         }
@@ -656,20 +667,19 @@ public final class MusicTool implements ToolPage {
                                      boolean primary, Action action, Object value, float reveal) {
         boolean hover = reveal > .94f && bounds.contains(context.mouseX(), context.mouseY());
         float hoverProgress = hover(context, "cover-back:" + action + ':' + coverFlowCollectionKey(value), hover);
-        int background = primary
-                ? alpha(0xFFFFFFFF, Math.round(32f + hoverProgress * 20f))
-                : alpha(0xFFFFFFFF, Math.round(10f + hoverProgress * 15f));
-        context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 5f, background);
-        context.frame().draw().outline(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 5f, 1f,
-                primary ? 0x2EFFFFFF : 0x20FFFFFF);
+        int background = primary ? alpha(0xFFFFFFFF, Math.round(224f + hoverProgress * 31f))
+                : alpha(0xFFFFFFFF, Math.round(hoverProgress * 16f));
+        context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(),
+                primary ? 15f : 5f, background);
         float iconSize = 16f;
         float gap = 5f;
         float textWidth = context.width(NimbusFonts.BODY_MEDIUM, 9.2f, label);
         float x = Math.round(bounds.x() + (bounds.width() - iconSize - gap - textWidth) * .5f);
+        int color = primary ? 0xFF111318 : ClickGuiTheme.TEXT;
         icon(context, svg, x, Math.round(bounds.y() + (bounds.height() - iconSize) * .5f),
-                iconSize, ClickGuiTheme.TEXT);
+                iconSize, color);
         drawCenteredY(context, NimbusFonts.BODY_MEDIUM, 9.2f, label,
-                x + iconSize + gap, bounds.y(), bounds.height(), ClickGuiTheme.TEXT);
+                x + iconSize + gap, bounds.y(), bounds.height(), color);
         if (reveal > .94f) hits.add(new Hit(bounds, action, value, bodyBounds));
     }
 
@@ -1827,6 +1837,7 @@ public final class MusicTool implements ToolPage {
         switch (hit.action()) {
             case NAVIGATE -> {
                 ClickGuiSession.MusicRoute route = (ClickGuiSession.MusicRoute) hit.value();
+                if (route == session.musicRoute()) break;
                 routeHistory.clear();
                 if (route == ClickGuiSession.MusicRoute.COVER_FLOW) routeHistory.push(currentEntry());
                 transition(route, null, 1f);
@@ -2091,8 +2102,13 @@ public final class MusicTool implements ToolPage {
         if (queueOpen) { queueOpen = false; return true; }
         if (bindingHotkey != null) { bindingHotkey = null; return true; }
         if (focus.hasFocus()) { focus.clear(); return true; }
+        if (coverFlowFlipped) { coverFlowFlipped = false; return true; }
         if (!routeHistory.isEmpty()) {
             back();
+            return true;
+        }
+        if (detailRoute(session.musicRoute())) {
+            transition(ClickGuiSession.MusicRoute.RECOMMENDED, null, -1f);
             return true;
         }
         return false;
@@ -2157,6 +2173,7 @@ public final class MusicTool implements ToolPage {
     private void navigate(ClickGuiSession.MusicRoute route, Object payload) {
         ClickGuiSession.MusicRoute currentRoute = session.musicRoute();
         if (route == currentRoute && payload == null) return;
+        // Keep one semantic parent only; ESC must not replay the entire browsing history.
         routeHistory.clear();
         routeHistory.push(currentEntry());
         transition(route, payload, 1f);
@@ -2187,7 +2204,11 @@ public final class MusicTool implements ToolPage {
             case PLAYLIST -> data.playlist((Playlist) payload);
             case ALBUM -> data.album((Album) payload);
             case ARTIST -> data.artist((Artist) payload);
-            case SEARCH -> data.search(payload instanceof String query ? query : search.value());
+            case SEARCH -> {
+                String query = payload instanceof String value ? value.strip() : search.value().strip();
+                if (query.isEmpty()) data.load(route);
+                else data.search(query);
+            }
             default -> data.load(route);
         }
     }
@@ -2511,6 +2532,13 @@ public final class MusicTool implements ToolPage {
     private static boolean immersiveRoute(ClickGuiSession.MusicRoute route) {
         return route == ClickGuiSession.MusicRoute.NOW_PLAYING
                 || route == ClickGuiSession.MusicRoute.COVER_FLOW;
+    }
+
+    private static boolean detailRoute(ClickGuiSession.MusicRoute route) {
+        return route == ClickGuiSession.MusicRoute.PLAYLIST
+                || route == ClickGuiSession.MusicRoute.ALBUM
+                || route == ClickGuiSession.MusicRoute.ARTIST
+                || immersiveRoute(route);
     }
 
     private static float lerp(float from, float to, float progress) {

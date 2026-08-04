@@ -444,10 +444,12 @@ public final class ClickGuiView {
             case CONFIG -> .56f;
             default -> 0f;
         };
-        float width = Math.clamp(logicalWidth * widthRatio, tool == ClickGuiSession.Tool.MUSIC ? 820f : 440f,
-                logicalWidth - 90f);
-        float height = Math.clamp(logicalHeight * heightRatio, tool == ClickGuiSession.Tool.MUSIC ? 560f : 360f,
-                logicalHeight - 70f);
+        float maximumWidth = Math.max(1f, logicalWidth - Math.min(90f, logicalWidth * .12f));
+        float maximumHeight = Math.max(1f, logicalHeight - Math.min(70f, logicalHeight * .12f));
+        float minimumWidth = Math.min(tool == ClickGuiSession.Tool.MUSIC ? 820f : 440f, maximumWidth);
+        float minimumHeight = Math.min(tool == ClickGuiSession.Tool.MUSIC ? 560f : 360f, maximumHeight);
+        float width = Math.clamp(logicalWidth * widthRatio, minimumWidth, maximumWidth);
+        float height = Math.clamp(logicalHeight * heightRatio, minimumHeight, maximumHeight);
         return new UiRect((logicalWidth - width) * .5f, (logicalHeight - height) * .5f, width, height);
     }
 
