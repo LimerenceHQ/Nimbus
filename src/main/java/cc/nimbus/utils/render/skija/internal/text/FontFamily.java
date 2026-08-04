@@ -80,9 +80,12 @@ public final class FontFamily {
 
         Font font = new Font(tf, size);
         font.setSubpixel(true);
+
+        font.setMetricsLinear(true);
         font.setBaselineSnapped(false);
-        font.setEdging(FontEdging.ANTI_ALIAS);
-        font.setHinting(FontHinting.SLIGHT);
+
+        font.setEdging(FontEdging.SUBPIXEL_ANTI_ALIAS);
+        font.setHinting(FontHinting.FULL);
         FONT_CACHE.put(key, font);
         while (FONT_CACHE.size() > MAX_FONTS) {
             Map.Entry<FontKey, Font> eldest = FONT_CACHE.entrySet().iterator().next();
