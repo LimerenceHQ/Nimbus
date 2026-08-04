@@ -35,9 +35,6 @@ public final class ClickGuiView {
     private static final float PANEL_GAP = 10f;
     private static final float PANEL_HEADER = 36f;
     private static final float MODULE_HEIGHT = 31f;
-    private static final float MODULE_TEXT_OFFSET_Y = -1.5f;
-    private static final float MODULE_ICON_OFFSET_Y = -0.5f;
-    private static final float MODULE_INDICATOR_OFFSET_Y = -0.75f;
     private static final float RAIL_SIZE = 38f;
     private static final ModuleCategory[] CATEGORIES = {
             ModuleCategory.Combat, ModuleCategory.Move, ModuleCategory.Player,
@@ -282,8 +279,8 @@ public final class ClickGuiView {
         String moduleLabel = ellipsize(context, localizedModuleName(context, module), normalLabelWidth, 11f);
         if (active > .01f) {
             float indicatorHeight = Math.min(17f, row.height() - 10f);
-            context.frame().draw().roundedRect(row.x(),
-                    row.y() + (row.height() - indicatorHeight) * .5f + MODULE_INDICATOR_OFFSET_Y,
+            context.frame().draw().roundedRect(row.x(), row.y() + (row.height() - indicatorHeight) * .5f,
+
                     2.5f * active, indicatorHeight, 1.25f, context.theme().accent(0x70));
         }
         if (bindingProgress < .999f) {
@@ -291,10 +288,9 @@ public final class ClickGuiView {
                     Rect.makeXYWH(row.x(), row.y(), row.width(), row.height()),
                     Math.round(255f * (1f - bindingProgress)));
             try {
-                context.textIn(moduleLabel,
-                        new UiRect(row.x() + 9f, row.y() + MODULE_TEXT_OFFSET_Y,
-                                normalLabelWidth, row.height()), 11f,
-                        module.isEnabled() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+                context.visualTextIn(moduleLabel,
+                        new UiRect(row.x() + 9f, row.y(), normalLabelWidth, row.height()), 11f,module.isEnabled() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+
             } finally {
                 context.frame().canvas().restoreToCount(normalLayer);
             }
@@ -305,10 +301,8 @@ public final class ClickGuiView {
                     Rect.makeXYWH(row.x(), row.y(), row.width(), row.height()),
                     Math.round(255f * bindingProgress));
             try {
-                context.textIn(context.translate("nimbus.clickgui.press_key", "Press key"),
-                        new UiRect(row.x() + 9f, row.y() + MODULE_TEXT_OFFSET_Y,
-                                bindingLabelWidth, row.height()),
-                        11f, ClickGuiTheme.TEXT);
+                context.visualTextIn(context.translate("nimbus.clickgui.press_key", "Press key"),
+                        new UiRect(row.x() + 9f, row.y(), bindingLabelWidth, row.height()),11f, ClickGuiTheme.TEXT);
             } finally {
                 context.frame().canvas().restoreToCount(bindingLayer);
             }
@@ -316,11 +310,9 @@ public final class ClickGuiView {
         if (hasSettings) {
             float disclosure = expansion.getOrDefault(module.getName(), expanded ? 1f : 0f);
             iconAlpha(context, ClickGuiIcons.EXPAND_MORE, row.x() + row.width() - 22f,
-                    row.y() + 8.5f + MODULE_ICON_OFFSET_Y - disclosure,
-                    14f, ClickGuiTheme.MUTED, 1f - disclosure);
+                    row.y() + 8.5f - disclosure, 14f, ClickGuiTheme.MUTED, 1f - disclosure);
             iconAlpha(context, ClickGuiIcons.EXPAND_LESS, row.x() + row.width() - 22f,
-                    row.y() + 9.5f + MODULE_ICON_OFFSET_Y - disclosure,
-                    14f, ClickGuiTheme.TEXT, disclosure);
+                    row.y() + 9.5f - disclosure, 14f, ClickGuiTheme.TEXT, disclosure);
         }
         if (columnsInteractive) moduleHits.add(new ModuleHit(row, module, category));
         if (hover) tooltip = localizedModuleDescription(context, module);
