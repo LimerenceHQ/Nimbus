@@ -11,9 +11,9 @@ public record ClickGuiTheme(int accent) {
     public static final int TEXT = 0xFFF4F4F5;
     public static final int MUTED = 0xFFC2C4C9;
     public static final int DANGER = 0xFFEA6A6A;
-    public static final int RAIL = 0xFF24282D;
-    public static final int RAIL_HOVER = 0xFF2D3238;
-    public static final int RAIL_ACTIVE = 0xFF353B42;
+    public static final int RAIL = 0x48101418;
+    public static final int RAIL_HOVER = 0x64101418;
+    public static final int RAIL_ACTIVE = 0x78101418;
     public static final int RAIL_ICON = 0xE8FFFFFF;
     public static final int RAIL_ICON_ACTIVE = 0xFFFFFFFF;
 
