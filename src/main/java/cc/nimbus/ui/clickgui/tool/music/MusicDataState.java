@@ -337,11 +337,42 @@ public final class MusicDataState {
         if (value == null) return LyricsView.EMPTY;
         List<TimedLine> lines = LyricsParser.lines(value.line());
         List<TimedLine> translated = LyricsParser.lines(value.translated());
-        return new LyricsView(
-                lines,
-                alignTranslations(lines, translated),
-                LyricsParser.words(value.words())
-        );
+        List<WordLine> wordLines = LyricsParser.words(value.words()).stream()
+                .filter(line -> !line.words().isEmpty() && hasVisibleText(line.text()))
+                .toList();
+        List<LyricRow> rows = wordLines.isEmpty()
+                ? visibleRows(lines, translated)
+                : visibleWordRows(wordLines, translated);
+        return new LyricsView(rows, rows.stream().anyMatch(row -> !row.translation().isBlank()));
+    }
+
+    private static List<LyricRow> visibleRows(List<TimedLine> lines, List<TimedLine> translated) {
+        if (lines.isEmpty()) return List.of();
+        List<String> translations = alignTranslations(lines, translated);
+        List<LyricRow> result = new ArrayList<>(lines.size());
+        for (int index = 0; index < lines.size(); index++) {
+            TimedLine line = lines.get(index);
+            if (!hasVisibleText(line.text())) continue;
+            String translation = index < translations.size() ? translations.get(index) : "";
+            if (equivalentText(line.text(), translation)) translation = "";
+            result.add(new LyricRow(line.timeMs(), line.text(), translation, null));
+        }
+        return List.copyOf(result);
+    }
+
+    private static List<LyricRow> visibleWordRows(List<WordLine> lines, List<TimedLine> translated) {
+        List<TimedLine> timedLines = lines.stream()
+                .map(line -> new TimedLine(line.startMs(), line.text()))
+                .toList();
+        List<String> translations = alignTranslations(timedLines, translated);
+        List<LyricRow> result = new ArrayList<>(lines.size());
+        for (int index = 0; index < lines.size(); index++) {
+            WordLine line = lines.get(index);
+            String translation = index < translations.size() ? translations.get(index) : "";
+            if (equivalentText(line.text(), translation)) translation = "";
+            result.add(new LyricRow(line.startMs(), line.text(), translation, line));
+        }
+        return List.copyOf(result);
     }
 
     private static List<String> alignTranslations(List<TimedLine> lines, List<TimedLine> translated) {
@@ -358,6 +389,25 @@ public final class MusicDataState {
             result.add(Math.abs(nearest.timeMs() - line.timeMs()) <= 1200 ? nearest.text() : "");
         }
         return List.copyOf(result);
+    }
+
+    private static boolean hasVisibleText(String value) {
+        return value != null && value.codePoints().anyMatch(codePoint -> !Character.isWhitespace(codePoint)
+                && Character.getType(codePoint) != Character.FORMAT);
+    }
+
+    private static boolean equivalentText(String first, String second) {
+        if (!hasVisibleText(second)) return false;
+        return visibleText(first).equals(visibleText(second));
+    }
+
+    private static String visibleText(String value) {
+        StringBuilder result = new StringBuilder(value.length());
+        value.codePoints()
+                .filter(codePoint -> !Character.isWhitespace(codePoint)
+                        && Character.getType(codePoint) != Character.FORMAT)
+                .forEach(result::appendCodePoint);
+        return result.toString();
     }
 
     private static void main(Runnable action) {
@@ -383,19 +433,13 @@ public final class MusicDataState {
     public boolean loading() { return loading; }
     public String error() { return error; }
 
-    public record LyricsView(List<TimedLine> lines, List<String> translations, List<WordLine> words) {
-        private static final LyricsView EMPTY = new LyricsView(List.of(), List.of(), List.of());
+    public record LyricsView(List<LyricRow> rows, boolean hasTranslations) {
+        private static final LyricsView EMPTY = new LyricsView(List.of(), false);
         public LyricsView {
-            lines = List.copyOf(lines);
-            translations = List.copyOf(translations);
-            words = List.copyOf(words);
-        }
-
-        public boolean hasTranslations() { return !translations.isEmpty(); }
-        public String translation(int index) {
-            return index >= 0 && index < translations.size() ? translations.get(index) : "";
+            rows = List.copyOf(rows);
         }
     }
+    public record LyricRow(int timeMs, String text, String translation, WordLine wordLine) { }
     private record SearchResult(List<Music> songs, List<Playlist> playlists) { }
     private record RecommendedResult(List<Playlist> playlists, List<Music> songs) { }
     private record PlaylistResult(Playlist playlist, List<Music> songs) { }

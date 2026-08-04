@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 public final class LyricsParser {
     private static final Pattern LRC_TIME = Pattern.compile("\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,3}))?]");
     private static final Pattern YRC_LINE = Pattern.compile("^\\[(\\d+),(\\d+)](.*)$");
-    private static final Pattern YRC_WORD = Pattern.compile("\\((\\d+),(\\d+),\\d+\\)([^()]*)");
+    private static final Pattern YRC_WORD_MARKER = Pattern.compile("\\((\\d+),(\\d+),\\d+\\)");
 
     private LyricsParser() {}
 
@@ -43,13 +43,20 @@ public final class LyricsParser {
             int duration = integer(line.group(2));
             List<TimedWord> timedWords = new ArrayList<>();
             StringBuilder text = new StringBuilder();
-            Matcher word = YRC_WORD.matcher(line.group(3));
-            while (word.find()) {
-                int wordStart = integer(word.group(1));
-                int wordDuration = integer(word.group(2));
-                String value = word.group(3);
-                timedWords.add(new TimedWord(wordStart, wordStart + wordDuration, value));
-                text.append(value);
+            String encoded = line.group(3);
+            Matcher marker = YRC_WORD_MARKER.matcher(encoded);
+            if (marker.find()) {
+                int wordStart = integer(marker.group(1));
+                int wordDuration = integer(marker.group(2));
+                int textStart = marker.end();
+                while (marker.find()) {
+                    appendWord(timedWords, text, wordStart, wordDuration,
+                            encoded.substring(textStart, marker.start()));
+                    wordStart = integer(marker.group(1));
+                    wordDuration = integer(marker.group(2));
+                    textStart = marker.end();
+                }
+                appendWord(timedWords, text, wordStart, wordDuration, encoded.substring(textStart));
             }
             result.add(new WordLine(start, duration, text.toString(), timedWords));
         }
@@ -64,5 +71,11 @@ public final class LyricsParser {
     }
     private static int integer(String value) {
         try { return Integer.parseInt(value); } catch (NumberFormatException ignored) { return 0; }
+    }
+
+    private static void appendWord(List<TimedWord> words, StringBuilder text,
+                                   int start, int duration, String value) {
+        words.add(new TimedWord(start, start + duration, value));
+        text.append(value);
     }
 }

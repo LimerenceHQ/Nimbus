@@ -3,7 +3,6 @@ package cc.nimbus.ui.clickgui.tool;
 import cc.nimbus.core.Core;
 import cc.nimbus.features.music.MusicConfig;
 import cc.nimbus.features.music.Quality;
-import cc.nimbus.features.music.lyrics.TimedLine;
 import cc.nimbus.features.music.lyrics.TimedWord;
 import cc.nimbus.features.music.lyrics.WordLine;
 import cc.nimbus.features.music.model.Album;
@@ -26,6 +25,7 @@ import cc.nimbus.ui.clickgui.input.FocusManager;
 import cc.nimbus.ui.clickgui.input.TextInput;
 import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
 import cc.nimbus.ui.clickgui.tool.music.MusicDataState;
+import cc.nimbus.ui.clickgui.tool.music.MusicDataState.LyricRow;
 import cc.nimbus.ui.clickgui.tool.music.coverflow.CoverFlowLayout;
 import cc.nimbus.ui.clickgui.tool.music.coverflow.CoverFlowState;
 import cc.nimbus.utils.render.font.NimbusFonts;
@@ -1043,14 +1043,14 @@ public final class MusicTool implements ToolPage {
 
     private void renderLyrics(UiContext context, UiRect bounds, PlaybackState playback) {
         MusicDataState.LyricsView lyrics = data.lyrics();
-        List<TimedLine> lines = lyrics.lines();
-        if (lines.isEmpty()) {
+        List<LyricRow> rows = lyrics.rows();
+        if (rows.isEmpty()) {
             context.centered(context.translate("nimbus.music.lyrics_unavailable", "Lyrics unavailable"),
                     bounds, 11f, ClickGuiTheme.MUTED);
             return;
         }
         int now = Math.round(playback.progressSeconds() * 1000f);
-        int active = activeLine(lines, now);
+        int active = activeLine(rows, now);
         if (!Float.isFinite(lyricPosition) || Math.abs(active - lyricPosition) > 3f) {
             lyricPosition = active;
             lyricVelocity = 0f;
@@ -1089,7 +1089,7 @@ public final class MusicTool implements ToolPage {
         UiRect viewport = new UiRect(bounds.x(), bounds.y() + 6f, bounds.width(),
                 bounds.height() - 6f - footerInset);
         lyricsViewport = viewport;
-        lyricLineCount = lines.size();
+        lyricLineCount = rows.size();
         if (!draggingLyrics && context.nowMillis() >= lyricFollowAt) targetLyricScroll = 0f;
         clampLyricScroll();
         float scrollDt = Math.min(context.deltaSeconds(), 1f / 30f);
@@ -1105,10 +1105,8 @@ public final class MusicTool implements ToolPage {
         float viewPosition = lyricPosition - lyricScroll;
         int visibleRadius = Math.max(5, (int) Math.ceil(viewport.height() / rowHeight * .5f) + 2);
         int first = Math.max(0, (int) Math.floor(viewPosition) - visibleRadius);
-        int last = Math.min(lines.size() - 1, (int) Math.ceil(viewPosition) + visibleRadius);
-        int nextLineTime = active + 1 < lines.size() ? lines.get(active + 1).timeMs() : Integer.MAX_VALUE;
-        WordLine wordLine = wordLineForLine(lyrics.words(), lines.get(active).timeMs(), nextLineTime);
-        boolean hoveringLyrics = viewport.contains(context.mouseX(), context.mouseY());
+        int last = Math.min(rows.size() - 1, (int) Math.ceil(viewPosition) + visibleRadius);
+        WordLine wordLine = rows.get(active).wordLine();
         try {
             for (int index = first; index <= last; index++) {
                 float distance = index - viewPosition;
@@ -1116,7 +1114,7 @@ public final class MusicTool implements ToolPage {
                 float rowY = centerY + distance * rowHeight - rowHeight * .5f;
                 UiRect row = new UiRect(viewport.x(), rowY, viewport.width() - 12f, rowHeight);
                 if (!row.intersects(viewport)) continue;
-                TimedLine line = lines.get(index);
+                LyricRow line = rows.get(index);
                 boolean hover = viewport.contains(context.mouseX(), context.mouseY())
                         && row.contains(context.mouseX(), context.mouseY());
                 if (hover) context.frame().draw().roundedRect(row.x(), row.y() + 3f,
@@ -1130,13 +1128,13 @@ public final class MusicTool implements ToolPage {
                         ? wordLine.text() : line.text();
                 float size = fitTextSize(context, NimbusFonts.CONTENT_MEDIUM,
                         lerp(16f, 23f, emphasis), lerp(11.5f, 13f, emphasis), original, textWidth);
-                boolean translated = !lyrics.translation(index).isBlank();
+                boolean translated = !line.translation().isBlank();
                 float lineY = row.y() + (row.height() - context.height(NimbusFonts.CONTENT_MEDIUM, size)) * .5f
                         - (translated ? 9f * translationAmount : 0f);
                 float wordOpacity = wordProgress ? emphasis : 0f;
                 int normalAlpha = Math.round(lineAlpha * (1f - wordOpacity));
-                String translation = lyrics.translation(index);
-                float blurTarget = hoveringLyrics ? 0f
+                String translation = line.translation();
+                float blurTarget = hover ? 0f
                         : Math.clamp(Math.abs(index - lyricPosition) * .72f - .18f, 0f, 1f);
                 String blurKey = "lyric-blur:" + marqueeSongId + ':' + index;
                 float blurMix = animate(hovers.getOrDefault(blurKey, 0f), blurTarget,
@@ -1181,15 +1179,19 @@ public final class MusicTool implements ToolPage {
             context.restore(clip);
         }
 
-        if (lines.size() > 1) {
-            lyricScrollTrack = new UiRect(viewport.x() + viewport.width() - 3f,
-                    viewport.y() + 6f, 2f, viewport.height() - 12f);
+        if (rows.size() > 1) {
+            float scrollCenterX = viewport.x() + viewport.width() - 2f;
+            float trackWidth = 2f;
+            float thumbWidth = 4f;
+            lyricScrollTrack = new UiRect(scrollCenterX - trackWidth * .5f,
+                    viewport.y() + 6f, trackWidth, viewport.height() - 12f);
             float visibleLines = Math.max(1f, viewport.height() / rowHeight);
             float thumbHeight = Math.max(22f,
-                    lyricScrollTrack.height() * Math.min(1f, visibleLines / lines.size()));
-            float progress = Math.clamp(viewPosition / (lines.size() - 1f), 0f, 1f);
+                    lyricScrollTrack.height() * Math.min(1f, visibleLines / rows.size()));
+            float progress = Math.clamp(viewPosition / (rows.size() - 1f), 0f, 1f);
             float thumbY = lyricScrollTrack.y() + (lyricScrollTrack.height() - thumbHeight) * progress;
-            lyricScrollThumb = new UiRect(lyricScrollTrack.x() - 2f, thumbY, 4f, thumbHeight);
+            lyricScrollThumb = new UiRect(scrollCenterX - thumbWidth * .5f,
+                    thumbY, thumbWidth, thumbHeight);
             int trackAlpha = lyricsViewport.contains(context.mouseX(), context.mouseY()) || draggingLyrics
                     ? 34 : 18;
             context.frame().draw().roundedRect(lyricScrollTrack.x(), lyricScrollTrack.y(),
@@ -1197,7 +1199,7 @@ public final class MusicTool implements ToolPage {
             context.frame().draw().roundedRect(lyricScrollThumb.x(), lyricScrollThumb.y(),
                     lyricScrollThumb.width(), lyricScrollThumb.height(), 2f,
                     alpha(0xFFFFFFFF, draggingLyrics ? 156 : 92));
-            hits.add(new Hit(new UiRect(lyricScrollTrack.x() - 7f, lyricScrollTrack.y(),
+            hits.add(new Hit(new UiRect(scrollCenterX - 5f, lyricScrollTrack.y(),
                     10f, lyricScrollTrack.height()), Action.LYRIC_SCROLL, null, viewport));
         }
     }
@@ -2545,7 +2547,7 @@ public final class MusicTool implements ToolPage {
         return from + (to - from) * Math.clamp(progress, 0f, 1f);
     }
 
-    private static int activeLine(List<TimedLine> lines, int now) {
+    private static int activeLine(List<LyricRow> lines, int now) {
         int low = 0;
         int high = lines.size() - 1;
         int active = 0;
@@ -2559,26 +2561,6 @@ public final class MusicTool implements ToolPage {
             }
         }
         return active;
-    }
-
-    private static WordLine wordLineForLine(List<WordLine> lines, int lineStart, int nextLineStart) {
-        int low = 0;
-        int high = lines.size() - 1;
-        int first = lines.size();
-        int minimumStart = lineStart - 120;
-        while (low <= high) {
-            int middle = low + (high - low) / 2;
-            WordLine value = lines.get(middle);
-            if (value.startMs() >= minimumStart) {
-                first = middle;
-                high = middle - 1;
-            } else {
-                low = middle + 1;
-            }
-        }
-        if (first >= lines.size()) return null;
-        WordLine candidate = lines.get(first);
-        return candidate.startMs() < nextLineStart ? candidate : null;
     }
 
     private static int alpha(int color, int alpha) { return color & 0x00FFFFFF | Math.clamp(alpha, 0, 255) << 24; }
