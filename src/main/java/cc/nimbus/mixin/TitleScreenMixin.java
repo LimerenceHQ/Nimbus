@@ -12,12 +12,12 @@ import cc.nimbus.ui.menu.TitleScreen;
 public abstract class TitleScreenMixin extends Screen {
     protected TitleScreenMixin(net.minecraft.network.chat.Component title) { super(title); }
 
-    @Inject(method = "init", at = @At("TAIL"))
-    private void nimbus$openNimbusMainMenu(CallbackInfo ci) {
-        var skija = Core.INSTANCE.getRenderManager().skija();
-        skija.validateSupport();
-        if (skija.isSupported()) {
-            minecraft.execute(() -> minecraft.setScreenAndShow(new TitleScreen()));
-        }
-    }
+    //@Inject(method = "init", at = @At("TAIL"))
+    //private void nimbus$openNimbusMainMenu(CallbackInfo ci) {
+    //    var skija = Core.INSTANCE.getRenderManager().skija();
+    //    skija.validateSupport();
+    //    if (skija.isSupported()) {
+    //        minecraft.execute(() -> minecraft.setScreenAndShow(new TitleScreen()));
+    //    }
+    //}
 }

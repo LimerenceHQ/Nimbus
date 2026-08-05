@@ -36,16 +36,11 @@ public final class ClickGuiView {
     private static final float PANEL_HEADER = 36f;
     private static final float MODULE_HEIGHT = 31f;
     private static final float RAIL_SIZE = 38f;
+    private static final float CATEGORY_ICON_SIZE = 18f;
     private static final ModuleCategory[] CATEGORIES = {
             ModuleCategory.Combat, ModuleCategory.Move, ModuleCategory.Player,
             ModuleCategory.Render, ModuleCategory.Exploit, ModuleCategory.HUD
     };
-    private static final CategoryIcon COMBAT_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_COMBAT, 16f, 0f);
-    private static final CategoryIcon MOVE_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_MOVE, 17f, 0f);
-    private static final CategoryIcon PLAYER_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_PLAYER, 20f, 0f);
-    private static final CategoryIcon RENDER_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_RENDER, 18f, 1.5f);
-    private static final CategoryIcon EXPLOIT_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_EXPLOIT, 20f, 0f);
-    private static final CategoryIcon HUD_ICON = new CategoryIcon(ClickGuiIcons.CATEGORY_HUD, 18f, 0f);
 
     private final ClickGuiSession session;
     private final FocusManager focus = new FocusManager();
@@ -173,18 +168,15 @@ public final class ClickGuiView {
             context.frame().draw().outline(panel.x(), panel.y(), panel.width(), panel.height(), 7f, 1f,
                     ClickGuiTheme.STROKE);
             String categoryLabel = context.translate(category.getTranslationKey(), category.getName());
-            CategoryIcon categoryIcon = categoryIcon(category);
-            float iconCenterX = panel.x() + 19f;
-            float textTop = panel.y() + (PANEL_HEADER - context.height(UiContext.FONT, 11.5f,
-                    categoryLabel)) * .5f;
-            float iconCenterY = textTop + context.visualCenterY(UiContext.FONT, 11.5f, categoryLabel);
-            icon(context, categoryIcon.svg(), iconCenterX - categoryIcon.size() * .5f,
-                    iconCenterY - categoryIcon.size() * .5f + categoryIcon.offsetY(),
-                    categoryIcon.size(), ClickGuiTheme.TEXT);
-            context.textIn(categoryLabel,
+            UiRect iconSlot = new UiRect(panel.x() + 10f,
+                    panel.y() + (PANEL_HEADER - CATEGORY_ICON_SIZE) * .5f,
+                    CATEGORY_ICON_SIZE, CATEGORY_ICON_SIZE);
+            icon(context, categoryIcon(category), iconSlot.x(), iconSlot.y(),
+                    iconSlot.width(), ClickGuiTheme.TEXT);
+            context.visualTextIn(categoryLabel,
                     new UiRect(panel.x() + 34f, panel.y(), panel.width() - 62f, PANEL_HEADER),
                     11.5f, ClickGuiTheme.TEXT);
-            context.centered(Integer.toString(modules.size()),
+            context.visualCentered(Integer.toString(modules.size()),
                     new UiRect(panel.x() + panel.width() - 27f, panel.y(), 20f, PANEL_HEADER),
                     10f, ClickGuiTheme.MUTED);
             context.frame().draw().rect(panel.x(), panel.y() + PANEL_HEADER - 1f, panel.width(), 1f,
@@ -745,18 +737,15 @@ public final class ClickGuiView {
         }
     }
 
-    private static CategoryIcon categoryIcon(ModuleCategory category) {
+    private static String categoryIcon(ModuleCategory category) {
         return switch (category) {
-            case Combat -> COMBAT_ICON;
-            case Move -> MOVE_ICON;
-            case Player -> PLAYER_ICON;
-            case Render -> RENDER_ICON;
-            case Exploit -> EXPLOIT_ICON;
-            case HUD -> HUD_ICON;
+            case Combat -> ClickGuiIcons.CATEGORY_COMBAT;
+            case Move -> ClickGuiIcons.CATEGORY_MOVE;
+            case Player -> ClickGuiIcons.CATEGORY_PLAYER;
+            case Render -> ClickGuiIcons.CATEGORY_RENDER;
+            case Exploit -> ClickGuiIcons.CATEGORY_EXPLOIT;
+            case HUD -> ClickGuiIcons.CATEGORY_HUD;
         };
-    }
-
-    private record CategoryIcon(String svg, float size, float offsetY) {
     }
 
     private static String localizedModuleName(UiContext context, BasicModule module) {
