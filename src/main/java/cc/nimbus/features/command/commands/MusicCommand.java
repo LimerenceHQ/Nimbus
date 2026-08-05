@@ -4,6 +4,8 @@ import cc.nimbus.core.Core;
 import cc.nimbus.features.command.api.BasicCommand;
 import cc.nimbus.features.music.Quality;
 import cc.nimbus.features.music.MusicConfig;
+import cc.nimbus.features.music.integration.SystemMediaController;
+import cc.nimbus.features.music.integration.SystemMediaState;
 import cc.nimbus.features.music.lyrics.Lyrics;
 import cc.nimbus.features.music.lyrics.LyricsParser;
 import cc.nimbus.features.music.lyrics.TimedLine;
@@ -28,7 +30,7 @@ public final class MusicCommand extends BasicCommand {
     private static final List<String> ACTIONS = List.of("status", "search", "searchpl", "play", "playlist",
             "pause", "resume", "toggle", "stop", "next", "prev", "seek", "volume", "rate", "mode",
             "quality", "queue", "lyrics", "account", "refresh", "logout", "login", "liked", "like",
-            "add", "remove", "daily", "recommend", "intelligence", "prefetch", "cache", "bind", "inspect");
+            "add", "remove", "daily", "recommend", "intelligence", "prefetch", "cache", "bind", "inspect", "system");
 
     public MusicCommand() { super("Music", "控制网易云音乐播放器。", "m", "ncm"); }
 
@@ -70,6 +72,7 @@ public final class MusicCommand extends BasicCommand {
                 case "cache" -> cache(args);
                 case "bind" -> bind(args);
                 case "inspect", "model", "test" -> inspect(args);
+                case "system", "smtc" -> system(args);
                 default -> usage();
             }
         } catch (IllegalArgumentException error) {
@@ -278,6 +281,49 @@ public final class MusicCommand extends BasicCommand {
             printPlaylistModel(playlists.isEmpty() ? null : playlists.getFirst());
         });
     }
+    private void system(String[] args) {
+        String action = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "status";
+        switch (action) {
+            case "status", "info" -> printSystemMedia(music().systemMediaState());
+            case "play" -> systemCommand(SystemMediaController.Command.PLAY);
+            case "pause" -> systemCommand(SystemMediaController.Command.PAUSE);
+            case "stop" -> systemCommand(SystemMediaController.Command.STOP);
+            case "toggle" -> systemCommand(SystemMediaController.Command.TOGGLE);
+            case "next" -> systemCommand(SystemMediaController.Command.NEXT);
+            case "prev", "previous" -> systemCommand(SystemMediaController.Command.PREVIOUS);
+            case "seek" -> {
+                require(args, 3);
+                complete(music().systemMediaSeek(decimal(args[2], "秒数")), MusicCommand::systemResult);
+            }
+            default -> throw new IllegalArgumentException(
+                    "用法: .music system status|play|pause|toggle|stop|next|prev|seek <秒数>");
+        }
+    }
+    private void systemCommand(SystemMediaController.Command command) {
+        complete(music().systemMedia(command), MusicCommand::systemResult);
+    }
+    private static void systemResult(boolean accepted) {
+        message(accepted ? "系统媒体播放器已接受操作。" : "当前播放器不支持该操作，或没有活动会话。");
+    }
+    private static void printSystemMedia(SystemMediaState state) {
+        switch (state.connection()) {
+            case UNSUPPORTED -> message("当前系统不支持 Windows 全局媒体会话。");
+            case CONNECTING -> message("正在连接 Windows 全局媒体会话...");
+            case NO_SESSION -> message("Windows 当前没有活动的媒体会话。");
+            case ERROR -> message("Windows 全局媒体会话错误: " + state.error());
+            case ACTIVE -> {
+                message("Windows 当前媒体:");
+                plain("来源: " + state.sourceAppId());
+                plain("歌曲: " + (state.title().isBlank() ? "未知" : state.title()));
+                plain("歌手: " + (state.artist().isBlank() ? "未知" : state.artist()));
+                plain("专辑: " + (state.albumTitle().isBlank() ? "未知" : state.albumTitle()));
+                plain("状态: " + state.playbackStatus() + " ["
+                        + duration((float) state.positionSeconds()) + "/"
+                        + duration((float) state.durationSeconds()) + "]");
+                plain("控制能力: " + state.controls());
+            }
+        }
+    }
     private void status() {
         PlaybackState state = music().state();
         if (state.music() == null) {
@@ -450,6 +496,8 @@ public final class MusicCommand extends BasicCommand {
             case "bind" -> args.length <= 2
                     ? List.of("prev", "next", "pause").stream().filter(value -> value.startsWith(prefix)).toList()
                     : List.of("none").stream().filter(value -> value.startsWith(prefix)).toList();
+            case "system", "smtc" -> List.of("status", "play", "pause", "toggle", "stop", "next", "prev", "seek")
+                    .stream().filter(value -> value.startsWith(prefix)).toList();
             default -> List.of();
         };
     }

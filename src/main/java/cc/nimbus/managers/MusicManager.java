@@ -8,6 +8,9 @@ import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.features.music.MusicConfig;
 import cc.nimbus.features.music.Quality;
 import cc.nimbus.features.music.internal.net.NeteaseHttp;
+import cc.nimbus.features.music.integration.SystemMediaController;
+import cc.nimbus.features.music.integration.SystemMediaControllers;
+import cc.nimbus.features.music.integration.SystemMediaState;
 import cc.nimbus.features.music.lyrics.Lyrics;
 import cc.nimbus.features.music.model.Album;
 import cc.nimbus.features.music.model.AlbumDetails;
@@ -52,6 +55,7 @@ public final class MusicManager implements InstanceManager {
     private AudioCache audioCache;
     private ArtworkCache artworkCache;
     private PlaybackController playback;
+    private SystemMediaController systemMediaController;
     private ExecutorService ioExecutor;
     private ExecutorService playbackExecutor;
     private volatile User profile;
@@ -81,6 +85,7 @@ public final class MusicManager implements InstanceManager {
             playbackExecutor = Executors.newSingleThreadExecutor(threads("Nimbus-Music-Playback"));
             playback = new PlaybackController(config, audioCache, playbackExecutor, ioExecutor);
             initialized = true;
+            systemMediaController = SystemMediaControllers.create();
             EventBus.register(this);
             if (!config.cookie().isBlank()) refreshAccount();
         } catch (RuntimeException error) {
@@ -343,6 +348,11 @@ public final class MusicManager implements InstanceManager {
     public void togglePause() { playback().togglePause(); }
     public void seek(double seconds) { playback().seek(seconds); }
     public PlaybackState state() { return playback().state(); }
+    public SystemMediaState systemMediaState() { return systemMedia().state(); }
+    public CompletableFuture<Boolean> systemMedia(SystemMediaController.Command command) {
+        return systemMedia().execute(command);
+    }
+    public CompletableFuture<Boolean> systemMediaSeek(double seconds) { return systemMedia().seek(seconds); }
     public List<Music> queue() { return playback().queue(); }
     public PlaybackQueueState queueState() { return playback().queueState(); }
     public float[] spectrum() { return playback().spectrum(); }
@@ -436,6 +446,7 @@ public final class MusicManager implements InstanceManager {
     private ExecutorService io() { requireInitialized(); return ioExecutor; }
     private NeteaseApi api() { requireInitialized(); return api; }
     private PlaybackController playback() { requireInitialized(); return playback; }
+    private SystemMediaController systemMedia() { requireInitialized(); return systemMediaController; }
     private ArtworkCache artwork() { requireInitialized(); return artworkCache; }
     private void requireInitialized() { if (!initialized) throw new IllegalStateException("MusicManager is not initialized"); }
     private static long requireId(long value) { if (value <= 0L) throw new IllegalArgumentException("ID must be positive"); return value; }
@@ -524,12 +535,14 @@ public final class MusicManager implements InstanceManager {
     private void shutdownPartial() {
         initialized = false;
         EventBus.unregister(this);
+        if (systemMediaController != null) systemMediaController.close();
         if (playbackExecutor != null) playbackExecutor.shutdownNow();
         if (ioExecutor != null) ioExecutor.shutdownNow();
         if (artworkCache != null) artworkCache.close();
         if (audioCache != null) audioCache.close();
         if (api != null) api.close();
         playback = null;
+        systemMediaController = null;
         audioCache = null;
         artworkCache = null;
         api = null;
