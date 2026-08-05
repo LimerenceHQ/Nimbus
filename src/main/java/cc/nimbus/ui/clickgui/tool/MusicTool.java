@@ -256,10 +256,11 @@ public final class MusicTool implements ToolPage {
         } else {
             drawArtwork(context, data.artwork(profile, 96), "profile:" + profile.id(), avatar, 14f, 255);
         }
-        context.medium(profile == null ? context.translate("nimbus.music.sign_in", "Sign In")
-                        : ellipsize(context, profile.name(), account.width() - 48f),
-                account.x() + 42f, account.y() + 12f, 10.5f,
-                accountActive ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+        String accountLabel = profile == null ? context.translate("nimbus.music.sign_in", "Sign In")
+                : ellipsize(context, profile.name(), account.width() - 48f);
+        context.visualTextIn(UiContext.FONT_MEDIUM, accountLabel,
+                new UiRect(account.x() + 42f, account.y(), account.width() - 48f, account.height()),
+                10.5f, accountActive ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
         hits.add(new Hit(account, Action.NAVIGATE, ClickGuiSession.MusicRoute.LOGIN));
 
         sidebarClipBounds = new UiRect(bounds.x() + 8f, bounds.y() + 99f,
