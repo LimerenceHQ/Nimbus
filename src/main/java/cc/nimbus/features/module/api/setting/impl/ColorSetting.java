@@ -5,14 +5,23 @@ import java.awt.Color;
 import java.util.function.Supplier;
 
 public class ColorSetting extends Setting<Integer> {
+    private final boolean rainbowSupported;
     private boolean rainbow;
     private boolean expanded;
-    public ColorSetting(String name, int color) { this(name, color, () -> true); }
-    public ColorSetting(String name, int color, Supplier<Boolean> visibility) { super(name, color, visibility); }
+    public ColorSetting(String name, int color) { this(name, color, () -> true, true); }
+    public ColorSetting(String name, int color, Supplier<Boolean> visibility) { this(name, color, visibility, true); }
+    public ColorSetting(String name, int color, Supplier<Boolean> visibility, boolean rainbowSupported) {
+        super(name, color, visibility);
+        this.rainbowSupported = rainbowSupported;
+    }
     public Color getColor() { return new Color(getValue(), true); }
     public int getRgba() { return getValue(); }
-    public void setRainbow(boolean value) { if (rainbow != value) { rainbow = value; notifyChanged(); } }
+    public void setRainbow(boolean value) {
+        boolean normalized = rainbowSupported && value;
+        if (rainbow != normalized) { rainbow = normalized; notifyChanged(); }
+    }
     public boolean isRainbow() { return rainbow; }
+    public boolean isRainbowSupported() { return rainbowSupported; }
     public boolean isExpanded() { return expanded; }
     public void setExpanded(boolean expanded) { this.expanded = expanded; }
     public void toggleExpanded() { expanded = !expanded; }

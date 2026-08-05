@@ -40,6 +40,7 @@ public final class SettingControls {
     private static final float GAP = 2f;
     private static final float OPTION_HEIGHT = 26f;
     private static final float COLOR_AREA_HEIGHT = 124f;
+    private static final float COLOR_PICKER_HEIGHT = 100f;
 
     private final FocusManager focus;
     private final TextInput editor;
@@ -516,22 +517,26 @@ public final class SettingControls {
                 addHit(new Hit(setting, HitKind.COLOR_HUE, hue, null));
                 addHit(new Hit(setting, HitKind.COLOR_ALPHA, alpha, null));
             }
-            UiRect rainbow = new UiRect(saturationBrightness.x(), pickerY + 94f,
-                    saturationBrightness.width(), 20f);
-            context.textIn(context.translate("nimbus.ui.rainbow", "Rainbow"), new UiRect(rainbow.x() + 2f, rainbow.y(), rainbow.width() - 38f,
-                    rainbow.height()), 10f, setting.isRainbow() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
-            float rainbowProgress = animations.getOrDefault(setting, setting.isRainbow() ? 1f : 0f);
-            rainbowProgress = animate(rainbowProgress, setting.isRainbow() ? 1f : 0f,
-                    1f - (float) Math.exp(-context.deltaSeconds() * 14f));
-            animations.put(setting, rainbowProgress);
-            UiRect toggle = new UiRect(rainbow.x() + rainbow.width() - 30f, rainbow.y() + 3f, 28f, 16f);
-            context.frame().draw().roundedRect(toggle.x(), toggle.y(), toggle.width(), toggle.height(), 8f,
-                    mix(0x30FFFFFF, context.theme().accent(0x72), rainbowProgress));
-            context.frame().draw().roundedRect(toggle.x() + 2f + 12f * rainbowProgress,
-                    toggle.y() + 2f, 12f, 12f, 6f,
-                    mix(0xFFC9CBD0, 0xFFFFFFFF, rainbowProgress));
-            if (setting.isExpanded() && disclosure >= .98f) {
-                addHit(new Hit(setting, HitKind.COLOR_RAINBOW, rainbow, null));
+            if (setting.isRainbowSupported()) {
+                UiRect rainbow = new UiRect(saturationBrightness.x(), pickerY + 94f,
+                        saturationBrightness.width(), 20f);
+                context.textIn(context.translate("nimbus.ui.rainbow", "Rainbow"), new UiRect(
+                        rainbow.x() + 2f, rainbow.y(), rainbow.width() - 38f, rainbow.height()),
+                        10f, setting.isRainbow() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+                float rainbowProgress = animations.getOrDefault(setting, setting.isRainbow() ? 1f : 0f);
+                rainbowProgress = animate(rainbowProgress, setting.isRainbow() ? 1f : 0f,
+                        1f - (float) Math.exp(-context.deltaSeconds() * 14f));
+                animations.put(setting, rainbowProgress);
+                UiRect toggle = new UiRect(rainbow.x() + rainbow.width() - 30f,
+                        rainbow.y() + 3f, 28f, 16f);
+                context.frame().draw().roundedRect(toggle.x(), toggle.y(), toggle.width(), toggle.height(), 8f,
+                        mix(0x30FFFFFF, context.theme().accent(0x72), rainbowProgress));
+                context.frame().draw().roundedRect(toggle.x() + 2f + 12f * rainbowProgress,
+                        toggle.y() + 2f, 12f, 12f, 6f,
+                        mix(0xFFC9CBD0, 0xFFFFFFFF, rainbowProgress));
+                if (setting.isExpanded() && disclosure >= .98f) {
+                    addHit(new Hit(setting, HitKind.COLOR_RAINBOW, rainbow, null));
+                }
             }
         } finally {
             context.frame().canvas().restoreToCount(layer);
@@ -620,7 +625,8 @@ public final class SettingControls {
             return ROW_HEIGHT + (multi.getModes().length * OPTION_HEIGHT + 2f) * progress;
         }
         if (setting instanceof ColorSetting color) {
-            return ROW_HEIGHT + COLOR_AREA_HEIGHT * disclosure(setting, color.isExpanded());
+            float pickerHeight = color.isRainbowSupported() ? COLOR_AREA_HEIGHT : COLOR_PICKER_HEIGHT;
+            return ROW_HEIGHT + pickerHeight * disclosure(setting, color.isExpanded());
         }
         if (setting instanceof NumberSetting) return NUMBER_HEIGHT;
         if (setting instanceof TextSetting text && text.isMultiline()) return MULTILINE_TEXT_HEIGHT;

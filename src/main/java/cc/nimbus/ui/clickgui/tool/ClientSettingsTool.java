@@ -2,11 +2,14 @@ package cc.nimbus.ui.clickgui.tool;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.features.client.ClientSettings;
+import cc.nimbus.features.client.ThemePreset;
 import cc.nimbus.features.module.api.setting.Setting;
 import cc.nimbus.ui.clickgui.component.SettingControls;
 import cc.nimbus.ui.clickgui.component.UiContext;
 import cc.nimbus.ui.clickgui.component.UiRect;
 import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
+import io.github.humbleui.skija.Paint;
+import io.github.humbleui.types.Point;
 import io.github.humbleui.types.Rect;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
@@ -14,11 +17,21 @@ import net.minecraft.client.input.PreeditEvent;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class ClientSettingsTool implements ToolPage {
+    private static final float PRESET_AREA_HEIGHT = 94f;
+    private static final float PRESET_GAP = 6f;
+    private static final float PRESET_INSET = 1f;
+    private static final float PRESET_CONTENT_PADDING = 6f;
+    private static final int PRESET_COLUMNS = 4;
+
     private final SettingControls controls;
     private final List<TabHit> tabs = new ArrayList<>();
+    private final List<PresetHit> presetHits = new ArrayList<>();
+    private final Map<String, Float> presetAnimations = new HashMap<>();
     private Tab selected = Tab.GENERAL;
     private UiRect contentBounds;
     private float scroll;
@@ -35,6 +48,7 @@ public final class ClientSettingsTool implements ToolPage {
     @Override
     public void render(UiContext context, UiRect bounds) {
         tabs.clear();
+        presetHits.clear();
         ToolHeader.render(context, bounds,
                 context.translate("nimbus.client_settings.title", "Client Settings"),
                 context.translate("nimbus.client_settings.description",
@@ -72,7 +86,8 @@ public final class ClientSettingsTool implements ToolPage {
         contentBounds = new UiRect(bounds.x() + 22f, tabY + 43f, bounds.width() - 44f,
                 bounds.height() - (tabY - bounds.y()) - 65f);
         List<Setting<?>> settings = settings(selected);
-        float contentHeight = controls.height(settings, contentBounds.width());
+        float presetHeight = selected == Tab.GENERAL ? PRESET_AREA_HEIGHT : 0f;
+        float contentHeight = presetHeight + controls.height(settings, contentBounds.width());
         maximumScroll = Math.max(0f, contentHeight - contentBounds.height());
         targetScroll = Math.clamp(targetScroll, -maximumScroll, 0f);
         scroll = animate(scroll, targetScroll, speed);
@@ -83,8 +98,13 @@ public final class ClientSettingsTool implements ToolPage {
                     Rect.makeXYWH(contentBounds.x(), contentBounds.y(), contentBounds.width(), contentBounds.height()),
                     Math.round((.55f + .45f * tabTransition) * 255f));
             try {
-                controls.render(context, settings, contentBounds.x() + (1f - tabTransition) * 10f,
-                        contentBounds.y() + scroll, contentBounds.width(), contentBounds);
+                float contentX = contentBounds.x() + (1f - tabTransition) * 10f;
+                float contentY = contentBounds.y() + scroll;
+                if (selected == Tab.GENERAL) {
+                    renderThemePresets(context, contentX, contentY, contentBounds.width());
+                    contentY += PRESET_AREA_HEIGHT;
+                }
+                controls.render(context, settings, contentX, contentY, contentBounds.width(), contentBounds);
             } finally {
                 context.frame().canvas().restoreToCount(layer);
             }
@@ -105,6 +125,13 @@ public final class ClientSettingsTool implements ToolPage {
                     tabTransition = 0f;
                     controls.clearTransient();
                 }
+                return true;
+            }
+            for (PresetHit preset : presetHits) {
+                if (!preset.bounds().contains(x, y)
+                        || contentBounds == null || !contentBounds.contains(x, y)) continue;
+                Core.INSTANCE.getConfigManager().clientSettings().themePreset.setValue(preset.name());
+                controls.clearTransient();
                 return true;
             }
         }
@@ -130,7 +157,9 @@ public final class ClientSettingsTool implements ToolPage {
     private static List<Setting<?>> settings(Tab tab) {
         ClientSettings value = Core.INSTANCE.getConfigManager().clientSettings();
         return switch (tab) {
-            case GENERAL -> List.of(value.clientName, value.language, value.style, value.accent, value.hudScale);
+            case GENERAL -> List.of(value.clientName, value.language, value.style, value.colorMode,
+                    value.accent, value.secondaryAccent, value.rainbowSaturation, value.rainbowBrightness,
+                    value.astolfoIndex, value.astolfoOffset, value.hudScale);
             case SURFACE -> List.of(value.postProcessing, value.splitRegions, value.texture, value.textureOpacity);
             case BLUR -> List.of(value.blurMode, value.blurRadius, value.blurPasses, value.downSample,
                     value.upSample, value.blurRefresh, value.blurRefreshLimit);
@@ -152,9 +181,80 @@ public final class ClientSettingsTool implements ToolPage {
         }
     }
     private record TabHit(UiRect bounds, Tab tab) { }
+    private record PresetHit(UiRect bounds, String name) { }
+
+    private void renderThemePresets(UiContext context, float x, float y, float width) {
+        ClientSettings settings = Core.INSTANCE.getConfigManager().clientSettings();
+        context.textIn(context.translate(settings.themePreset.getTranslationKey(), "Theme Preset"),
+                new UiRect(x + PRESET_INSET + PRESET_CONTENT_PADDING, y,
+                        width - (PRESET_INSET + PRESET_CONTENT_PADDING) * 2f, 22f),
+                11f, ClickGuiTheme.TEXT);
+
+        float gridWidth = width - PRESET_INSET * 2f;
+        float cardWidth = (gridWidth - PRESET_GAP * (PRESET_COLUMNS - 1)) / PRESET_COLUMNS;
+        float cardHeight = 29f;
+        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 15f);
+        List<ThemePreset> presets = settings.themePresets();
+        for (int index = 0; index < presets.size(); index++) {
+            ThemePreset preset = presets.get(index);
+            int column = index % PRESET_COLUMNS;
+            int row = index / PRESET_COLUMNS;
+            UiRect card = new UiRect(x + PRESET_INSET + column * (cardWidth + PRESET_GAP),
+                    y + 24f + row * (cardHeight + PRESET_GAP), cardWidth, cardHeight);
+            boolean selected = settings.themePreset.is(preset.name());
+            boolean hover = card.contains(context.mouseX(), context.mouseY());
+            float target = selected ? 1f : hover ? .45f : 0f;
+            float progress = animate(presetAnimations.getOrDefault(preset.name(), target), target, speed);
+            presetAnimations.put(preset.name(), progress);
+
+            context.frame().draw().roundedRect(card.x(), card.y(), card.width(), card.height(), 5f,
+                    withAlpha(context.theme().accent(0x38), progress));
+            context.frame().draw().outline(card.x(), card.y(), card.width(), card.height(), 5f, 1f,
+                    withAlpha(context.theme().accent(0xA0), selected ? 1f : progress * .35f));
+
+            UiRect swatch = new UiRect(card.x() + PRESET_CONTENT_PADDING,
+                    card.y() + PRESET_CONTENT_PADDING, 28f, 17f);
+            int primary = opaque(settings.previewPrimary(preset));
+            int secondary = opaque(settings.previewSecondary(preset));
+            try (Paint paint = new Paint().setAntiAlias(true)) {
+                paint.setShader(context.frame().effects().linearGradient(
+                        new Point(swatch.x(), swatch.y()),
+                        new Point(swatch.x() + swatch.width(), swatch.y()),
+                        new int[]{primary, secondary}));
+                context.frame().draw().roundedRect(swatch.x(), swatch.y(), swatch.width(), swatch.height(), 4f, paint);
+            }
+            context.frame().draw().outline(swatch.x(), swatch.y(), swatch.width(), swatch.height(),
+                    4f, 1f, 0x24FFFFFF);
+            String label = context.translate(settings.themePreset.getOptionTranslationKey(preset.name()),
+                    preset.name());
+            float labelWidth = Math.max(10f, card.width() - 45f);
+            context.textIn(ellipsize(context, label, labelWidth),
+                    new UiRect(card.x() + 40f, card.y(), labelWidth, card.height()),
+                    9.5f, selected ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+            presetHits.add(new PresetHit(card, preset.name()));
+        }
+    }
 
     private static float animate(float value, float target, float speed) {
         float result = value + (target - value) * speed;
         return Math.abs(result - target) < .002f ? target : result;
+    }
+
+    private static int withAlpha(int color, float opacity) {
+        int alpha = Math.round((color >>> 24) * Math.clamp(opacity, 0f, 1f));
+        return color & 0x00FFFFFF | alpha << 24;
+    }
+
+    private static int opaque(int color) {
+        return color | 0xFF000000;
+    }
+
+    private static String ellipsize(UiContext context, String value, float width) {
+        if (context.width(UiContext.FONT, 9.5f, value) <= width) return value;
+        String result = value;
+        while (!result.isEmpty() && context.width(UiContext.FONT, 9.5f, result + "...") > width) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result + "...";
     }
 }
