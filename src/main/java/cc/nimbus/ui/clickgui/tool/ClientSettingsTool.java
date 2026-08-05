@@ -22,16 +22,18 @@ import java.util.List;
 import java.util.Map;
 
 public final class ClientSettingsTool implements ToolPage {
-    private static final float PRESET_AREA_HEIGHT = 94f;
-    private static final float PRESET_GAP = 6f;
+    private static final float PRESET_AREA_HEIGHT = 100f;
+    private static final float PRESET_GAP = 8f;
     private static final float PRESET_INSET = 1f;
-    private static final float PRESET_CONTENT_PADDING = 6f;
+    private static final float PRESET_CONTENT_PADDING = 8f;
+    private static final float PRESET_CARD_HEIGHT = 30f;
     private static final int PRESET_COLUMNS = 4;
 
     private final SettingControls controls;
     private final List<TabHit> tabs = new ArrayList<>();
     private final List<PresetHit> presetHits = new ArrayList<>();
-    private final Map<String, Float> presetAnimations = new HashMap<>();
+    private final Map<String, Float> presetSelectionAnimations = new HashMap<>();
+    private final Map<String, Float> presetHoverAnimations = new HashMap<>();
     private Tab selected = Tab.GENERAL;
     private UiRect contentBounds;
     private float scroll;
@@ -186,34 +188,39 @@ public final class ClientSettingsTool implements ToolPage {
     private void renderThemePresets(UiContext context, float x, float y, float width) {
         ClientSettings settings = Core.INSTANCE.getConfigManager().clientSettings();
         context.textIn(context.translate(settings.themePreset.getTranslationKey(), "Theme Preset"),
-                new UiRect(x + PRESET_INSET + PRESET_CONTENT_PADDING, y,
-                        width - (PRESET_INSET + PRESET_CONTENT_PADDING) * 2f, 22f),
+                new UiRect(x + PRESET_INSET, y, width - PRESET_INSET * 2f, 22f),
                 11f, ClickGuiTheme.TEXT);
 
         float gridWidth = width - PRESET_INSET * 2f;
         float cardWidth = (gridWidth - PRESET_GAP * (PRESET_COLUMNS - 1)) / PRESET_COLUMNS;
-        float cardHeight = 29f;
-        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 15f);
+        float speed = 1f - (float) Math.exp(-context.deltaSeconds() * 11f);
         List<ThemePreset> presets = settings.themePresets();
         for (int index = 0; index < presets.size(); index++) {
             ThemePreset preset = presets.get(index);
             int column = index % PRESET_COLUMNS;
             int row = index / PRESET_COLUMNS;
             UiRect card = new UiRect(x + PRESET_INSET + column * (cardWidth + PRESET_GAP),
-                    y + 24f + row * (cardHeight + PRESET_GAP), cardWidth, cardHeight);
+                    y + 24f + row * (PRESET_CARD_HEIGHT + PRESET_GAP), cardWidth, PRESET_CARD_HEIGHT);
             boolean selected = settings.themePreset.is(preset.name());
             boolean hover = card.contains(context.mouseX(), context.mouseY());
-            float target = selected ? 1f : hover ? .45f : 0f;
-            float progress = animate(presetAnimations.getOrDefault(preset.name(), target), target, speed);
-            presetAnimations.put(preset.name(), progress);
+            float selection = animate(presetSelectionAnimations.getOrDefault(preset.name(), selected ? 1f : 0f),
+                    selected ? 1f : 0f, speed);
+            float hoverProgress = animate(presetHoverAnimations.getOrDefault(preset.name(), 0f),
+                    hover ? 1f : 0f, speed);
+            presetSelectionAnimations.put(preset.name(), selection);
+            presetHoverAnimations.put(preset.name(), hoverProgress);
 
-            context.frame().draw().roundedRect(card.x(), card.y(), card.width(), card.height(), 5f,
-                    withAlpha(context.theme().accent(0x38), progress));
-            context.frame().draw().outline(card.x(), card.y(), card.width(), card.height(), 5f, 1f,
-                    withAlpha(context.theme().accent(0xA0), selected ? 1f : progress * .35f));
+            context.frame().draw().roundedRect(card.x(), card.y(), card.width(), card.height(), 6f,
+                    mix(0x14111316, 0x241B1E23, hoverProgress));
+            if (selection > .001f) {
+                context.frame().draw().roundedRect(card.x(), card.y(), card.width(), card.height(), 6f,
+                        withAlpha(context.theme().accent(0x2C), selection));
+            }
+            context.frame().draw().outline(card.x(), card.y(), card.width(), card.height(), 6f, 1f,
+                    mix(0x16FFFFFF, context.theme().accent(0x88), selection));
 
             UiRect swatch = new UiRect(card.x() + PRESET_CONTENT_PADDING,
-                    card.y() + PRESET_CONTENT_PADDING, 28f, 17f);
+                    card.y() + (card.height() - 16f) * .5f, 32f, 16f);
             int primary = opaque(settings.previewPrimary(preset));
             int secondary = opaque(settings.previewSecondary(preset));
             try (Paint paint = new Paint().setAntiAlias(true)) {
@@ -227,10 +234,16 @@ public final class ClientSettingsTool implements ToolPage {
                     4f, 1f, 0x24FFFFFF);
             String label = context.translate(settings.themePreset.getOptionTranslationKey(preset.name()),
                     preset.name());
-            float labelWidth = Math.max(10f, card.width() - 45f);
+            float labelX = swatch.x() + swatch.width() + 9f;
+            float labelWidth = Math.max(10f, card.x() + card.width() - labelX - 12f);
             context.textIn(ellipsize(context, label, labelWidth),
-                    new UiRect(card.x() + 40f, card.y(), labelWidth, card.height()),
-                    9.5f, selected ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
+                    new UiRect(labelX, card.y(), labelWidth, card.height()),
+                    10f, mix(ClickGuiTheme.MUTED, ClickGuiTheme.TEXT, selection));
+            if (selection > .001f) {
+                context.frame().draw().roundedRect(card.x() + card.width() - 10f,
+                        card.y() + (card.height() - 4f) * .5f, 4f, 4f, 2f,
+                        withAlpha(context.theme().accent(0xD0), selection));
+            }
             presetHits.add(new PresetHit(card, preset.name()));
         }
     }
@@ -249,10 +262,19 @@ public final class ClientSettingsTool implements ToolPage {
         return color | 0xFF000000;
     }
 
+    private static int mix(int first, int second, float progress) {
+        float value = Math.clamp(progress, 0f, 1f);
+        int a = Math.round((first >>> 24) + ((second >>> 24) - (first >>> 24)) * value);
+        int r = Math.round((first >> 16 & 0xFF) + ((second >> 16 & 0xFF) - (first >> 16 & 0xFF)) * value);
+        int g = Math.round((first >> 8 & 0xFF) + ((second >> 8 & 0xFF) - (first >> 8 & 0xFF)) * value);
+        int b = Math.round((first & 0xFF) + ((second & 0xFF) - (first & 0xFF)) * value);
+        return a << 24 | r << 16 | g << 8 | b;
+    }
+
     private static String ellipsize(UiContext context, String value, float width) {
-        if (context.width(UiContext.FONT, 9.5f, value) <= width) return value;
+        if (context.width(UiContext.FONT, 10f, value) <= width) return value;
         String result = value;
-        while (!result.isEmpty() && context.width(UiContext.FONT, 9.5f, result + "...") > width) {
+        while (!result.isEmpty() && context.width(UiContext.FONT, 10f, result + "...") > width) {
             result = result.substring(0, result.length() - 1);
         }
         return result + "...";
