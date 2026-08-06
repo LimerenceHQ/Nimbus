@@ -12,7 +12,7 @@ public final class TextFactory {
     private record FontTextKey(String familyName, float size, String text) {}
     private record TextRun(String family, String text, float x) {}
     private record TextLayoutPlan(List<TextRun> runs, float width, float height, float baseline,
-                                  float visualLeft, float visualCenterY) {}
+                                  float visualLeft, float visualRight, float visualCenterY) {}
 
     private static final int MAX_MEASUREMENTS = 4096;
     private static final Map<FontTextKey, TextLayoutPlan> LAYOUT_CACHE = boundedCache();
@@ -41,6 +41,11 @@ public final class TextFactory {
     public static synchronized float getTextVisualLeft(String familyName, float size, String text) {
         ensureOpen();
         return layout(familyName, size, normalize(text)).visualLeft();
+    }
+
+    public static synchronized float getTextVisualRight(String familyName, float size, String text) {
+        ensureOpen();
+        return layout(familyName, size, normalize(text)).visualRight();
     }
 
     public static synchronized float getTextVisualCenterY(String familyName, float size, String text) {
@@ -108,6 +113,7 @@ public final class TextFactory {
         String currentFamily = key.familyName();
         float width = 0f;
         float visualLeft = Float.POSITIVE_INFINITY;
+        float visualRight = Float.NEGATIVE_INFINITY;
         float visualTop = Float.POSITIVE_INFINITY;
         float visualBottom = Float.NEGATIVE_INFINITY;
         float ascent = -primary.getMetrics().getAscent();
@@ -139,6 +145,7 @@ public final class TextFactory {
             Font font = FontFamily.getCachedFont(run.family(), key.size());
             var bounds = font.measureText(run.text());
             visualLeft = Math.min(visualLeft, run.x() + bounds.getLeft());
+            visualRight = Math.max(visualRight, run.x() + bounds.getRight());
             visualTop = Math.min(visualTop, bounds.getTop());
             visualBottom = Math.max(visualBottom, bounds.getBottom());
             if (run.family().equals(key.familyName())) continue;
@@ -150,7 +157,8 @@ public final class TextFactory {
                 ? ascent + (visualTop + visualBottom) * .5f
                 : (ascent + descent) * .5f;
         return new TextLayoutPlan(List.copyOf(runs), width, ascent + descent, ascent,
-                Float.isFinite(visualLeft) ? visualLeft : 0f, visualCenterY);
+                Float.isFinite(visualLeft) ? visualLeft : 0f,
+                Float.isFinite(visualRight) ? visualRight : width, visualCenterY);
     }
 
     private static String selectFamily(Font primary, Font fallback, String primaryFamily,

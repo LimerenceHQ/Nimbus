@@ -20,11 +20,14 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.skija.PathBuilder;
 import io.github.humbleui.types.Point;
-import io.github.humbleui.types.Rect;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @ModuleInfo(
         name = "ArrayList",
@@ -39,16 +42,21 @@ public final class ActiveList extends BasicModule {
     private static final float FONT_SIZE = 15f;
     private static final float ROW_HEIGHT = 25f;
     private static final float PADDING_X = 8f;
-    private static final float ACCENT_WIDTH = 2f;
-    private static final float ROW_OVERLAP = 0.75f;
+    private static final float ACCENT_WIDTH = 2.5f;
+    private static final float CORNER_RADIUS = 5f;
     private static final int BACKGROUND_COLOR = 0x5C171A1E;
     private static final int TEXT_COLOR = 0xFFF4F7F8;
     private static final int SUFFIX_COLOR = 0xFF9EA8B2;
 
     public final BooleanSetting showSuffix = new BooleanSetting("Show suffix", true);
     public final BooleanSetting background = new BooleanSetting("Background", true);
+    public final BooleanSetting rightRect = new BooleanSetting("Right rect", true);
     public final ColorSetting accent = new ColorSetting("Accent", 0xFF82A9FF, this::customStyle);
     private HudSize layoutSize = new HudSize(2f, 2f);
+    private final Map<String, Entry> displayedEntries = new HashMap<>();
+    private final Map<String, Float> entryAnimations = new HashMap<>();
+    private long lastFrameNanos;
+    private float rightRectProgress;
 
     private final Draggable drag = new Draggable("ActiveList", 0.98, 0.02) {
         @Override
@@ -59,61 +67,89 @@ public final class ActiveList extends BasicModule {
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
-        List<Entry> entries = entries();
-        float totalWidth = maxWidth(entries);
-        float totalHeight = Math.max(2f, entries.size() * ROW_HEIGHT);
-        layoutSize = new HudSize(totalWidth, totalHeight);
-        if (entries.isEmpty()) return;
-
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         HudViewport viewport = Core.INSTANCE.getHudManager().viewport(skija.width(), skija.height());
+        long nowNanos = System.nanoTime();
+        float delta = lastFrameNanos == 0L ? 1f / 60f
+                : Math.min(.05f, (nowNanos - lastFrameNanos) / 1_000_000_000f);
+        lastFrameNanos = nowNanos;
+        reconcileEntries(activeEntries(skija), delta);
+        if (displayedEntries.isEmpty()) {
+            layoutSize = new HudSize(2f, 2f);
+            return;
+        }
+
         HudAnchor anchor = drag.getAnchor();
+        List<RenderEntry> entries = layoutEntries(anchor);
+        float totalWidth = maxWidth(entries);
+        float totalHeight = Math.max(2f, (float) entries.stream().mapToDouble(RenderEntry::height).sum());
+        layoutSize = new HudSize(totalWidth, totalHeight);
         HudRect bounds = drag.getRect(viewport);
         float scale = drag.getRenderScale(viewport);
         boolean drawBackground = background.getValue();
         ClientSettings clientSettings = Core.INSTANCE.getConfigManager().clientSettings();
-        int[] accentColors = customStyle()
-                ? new int[]{accent.getValue(), accent.getValue()}
-                : accentColors(clientSettings, entries.size(), anchor, System.currentTimeMillis());
+        rightRectProgress = animate(rightRectProgress, rightRect.getValue() ? 1f : 0f,
+                1f - (float) Math.exp(-delta * 14f));
+        long colorTime = System.currentTimeMillis();
+        int[] accentColors = accentColors(clientSettings, entries.size(), anchor, colorTime);
 
         if (drawBackground) {
-            try (Path regions = backgroundPath(
-                    entries, anchor, totalWidth, totalHeight, bounds.x(), bounds.y(), scale)) {
+            try (Path regions = backgroundPath(entries, totalWidth, totalHeight,
+                    bounds.x(), bounds.y(), scale)) {
                 skija.postProcess().add(regions);
             }
         }
 
-        List<Entry> frameEntries = List.copyOf(entries);
+        List<RenderEntry> frameEntries = List.copyOf(entries);
         skija.hud().submit(frame -> drag.render(frame, viewport, local -> {
-            try (Path backgroundPath = backgroundPath(
-                    frameEntries, anchor, totalWidth, totalHeight, 0f, 0f, 1f);
+            try (Path surface = backgroundPath(frameEntries, totalWidth, totalHeight,
+                    0f, 0f, 1f);
                  Paint backgroundPaint = new Paint().setAntiAlias(true).setColor(BACKGROUND_COLOR);
-                 Paint accentPaint = new Paint().setAntiAlias(true);
-                 Paint textPaint = new Paint().setAntiAlias(true).setColor(TEXT_COLOR);
-                 Paint suffixPaint = new Paint().setAntiAlias(true).setColor(SUFFIX_COLOR)) {
-                if (drawBackground) local.canvas().drawPath(backgroundPath, backgroundPaint);
-                float accentX = anchor.isRight() ? totalWidth - ACCENT_WIDTH : 0f;
-                accentPaint.setShader(local.effects().linearGradient(
-                        new Point(accentX, 0f), new Point(accentX, totalHeight), accentColors));
-                local.draw().rect(accentX, 0f, ACCENT_WIDTH, totalHeight, accentPaint);
-                float textY = (ROW_HEIGHT - local.text().height(FONT, FONT_SIZE)) * 0.5f;
+                 Paint accentPaint = new Paint().setAntiAlias(true)) {
+                if (drawBackground) local.canvas().drawPath(surface, backgroundPaint);
+                float decorWidth = ACCENT_WIDTH * rightRectProgress;
+                if (decorWidth > .01f) {
+                    accentPaint.setShader(local.effects().linearGradient(
+                            new Point(totalWidth - decorWidth, 0f),
+                            new Point(totalWidth - decorWidth, totalHeight), accentColors));
+                    local.draw().rect(totalWidth - decorWidth, 0f,
+                            decorWidth, totalHeight, accentPaint);
+                }
                 for (int index = 0; index < frameEntries.size(); index++) {
-                    Entry entry = frameEntries.get(index);
-                    float rowX = rowX(anchor, totalWidth, entry.width());
-                    float rowY = rowY(anchor, totalHeight, index);
-                    float labelX = rowX + PADDING_X + (anchor.isRight() ? 0f : ACCENT_WIDTH);
-                    local.text().draw(FONT, FONT_SIZE, entry.name(), labelX, rowY + textY, textPaint);
+                    RenderEntry rendered = frameEntries.get(index);
+                    Entry entry = rendered.entry();
+                    float entryProgress = rendered.progress();
+                    float rowY = rendered.y();
+                    float rowX = totalWidth - entry.width();
+                    float offset = anchor.isRight() ? (1f - entryProgress) * 8f : -(1f - entryProgress) * 8f;
+                    int textColor = multiplyAlpha(TEXT_COLOR, entryProgress);
+                    int suffixColor = multiplyAlpha(SUFFIX_COLOR, entryProgress);
+                    String content = entry.name() + entry.suffix();
+                    float visualCenterX = (local.text().visualLeft(FONT, FONT_SIZE, content)
+                            + local.text().visualRight(FONT, FONT_SIZE, content)) * .5f;
+                    float textCenterX = rowX + (entry.width() - decorWidth) * .5f + offset;
+                    float labelX = textCenterX - visualCenterX;
+                    float textY = rowY + rendered.height() * .5f
+                            - local.text().visualCenterY(FONT, FONT_SIZE, content);
+                    local.text().draw(FONT, FONT_SIZE, entry.name(), labelX, textY, textColor);
                     if (!entry.suffix().isEmpty()) {
                         local.text().draw(FONT, FONT_SIZE, entry.suffix(),
-                                labelX + entry.nameWidth(), rowY + textY, suffixPaint);
+                                labelX + entry.nameWidth(), textY, suffixColor);
                     }
                 }
             }
         }));
     }
 
-    private List<Entry> entries() {
-        SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
+    @Override
+    protected void onDisable() {
+        displayedEntries.clear();
+        entryAnimations.clear();
+        lastFrameNanos = 0L;
+        rightRectProgress = 0f;
+    }
+
+    private List<Entry> activeEntries(SkijaRenderer skija) {
         List<Entry> entries = new ArrayList<>();
         for (BasicModule module : Core.INSTANCE.getModuleManager().getModules()) {
             if (!module.isEnabled() || module.isHidden() || module == this) continue;
@@ -123,16 +159,60 @@ public final class ActiveList extends BasicModule {
                     ? " " + module.getSuffix() : "";
             float nameWidth = skija.text().width(FONT, FONT_SIZE, name);
             float textWidth = nameWidth + skija.text().width(FONT, FONT_SIZE, suffix);
-            entries.add(new Entry(name, suffix, nameWidth,
-                    textWidth + PADDING_X * 2f + ACCENT_WIDTH));
+            entries.add(new Entry(module.getName(), name, suffix, nameWidth,
+                    Math.max(48f, textWidth + PADDING_X * 2f + ACCENT_WIDTH)));
         }
-        entries.sort(Comparator.comparingDouble(Entry::width).reversed()
-                .thenComparing(Entry::name, String.CASE_INSENSITIVE_ORDER));
         return entries;
     }
 
-    private static float maxWidth(List<Entry> entries) {
-        return Math.max(2f, entries.stream().map(Entry::width).max(Float::compare).orElse(2f));
+    private void reconcileEntries(List<Entry> active, float delta) {
+        Set<String> activeKeys = new HashSet<>();
+        float speed = 1f - (float) Math.exp(-delta * 12f);
+        for (Entry entry : active) {
+            activeKeys.add(entry.key());
+            displayedEntries.put(entry.key(), entry);
+            entryAnimations.put(entry.key(), animate(
+                    entryAnimations.getOrDefault(entry.key(), 0f), 1f, speed));
+        }
+        for (String key : List.copyOf(displayedEntries.keySet())) {
+            if (activeKeys.contains(key)) continue;
+            float progress = animate(entryAnimations.getOrDefault(key, 1f), 0f, speed);
+            if (progress <= .002f) {
+                displayedEntries.remove(key);
+                entryAnimations.remove(key);
+            } else {
+                entryAnimations.put(key, progress);
+            }
+        }
+    }
+
+    private List<RenderEntry> layoutEntries(HudAnchor anchor) {
+        List<Entry> sorted = new ArrayList<>(displayedEntries.values());
+        sorted.sort(Comparator.comparingDouble(Entry::width).reversed()
+                .thenComparing(Entry::name, String.CASE_INSENSITIVE_ORDER));
+        float totalHeight = 0f;
+        for (Entry entry : sorted) totalHeight += ROW_HEIGHT * smooth(entryAnimations.getOrDefault(entry.key(), 1f));
+        List<RenderEntry> result = new ArrayList<>(sorted.size());
+        float cursor = anchor.isBottom() ? totalHeight : 0f;
+        for (Entry entry : sorted) {
+            float progress = smooth(entryAnimations.getOrDefault(entry.key(), 1f));
+            float height = ROW_HEIGHT * progress;
+            float y;
+            if (anchor.isBottom()) {
+                cursor -= height;
+                y = cursor;
+            } else {
+                y = cursor;
+                cursor += height;
+            }
+            result.add(new RenderEntry(entry, progress, y, height));
+        }
+        return result;
+    }
+
+    private static float maxWidth(List<RenderEntry> entries) {
+        return Math.max(2f, entries.stream().map(entry -> entry.entry().width())
+                .max(Float::compare).orElse(2f));
     }
 
     private boolean customStyle() {
@@ -140,52 +220,79 @@ public final class ActiveList extends BasicModule {
                 && Core.INSTANCE.getConfigManager().clientSettings().customStyle();
     }
 
-    private static int[] accentColors(
-            ClientSettings settings, int entryCount, HudAnchor anchor, long timeMillis
-    ) {
+    private int[] accentColors(ClientSettings settings, int entryCount, HudAnchor anchor, long timeMillis) {
         int stopCount = Math.max(2, entryCount);
         int[] colors = new int[stopCount];
         for (int visualIndex = 0; visualIndex < stopCount; visualIndex++) {
             int colorIndex = anchor.isBottom() ? stopCount - visualIndex - 1 : visualIndex;
-            colors[visualIndex] = settings.accentColor(colorIndex, timeMillis);
+            colors[visualIndex] = customStyle()
+                    ? accent.getValue() : settings.accentColor(colorIndex, timeMillis);
         }
         return colors;
     }
 
-    private static float rowX(HudAnchor anchor, float totalWidth, float rowWidth) {
-        return anchor.isRight() ? totalWidth - rowWidth : 0f;
-    }
-
-    private static float rowY(HudAnchor anchor, float totalHeight, int index) {
-        return anchor.isBottom()
-                ? totalHeight - (index + 1) * ROW_HEIGHT
-                : index * ROW_HEIGHT;
-    }
-
-    private static Path backgroundPath(
-            List<Entry> entries,
-            HudAnchor anchor,
-            float totalWidth,
-            float totalHeight,
-            float originX,
-            float originY,
-            float scale
-    ) {
+    private static Path backgroundPath(List<RenderEntry> entries,
+                                      float totalWidth, float totalHeight,
+                                      float originX, float originY, float scale) {
+        List<RenderEntry> ordered = new ArrayList<>(entries);
+        ordered.sort(Comparator.comparingDouble(RenderEntry::y));
         PathBuilder path = new PathBuilder();
-        for (int index = 0; index < entries.size(); index++) {
-            Entry entry = entries.get(index);
-            float rowX = rowX(anchor, totalWidth, entry.width());
-            float rowY = rowY(anchor, totalHeight, index);
-            float rowHeight = Math.min(ROW_HEIGHT + ROW_OVERLAP, totalHeight - rowY);
-            path.addRect(Rect.makeXYWH(
-                    originX + rowX * scale,
-                    originY + rowY * scale,
-                    entry.width() * scale,
-                    rowHeight * scale
-            ));
+        if (ordered.isEmpty()) return path.build();
+        RenderEntry first = ordered.getFirst();
+        RenderEntry last = ordered.getLast();
+        float top = originY + first.y() * scale;
+        float bottom = originY + (last.y() + last.height()) * scale;
+        float right = originX + totalWidth * scale;
+        float firstX = originX + (totalWidth - first.entry().width()) * scale;
+        float firstRadius = Math.min(CORNER_RADIUS * scale, first.height() * scale * .5f);
+        path.moveTo(firstX + firstRadius, top);
+        path.lineTo(right, top);
+        path.lineTo(right, bottom);
+        float lastX = originX + (totalWidth - last.entry().width()) * scale;
+        float lastRadius = Math.min(CORNER_RADIUS * scale, last.height() * scale * .5f);
+        path.lineTo(lastX + lastRadius, bottom);
+        path.quadTo(lastX, bottom, lastX, bottom - lastRadius);
+        for (int index = ordered.size() - 1; index > 0; index--) {
+            RenderEntry lower = ordered.get(index);
+            RenderEntry upper = ordered.get(index - 1);
+            float boundary = originY + lower.y() * scale;
+            float lowerX = originX + (totalWidth - lower.entry().width()) * scale;
+            float upperX = originX + (totalWidth - upper.entry().width()) * scale;
+            float distance = Math.abs(lowerX - upperX);
+            if (distance < .01f) {
+                path.lineTo(lowerX, boundary);
+                continue;
+            }
+            float radius = Math.min(CORNER_RADIUS * scale, distance * .5f);
+            radius = Math.min(radius, Math.min(lower.height(), upper.height()) * scale * .5f);
+            float direction = Math.signum(upperX - lowerX);
+            path.lineTo(lowerX, boundary + radius);
+            path.quadTo(lowerX, boundary, lowerX + direction * radius, boundary);
+            path.lineTo(upperX - direction * radius, boundary);
+            path.quadTo(upperX, boundary, upperX, boundary - radius);
         }
+        float topRadius = Math.min(CORNER_RADIUS * scale, first.height() * scale * .5f);
+        path.lineTo(firstX, top + topRadius);
+        path.quadTo(firstX, top, firstX + topRadius, top);
+        path.closePath();
         return path.build();
     }
 
-    private record Entry(String name, String suffix, float nameWidth, float width) {}
+    private static float animate(float value, float target, float speed) {
+        float result = value + (target - value) * Math.clamp(speed, 0f, 1f);
+        return Math.abs(result - target) < .002f ? target : result;
+    }
+
+    private static float smooth(float value) {
+        float clamped = Math.clamp(value, 0f, 1f);
+        return clamped * clamped * (3f - 2f * clamped);
+    }
+
+    private static int multiplyAlpha(int color, float opacity) {
+        int alpha = Math.round((color >>> 24) * Math.clamp(opacity, 0f, 1f));
+        return color & 0x00FFFFFF | alpha << 24;
+    }
+
+    private record Entry(String key, String name, String suffix, float nameWidth, float width) {}
+    private record RenderEntry(Entry entry, float progress, float y, float height) {}
 }

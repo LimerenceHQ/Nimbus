@@ -29,6 +29,10 @@ public final class SkijaText {
         return TextFactory.getTextVisualLeft(family, size, normalize(text));
     }
 
+    public float visualRight(String family, float size, String text) {
+        return TextFactory.getTextVisualRight(family, size, normalize(text));
+    }
+
     public float visualCenterY(String family, float size, String text) {
         return TextFactory.getTextVisualCenterY(family, size, normalize(text));
     }
