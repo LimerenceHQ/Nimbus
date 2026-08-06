@@ -18,12 +18,10 @@ public final class ClickGuiTheme {
     public static final int RAIL_ICON_ACTIVE = 0xFFFFFFFF;
 
     private final ClientSettings settings;
-    private final int accent;
     private final long timeMillis;
 
     private ClickGuiTheme(ClientSettings settings, long timeMillis) {
         this.settings = settings;
-        this.accent = settings.interfaceAccentColor();
         this.timeMillis = timeMillis;
     }
 
@@ -32,7 +30,11 @@ public final class ClickGuiTheme {
     }
 
     public int accent(int maximumAlpha) {
-        return cappedAlpha(accent, maximumAlpha);
+        return cappedAlpha(settings.accentColor(0, timeMillis), maximumAlpha);
+    }
+
+    public int accentAt(float position, int maximumAlpha) {
+        return cappedAlpha(settings.accentColorAt(position, timeMillis), maximumAlpha);
     }
 
     public int motionAccent(int index, int maximumAlpha) {

@@ -66,7 +66,7 @@ public final class ConfigTool implements ToolPage {
                 boolean chosen = config.equalsIgnoreCase(selected);
                 if (chosen || row.contains(context.mouseX(), context.mouseY())) {
                     context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
-                            chosen ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
+                            chosen ? context.accentIn(row, 0x24) : ClickGuiTheme.HOVER);
                 }
                 if (active) context.frame().draw().roundedRect(row.x() + 7f, row.y() + 11f, 7f, 7f,
                         3.5f, 0xCCFFFFFF);

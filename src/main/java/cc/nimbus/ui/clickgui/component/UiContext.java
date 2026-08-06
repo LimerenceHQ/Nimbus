@@ -12,7 +12,9 @@ public record UiContext(
         float mouseX,
         float mouseY,
         float deltaSeconds,
-        long nowMillis
+        long nowMillis,
+        float logicalWidth,
+        float logicalHeight
 ) {
     private static final float FONT_SCALE = 1.18f;
     public static final String FONT = NimbusFonts.BODY;
@@ -89,9 +91,18 @@ public record UiContext(
         return Core.INSTANCE.getI18nManager().get(key, fallback, arguments);
     }
 
+    public int accentAt(float x, int maximumAlpha) {
+        float position = logicalWidth <= 0f ? 0f : Math.clamp(x / logicalWidth, 0f, 1f);
+        return theme.accentAt(position, maximumAlpha);
+    }
+
+    public int accentIn(UiRect bounds, int maximumAlpha) {
+        return accentAt(bounds.x() + bounds.width() * .5f, maximumAlpha);
+    }
+
     public UiContext withoutPointer() {
         return new UiContext(frame, theme, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY,
-                deltaSeconds, nowMillis);
+                deltaSeconds, nowMillis, logicalWidth, logicalHeight);
     }
 
     public int clip(UiRect bounds, float radius) {

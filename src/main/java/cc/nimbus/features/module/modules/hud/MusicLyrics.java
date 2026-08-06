@@ -39,6 +39,7 @@ public final class MusicLyrics extends BasicModule {
     private static final float SINGLE_HEIGHT = 88f;
     private static final float MULTIPLE_HEIGHT = 148f;
     private static final float FONT_SIZE = 22f;
+    private static final float TRANSLATION_GAP = 2f;
     private static final int TRANSITION_MILLIS = 240;
 
     public final ModeSetting display = new ModeSetting(
@@ -194,7 +195,7 @@ public final class MusicLyrics extends BasicModule {
         float translationSize = Math.max(10f, size * .58f);
         float translationHeight = showTranslation
                 ? frame.text().height(FONT, translationSize, line.translation()) : 0f;
-        float groupHeight = textHeight + (showTranslation ? 6f + translationHeight : 0f);
+        float groupHeight = textHeight + (showTranslation ? TRANSLATION_GAP + translationHeight : 0f);
         float y = rowY + (rowHeight - groupHeight) * .5f + offsetY;
         float x = alignedX(frame, text, size, available) + offsetX;
         if (allowProgress) {
@@ -213,7 +214,7 @@ public final class MusicLyrics extends BasicModule {
         if (showTranslation) {
             float translatedX = alignedX(frame, line.translation(), translationSize, available) + offsetX;
             frame.text().draw(FONT, translationSize, line.translation(), translatedX,
-                    y + textHeight + 6f, multiplyAlpha(0xC8E2E5EA, opacity));
+                    y + textHeight + TRANSLATION_GAP, multiplyAlpha(0xC8E2E5EA, opacity));
         }
     }
 

@@ -89,9 +89,9 @@ public final class MultilineTextInput {
 
     public void render(UiContext context, UiRect bounds, String placeholder, float size, boolean secure) {
         context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f,
-                focused ? context.theme().accent(0x42) : ClickGuiTheme.CONTROL);
+                focused ? context.accentIn(bounds, 0x42) : ClickGuiTheme.CONTROL);
         context.frame().draw().outline(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f, 1f,
-                focused ? context.theme().accent(0x55) : ClickGuiTheme.STROKE);
+                focused ? context.accentIn(bounds, 0x55) : ClickGuiTheme.STROKE);
         int save = context.clip(new UiRect(bounds.x() + 2f, bounds.y() + 2f,
                 bounds.width() - 4f, bounds.height() - 4f), 2f);
         try {

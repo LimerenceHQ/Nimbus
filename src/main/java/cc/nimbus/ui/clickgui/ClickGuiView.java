@@ -209,7 +209,7 @@ public final class ClickGuiView {
                                 viewport.width() - 13f, settingsHeight);
                         if (settings.intersects(viewport)) {
                             context.frame().draw().roundedRect(viewport.x() + 3f, settings.y(), 2f,
-                                    settings.height(), 1f, context.theme().accent(0x46));
+                                    settings.height(), 1f, context.accentIn(settings, 0x46));
                             int settingsClip = context.clip(settings, 2f);
                             try {
                                 controls.render(context, module.getSettings(), settings.x(), settings.y(),
@@ -246,7 +246,7 @@ public final class ClickGuiView {
         keyVisibilityAnimations.put(module.getName(), keyVisibility);
         int background = mix(0x00000000, 0x18FFFFFF, active);
         background = mix(background, ClickGuiTheme.HOVER, hovered * (1f - active * .4f));
-        background = mix(background, context.theme().accent(0x30), bindingProgress);
+        background = mix(background, context.accentIn(row, 0x30), bindingProgress);
         if ((background >>> 24) != 0) {
             context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 5f, background);
         }
@@ -262,7 +262,7 @@ public final class ClickGuiView {
                     Math.round(255f * keyAlpha));
             try {
                 context.frame().draw().roundedRect(keyBounds.x(), keyBounds.y(), keyBounds.width(),
-                        keyBounds.height(), 4f, mix(0x16FFFFFF, context.theme().accent(0x44), keyPulse));
+                        keyBounds.height(), 4f, mix(0x16FFFFFF, context.accentIn(keyBounds, 0x44), keyPulse));
                 context.visualCentered(ellipsize(context, keyName, keyBounds.width() - 6f, 8.5f),
                         keyBounds, 8.5f,
                         mix(ClickGuiTheme.MUTED, ClickGuiTheme.TEXT, keyPulse));

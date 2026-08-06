@@ -81,14 +81,14 @@ public final class TextInput {
     }
 
     public void render(UiContext context, UiRect bounds, String placeholder, float size, boolean secure) {
-        int background = focused ? context.theme().accent(0x42) : ClickGuiTheme.CONTROL;
+        int background = focused ? context.accentIn(bounds, 0x42) : ClickGuiTheme.CONTROL;
         render(context, bounds, placeholder, size, secure, background);
     }
 
     public void render(UiContext context, UiRect bounds, String placeholder, float size, boolean secure,
                        int background) {
         render(context, bounds, placeholder, size, secure, background,
-                focused ? context.theme().accent(0x55) : ClickGuiTheme.STROKE);
+                focused ? context.accentIn(bounds, 0x55) : ClickGuiTheme.STROKE);
     }
 
     public void render(UiContext context, UiRect bounds, String placeholder, float size, boolean secure,
@@ -130,7 +130,7 @@ public final class TextInput {
                 float selectionW = context.width(UiContext.FONT, size,
                         display.substring(start, Math.min(display.length(), start + selectedLength)));
                 context.frame().draw().rect(selectionX, bounds.y() + 5f, selectionW, bounds.height() - 10f,
-                        context.theme().accent(0x42));
+                        context.accentAt(selectionX + selectionW * .5f, 0x42));
             }
             context.text(empty ? placeholder : composed, textX, textY, size,
                     empty ? ClickGuiTheme.MUTED : ClickGuiTheme.TEXT);

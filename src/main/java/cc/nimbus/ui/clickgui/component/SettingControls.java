@@ -329,7 +329,7 @@ public final class SettingControls {
         progress += ((setting.getValue() ? 1f : 0f) - progress) * speed;
         animations.put(setting, progress);
         context.frame().draw().roundedRect(toggle.x(), toggle.y(), toggle.width(), toggle.height(), 7f,
-                mix(0x30FFFFFF, context.theme().accent(0xA0), progress));
+                mix(0x30FFFFFF, context.accentIn(toggle, 0xA0), progress));
         float knobX = toggle.x() + 2f + 12f * progress;
         context.frame().draw().roundedRect(knobX, toggle.y() + 2f, 14f, 14f, 7f,
                 mix(0xFFC9CBD0, 0xFFFFFFFF, progress));
@@ -366,8 +366,8 @@ public final class SettingControls {
                 valueBounds.contains(context.mouseX(), context.mouseY()) ? 1f : 0f, speed);
         valueHoverAnimations.put(setting, valueHover);
         int valueBackground = mix(0x00000000, 0x14FFFFFF, valueHover);
-        valueBackground = mix(valueBackground, context.theme().accent(0x32), focused);
-        int valueOutline = alpha(context.theme().accent(0x64), focused);
+        valueBackground = mix(valueBackground, context.accentIn(valueBounds, 0x32), focused);
+        int valueOutline = alpha(context.accentIn(valueBounds, 0x64), focused);
         context.frame().draw().roundedRect(valueBounds.x(), valueBounds.y(), valueBounds.width(),
                 valueBounds.height(), 4f, valueBackground);
         context.frame().draw().outline(valueBounds.x(), valueBounds.y(), valueBounds.width(),
@@ -404,7 +404,7 @@ public final class SettingControls {
         context.frame().draw().roundedRect(track.x(), track.y(), track.width(), track.height(), 2f,
                 mix(0x28FFFFFF, 0x38FFFFFF, dragging));
         context.frame().draw().roundedRect(track.x(), track.y(), track.width() * clamped,
-                track.height(), 2f, context.theme().accent(0xB8));
+                track.height(), 2f, context.accentAt(track.x() + track.width() * clamped, 0xB8));
         try (Paint thumb = new Paint().setAntiAlias(true).setColor(0xFFF3F4F6)) {
             context.frame().canvas().drawCircle(track.x() + track.width() * clamped,
                     track.y() + track.height() * .5f, 4f + 1.25f * dragging, thumb);
@@ -437,7 +437,7 @@ public final class SettingControls {
                         optionBounds.width() - 36f, optionBounds.height()), 10.5f,
                         mix(ClickGuiTheme.MUTED, ClickGuiTheme.TEXT, selectedProgress));
                 iconAlpha(context, ClickGuiIcons.CHECK, optionBounds.x() + optionBounds.width() - 23f,
-                        optionBounds.y() + 5f, 16f, context.theme().accent(0xC0), selectedProgress);
+                        optionBounds.y() + 5f, 16f, context.accentIn(optionBounds, 0xC0), selectedProgress);
                 if (openOptions == setting && disclosure >= .98f) {
                     addHit(new Hit(setting, HitKind.MODE_OPTION, optionBounds, option));
                 }
@@ -473,7 +473,7 @@ public final class SettingControls {
                 UiRect check = new UiRect(optionBounds.x() + 7f, optionBounds.y() + 6f, 14f, 14f);
                 float selectedProgress = optionProgress(context, setting, option, selected);
                 context.frame().draw().roundedRect(check.x(), check.y(), check.width(), check.height(), 3f,
-                        mix(0x20FFFFFF, context.theme().accent(0x78), selectedProgress));
+                        mix(0x20FFFFFF, context.accentIn(check, 0x78), selectedProgress));
                 iconAlpha(context, ClickGuiIcons.CHECK, check.x() + 1f, check.y() + 1f, 12f,
                         ClickGuiTheme.TEXT, selectedProgress);
                 context.textIn(translatedOption(context, setting, option), new UiRect(optionBounds.x() + 28f, optionBounds.y(),
@@ -530,7 +530,7 @@ public final class SettingControls {
                 UiRect toggle = new UiRect(rainbow.x() + rainbow.width() - 30f,
                         rainbow.y() + 3f, 28f, 16f);
                 context.frame().draw().roundedRect(toggle.x(), toggle.y(), toggle.width(), toggle.height(), 8f,
-                        mix(0x30FFFFFF, context.theme().accent(0x72), rainbowProgress));
+                        mix(0x30FFFFFF, context.accentIn(toggle, 0x72), rainbowProgress));
                 context.frame().draw().roundedRect(toggle.x() + 2f + 12f * rainbowProgress,
                         toggle.y() + 2f, 12f, 12f, 6f,
                         mix(0xFFC9CBD0, 0xFFFFFFFF, rainbowProgress));
@@ -554,8 +554,8 @@ public final class SettingControls {
         float focused = animate(focusAnimations.getOrDefault(setting, editing == setting ? 1f : 0f),
                 editing == setting ? 1f : 0f, speed);
         focusAnimations.put(setting, focused);
-        int inputBackground = mix(ClickGuiTheme.CONTROL, context.theme().accent(0x38), focused);
-        int inputOutline = mix(ClickGuiTheme.STROKE, context.theme().accent(0x64), focused);
+        int inputBackground = mix(ClickGuiTheme.CONTROL, context.accentIn(input, 0x38), focused);
+        int inputOutline = mix(ClickGuiTheme.STROKE, context.accentIn(input, 0x64), focused);
         if (editing == setting) {
             String placeholder = setting instanceof TextSetting text && text.getPlaceholder() != null
                     ? context.translate(setting.getTranslationKey("placeholder"), text.getPlaceholder())

@@ -69,7 +69,7 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
             lastContext = new UiContext(frame,
                     ClickGuiTheme.from(Core.INSTANCE.getConfigManager().clientSettings()),
                     logicalX(framebufferMouseX()) - offsetX, logicalY(framebufferMouseY()) - offsetY, delta,
-                    System.currentTimeMillis());
+                    System.currentTimeMillis(), logicalWidth, logicalHeight);
             try {
                 view.render(lastContext, logicalWidth, logicalHeight, closeProgress);
             } finally {

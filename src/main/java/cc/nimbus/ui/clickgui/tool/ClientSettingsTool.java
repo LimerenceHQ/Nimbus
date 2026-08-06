@@ -231,10 +231,10 @@ public final class ClientSettingsTool implements ToolPage {
                     mix(0x14111316, 0x241B1E23, hoverProgress));
             if (selection > .001f) {
                 context.frame().draw().roundedRect(card.x(), card.y(), card.width(), card.height(), 6f,
-                        withAlpha(context.theme().accent(0x2C), selection));
+                        withAlpha(context.accentIn(card, 0x2C), selection));
             }
             context.frame().draw().outline(card.x(), card.y(), card.width(), card.height(), 6f, 1f,
-                    mix(0x16FFFFFF, context.theme().accent(0x88), selection));
+                    mix(0x16FFFFFF, context.accentIn(card, 0x88), selection));
 
             UiRect swatch = new UiRect(card.x() + PRESET_CONTENT_PADDING,
                     card.y() + (card.height() - 16f) * .5f, 32f, 16f);
@@ -259,7 +259,7 @@ public final class ClientSettingsTool implements ToolPage {
             if (selection > .001f) {
                 context.frame().draw().roundedRect(card.x() + card.width() - 10f,
                         card.y() + (card.height() - 4f) * .5f, 4f, 4f, 2f,
-                        withAlpha(context.theme().accent(0xD0), selection));
+                        withAlpha(context.accentIn(card, 0xD0), selection));
             }
             presetHits.add(new PresetHit(card, preset.name()));
         }

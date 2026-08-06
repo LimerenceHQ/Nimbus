@@ -246,7 +246,7 @@ public final class MusicTool implements ToolPage {
         boolean accountActive = session.musicRoute() == ClickGuiSession.MusicRoute.LOGIN;
         if (accountActive || account.contains(context.mouseX(), context.mouseY())) {
             context.frame().draw().roundedRect(account.x(), account.y(), account.width(), account.height(), 4f,
-                    accountActive ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
+                    accountActive ? context.accentIn(account, 0x24) : ClickGuiTheme.HOVER);
         }
         UiRect avatar = new UiRect(account.x() + 5f, account.y() + 5f, 28f, 28f);
         if (profile == null) {
@@ -325,7 +325,7 @@ public final class MusicTool implements ToolPage {
                 && session.musicRoute() == ClickGuiSession.MusicRoute.ALBUM;
         boolean hover = row.contains(context.mouseX(), context.mouseY());
         if (active || hover) context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
-                active ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
+                active ? context.accentIn(row, 0x24) : ClickGuiTheme.HOVER);
         icon(context, icon, row.x() + 6f, row.y() + 6f, 16f, active ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
         context.textIn(label, new UiRect(row.x() + 28f, row.y(), row.width() - 33f, row.height()),
                 10f, active ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
@@ -340,7 +340,7 @@ public final class MusicTool implements ToolPage {
                 && session.musicRoute() == ClickGuiSession.MusicRoute.PLAYLIST;
         if (active || row.contains(context.mouseX(), context.mouseY())) {
             context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
-                    active ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
+                    active ? context.accentIn(row, 0x24) : ClickGuiTheme.HOVER);
         }
         UiRect cover = new UiRect(row.x() + 5f, row.y() + 5f, 28f, 28f);
         drawArtwork(context, data.artwork(playlist, 96), "sidebar-playlist:" + playlist.id(), cover, 3f, 255);
@@ -695,7 +695,7 @@ public final class MusicTool implements ToolPage {
                               boolean active, Action action) {
         if (active || bounds.contains(context.mouseX(), context.mouseY())) {
             context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 4f,
-                    active ? context.theme().accent(0x2E) : ClickGuiTheme.HOVER);
+                    active ? context.accentIn(bounds, 0x2E) : ClickGuiTheme.HOVER);
         }
         context.visualCentered(label, bounds, 9.5f,
                 active ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
@@ -1402,7 +1402,7 @@ public final class MusicTool implements ToolPage {
                     }
                     if (index == queue.index() || row.contains(context.mouseX(), context.mouseY())) {
                         context.frame().draw().roundedRect(row.x(), row.y(), row.width(), row.height(), 3f,
-                                index == queue.index() ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
+                                index == queue.index() ? context.accentIn(row, 0x24) : ClickGuiTheme.HOVER);
                     }
                     UiRect cover = new UiRect(row.x() + 6f, row.y() + 5f, 32f, 32f);
                     drawArtwork(context, data.thumbnail(music, 96), "queue-cover:" + music.id(),
@@ -1591,7 +1591,7 @@ public final class MusicTool implements ToolPage {
     private void tab(UiContext context, UiRect bounds, String label, boolean active, Action action) {
         if (active || bounds.contains(context.mouseX(), context.mouseY())) {
             context.frame().draw().roundedRect(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 3f,
-                    active ? context.theme().accent(0x24) : ClickGuiTheme.HOVER);
+                    active ? context.accentIn(bounds, 0x24) : ClickGuiTheme.HOVER);
         }
         context.centered(label, bounds, 10f, active ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
         hits.add(new Hit(bounds, action, null));
