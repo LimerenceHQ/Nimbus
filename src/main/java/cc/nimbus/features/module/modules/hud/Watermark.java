@@ -3,6 +3,7 @@ package cc.nimbus.features.module.modules.hud;
 import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.render.EventRender2D;
+import cc.nimbus.features.client.ClientSettings;
 import cc.nimbus.features.hud.Draggable;
 import cc.nimbus.features.hud.HudRect;
 import cc.nimbus.features.hud.HudSize;
@@ -14,6 +15,8 @@ import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.features.module.api.setting.impl.TextSetting;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import cc.nimbus.utils.render.font.NimbusFonts;
+import io.github.humbleui.skija.Paint;
+import io.github.humbleui.types.Point;
 import io.github.humbleui.types.RRect;
 
 @ModuleInfo(
@@ -56,13 +59,21 @@ public final class Watermark extends BasicModule {
         HudSize size = drag.getSize();
         HudRect bounds = drag.getRect(viewport);
         float scale = drag.getRenderScale(viewport);
-        int accentColor = customStyle() ? accent.getValue() : Core.INSTANCE.getConfigManager().clientSettings().accentColor();
+        ClientSettings clientSettings = Core.INSTANCE.getConfigManager().clientSettings();
+        long colorTime = System.currentTimeMillis();
+        int[] accentColors = customStyle()
+                ? new int[]{accent.getValue(), accent.getValue()}
+                : new int[]{clientSettings.accentColor(0, colorTime), clientSettings.accentColor(1, colorTime)};
 
         skija.postProcess().add(RRect.makeXYWH(bounds.x(), bounds.y(), bounds.width(), bounds.height(), RADIUS * scale));
 
         skija.hud().submit(frame -> drag.render(frame, viewport, local -> {
             local.draw().roundedRect(0f, 0f, size.width(), size.height(), RADIUS, BACKGROUND_COLOR);
-            local.draw().rect(0f, 0f, ACCENT_WIDTH, size.height(), accentColor);
+            try (Paint accentPaint = new Paint().setAntiAlias(true)) {
+                accentPaint.setShader(local.effects().linearGradient(
+                        new Point(0f, 0f), new Point(0f, size.height()), accentColors));
+                local.draw().rect(0f, 0f, ACCENT_WIDTH, size.height(), accentPaint);
+            }
             float textY = (size.height() - local.text().height(FONT, FONT_SIZE)) * 0.5f;
             local.text().draw(FONT, FONT_SIZE, label, PADDING_X + ACCENT_WIDTH, textY, TEXT_COLOR);
         }));

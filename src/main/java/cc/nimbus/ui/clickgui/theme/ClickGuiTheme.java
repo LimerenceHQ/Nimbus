@@ -2,7 +2,7 @@ package cc.nimbus.ui.clickgui.theme;
 
 import cc.nimbus.features.client.ClientSettings;
 
-public record ClickGuiTheme(int accent) {
+public final class ClickGuiTheme {
     public static final int PANEL = 0x5C141619;
     public static final int PANEL_STRONG = 0x82101316;
     public static final int CONTROL = 0x30111316;
@@ -17,13 +17,31 @@ public record ClickGuiTheme(int accent) {
     public static final int RAIL_ICON = 0xE8FFFFFF;
     public static final int RAIL_ICON_ACTIVE = 0xFFFFFFFF;
 
+    private final ClientSettings settings;
+    private final int accent;
+    private final long timeMillis;
+
+    private ClickGuiTheme(ClientSettings settings, long timeMillis) {
+        this.settings = settings;
+        this.accent = settings.interfaceAccentColor();
+        this.timeMillis = timeMillis;
+    }
+
     public static ClickGuiTheme from(ClientSettings settings) {
-        return new ClickGuiTheme(settings.accentColor());
+        return new ClickGuiTheme(settings, System.currentTimeMillis());
     }
 
     public int accent(int maximumAlpha) {
-        int sourceAlpha = accent >>> 24;
+        return cappedAlpha(accent, maximumAlpha);
+    }
+
+    public int motionAccent(int index, int maximumAlpha) {
+        return cappedAlpha(settings.accentColor(index, timeMillis), maximumAlpha);
+    }
+
+    private static int cappedAlpha(int color, int maximumAlpha) {
+        int sourceAlpha = color >>> 24;
         int alpha = Math.min(sourceAlpha, Math.clamp(maximumAlpha, 0, 255));
-        return (accent & 0x00FFFFFF) | alpha << 24;
+        return (color & 0x00FFFFFF) | alpha << 24;
     }
 }

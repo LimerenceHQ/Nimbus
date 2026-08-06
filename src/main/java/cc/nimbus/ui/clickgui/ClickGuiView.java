@@ -192,12 +192,16 @@ public final class ClickGuiView {
             int clip = context.clip(viewport, 2f);
             try {
                 float rowY = viewport.y() + 7f + scroll;
-                for (BasicModule module : modules) {
+                for (int moduleIndex = 0; moduleIndex < modules.size(); moduleIndex++) {
+                    BasicModule module = modules.get(moduleIndex);
                     boolean expanded = module.getName().equals(session.expanded(category))
                             && !module.getSettings().isEmpty();
                     float progress = expansion.getOrDefault(module.getName(), expanded ? 1f : 0f);
                     UiRect row = new UiRect(viewport.x(), rowY, viewport.width(), MODULE_HEIGHT);
-                    if (row.intersects(viewport)) renderModule(context, row, module, category, expanded, speed);
+                    if (row.intersects(viewport)) {
+                        renderModule(context, row, module, category, expanded, speed,
+                                index * 8 + moduleIndex);
+                    }
                     rowY += MODULE_HEIGHT + 2f;
                     float settingsHeight = controls.height(module.getSettings(), viewport.width() - 13f) * progress;
                     if (settingsHeight > .5f) {
@@ -227,7 +231,7 @@ public final class ClickGuiView {
     }
 
     private void renderModule(UiContext context, UiRect row, BasicModule module, ModuleCategory category,
-                              boolean expanded, float speed) {
+                              boolean expanded, float speed, int colorIndex) {
         boolean hover = columnsInteractive && row.contains(context.mouseX(), context.mouseY());
         float active = animate(activeAnimations, module.getName(), module.isEnabled(), speed);
         float hovered = animate(hoverAnimations, module.getName(), hover, speed);
@@ -272,8 +276,8 @@ public final class ClickGuiView {
         if (active > .01f) {
             float indicatorHeight = Math.min(17f, row.height() - 10f);
             context.frame().draw().roundedRect(row.x(), row.y() + (row.height() - indicatorHeight) * .5f,
-
-                    2.5f * active, indicatorHeight, 1.25f, context.theme().accent(0x70));
+                    2.5f * active, indicatorHeight, 1.25f,
+                    context.theme().motionAccent(colorIndex, 0xD0));
         }
         if (bindingProgress < .999f) {
             int normalLayer = context.frame().canvas().saveLayerAlpha(

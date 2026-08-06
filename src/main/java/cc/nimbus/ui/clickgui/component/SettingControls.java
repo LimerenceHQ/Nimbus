@@ -329,7 +329,7 @@ public final class SettingControls {
         progress += ((setting.getValue() ? 1f : 0f) - progress) * speed;
         animations.put(setting, progress);
         context.frame().draw().roundedRect(toggle.x(), toggle.y(), toggle.width(), toggle.height(), 7f,
-                mix(0x30FFFFFF, context.theme().accent(0x72), progress));
+                mix(0x30FFFFFF, context.theme().accent(0xA0), progress));
         float knobX = toggle.x() + 2f + 12f * progress;
         context.frame().draw().roundedRect(knobX, toggle.y() + 2f, 14f, 14f, 7f,
                 mix(0xFFC9CBD0, 0xFFFFFFFF, progress));
@@ -404,7 +404,7 @@ public final class SettingControls {
         context.frame().draw().roundedRect(track.x(), track.y(), track.width(), track.height(), 2f,
                 mix(0x28FFFFFF, 0x38FFFFFF, dragging));
         context.frame().draw().roundedRect(track.x(), track.y(), track.width() * clamped,
-                track.height(), 2f, context.theme().accent(0x70));
+                track.height(), 2f, context.theme().accent(0xB8));
         try (Paint thumb = new Paint().setAntiAlias(true).setColor(0xFFF3F4F6)) {
             context.frame().canvas().drawCircle(track.x() + track.width() * clamped,
                     track.y() + track.height() * .5f, 4f + 1.25f * dragging, thumb);

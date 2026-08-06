@@ -172,6 +172,14 @@ public final class ClientSettings {
         };
     }
 
+    public int interfaceAccentColor() {
+        return primaryColor();
+    }
+
+    public boolean usesThemePreset() {
+        return !colorMode.is("Astolfo", "Rainbow");
+    }
+
     public List<ThemePreset> themePresets() {
         return THEME_PRESETS;
     }

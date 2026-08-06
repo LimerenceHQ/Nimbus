@@ -3,6 +3,7 @@ package cc.nimbus.features.module.modules.hud;
 import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.render.EventRender2D;
+import cc.nimbus.features.client.ClientSettings;
 import cc.nimbus.features.hud.Draggable;
 import cc.nimbus.features.hud.HudAnchor;
 import cc.nimbus.features.hud.HudRect;
@@ -18,6 +19,7 @@ import cc.nimbus.utils.render.font.NimbusFonts;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.skija.PathBuilder;
+import io.github.humbleui.types.Point;
 import io.github.humbleui.types.Rect;
 
 import java.util.ArrayList;
@@ -69,9 +71,10 @@ public final class ActiveList extends BasicModule {
         HudRect bounds = drag.getRect(viewport);
         float scale = drag.getRenderScale(viewport);
         boolean drawBackground = background.getValue();
-        int accentColor = customStyle()
-                ? accent.getValue()
-                : Core.INSTANCE.getConfigManager().clientSettings().accentColor();
+        ClientSettings clientSettings = Core.INSTANCE.getConfigManager().clientSettings();
+        int[] accentColors = customStyle()
+                ? new int[]{accent.getValue(), accent.getValue()}
+                : accentColors(clientSettings, entries.size(), anchor, System.currentTimeMillis());
 
         if (drawBackground) {
             try (Path regions = backgroundPath(
@@ -85,11 +88,14 @@ public final class ActiveList extends BasicModule {
             try (Path backgroundPath = backgroundPath(
                     frameEntries, anchor, totalWidth, totalHeight, 0f, 0f, 1f);
                  Paint backgroundPaint = new Paint().setAntiAlias(true).setColor(BACKGROUND_COLOR);
+                 Paint accentPaint = new Paint().setAntiAlias(true);
                  Paint textPaint = new Paint().setAntiAlias(true).setColor(TEXT_COLOR);
                  Paint suffixPaint = new Paint().setAntiAlias(true).setColor(SUFFIX_COLOR)) {
                 if (drawBackground) local.canvas().drawPath(backgroundPath, backgroundPaint);
                 float accentX = anchor.isRight() ? totalWidth - ACCENT_WIDTH : 0f;
-                local.draw().rect(accentX, 0f, ACCENT_WIDTH, totalHeight, accentColor);
+                accentPaint.setShader(local.effects().linearGradient(
+                        new Point(accentX, 0f), new Point(accentX, totalHeight), accentColors));
+                local.draw().rect(accentX, 0f, ACCENT_WIDTH, totalHeight, accentPaint);
                 float textY = (ROW_HEIGHT - local.text().height(FONT, FONT_SIZE)) * 0.5f;
                 for (int index = 0; index < frameEntries.size(); index++) {
                     Entry entry = frameEntries.get(index);
@@ -132,6 +138,18 @@ public final class ActiveList extends BasicModule {
     private boolean customStyle() {
         return Core.INSTANCE.isInitialized()
                 && Core.INSTANCE.getConfigManager().clientSettings().customStyle();
+    }
+
+    private static int[] accentColors(
+            ClientSettings settings, int entryCount, HudAnchor anchor, long timeMillis
+    ) {
+        int stopCount = Math.max(2, entryCount);
+        int[] colors = new int[stopCount];
+        for (int visualIndex = 0; visualIndex < stopCount; visualIndex++) {
+            int colorIndex = anchor.isBottom() ? stopCount - visualIndex - 1 : visualIndex;
+            colors[visualIndex] = settings.accentColor(colorIndex, timeMillis);
+        }
+        return colors;
     }
 
     private static float rowX(HudAnchor anchor, float totalWidth, float rowWidth) {

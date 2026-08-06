@@ -42,6 +42,8 @@ public final class ClientSettingsTool implements ToolPage {
     private float indicatorX = Float.NaN;
     private float indicatorWidth;
     private float tabTransition = 1f;
+    private float presetVisibility = 1f;
+    private UiRect presetBounds;
 
     public ClientSettingsTool(SettingControls controls) {
         this.controls = controls;
@@ -81,14 +83,17 @@ public final class ClientSettingsTool implements ToolPage {
         indicatorX = animate(indicatorX, selectedX, speed);
         indicatorWidth = animate(indicatorWidth, tabWidth, speed);
         context.frame().draw().roundedRect(indicatorX + indicatorWidth * .27f, tabY + 29f,
-                indicatorWidth * .46f, 2.5f, 1.25f, context.theme().accent(0xB0));
+                indicatorWidth * .46f, 2.5f, 1.25f,
+                context.theme().motionAccent(selected.ordinal() * 18, 0xD8));
         context.frame().draw().rect(bounds.x() + 22f, tabY + 34f, bounds.width() - 44f, 1f,
                 0x12FFFFFF);
 
         contentBounds = new UiRect(bounds.x() + 22f, tabY + 43f, bounds.width() - 44f,
                 bounds.height() - (tabY - bounds.y()) - 65f);
         List<Setting<?>> settings = settings(selected);
-        float presetHeight = selected == Tab.GENERAL ? PRESET_AREA_HEIGHT : 0f;
+        ClientSettings clientSettings = Core.INSTANCE.getConfigManager().clientSettings();
+        presetVisibility = animate(presetVisibility, clientSettings.usesThemePreset() ? 1f : 0f, speed);
+        float presetHeight = selected == Tab.GENERAL ? PRESET_AREA_HEIGHT * presetVisibility : 0f;
         float contentHeight = presetHeight + controls.height(settings, contentBounds.width());
         maximumScroll = Math.max(0f, contentHeight - contentBounds.height());
         targetScroll = Math.clamp(targetScroll, -maximumScroll, 0f);
@@ -102,10 +107,21 @@ public final class ClientSettingsTool implements ToolPage {
             try {
                 float contentX = contentBounds.x() + (1f - tabTransition) * 10f;
                 float contentY = contentBounds.y() + scroll;
-                if (selected == Tab.GENERAL) {
-                    renderThemePresets(context, contentX, contentY, contentBounds.width());
-                    contentY += PRESET_AREA_HEIGHT;
+                presetBounds = null;
+                if (selected == Tab.GENERAL && presetHeight > .1f) {
+                    presetBounds = new UiRect(contentX, contentY, contentBounds.width(), presetHeight);
+                    int presetClip = context.clip(presetBounds, 0f);
+                    int presetLayer = context.frame().canvas().saveLayerAlpha(
+                            Rect.makeXYWH(contentX, contentY, contentBounds.width(), presetHeight),
+                            Math.round(255f * presetVisibility));
+                    try {
+                        renderThemePresets(context, contentX, contentY, contentBounds.width());
+                    } finally {
+                        context.frame().canvas().restoreToCount(presetLayer);
+                        context.restore(presetClip);
+                    }
                 }
+                contentY += presetHeight;
                 controls.render(context, settings, contentX, contentY, contentBounds.width(), contentBounds);
             } finally {
                 context.frame().canvas().restoreToCount(layer);
@@ -131,7 +147,8 @@ public final class ClientSettingsTool implements ToolPage {
             }
             for (PresetHit preset : presetHits) {
                 if (!preset.bounds().contains(x, y)
-                        || contentBounds == null || !contentBounds.contains(x, y)) continue;
+                        || contentBounds == null || !contentBounds.contains(x, y)
+                        || presetBounds == null || !presetBounds.contains(x, y)) continue;
                 Core.INSTANCE.getConfigManager().clientSettings().themePreset.setValue(preset.name());
                 controls.clearTransient();
                 return true;
