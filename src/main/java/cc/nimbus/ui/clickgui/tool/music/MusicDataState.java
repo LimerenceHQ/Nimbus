@@ -1,9 +1,7 @@
 package cc.nimbus.ui.clickgui.tool.music;
 
-import cc.nimbus.features.music.lyrics.Lyrics;
-import cc.nimbus.features.music.lyrics.LyricsParser;
-import cc.nimbus.features.music.lyrics.TimedLine;
-import cc.nimbus.features.music.lyrics.WordLine;
+import cc.nimbus.features.music.lyrics.CurrentLyricsState;
+import cc.nimbus.features.music.lyrics.LyricsTimeline;
 import cc.nimbus.features.music.model.Album;
 import cc.nimbus.features.music.model.Artist;
 import cc.nimbus.features.music.model.ArtistDetails;
@@ -48,7 +46,7 @@ public final class MusicDataState {
     private ArtistDetails selectedArtist;
     private Artwork currentArtwork;
     private Artwork previousArtwork;
-    private LyricsView lyrics = LyricsView.EMPTY;
+    private LyricsTimeline lyrics = LyricsTimeline.EMPTY;
     private boolean loading;
     private String error = "";
 
@@ -89,7 +87,7 @@ public final class MusicDataState {
         currentSongId = -1L;
         currentArtwork = null;
         previousArtwork = null;
-        lyrics = LyricsView.EMPTY;
+        lyrics = LyricsTimeline.EMPTY;
         loading = false;
         error = "";
     }
@@ -179,15 +177,15 @@ public final class MusicDataState {
     public void observePlayback(PlaybackState playback) {
         Music music = playback.music();
         long id = music == null ? -1L : music.id();
+        CurrentLyricsState sharedLyrics = manager.currentLyrics();
+        lyrics = sharedLyrics.musicId() == id ? sharedLyrics.timeline() : LyricsTimeline.EMPTY;
         if (id == currentSongId) return;
         currentSongId = id;
         previousArtwork = currentArtwork;
         currentArtwork = null;
-        lyrics = LyricsView.EMPTY;
         long token = ++playbackGeneration;
         if (music == null) return;
         runPlayback(manager.artwork(music, 1024), token, value -> currentArtwork = value);
-        runPlayback(manager.lyrics(music.id()), token, value -> lyrics = parse(value));
     }
 
     public Artwork artwork(Music music, int size) {
@@ -333,83 +331,6 @@ public final class MusicDataState {
         if (token == routeGeneration) loading = false;
     }
 
-    private static LyricsView parse(Lyrics value) {
-        if (value == null) return LyricsView.EMPTY;
-        List<TimedLine> lines = LyricsParser.lines(value.line());
-        List<TimedLine> translated = LyricsParser.lines(value.translated());
-        List<WordLine> wordLines = LyricsParser.words(value.words()).stream()
-                .filter(line -> !line.words().isEmpty() && hasVisibleText(line.text()))
-                .toList();
-        List<LyricRow> rows = wordLines.isEmpty()
-                ? visibleRows(lines, translated)
-                : visibleWordRows(wordLines, translated);
-        return new LyricsView(rows, rows.stream().anyMatch(row -> !row.translation().isBlank()));
-    }
-
-    private static List<LyricRow> visibleRows(List<TimedLine> lines, List<TimedLine> translated) {
-        if (lines.isEmpty()) return List.of();
-        List<String> translations = alignTranslations(lines, translated);
-        List<LyricRow> result = new ArrayList<>(lines.size());
-        for (int index = 0; index < lines.size(); index++) {
-            TimedLine line = lines.get(index);
-            if (!hasVisibleText(line.text())) continue;
-            String translation = index < translations.size() ? translations.get(index) : "";
-            if (equivalentText(line.text(), translation)) translation = "";
-            result.add(new LyricRow(line.timeMs(), line.text(), translation, null));
-        }
-        return List.copyOf(result);
-    }
-
-    private static List<LyricRow> visibleWordRows(List<WordLine> lines, List<TimedLine> translated) {
-        List<TimedLine> timedLines = lines.stream()
-                .map(line -> new TimedLine(line.startMs(), line.text()))
-                .toList();
-        List<String> translations = alignTranslations(timedLines, translated);
-        List<LyricRow> result = new ArrayList<>(lines.size());
-        for (int index = 0; index < lines.size(); index++) {
-            WordLine line = lines.get(index);
-            String translation = index < translations.size() ? translations.get(index) : "";
-            if (equivalentText(line.text(), translation)) translation = "";
-            result.add(new LyricRow(line.startMs(), line.text(), translation, line));
-        }
-        return List.copyOf(result);
-    }
-
-    private static List<String> alignTranslations(List<TimedLine> lines, List<TimedLine> translated) {
-        if (lines.isEmpty() || translated.isEmpty()) return List.of();
-        List<String> result = new ArrayList<>(lines.size());
-        int translatedIndex = 0;
-        for (TimedLine line : lines) {
-            while (translatedIndex + 1 < translated.size()
-                    && Math.abs(translated.get(translatedIndex + 1).timeMs() - line.timeMs())
-                    <= Math.abs(translated.get(translatedIndex).timeMs() - line.timeMs())) {
-                translatedIndex++;
-            }
-            TimedLine nearest = translated.get(translatedIndex);
-            result.add(Math.abs(nearest.timeMs() - line.timeMs()) <= 1200 ? nearest.text() : "");
-        }
-        return List.copyOf(result);
-    }
-
-    private static boolean hasVisibleText(String value) {
-        return value != null && value.codePoints().anyMatch(codePoint -> !Character.isWhitespace(codePoint)
-                && Character.getType(codePoint) != Character.FORMAT);
-    }
-
-    private static boolean equivalentText(String first, String second) {
-        if (!hasVisibleText(second)) return false;
-        return visibleText(first).equals(visibleText(second));
-    }
-
-    private static String visibleText(String value) {
-        StringBuilder result = new StringBuilder(value.length());
-        value.codePoints()
-                .filter(codePoint -> !Character.isWhitespace(codePoint)
-                        && Character.getType(codePoint) != Character.FORMAT)
-                .forEach(result::appendCodePoint);
-        return result.toString();
-    }
-
     private static void main(Runnable action) {
         Minecraft.getInstance().execute(action);
     }
@@ -429,17 +350,10 @@ public final class MusicDataState {
     public ArtistDetails selectedArtist() { return selectedArtist; }
     public Artwork currentArtwork() { return currentArtwork; }
     public Artwork previousArtwork() { return previousArtwork; }
-    public LyricsView lyrics() { return lyrics; }
+    public LyricsTimeline lyrics() { return lyrics; }
     public boolean loading() { return loading; }
     public String error() { return error; }
 
-    public record LyricsView(List<LyricRow> rows, boolean hasTranslations) {
-        private static final LyricsView EMPTY = new LyricsView(List.of(), false);
-        public LyricsView {
-            rows = List.copyOf(rows);
-        }
-    }
-    public record LyricRow(int timeMs, String text, String translation, WordLine wordLine) { }
     private record SearchResult(List<Music> songs, List<Playlist> playlists) { }
     private record RecommendedResult(List<Playlist> playlists, List<Music> songs) { }
     private record PlaylistResult(Playlist playlist, List<Music> songs) { }

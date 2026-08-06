@@ -172,6 +172,12 @@ public final class ClientSettings {
         };
     }
 
+    public int accentColorAt(float position, long timeMillis) {
+        int index = Math.round(Math.clamp(position, 0f, 1f) * 6f);
+        if (colorMode.is("Fade", "Astolfo", "Rainbow")) index = -index;
+        return accentColor(index, timeMillis);
+    }
+
     public int interfaceAccentColor() {
         return primaryColor();
     }

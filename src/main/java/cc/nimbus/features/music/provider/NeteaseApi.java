@@ -214,7 +214,8 @@ public final class NeteaseApi implements AutoCloseable {
         Map<String, Object> data = Map.of("id", id, "cp", false, "tv", 0, "lv", 0, "rv", 0,
                 "kv", 0, "yv", 0, "ytv", 0, "yrv", 0);
         JsonObject body = request("/api/song/lyric/v1", data, NeteaseHttp.Crypto.EAPI).body();
-        return new Lyrics(lyric(body, "lrc"), lyric(body, "yrc"), lyric(body, "tlyric"), lyric(body, "romalrc"));
+        return new Lyrics(lyric(body, "lrc"), lyric(body, "yrc"), lyric(body, "klyric"),
+                lyric(body, "tlyric"), lyric(body, "romalrc"));
     }
 
     public AudioUrl audioUrl(long id, Quality quality) {

@@ -11,7 +11,9 @@ import cc.nimbus.features.music.internal.net.NeteaseHttp;
 import cc.nimbus.features.music.integration.SystemMediaController;
 import cc.nimbus.features.music.integration.SystemMediaControllers;
 import cc.nimbus.features.music.integration.SystemMediaState;
+import cc.nimbus.features.music.lyrics.CurrentLyricsState;
 import cc.nimbus.features.music.lyrics.Lyrics;
+import cc.nimbus.features.music.lyrics.LyricsTimeline;
 import cc.nimbus.features.music.model.Album;
 import cc.nimbus.features.music.model.AlbumDetails;
 import cc.nimbus.features.music.model.Artist;
@@ -41,6 +43,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
@@ -66,6 +69,9 @@ public final class MusicManager implements InstanceManager {
     private volatile boolean initialized;
     private volatile boolean configDirty;
     private volatile long configDirtySince;
+    private final AtomicLong lyricsGeneration = new AtomicLong();
+    private volatile CurrentLyricsState currentLyrics = CurrentLyricsState.EMPTY;
+    private volatile long observedLyricsMusicId = -1L;
 
     public MusicManager(Path directory) { this.directory = Objects.requireNonNull(directory, "directory"); }
 
@@ -155,6 +161,7 @@ public final class MusicManager implements InstanceManager {
         });
     }
     public CompletableFuture<Lyrics> lyrics(long id) { return async(() -> api().lyrics(requireId(id))); }
+    public CurrentLyricsState currentLyrics() { return currentLyrics; }
 
     public CompletableFuture<User> refreshAccount() {
         return async(this::loadAccount);
@@ -425,8 +432,11 @@ public final class MusicManager implements InstanceManager {
 
     @EventTarget
     public void onTick(EventTick event) {
-        if (event.getPhase() != EventTick.Phase.POST || !configDirty) return;
-        if (System.currentTimeMillis() - configDirtySince >= CONFIG_SAVE_DELAY_MILLIS) flushConfig();
+        if (event.getPhase() != EventTick.Phase.POST) return;
+        observeLyrics();
+        if (configDirty && System.currentTimeMillis() - configDirtySince >= CONFIG_SAVE_DELAY_MILLIS) {
+            flushConfig();
+        }
     }
 
     @EventTarget
@@ -442,6 +452,26 @@ public final class MusicManager implements InstanceManager {
             requireInitialized();
             return task.get();
         }, io());
+    }
+
+    private void observeLyrics() {
+        Music music = playback().state().music();
+        long musicId = music == null ? -1L : music.id();
+        if (musicId == observedLyricsMusicId) return;
+        observedLyricsMusicId = musicId;
+        long token = lyricsGeneration.incrementAndGet();
+        currentLyrics = music == null ? CurrentLyricsState.EMPTY : CurrentLyricsState.loading(musicId);
+        if (music == null) return;
+        lyrics(musicId).whenComplete((value, failure) -> {
+            if (!initialized || token != lyricsGeneration.get()) return;
+            if (failure != null) {
+                currentLyrics = new CurrentLyricsState(
+                        musicId, LyricsTimeline.EMPTY, false, rootMessage(failure));
+                return;
+            }
+            currentLyrics = new CurrentLyricsState(
+                    musicId, LyricsTimeline.parse(value), false, "");
+        });
     }
     private ExecutorService io() { requireInitialized(); return ioExecutor; }
     private NeteaseApi api() { requireInitialized(); return api; }
@@ -534,6 +564,7 @@ public final class MusicManager implements InstanceManager {
     }
     private void shutdownPartial() {
         initialized = false;
+        lyricsGeneration.incrementAndGet();
         EventBus.unregister(this);
         if (systemMediaController != null) systemMediaController.close();
         if (playbackExecutor != null) playbackExecutor.shutdownNow();
@@ -554,6 +585,14 @@ public final class MusicManager implements InstanceManager {
         likedIds = Set.of();
         activeQr = null;
         activeSms = null;
+        currentLyrics = CurrentLyricsState.EMPTY;
+        observedLyricsMusicId = -1L;
+    }
+
+    private static String rootMessage(Throwable failure) {
+        Throwable value = failure;
+        while (value.getCause() != null) value = value.getCause();
+        return value.getMessage() == null ? value.getClass().getSimpleName() : value.getMessage();
     }
 
     private record SmsSession(String phone, String countryCode, long sentAt) {}

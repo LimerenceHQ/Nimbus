@@ -9,6 +9,8 @@ import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.modules.combat.SettingPreview;
 import cc.nimbus.features.module.modules.combat.TestMod;
 import cc.nimbus.features.module.modules.hud.ActiveList;
+import cc.nimbus.features.module.modules.hud.MusicLyrics;
+import cc.nimbus.features.module.modules.hud.MusicSpectrum;
 import cc.nimbus.features.module.modules.hud.Watermark;
 import cc.nimbus.features.module.modules.movement.Sprint;
 import cc.nimbus.features.module.modules.render.ClickGui;
@@ -45,6 +47,8 @@ public final class ModuleManager implements InstanceManager {
                     new TestMod(),
                     new ClickGui(),
                     new ActiveList(),
+                    new MusicLyrics(),
+                    new MusicSpectrum(),
                     new Watermark(),
                     new Sprint(),
                     new ESP());
