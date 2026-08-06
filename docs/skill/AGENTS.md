@@ -3,6 +3,8 @@
 This file defines the mandatory working rules for humans and AI agents modifying Nimbus.
 Detailed architecture and usage information remains in `docs/`; do not duplicate it here.
 
+Documentation index: `docs/README.md` (last synchronized 2026-08-07).
+
 ## Read Before Editing
 
 Read the documents relevant to the requested change before inspecting or modifying code:
@@ -10,6 +12,8 @@ Read the documents relevant to the requested change before inspecting or modifyi
 - Base, packages, interfaces and refactoring: `docs/design-guidelines.md`
 - Core, managers, modules, settings, config, commands and registration: `docs/core-manager-guide.md`
 - HUD, Skija, rendering, native resources and lifecycle: `docs/skija-architecture.md`
+- HUD position, viewport scaling and draggable editing: `docs/hud-draggable-guide.md`
+- ClickGUI/Music ownership and asynchronous UI boundaries: `docs/clickgui-music-guide.md`
 
 When documentation and source disagree, verify the real implementation and third-party API,
 then update the documentation in the same change. Never invent current behavior from a document.

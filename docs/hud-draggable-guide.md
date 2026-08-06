@@ -1,9 +1,12 @@
 # Nimbus HUD 拖拽系统使用指南
 
+最后同步：2026-08-07。本文只说明通用 HUD 布局契约，不记录单个 HUD Module 的外观和动画。
+
 ## 职责划分
 
 - HUD 模块负责计算未经缩放的内容尺寸，并绘制自己的内容。
-- `Draggable` 负责归一化位置、四区锚点和缩放状态。
+- `HudViewport` 负责窗口自适应缩放与全局 `HUD Scale`。
+- `Draggable` 负责归一化位置、四区锚点和组件自身缩放状态。
 - `HudManager` 负责编辑交互、命中检测、边界限制和动画。
 - `BasicModule` 自动发现模块中的 `Draggable` 字段。
 - `ConfigManager` 自动保存和恢复 `x`、`y` 与 `scale`。
@@ -26,8 +29,16 @@ private final Draggable drag = new Draggable("Watermark", 0.02, 0.02) {
 `x` 和 `y` 是取值范围为 `0.0` 至 `1.0` 的归一化屏幕坐标。字段名有意保持简短，
 但它们保存的不是 framebuffer 像素坐标。
 
-`getSize()` 必须返回 framebuffer 坐标系中未经缩放的内容尺寸，不要再乘以
-`drag.getScale()`。
+`getSize()` 必须返回组件局部逻辑坐标中的未经缩放尺寸，不要乘以 `drag.getScale()`、
+`HudViewport.scale()` 或 framebuffer/gui scale。最终缩放统一为：
+
+```text
+render scale = HudViewport.scale × Draggable.scale
+```
+
+`HudManager.viewport(width, height)` 会基于 `1000 × 620` 的最低逻辑视口计算窗口自适应
+比例，再乘以 `ClientSettings.hudScale`。因此缩小 Minecraft 窗口时 HUD 会保持相对位置并
+整体缩放，而不是重新保存一套位置。
 
 ## 渲染方式
 
@@ -36,7 +47,8 @@ private final Draggable drag = new Draggable("Watermark", 0.02, 0.02) {
 
 ```java
 SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
-skija.hud().submit(frame -> drag.render(frame, local -> {
+HudViewport viewport = Core.INSTANCE.getHudManager().viewport(skija.width(), skija.height());
+skija.hud().submit(frame -> drag.render(frame, viewport, local -> {
     local.draw().rect(0, 0, contentWidth(), contentHeight(), 0xCC171A1E);
     local.text().draw(FONT, 16, "Nimbus", 8, 6, 0xFFFFFFFF);
 }));
@@ -48,11 +60,16 @@ skija.hud().submit(frame -> drag.render(frame, local -> {
 需要添加后处理区域时，应在提交渲染前取得最终的 framebuffer 边界：
 
 ```java
-HudRect bounds = drag.getRect(skija.width(), skija.height());
+HudViewport viewport = Core.INSTANCE.getHudManager().viewport(skija.width(), skija.height());
+HudRect bounds = drag.getRect(viewport);
+float renderScale = drag.getRenderScale(viewport);
 skija.postProcess().add(RRect.makeXYWH(
-        bounds.x(), bounds.y(), bounds.width(), bounds.height(), radius * (float) drag.getScale()
+        bounds.x(), bounds.y(), bounds.width(), bounds.height(), radius * renderScale
 ));
 ```
+
+后处理区域使用最终 framebuffer 边界，前景内容仍使用局部逻辑坐标。不要把两套坐标混在
+同一绘制回调里。
 
 ## 四区锚定
 
@@ -68,6 +85,9 @@ skija.postProcess().add(RRect.makeXYWH(
 当可变宽度容器中的内容需要右对齐时，可以使用 `drag.getAnchor().isRight()`
 判断当前是否位于右侧区域。容器外框的锚点由 `Draggable` 统一维护，因此内容尺寸
 发生变化时，固定的一侧不会移动。
+
+`moveTo(left, top, viewport)` 接收最终 framebuffer 左上角，并根据组件中心所在象限重新
+计算归一化锚点。拖动跨过屏幕中心时保存值会改变，但当前可见矩形不应跳动。
 
 ## 编辑方式
 

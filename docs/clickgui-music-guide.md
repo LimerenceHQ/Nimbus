@@ -1,6 +1,8 @@
 # ClickGUI 与 Nimbus Music
 
-本文记录当前 ClickGUI 表现层的真实结构。网络、播放器、配置持久化和 Skija 原生资源规则分别以 `MusicManager`、`ConfigManager` 与 `docs/skija-architecture.md` 为准。
+最后同步：2026-08-07。
+
+本文只记录 ClickGUI 与 Music 表现层的稳定边界、输入/异步规则和资源所有权，不记录某个页面的具体外观、动画或临时功能。网络、播放器、配置持久化和 Skija 原生资源规则分别以 `MusicManager`、`ConfigManager` 与 `docs/skija-architecture.md` 为准。
 
 ## 1. List ClickGUI
 
@@ -33,13 +35,13 @@ Config 的选择操作不隐式加载。Load、Save、Create、Delete 与 Open F
 
 ## 3. Music 展示层
 
-`MusicTool` 只组合 `MusicManager` 的公开能力。Recommended、Featured、Liked Music、Cached Songs、歌单、Search、Now Playing、Settings 和 Login 是展示路由，不拥有网易云客户端、线程池或播放器。
+`MusicTool` 只组合 `MusicManager` 的公开能力。页面路由属于展示状态，不拥有网易云客户端、线程池或播放器。路由名称和页面数量可以变化，但数据所有权不能进入 `ui.clickgui`。
 
-`MusicDataState` 保存窗口打开期间的页面快照，并用 route、playback 和 owner generation 验证异步结果。结果统一调度回 Minecraft 主线程；离开页面或关闭窗口后，迟到结果直接丢弃。二维码离开登录页或切换到短信登录后必须取消轮询。
+`MusicDataState` 保存窗口打开期间的页面快照，并用 route、playback 和 owner generation 验证异步结果。结果统一调度回 Minecraft 主线程；离开页面或关闭窗口后，迟到结果直接丢弃。二维码离开登录页或切换到短信登录后必须取消轮询。页面关闭不会停止 `MusicManager` 的播放、网络线程或缓存。
 
 播放条读取 `PlaybackState` 和 `PlaybackQueueState`。队列点击只调用 `MusicManager.playAt(index)`，不得根据搜索列表猜测随机模式下的真实索引。
 
-Now Playing 的动态背景使用 `Artwork` 中已经提取的色板，以及 `SkijaEffects.imageBlur(...)` 创建的帧资源。页面不得持久保存 `ImageFilter`、Canvas 或 `SkijaFrame`。全局 Post Processing 或 Music 的 Dynamic Background 关闭时不创建模糊效果。
+页面需要图片、色板或模糊效果时，只能借用 `MusicManager`/`ArtworkCache` 提供的数据，并通过 `SkijaEffects` 创建帧资源。页面不得持久保存 `ImageFilter`、Canvas 或 `SkijaFrame`；全局 Post Processing 关闭时不得绕过配置自行创建另一套后处理。
 
 ## 4. 图片与缓存
 
@@ -66,5 +68,5 @@ UI 使用 `NimbusFonts` 语义角色：
 - 1280×720、1920×1080 与高分辨率下六列缩放和命中一致。
 - RShift、Escape、Search、滚动、全部 Setting 类型与中键绑定。
 - 三个工具窗口快速切换、重复开关和 resize 不留下焦点或异步状态。
-- 推荐、精品、搜索、登录、歌词、队列、封面预览与动态背景。
-- 断网后 Cached Songs 能枚举、连续播放、切歌和删除，日志中没有网易云元数据或音频 URL 请求。
+- 页面切换、登录轮询和搜索等异步结果在关闭或 route generation 改变后会被丢弃。
+- 断网播放缓存时不访问网易云元数据或音频 URL，UI 关闭不终止 MusicManager 当前播放。

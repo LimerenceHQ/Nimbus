@@ -1,5 +1,7 @@
 # Nimbus Core and Manager Guide
 
+最后同步：2026-08-07。
+
 本文档说明 Nimbus Core、Manager、Module、Setting、Command、Config 和 EventBus 的当前结构与注册方式。它既是开发手册，也是 AI 修改这些基础设施时的约束。
 
 文档描述当前真实实现。修改注册方式或生命周期后，必须同步更新本文档。
@@ -218,7 +220,7 @@ public ExampleManager getExampleManager() {
 | `ConfigManager` | 命名 Module 配置、全局 Client Settings、自动保存和配置文件切换 | ModuleManager、EventBus |
 | `I18nManager` | Nimbus 独立语言选择、翻译加载、英文回退和参数格式化 | ClientSettings、Minecraft LanguageManager |
 | `AccountManager` | Alt 账户列表、最后账户、登录与账户文件 | Minecraft client |
-| `MusicManager` | 网易云账号、歌曲数据、播放队列、音频/图片缓存和播放器生命周期 | EventBus、Minecraft client |
+| `MusicManager` | 网易云账号、歌曲数据、播放队列、音频/图片缓存、播放器和系统媒体控制生命周期 | EventBus、Minecraft client |
 | `CommandManager` | Command 注册、执行、建议和聊天拦截 | EventBus |
 
 Manager 之间只能通过明确依赖协作。不要把所有 Manager 互相注入，也不要让 Core 变成业务中转站。
@@ -262,10 +264,8 @@ public final class Example extends BasicModule {
 
 ```java
 registerModules(
-        new ClickGui(),
-        new ActiveList(),
-        new ESP(),
-        new Example()
+        new ExampleModule(),
+        new AnotherModule()
 );
 ```
 
@@ -307,6 +307,13 @@ notify config change
 
 因此普通 Module 不需要在 `onEnable/onDisable` 手动注册或注销自身。
 
+启停是事务性的：
+
+- `onEnable()` 失败时，Module 恢复为 disabled，注销已经注册的监听器，并执行必要的 `onDisable()` 清理。
+- `onDisable()` 失败时，EventBus 注销和配置变更通知仍会继续执行；多个失败通过 suppressed exception 保留。
+- `ClickGui` 这类在 `onEnable()` 中立即关闭自身的一次性 Module 仍受支持；启用成功后只有当前仍为 enabled 才发送常规变更通知。
+- Module 自己不得捕获启停异常后留下半启用状态，也不得再次手动维护自己的 EventBus 注册。
+
 ## 7. Setting 自动发现
 
 Module 中的非静态 `Setting<?>` 字段会自动发现：
@@ -314,7 +321,7 @@ Module 中的非静态 `Setting<?>` 字段会自动发现：
 ```java
 public final BooleanSetting enabled = new BooleanSetting("Enabled", true);
 public final NumberSetting range = new NumberSetting("Range", 3, 1, 6, 0.1);
-public final ModeSetting mode = new ModeSetting("Mode", new Modes("A", "B"), "A");
+public final ModeSetting mode = new ModeSetting("Mode", new String[]{"A", "B"}, "A");
 ```
 
 不需要：
@@ -355,7 +362,7 @@ nimbus.client.setting.blur.option.gaussian
 
 - `Setting.normalize(...)`。
 - UI 是否支持编辑。
-- `ConfigManager.serializeSetting(...)`。
+- `ConfigManager.writeSetting(...)`。
 - `ConfigManager.deserializeSettings(...)`。
 - Change listener 是否会触发。
 
@@ -367,12 +374,17 @@ Fabric config directory 下：
 
 ```text
 nimbus/
+├─ client.json
 ├─ configs/
 │  ├─ default.json
 │  └─ <profile>.json
-└─ accounts/
+├─ accounts/
    ├─ accounts.json
-   └─ last.json
+│  └─ last.json
+└─ music/
+   ├─ music.json
+   └─ cache/
+      └─ index.json
 ```
 
 Client Settings、Module 配置与 Account 配置是独立领域：
@@ -416,6 +428,7 @@ profile.json.tmp
 - `key`
 - `hidden`
 - `settings`
+- `draggables`：每个 `Draggable` 的归一化 `x`、`y` 和组件 `scale`
 
 当前反序列化支持：
 
@@ -536,6 +549,14 @@ Highest -> High -> Normal -> Low -> Lowest
 
 不要在 constructor 中注册 EventBus；对象可能尚未完成构造，也没有明确注销边界。
 
+当前异常策略：
+
+- 方法监听器和字段监听器使用同一分发包装。
+- 注册过程中任意监听器失败，会撤销该 subscriber 已经注册的全部监听器。
+- 普通 `RuntimeException` 会记录事件类型、subscriber 身份和处理方法，然后继续分发后续 listener。
+- `Error` 视为致命错误并继续抛出；`InterruptedException` 会恢复线程中断标记。
+- EventBus 按事件的实际 class 精确分发，不自动向父事件类型冒泡。
+
 ## 11. AccountManager
 
 AccountManager 管理账户列表和最后使用账户：
@@ -556,6 +577,9 @@ accounts.login(account, callback, status);
 - Minecraft User 替换通过 client execute 回到 Minecraft 线程。
 - 不实现未被要求的 legacy file migration。
 - token 和账户数据只由 AccountManager 持久化。
+- 离线账户 UUID 使用 `OfflinePlayer:<username>` 生成稳定 name-based UUID。
+- Token/Microsoft 账户必须从服务端取得并验证真实 UUID；缺失或非法 UUID 会明确登录失败，不能退回所有账户共用的固定 UUID。
+- OAuth 本地 callback server 在成功、失败、取消和浏览器启动失败后都必须关闭；重复登录先取消旧流程。
 
 ## 12. RenderManager
 
@@ -592,6 +616,8 @@ nimbus/music/
 - `cache/` 保存下载或转换后的音频；`index.json` 原子记录歌曲快照、可用质量、总大小和最后使用时间。
 - `cachedSongs()` 只枚举索引中仍有有效 WAV 的项目；`playCached(...)` 使用缓存快照构建 cache-only 队列，不请求歌曲元数据或音频 URL。
 - 网易云请求、文件 IO 和播放分别使用 Manager 拥有的线程资源；调用者不得自行关闭这些资源。
+- 系统媒体控制通过 `systemMediaState()`、`systemMedia(...)` 和 `systemMediaSeek(...)` 暴露；平台不支持时由 `SystemMediaControllers` 返回安全的 unsupported controller，UI 不得直接调用 WinRT/JNA。
+- `MusicManager.shutdown()` 关闭系统媒体 controller、播放器 executor、IO executor、ArtworkCache 和 AudioCache。
 - 当前 `.music` 指令是功能验证入口，不应复制一套音乐状态到 Command 内。
 
 常用异步入口：

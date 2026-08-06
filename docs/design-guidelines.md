@@ -1,5 +1,7 @@
 # Nimbus Design and Refactoring Guidelines
 
+最后同步：2026-08-07。
+
 本文档定义 Nimbus 的代码组织、接口、Manager、生命周期、错误处理和重构规范。目标不是追求抽象数量，而是让 Base 长期保持简洁、明确、可复用和容易验证。
 
 本文档适用于人类开发者和 AI。任何“大整理”都不能以删除现有能力、猜测接口或跳过验证为代价。
@@ -59,9 +61,12 @@ cc.nimbus
 │  └─ interfaces
 ├─ managers
 ├─ features
+│  ├─ client              # 全局 Client Settings、语言和主题数据对象
+│  ├─ hud                 # HUD 视口、锚点和拖拽模型
 │  ├─ module
 │  │  ├─ api
 │  │  └─ modules/<category>
+│  ├─ music               # 音乐模型、provider、playback、cache 与 integration
 │  └─ command
 │     ├─ api
 │     └─ commands
@@ -563,10 +568,13 @@ git diff --check
 - 改变配置路径或格式。
 - 改变 Skija 公共入口、坐标、所有权或生命周期。
 - 新增跨功能公共接口。
+- 改变全局 Client Settings、I18N、HUD 视口或 MusicManager 的所有权边界。
 
 文档不能把未来计划写成当前接口。未来设计必须标明“尚未实现”，避免 AI 根据不存在的类型编写代码。
+文档只追踪稳定架构和公共契约，不追踪单个 Module 的动画参数、单个页面的视觉细节或临时测试功能。
 
 相关文档：
 
 - `docs/skija-architecture.md`
 - `docs/core-manager-guide.md`
+- `docs/README.md`

@@ -1,5 +1,7 @@
 # Nimbus HUD and Skija Architecture and Usage Guide
 
+最后同步：2026-08-07。
+
 本文档是 Nimbus 自定义 Skija 子系统的架构说明、使用手册和 AI 修改约束。
 
 它描述的是当前仓库中的真实实现，不是对理想架构的猜测。修改 Skija 相关代码前，应同时阅读本文档和对应源码；当文档与源码不一致时，以源码为准，并在同一次修改中更新本文档。
@@ -271,6 +273,11 @@ int framebufferHeight = minecraft.getWindow().getHeight();
 
 `SkijaFrame.width()` 和 `height()` 也是 framebuffer 尺寸。
 
+Layer 合成回 Minecraft GUI 时，`SkijaLayer.extract(...)` 使用窗口的整数 GUI scale 计算
+`scaleX/scaleY`，再通过 `GUI_TEXTURED_PREMULTIPLIED_ALPHA` blit。这个换算用于避免最大化窗口
+或特定 GUI scale 下对整张 Layer 做额外的非整数重采样；不要把它简化为未经核对的
+`framebuffer/guiWidth` 直接缩放，也不要在业务 Screen 再补一次取整。
+
 Screen 鼠标从 GUI 坐标转换为 framebuffer 坐标：
 
 ```java
@@ -396,7 +403,15 @@ float height = skija.text().height(family, size);
 
 ### 9.3 Hinting 注意事项
 
-字体轮廓异常可能只发生在特定字体面和字号。当前字体统一使用 Skija 灰度抗锯齿、subpixel positioning 和 `SLIGHT` hinting；不要根据系统字体预览的 ClearType 结果直接推断 Skija 输出。
+字体轮廓异常可能只发生在特定字体面和字号。当前 Nimbus 字体配置为：
+
+- `subpixel = true`。
+- `metricsLinear = true`，让 advance/metrics 保持线性，不因 hinting 改变布局宽度。
+- `baselineSnapped = false`，保留动画和缩放时的动态基线，避免文字随帧在整数 baseline 间跳动。
+- `SUBPIXEL_ANTI_ALIAS` 加 `FULL` hinting，改善小字号轮廓稳定性，但不等同于 Windows DirectWrite/ClearType。
+
+不要把这些参数与 `TextFactory` 的视觉边界测量混为一谈：`visualLeft/visualRight` 只用于视觉居中，
+advance width 仍用于布局和文本输入。不要根据系统字体预览的 ClearType 结果直接推断 Skija 输出。
 
 处理顺序：
 
@@ -405,7 +420,8 @@ float height = skija.text().height(family, size);
 3. 检查真实 `FontHinting`、`FontEdging` 和字体文件。
 4. 不要为了一个字体面全局改成 `FontHinting.NONE`。
 
-Windows 字体预览使用 DirectWrite/ClearType，与当前 Skija 灰度抗锯齿不是同一条栅格化管线。
+Windows 字体预览使用 DirectWrite/ClearType，与当前 Skija 的 subpixel 栅格化不是同一条管线；
+小字号的底部毛刺或彩色边缘应先按具体字体面和物理像素尺寸定位，不要全局替换字体或关闭 Skija。
 
 ## 10. Paint、Path 和原生对象
 

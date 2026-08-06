@@ -1,5 +1,7 @@
 # Nimbus
 
+文档同步：2026-08-07。
+
 Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工作是建立一套简洁、明确且容易长期维护的客户端：统一客户端写法、集中配置管理、保留可靠的自动发现能力。
 
 > Nimbus 仍处于开发阶段，内部结构和公开 API 可能继续调整。目前通过 Gradle 引入的 Skija native 仅包含 Windows x64 版本。
@@ -13,6 +15,7 @@ Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工�
 - Account 系统：账户列表和最后使用账户拥有独立的存储边界。
 - Command 系统：集中注册命令、别名和补全逻辑。
 - EventBus：支持优先级、取消语义以及与 Module 启用状态绑定的监听生命周期。
+- I18N：Nimbus 自有语言选择、资源加载和英文回退，不改变 Minecraft 全局语言。
 - Skija 渲染子系统：统一 HUD、Screen、文本、图片、SVG、效果和后处理入口。
 - UI 基础：包含菜单、账户界面、六列 List ClickGUI，以及共用窗口系统的 Config、Client Settings 与 Nimbus Music；右 Shift 是默认打开键。
 - Music：网易云登录、推荐、精品歌单、搜索、歌词、真实播放队列和带原子索引的离线缓存。
@@ -55,6 +58,8 @@ src/main/java/cc/nimbus
 ├─ managers             # 进程级服务及其所有权边界
 ├─ features
 │  ├─ module            # Module API 与分类实现
+│  ├─ client            # 全局 Client Settings、语言和主题数据对象
+│  ├─ hud               # HUD 视口、锚点和拖拽模型
 │  ├─ music             # 网易云模型、网络、歌词、缓存与播放
 │  └─ command           # Command API 与具体命令
 ├─ event                # EventBus、处理器与领域事件
@@ -72,6 +77,7 @@ Nimbus.onInitializeClient()
    ├─ ModuleManager
    ├─ HudManager
    ├─ ConfigManager
+   ├─ I18nManager
    ├─ AccountManager
    ├─ MusicManager
    └─ CommandManager
@@ -90,7 +96,7 @@ nimbus/
 │  ├─ default.json
 │  └─ <profile>.json
 ├─ accounts/
-   ├─ accounts.json
+│  ├─ accounts.json
 │  └─ last.json
 └─ music/
    ├─ music.json
@@ -102,6 +108,7 @@ nimbus/
 
 ## 开发文档
 
+- [文档索引](docs/README.md)：文档范围、阅读顺序和维护边界。
 - [Core 与 Manager 使用指南](docs/core-manager-guide.md)：Manager、Module、Setting、Config、Command 和 EventBus 的注册与使用。
 - [HUD 与 Skija 架构](docs/skija-architecture.md)：渲染入口、Layer、坐标、文本、SVG、缓存和资源生命周期。
 - [HUD 拖拽系统](docs/hud-draggable-guide.md)：自动注册、四区锚点、缩放、编辑和配置持久化。
