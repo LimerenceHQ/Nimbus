@@ -31,6 +31,27 @@ public final class LyricVisuals {
         float completion = words == null ? 0f
                 : Math.clamp(progressWidth(frame, family, size, text, words, timeMs, style) / textWidth, 0f, 1f);
 
+        drawGradient(frame, theme, family, size, text, x, y, textWidth, completion,
+                baseColor, opacity, highlight, colorTime, style);
+    }
+
+    public static void drawFlowing(
+            SkijaFrame frame, ClientSettings theme, String family, float size, String text,
+            float x, float y, int baseColor, float opacity, float highlight, long colorTime
+    ) {
+        if (text == null || text.isEmpty() || opacity <= .001f) return;
+        float textWidth = frame.text().width(family, size, text);
+        if (textWidth <= .01f) return;
+        drawGradient(frame, theme, family, size, text, x, y, textWidth, 1f,
+                baseColor, opacity, highlight, colorTime, ProgressStyle.FILL);
+    }
+
+    private static void drawGradient(
+            SkijaFrame frame, ClientSettings theme, String family, float size, String text,
+            float x, float y, float textWidth, float completion, int baseColor,
+            float opacity, float highlight, long colorTime, ProgressStyle style
+    ) {
+
         NavigableSet<Float> stops = new TreeSet<>();
         for (int index = 0; index <= GRADIENT_SEGMENTS; index++) {
             stops.add(index / (float) GRADIENT_SEGMENTS);

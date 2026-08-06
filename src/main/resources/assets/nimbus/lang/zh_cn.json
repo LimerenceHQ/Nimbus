@@ -281,6 +281,7 @@
   "nimbus.module.music_lyrics.setting.line_animation.option.rise": "上升",
   "nimbus.module.music_lyrics.setting.line_animation.option.fade": "淡入淡出",
   "nimbus.module.music_lyrics.setting.line_animation.option.slide": "横向滑动",
+  "nimbus.module.music_lyrics.setting.line_animation.option.scale": "缩放",
   "nimbus.module.music_lyrics.setting.word_animation": "逐字动画",
   "nimbus.module.music_lyrics.setting.word_animation.option.fill": "连续填充",
   "nimbus.module.music_lyrics.setting.word_animation.option.word": "按词过渡",

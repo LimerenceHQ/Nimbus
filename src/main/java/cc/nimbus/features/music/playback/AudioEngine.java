@@ -366,8 +366,7 @@ public final class AudioEngine {
         }
         for (int i = 0; i < bands; i++) {
             double t = i / (double) (bands - 1);
-            double shaped = t;
-            int k = 1 + (int) Math.round(shaped * (maxBin - 1));
+            int k = 1 + (int) Math.round(t * (maxBin - 1));
             if (k < 1) k = 1;
             if (k > maxBin) k = maxBin;
             bins[i] = k;

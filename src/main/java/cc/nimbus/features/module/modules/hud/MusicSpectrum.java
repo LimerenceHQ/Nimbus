@@ -34,7 +34,7 @@ public final class MusicSpectrum extends BasicModule {
     private static final float OPACITY = .72f;
 
     public final ModeSetting style = new ModeSetting(
-            "Style", new String[]{"Bars", "Line"}, "Bars"
+            "Style", new String[]{"Bars", "Line"}, "Line"
     );
 
     private float[] displayed = new float[0];
@@ -54,9 +54,20 @@ public final class MusicSpectrum extends BasicModule {
         float gain = SENSITIVITY;
         float attack = easing(24f, delta);
         float release = easing(7f, delta);
+        float[] targets = new float[BAND_COUNT];
         for (int index = 0; index < BAND_COUNT; index++) {
-            float sample = playing ? sample(spectrum, index, BAND_COUNT) : 0f;
-            float target = (float) Math.pow(Math.clamp(sample * gain, 0f, 1f), RESPONSE) * maximumHeight;
+            float position = index / (BAND_COUNT - 1f);
+            float sample = playing ? perceptualSample(spectrum, position) : 0f;
+            sample *= 1f + .22f * position;
+            targets[index] = (float) Math.pow(Math.clamp(sample * gain, 0f, 1f), RESPONSE)
+                    * maximumHeight;
+        }
+        for (int index = 0; index < BAND_COUNT; index++) {
+            float target = targets[index] * .5f
+                    + targets[Math.max(0, index - 1)] * .2f
+                    + targets[Math.min(BAND_COUNT - 1, index + 1)] * .2f
+                    + targets[Math.max(0, index - 2)] * .05f
+                    + targets[Math.min(BAND_COUNT - 1, index + 2)] * .05f;
             float follow = target > displayed[index] ? attack : release;
             displayed[index] += (target - displayed[index]) * follow;
             if (displayed[index] < .05f) displayed[index] = 0f;
@@ -153,6 +164,16 @@ public final class MusicSpectrum extends BasicModule {
         float sum = 0f;
         for (int source = first; source < last; source++) sum += values[source];
         return sum / (last - first);
+    }
+
+    private static float perceptualSample(float[] values, float position) {
+        if (values == null || values.length == 0) return 0f;
+        float source = (float) Math.pow(Math.clamp(position, 0f, 1f), 1.55f)
+                * (values.length - 1f) * .78f;
+        int first = Math.clamp((int) Math.floor(source), 0, values.length - 1);
+        int second = Math.min(values.length - 1, first + 1);
+        float fraction = source - first;
+        return values[first] + (values[second] - values[first]) * fraction;
     }
 
     private float frameDeltaSeconds() {

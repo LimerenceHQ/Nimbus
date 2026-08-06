@@ -281,6 +281,7 @@
   "nimbus.module.music_lyrics.setting.line_animation.option.rise": "Rise",
   "nimbus.module.music_lyrics.setting.line_animation.option.fade": "Fade",
   "nimbus.module.music_lyrics.setting.line_animation.option.slide": "Slide",
+  "nimbus.module.music_lyrics.setting.line_animation.option.scale": "Scale",
   "nimbus.module.music_lyrics.setting.word_animation": "Word Animation",
   "nimbus.module.music_lyrics.setting.word_animation.option.fill": "Fill",
   "nimbus.module.music_lyrics.setting.word_animation.option.word": "Word",

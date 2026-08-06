@@ -37,7 +37,7 @@ public final class MusicLyrics extends BasicModule {
     private static final String FONT = NimbusFonts.CONTENT_MEDIUM;
     private static final float WIDTH = 520f;
     private static final float SINGLE_HEIGHT = 88f;
-    private static final float MULTIPLE_HEIGHT = 238f;
+    private static final float MULTIPLE_HEIGHT = 148f;
     private static final float FONT_SIZE = 22f;
     private static final int TRANSITION_MILLIS = 240;
 
@@ -45,10 +45,12 @@ public final class MusicLyrics extends BasicModule {
             "Display", new String[]{"Single", "Multiple"}, "Single"
     );
     public final ModeSetting lineAnimation = new ModeSetting(
-            "Line Animation", new String[]{"Rise", "Fade", "Slide"}, "Rise"
+            "Line Animation", new String[]{"Rise", "Fade", "Slide", "Scale"}, "Rise",
+            () -> display.is("Single")
     );
     public final ModeSetting wordAnimation = new ModeSetting(
-            "Word Animation", new String[]{"Fill", "Word", "Wave"}, "Fill"
+            "Word Animation", new String[]{"Fill", "Word", "Wave"}, "Fill",
+            () -> display.is("Single")
     );
     public final ModeSetting alignment = new ModeSetting(
             "Alignment", new String[]{"Left", "Center", "Right"}, "Center"
@@ -144,7 +146,10 @@ public final class MusicLyrics extends BasicModule {
         } else if (lineAnimation.is("Slide")) {
             offsetX = outgoing ? -18f * (1f - progress) : 18f * (1f - progress);
         }
-        drawLine(frame, line, nowMs, 0f, SINGLE_HEIGHT, FONT_SIZE,
+        float size = lineAnimation.is("Scale")
+                ? FONT_SIZE * (outgoing ? 1f - .04f * (1f - progress) : .94f + .06f * progress)
+                : FONT_SIZE;
+        drawLine(frame, line, nowMs, 0f, SINGLE_HEIGHT, size,
                 eased, 1f, offsetX, offsetY, true, colorTime);
     }
 
@@ -153,25 +158,21 @@ public final class MusicLyrics extends BasicModule {
     ) {
         boolean translated = translation.getValue() && lines.stream()
                 .anyMatch(line -> !line.translation().isBlank());
-        float rowHeight = translated ? 48f : 38f;
-        int radius = (int) Math.ceil(MULTIPLE_HEIGHT / rowHeight * .5f) + 2;
-        int first = Math.max(0, (int) Math.floor(multiplePosition) - radius);
-        int last = Math.min(lines.size() - 1, (int) Math.ceil(multiplePosition) + radius);
+        float rowHeight = translated ? 44f : 34f;
+        int first = Math.max(0, (int) Math.floor(multiplePosition) - 1);
+        int last = Math.min(lines.size() - 1, (int) Math.ceil(multiplePosition) + 1);
         int clip = frame.canvas().save();
         frame.canvas().clipRect(Rect.makeXYWH(0f, 0f, WIDTH, MULTIPLE_HEIGHT), ClipMode.INTERSECT, false);
         try {
             for (int index = first; index <= last; index++) {
                 float distance = index - multiplePosition;
                 float focus = smoothStep(1f - Math.clamp(Math.abs(index - multiplePosition), 0f, 1f));
-                float edge = 1f - Math.clamp(Math.abs(distance) / (radius + .2f), 0f, 1f);
+                float edge = 1f - Math.clamp(Math.abs(distance) / 2.2f, 0f, 1f);
                 float alpha = (.28f + .72f * focus) * smoothStep(edge);
                 if (alpha <= .01f) continue;
                 float rowY = MULTIPLE_HEIGHT * .5f + distance * rowHeight - rowHeight * .5f;
-                float offsetX = lineAnimation.is("Slide")
-                        ? Math.signum(distance) * 14f * (1f - focus) : 0f;
-                if (lineAnimation.is("Fade")) alpha *= .55f + .45f * focus;
                 drawLine(frame, lines.get(index), nowMs, rowY, rowHeight,
-                        15f + 5f * focus, alpha, focus, offsetX, 0f,
+                        18f, alpha, focus, 0f, 0f,
                         index <= active, colorTime);
             }
         } finally {
@@ -196,10 +197,15 @@ public final class MusicLyrics extends BasicModule {
         float groupHeight = textHeight + (showTranslation ? 6f + translationHeight : 0f);
         float y = rowY + (rowHeight - groupHeight) * .5f + offsetY;
         float x = alignedX(frame, text, size, available) + offsetX;
-        if (allowProgress && line.wordLine() != null) {
-            LyricVisuals.draw(frame, Core.INSTANCE.getConfigManager().clientSettings(), FONT, size,
-                    text, x, y, line.wordLine(), nowMs, 0xB0FFFFFF, opacity,
-                    highlight, colorTime, progressStyle());
+        if (allowProgress) {
+            if (line.wordLine() != null) {
+                LyricVisuals.draw(frame, Core.INSTANCE.getConfigManager().clientSettings(), FONT, size,
+                        text, x, y, line.wordLine(), nowMs, 0xB0FFFFFF, opacity,
+                        highlight, colorTime, progressStyle());
+            } else {
+                LyricVisuals.drawFlowing(frame, Core.INSTANCE.getConfigManager().clientSettings(), FONT, size,
+                        text, x, y, 0xB0FFFFFF, opacity, highlight, colorTime);
+            }
         } else {
             frame.text().draw(FONT, size, text, x, y, multiplyAlpha(0xFFFFFFFF, opacity));
         }
@@ -221,6 +227,7 @@ public final class MusicLyrics extends BasicModule {
     }
 
     private LyricVisuals.ProgressStyle progressStyle() {
+        if (display.is("Multiple")) return LyricVisuals.ProgressStyle.FILL;
         return switch (wordAnimation.getValue()) {
             case "Word" -> LyricVisuals.ProgressStyle.WORD;
             case "Wave" -> LyricVisuals.ProgressStyle.WAVE;
