@@ -8,7 +8,6 @@ import io.github.humbleui.types.Point;
 import java.util.NavigableSet;
 import java.util.TreeSet;
 
-/** Shared single-pass rendering for synchronized lyric text. */
 public final class LyricVisuals {
     private static final int GRADIENT_SEGMENTS = 16;
 
