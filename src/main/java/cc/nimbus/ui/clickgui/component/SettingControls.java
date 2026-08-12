@@ -753,10 +753,13 @@ public final class SettingControls {
     }
 
     private static void disclosureIcon(UiContext context, UiRect bounds, float progress) {
-        iconAlpha(context, ClickGuiIcons.EXPAND_MORE, bounds.x() + bounds.width() - 26f,
-                bounds.y() + 7f - progress, 18f, ClickGuiTheme.MUTED, 1f - progress);
-        iconAlpha(context, ClickGuiIcons.EXPAND_LESS, bounds.x() + bounds.width() - 26f,
-                bounds.y() + 8f - progress, 18f, ClickGuiTheme.MUTED, progress);
+        float iconSize = 18f;
+        float iconX = bounds.x() + bounds.width() - 26f;
+        float iconY = bounds.y() + (ROW_HEIGHT - iconSize) * .5f;
+        iconAlpha(context, ClickGuiIcons.SETTING_EXPAND_MORE, iconX, iconY, iconSize,
+                ClickGuiTheme.MUTED, 1f - progress);
+        iconAlpha(context, ClickGuiIcons.SETTING_EXPAND_LESS, iconX, iconY, iconSize,
+                ClickGuiTheme.MUTED, progress);
     }
 
     private float optionProgress(UiContext context, Setting<?> setting, String option, boolean target) {

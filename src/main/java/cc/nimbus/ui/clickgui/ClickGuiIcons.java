@@ -17,6 +17,8 @@ public final class ClickGuiIcons {
     public static final String RAIL_SETTINGS_GOOGLE = RAIL_SETTINGS;
     public static final String EXPAND_MORE = materialIcon("<path d='M465-364.5q-7-2.5-13-8.5L268-557q-11-11-11-28t11-28q11-11 28-11t28 11l156 156 156-156q11-11 28-11t28 11q11 11 11 28t-11 28L508-373q-6 6-13 8.5t-15 2.5q-8 0-15-2.5Z'/>");
     public static final String EXPAND_LESS = materialIcon("<path d='M480-529 324-373q-11 11-28 11t-28-11q-11-11-11-28t11-28l184-184q6-6 13-8.5t15-2.5q8 0 15 2.5t13 8.5l184 184q11 11 11 28t-11 28q-11 11-28 11t-28-11L480-529Z'/>");
+    public static final String SETTING_EXPAND_MORE = googleIcon("<path d='M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z'/>");
+    public static final String SETTING_EXPAND_LESS = googleIcon("<path d='m7.41 15.41 4.59-4.58 4.59 4.58L18 14l-6-6-6 6 1.41 1.41Z'/>");
     public static final String CHECK = materialIcon("<path d='m382-354 339-339q12-12 28-12t28 12q12 12 12 28.5T777-636L410-268q-12 12-28 12t-28-12L182-440q-12-12-11.5-28.5T183-497q12-12 28.5-12t28.5 12l142 143Z'/>");
     public static final String SEARCH = RAIL_SEARCH;
     public static final String CONFIG = RAIL_CONFIG;
