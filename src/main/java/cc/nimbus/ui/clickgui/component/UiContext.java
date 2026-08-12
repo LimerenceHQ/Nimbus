@@ -76,7 +76,7 @@ public record UiContext(
 
     public void stableTextIn(String value, UiRect bounds, float size, int color) {
         float scaledSize = fontSize(size);
-        String reference = containsCjk(value) ? "\u4E2D\u6587" : "Ag";
+        String reference = containsCjk(value) ? "\u4E2D\u6587" : "Aa";
         float textY = bounds.y() + bounds.height() * .5f
                 - frame.text().visualCenterY(FONT, scaledSize, reference);
         frame.text().draw(FONT, scaledSize, value, bounds.x(), textY, color);

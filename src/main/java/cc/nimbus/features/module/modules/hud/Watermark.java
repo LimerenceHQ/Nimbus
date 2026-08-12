@@ -101,8 +101,18 @@ public final class Watermark extends BasicModule {
     }
 
     private String displayText() {
-        if (!Core.INSTANCE.isInitialized() && Core.INSTANCE.getConfigManager().clientSettings().customStyle()) {return Core.INSTANCE.getConfigManager().clientSettings().displayName();}
-        String value = text.getValue();
-        return value == null || value.isBlank() ? "Nimbus" : value.strip();
+        if (!Core.INSTANCE.isInitialized()) {
+            return "Nimbus";
+        }
+
+        ClientSettings settings = Core.INSTANCE.getConfigManager().clientSettings();
+
+        if (settings.customStyle()) {
+            String value = text.getValue();
+            if (value != null && !value.isBlank()) {
+                return value.strip();
+            }
+        }
+        return Core.INSTANCE.getConfigManager().clientSettings().displayName();
     }
 }
