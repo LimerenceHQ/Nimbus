@@ -284,7 +284,7 @@ public final class ClickGuiView {
                     Rect.makeXYWH(row.x(), row.y(), row.width(), row.height()),
                     Math.round(255f * (1f - bindingProgress)));
             try {
-                context.visualTextIn(moduleLabel,
+                context.stableTextIn(moduleLabel,
                         new UiRect(row.x() + 9f, row.y(), normalLabelWidth, row.height()), 11f,module.isEnabled() ? ClickGuiTheme.TEXT : ClickGuiTheme.MUTED);
 
             } finally {
@@ -297,7 +297,7 @@ public final class ClickGuiView {
                     Rect.makeXYWH(row.x(), row.y(), row.width(), row.height()),
                     Math.round(255f * bindingProgress));
             try {
-                context.visualTextIn(context.translate("nimbus.clickgui.press_key", "Press key"),
+                context.stableTextIn(context.translate("nimbus.clickgui.press_key", "Press key"),
                         new UiRect(row.x() + 9f, row.y(), bindingLabelWidth, row.height()),11f, ClickGuiTheme.TEXT);
             } finally {
                 context.frame().canvas().restoreToCount(bindingLayer);

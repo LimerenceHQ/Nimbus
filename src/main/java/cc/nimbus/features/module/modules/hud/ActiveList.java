@@ -44,6 +44,7 @@ public final class ActiveList extends BasicModule {
     private static final float PADDING_X = 8f;
     private static final float ACCENT_WIDTH = 2.5f;
     private static final float CORNER_RADIUS = 5f;
+    private static final float TEXT_REVEAL_START = .58f;
     private static final int BACKGROUND_COLOR = 0x5C171A1E;
     private static final int TEXT_COLOR = 0xFFF4F7F8;
     private static final int SUFFIX_COLOR = 0xFF9EA8B2;
@@ -118,18 +119,18 @@ public final class ActiveList extends BasicModule {
                 for (int index = 0; index < frameEntries.size(); index++) {
                     RenderEntry rendered = frameEntries.get(index);
                     Entry entry = rendered.entry();
-                    float entryProgress = rendered.progress();
+                    float textProgress = rendered.textProgress();
                     float rowY = rendered.y();
                     float rowX = totalWidth - entry.width();
-                    float offset = anchor.isRight() ? (1f - entryProgress) * 8f : -(1f - entryProgress) * 8f;
-                    int textColor = multiplyAlpha(TEXT_COLOR, entryProgress);
-                    int suffixColor = multiplyAlpha(SUFFIX_COLOR, entryProgress);
+                    float offset = anchor.isRight() ? (1f - textProgress) * 6f : -(1f - textProgress) * 6f;
+                    int textColor = multiplyAlpha(TEXT_COLOR, textProgress);
+                    int suffixColor = multiplyAlpha(SUFFIX_COLOR, textProgress);
                     String content = entry.name() + entry.suffix();
                     float visualCenterX = (local.text().visualLeft(FONT, FONT_SIZE, content)
                             + local.text().visualRight(FONT, FONT_SIZE, content)) * .5f;
                     float textCenterX = rowX + (entry.width() - decorWidth) * .5f + offset;
                     float labelX = textCenterX - visualCenterX;
-                    float textY = rowY + rendered.height() * .5f
+                    float textY = rowY + ROW_HEIGHT * .5f
                             - local.text().visualCenterY(FONT, FONT_SIZE, content);
                     local.text().draw(FONT, FONT_SIZE, entry.name(), labelX, textY, textColor);
                     if (!entry.suffix().isEmpty()) {
@@ -191,12 +192,16 @@ public final class ActiveList extends BasicModule {
         sorted.sort(Comparator.comparingDouble(Entry::width).reversed()
                 .thenComparing(Entry::name, String.CASE_INSENSITIVE_ORDER));
         float totalHeight = 0f;
-        for (Entry entry : sorted) totalHeight += ROW_HEIGHT * smooth(entryAnimations.getOrDefault(entry.key(), 1f));
+        for (Entry entry : sorted) {
+            totalHeight += ROW_HEIGHT * backgroundProgress(entryAnimations.getOrDefault(entry.key(), 1f));
+        }
         List<RenderEntry> result = new ArrayList<>(sorted.size());
         float cursor = anchor.isBottom() ? totalHeight : 0f;
         for (Entry entry : sorted) {
-            float progress = smooth(entryAnimations.getOrDefault(entry.key(), 1f));
-            float height = ROW_HEIGHT * progress;
+            float progress = entryAnimations.getOrDefault(entry.key(), 1f);
+            float backgroundProgress = backgroundProgress(progress);
+            float textProgress = textProgress(progress);
+            float height = ROW_HEIGHT * backgroundProgress;
             float y;
             if (anchor.isBottom()) {
                 cursor -= height;
@@ -205,7 +210,7 @@ public final class ActiveList extends BasicModule {
                 y = cursor;
                 cursor += height;
             }
-            result.add(new RenderEntry(entry, progress, y, height));
+            result.add(new RenderEntry(entry, backgroundProgress, textProgress, y, height));
         }
         return result;
     }
@@ -302,11 +307,19 @@ public final class ActiveList extends BasicModule {
         return clamped * clamped * (3f - 2f * clamped);
     }
 
+    private static float backgroundProgress(float progress) {
+        return smooth(progress / TEXT_REVEAL_START);
+    }
+
+    private static float textProgress(float progress) {
+        return smooth((progress - TEXT_REVEAL_START) / (1f - TEXT_REVEAL_START));
+    }
+
     private static int multiplyAlpha(int color, float opacity) {
         int alpha = Math.round((color >>> 24) * Math.clamp(opacity, 0f, 1f));
         return color & 0x00FFFFFF | alpha << 24;
     }
 
     private record Entry(String key, String name, String suffix, float nameWidth, float width) {}
-    private record RenderEntry(Entry entry, float progress, float y, float height) {}
+    private record RenderEntry(Entry entry, float progress, float textProgress, float y, float height) {}
 }

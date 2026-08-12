@@ -74,6 +74,14 @@ public record UiContext(
         frame.text().draw(family, scaledSize, value, bounds.x(), textY, color);
     }
 
+    public void stableTextIn(String value, UiRect bounds, float size, int color) {
+        float scaledSize = fontSize(size);
+        String reference = containsCjk(value) ? "\u4E2D\u6587" : "Ag";
+        float textY = bounds.y() + bounds.height() * .5f
+                - frame.text().visualCenterY(FONT, scaledSize, reference);
+        frame.text().draw(FONT, scaledSize, value, bounds.x(), textY, color);
+    }
+
     public void centered(String value, UiRect bounds, float size, int color) {
         float textY = bounds.y() + (bounds.height() - height(FONT, size, value)) * 0.5f;
         center(FONT, size, value, bounds.x() + bounds.width() * 0.5f, textY, color);
@@ -118,5 +126,16 @@ public record UiContext(
 
     private static float fontSize(float size) {
         return size * FONT_SCALE;
+    }
+
+    private static boolean containsCjk(String value) {
+        if (value == null) return false;
+        return value.codePoints().anyMatch(codePoint -> {
+            Character.UnicodeScript script = Character.UnicodeScript.of(codePoint);
+            return script == Character.UnicodeScript.HAN
+                    || script == Character.UnicodeScript.HIRAGANA
+                    || script == Character.UnicodeScript.KATAKANA
+                    || script == Character.UnicodeScript.HANGUL;
+        });
     }
 }
