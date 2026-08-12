@@ -243,39 +243,53 @@ public final class ActiveList extends BasicModule {
         float top = originY + first.y() * scale;
         float bottom = originY + (last.y() + last.height()) * scale;
         float right = originX + totalWidth * scale;
-        float firstX = originX + (totalWidth - first.entry().width()) * scale;
-        float firstRadius = Math.min(CORNER_RADIUS * scale, first.height() * scale * .5f);
+        float firstX = animatedLeft(ordered, 0, totalWidth, originX, scale);
+        float outerRadius = Math.min(CORNER_RADIUS * scale, totalHeight * scale * .5f);
+        float firstRadius = outerRadius;
         path.moveTo(firstX + firstRadius, top);
         path.lineTo(right, top);
         path.lineTo(right, bottom);
-        float lastX = originX + (totalWidth - last.entry().width()) * scale;
-        float lastRadius = Math.min(CORNER_RADIUS * scale, last.height() * scale * .5f);
+        float lastX = animatedLeft(ordered, ordered.size() - 1, totalWidth, originX, scale);
+        float lastRadius = outerRadius;
         path.lineTo(lastX + lastRadius, bottom);
         path.quadTo(lastX, bottom, lastX, bottom - lastRadius);
         for (int index = ordered.size() - 1; index > 0; index--) {
             RenderEntry lower = ordered.get(index);
             RenderEntry upper = ordered.get(index - 1);
             float boundary = originY + lower.y() * scale;
-            float lowerX = originX + (totalWidth - lower.entry().width()) * scale;
-            float upperX = originX + (totalWidth - upper.entry().width()) * scale;
+            float lowerX = animatedLeft(ordered, index, totalWidth, originX, scale);
+            float upperX = animatedLeft(ordered, index - 1, totalWidth, originX, scale);
             float distance = Math.abs(lowerX - upperX);
             if (distance < .01f) {
                 path.lineTo(lowerX, boundary);
                 continue;
             }
             float radius = Math.min(CORNER_RADIUS * scale, distance * .5f);
-            radius = Math.min(radius, Math.min(lower.height(), upper.height()) * scale * .5f);
             float direction = Math.signum(upperX - lowerX);
             path.lineTo(lowerX, boundary + radius);
             path.quadTo(lowerX, boundary, lowerX + direction * radius, boundary);
             path.lineTo(upperX - direction * radius, boundary);
             path.quadTo(upperX, boundary, upperX, boundary - radius);
         }
-        float topRadius = Math.min(CORNER_RADIUS * scale, first.height() * scale * .5f);
+        float topRadius = outerRadius;
         path.lineTo(firstX, top + topRadius);
         path.quadTo(firstX, top, firstX + topRadius, top);
         path.closePath();
         return path.build();
+    }
+
+    private static float animatedLeft(List<RenderEntry> entries, int index,
+                                      float totalWidth, float originX, float scale) {
+        RenderEntry entry = entries.get(index);
+        float own = totalWidth - entry.entry().width();
+        float adjacent = own;
+        if (index + 1 < entries.size()) {
+            adjacent = totalWidth - entries.get(index + 1).entry().width();
+        } else if (index > 0) {
+            adjacent = totalWidth - entries.get(index - 1).entry().width();
+        }
+        float left = adjacent + (own - adjacent) * entry.progress();
+        return originX + left * scale;
     }
 
     private static float animate(float value, float target, float speed) {

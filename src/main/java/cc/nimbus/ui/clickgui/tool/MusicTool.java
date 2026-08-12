@@ -2145,7 +2145,6 @@ public final class MusicTool implements ToolPage {
     private void navigate(ClickGuiSession.MusicRoute route, Object payload) {
         ClickGuiSession.MusicRoute currentRoute = session.musicRoute();
         if (route == currentRoute && payload == null) return;
-        // Keep one semantic parent only; ESC must not replay the entire browsing history.
         routeHistory.clear();
         routeHistory.push(currentEntry());
         transition(route, payload, 1f);
