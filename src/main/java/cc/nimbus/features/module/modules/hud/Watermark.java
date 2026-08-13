@@ -51,8 +51,7 @@ public final class Watermark extends BasicModule {
             return new HudSize(
                     COMPACT_LOGO_SIZE + LOGO_GAP
                             + skija.text().width(FONT, FONT_SIZE, displayText())
-                            + PADDING_X * 2f + ACCENT_WIDTH,
-                    HEIGHT
+                            + PADDING_X * 2f + ACCENT_WIDTH, HEIGHT
             );
         }
     };
@@ -70,14 +69,14 @@ public final class Watermark extends BasicModule {
                 ? new int[]{accent.getValue(), accent.getValue()}
                 : new int[]{clientSettings.accentColor(0, colorTime), clientSettings.accentColor(1, colorTime)};
 
-        if (! mode.is("Logo")) {
+        if (!mode.is("Logo")) {
             skija.postProcess().add(RRect.makeXYWH(
                     bounds.x(), bounds.y(), bounds.width(), bounds.height(), RADIUS * scale
             ));
         }
 
         skija.hud().submit(frame -> drag.render(frame, viewport, local -> {
-            if ( mode.is("Logo")) {
+            if (mode.is("Logo")) {
                 RenderUtils.drawLogo(local, 0f, 0f, LOGO_SIZE,
                         bounds.x(), bounds.y(), scale, accentColors[0]);
                 return;
@@ -101,17 +100,11 @@ public final class Watermark extends BasicModule {
     }
 
     private String displayText() {
-        if (!Core.INSTANCE.isInitialized()) {
-            return "Nimbus";
-        }
-
+        if (!Core.INSTANCE.isInitialized()) {return "Nimbus";}
         ClientSettings settings = Core.INSTANCE.getConfigManager().clientSettings();
-
         if (settings.customStyle()) {
             String value = text.getValue();
-            if (value != null && !value.isBlank()) {
-                return value.strip();
-            }
+            if (value != null && !value.isBlank()) {return value.strip();}
         }
         return Core.INSTANCE.getConfigManager().clientSettings().displayName();
     }
