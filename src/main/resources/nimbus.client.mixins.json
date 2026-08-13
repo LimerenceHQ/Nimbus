@@ -11,7 +11,9 @@
     "GuiRendererMixin",
     "TitleScreenMixin",
     "LevelRendererMixin",
-    "CommandSuggestionsMixin"
+    "CommandSuggestionsMixin",
+    "NowPlayingToastMixin",
+    "ToastManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

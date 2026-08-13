@@ -11,6 +11,7 @@ import cc.nimbus.features.music.internal.net.NeteaseHttp;
 import cc.nimbus.features.music.integration.SystemMediaController;
 import cc.nimbus.features.music.integration.SystemMediaControllers;
 import cc.nimbus.features.music.integration.SystemMediaState;
+import cc.nimbus.features.music.integration.MusicToastState;
 import cc.nimbus.features.music.lyrics.CurrentLyricsState;
 import cc.nimbus.features.music.lyrics.Lyrics;
 import cc.nimbus.features.music.lyrics.LyricsTimeline;
@@ -107,6 +108,7 @@ public final class MusicManager implements InstanceManager {
     public synchronized void shutdown() {
         if (!initialized) return;
         initialized = false;
+        MusicToastState.clear();
         try {
             if (playback != null) playback.stop();
             if (config != null) config.save();

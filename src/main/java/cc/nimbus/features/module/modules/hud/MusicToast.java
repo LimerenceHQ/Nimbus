@@ -1,0 +1,62 @@
+package cc.nimbus.features.module.modules.hud;
+
+import cc.nimbus.core.Core;
+import cc.nimbus.event.component.EventTarget;
+import cc.nimbus.event.impl.game.EventTick;
+import cc.nimbus.features.module.api.BasicModule;
+import cc.nimbus.features.module.api.ModuleCategory;
+import cc.nimbus.features.module.api.ModuleInfo;
+import cc.nimbus.features.music.integration.MusicToastState;
+import cc.nimbus.features.music.model.Music;
+import cc.nimbus.features.music.playback.PlaybackPhase;
+import cc.nimbus.managers.MusicManager;
+import net.minecraft.client.Minecraft;
+
+/** Shows Minecraft's native top-left now-playing toast for Nimbus Music. */
+@ModuleInfo(
+        name = "MusicToast",
+        displayName = "Music Now Playing Toast",
+        description = "Shows the native Minecraft toast when the Nimbus Music track changes.",
+        category = ModuleCategory.HUD
+)
+public final class MusicToast extends BasicModule {
+    private long observedSongId = -1L;
+
+    @Override
+    protected void onEnable() {
+        MusicManager music = Core.INSTANCE.getMusicManager();
+        Music current = music.state().music();
+        observedSongId = current == null ? -1L : current.id();
+        MusicToastState.clear();
+    }
+
+    @Override
+    protected void onDisable() {
+        observedSongId = -1L;
+        MusicToastState.clear();
+        hideToast();
+    }
+
+    @EventTarget
+    private void onTick(EventTick event) {
+        if (event.getPhase() != EventTick.Phase.POST) return;
+        MusicManager music = Core.INSTANCE.getMusicManager();
+        var state = music.state();
+        Music current = state.music();
+        long currentId = current == null ? -1L : current.id();
+        if (currentId == observedSongId) return;
+        observedSongId = currentId;
+        if (current == null || state.phase() == PlaybackPhase.IDLE) {
+            MusicToastState.clear();
+            hideToast();
+            return;
+        }
+        MusicToastState.set(current.name() + " · " + current.artistsText());
+        Minecraft.getInstance().gui.toastManager().showNowPlayingToast();
+    }
+
+    private static void hideToast() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.gui != null) minecraft.gui.toastManager().hideNowPlayingToast();
+    }
+}

@@ -10,6 +10,7 @@ import cc.nimbus.features.module.modules.combat.SettingPreview;
 import cc.nimbus.features.module.modules.combat.TestMod;
 import cc.nimbus.features.module.modules.hud.ActiveList;
 import cc.nimbus.features.module.modules.hud.MusicLyrics;
+import cc.nimbus.features.module.modules.hud.MusicToast;
 import cc.nimbus.features.module.modules.hud.MusicSpectrum;
 import cc.nimbus.features.module.modules.hud.Watermark;
 import cc.nimbus.features.module.modules.movement.Sprint;
@@ -49,6 +50,7 @@ public final class ModuleManager implements InstanceManager {
                     new ActiveList(),
                     new MusicLyrics(),
                     new MusicSpectrum(),
+                    new MusicToast(),
                     new Watermark(),
                     new Sprint(),
                     new ESP());
