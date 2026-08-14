@@ -19,7 +19,9 @@ import cc.nimbus.features.module.modules.render.BetterThirdPerson;
 import cc.nimbus.features.module.modules.render.ESP;
 import cc.nimbus.features.module.modules.render.FullBright;
 import cc.nimbus.features.module.modules.render.ItemPhysics;
+import cc.nimbus.features.module.modules.render.OldHitting;
 import cc.nimbus.features.module.modules.render.Particles;
+import cc.nimbus.features.module.modules.render.Projectile;
 import cc.nimbus.features.module.modules.render.WorldTweaks;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
@@ -63,7 +65,9 @@ public final class ModuleManager implements InstanceManager {
                     new WorldTweaks(),
                     new Particles(),
                     new BetterThirdPerson(),
-                    new ItemPhysics());
+                    new ItemPhysics(),
+                    new Projectile(),
+                    new OldHitting());
             modules.stream()
                     .filter(BasicModule::shouldAutoEnable)
                     .forEach(module -> module.setEnabled(true));

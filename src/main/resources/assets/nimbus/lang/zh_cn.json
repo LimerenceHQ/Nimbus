@@ -306,12 +306,29 @@
   "nimbus.module.click_gui.description": "打开 Nimbus 功能界面。",
   "nimbus.module.esp.name": "玩家透视",
   "nimbus.module.esp.description": "高亮显示其他玩家。",
-  "nimbus.module.esp.setting.filled": "填充",
-  "nimbus.module.esp.setting.through_walls": "穿墙显示",
-  "nimbus.module.esp.setting.render_self": "显示自己",
+  "nimbus.module.esp.setting.box": "边框",
+  "nimbus.module.esp.setting.box_mode": "边框模式",
+  "nimbus.module.esp.setting.box_mode.option.box": "完整边框",
+  "nimbus.module.esp.setting.box_mode.option.corner_a": "转角 A",
+  "nimbus.module.esp.setting.box_mode.option.corner_b": "转角 B",
+  "nimbus.module.esp.setting.box_mode.option.split": "分离边框",
+  "nimbus.module.esp.setting.box_fill": "边框填充",
   "nimbus.module.esp.setting.line_width": "线条宽度",
-  "nimbus.module.esp.setting.outline_color": "描边颜色",
-  "nimbus.module.esp.setting.fill_color": "填充颜色",
+  "nimbus.module.esp.setting.health_bar": "血量条",
+  "nimbus.module.esp.setting.armor_bar": "护甲条",
+  "nimbus.module.esp.setting.equipment": "装备显示",
+  "nimbus.module.esp.setting.potion_effects": "药水效果",
+  "nimbus.module.esp.setting.show_self": "显示自己",
+
+  "nimbus.module.projectile.name": "弹道预测",
+  "nimbus.module.projectile.description": "预测手持投掷物与远程武器的飞行轨迹。",
+
+  "nimbus.module.old_hitting.name": "旧版挥动",
+  "nimbus.module.old_hitting.description": "使用紧凑的经典第一人称挥动动画。",
+  "nimbus.module.old_hitting.setting.x": "X 位置",
+  "nimbus.module.old_hitting.setting.y": "Y 位置",
+  "nimbus.module.old_hitting.setting.z": "Z 位置",
+  "nimbus.module.old_hitting.setting.scale": "大小",
 
   "nimbus.module.full_bright.name": "全局高亮",
   "nimbus.module.full_bright.description": "在不修改游戏状态效果的情况下保持世界明亮。",
@@ -360,9 +377,7 @@
   "nimbus.module.particles.setting.color": "颜色",
 
   "nimbus.module.item_physics.name": "物品物理",
-  "nimbus.module.item_physics.description": "为掉落物提供落地和空中的物理旋转效果。",
+  "nimbus.module.item_physics.description": "让掉落物立即平放并移除原版悬浮效果。",
   "nimbus.module.item_physics.setting.remove_bob": "移除浮动",
-  "nimbus.module.item_physics.setting.grounded_tilt": "落地倾角",
-  "nimbus.module.item_physics.setting.air_rotation": "空中旋转",
-  "nimbus.module.item_physics.setting.rotation_speed": "旋转速度"
+  "nimbus.module.item_physics.setting.grounded_tilt": "落地倾角"
 }

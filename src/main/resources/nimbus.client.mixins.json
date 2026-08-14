@@ -9,6 +9,7 @@
     "MinecraftMixin",
     "GuiMixin",
     "GuiRendererMixin",
+    "GameRendererMixin",
     "TitleScreenMixin",
     "LevelRendererMixin",
     "CommandSuggestionsMixin",
@@ -18,7 +19,7 @@
     "FogRendererMixin",
     "ClientClockManagerMixin",
     "CameraMixin",
-    "ItemEntityRenderStateMixin",
+    "ItemInHandRendererMixin",
     "ItemEntityRendererMixin"
   ],
   "injectors": {

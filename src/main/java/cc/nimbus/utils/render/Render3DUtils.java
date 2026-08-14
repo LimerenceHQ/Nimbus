@@ -27,6 +27,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
@@ -44,6 +45,8 @@ public final class Render3DUtils {
     private static boolean savedBlend;
     private static boolean savedCull;
     private static int savedDepthFunc;
+    private static Matrix4f pendingWorldProjection;
+    private static WorldProjection worldProjection;
 
     public enum DepthMode { NONE, NORMAL, BOTH, GREATER }
 
@@ -55,6 +58,27 @@ public final class Render3DUtils {
             if (!Float.isFinite(size) || size <= 0.0f) {
                 throw new IllegalArgumentException("Billboard size must be finite and positive");
             }
+        }
+    }
+
+    public record ProjectedBox(float left, float top, float right, float bottom) {
+        public float width() { return right - left; }
+        public float height() { return bottom - top; }
+    }
+
+    public static final class WorldProjection {
+        private final Matrix4f viewProjection;
+        private final Vec3 cameraPosition;
+        private final float partialTick;
+
+        private WorldProjection(Matrix4f viewProjection, Vec3 cameraPosition, float partialTick) {
+            this.viewProjection = viewProjection;
+            this.cameraPosition = cameraPosition;
+            this.partialTick = partialTick;
+        }
+
+        public float partialTick() {
+            return partialTick;
         }
     }
 
@@ -225,6 +249,28 @@ public final class Render3DUtils {
         drawLines(stack, mode, lineWidth, sink -> sink.line(a[0], a[1], a[2], b[0], b[1], b[2], argb));
     }
 
+    public static void drawPolylineWithDepth(PoseStack stack, List<Vec3> points, int argb,
+                                             float lineWidth, DepthMode mode) {
+        if (stack == null || points == null || points.size() < 2) return;
+        if (mode == DepthMode.BOTH) {
+            drawPolylineWithDepth(stack, points, withAlpha(argb, 0x40), lineWidth, DepthMode.GREATER);
+            drawPolylineWithDepth(stack, points, argb, lineWidth, DepthMode.NORMAL);
+            return;
+        }
+        List<float[]> relative = new java.util.ArrayList<>(points.size());
+        for (Vec3 point : points) {
+            if (point != null) relative.add(getRelativeCoords(point.x, point.y, point.z));
+        }
+        if (relative.size() < 2) return;
+        drawLines(stack, mode, lineWidth, sink -> {
+            for (int index = 1; index < relative.size(); index++) {
+                float[] from = relative.get(index - 1);
+                float[] to = relative.get(index);
+                sink.line(from[0], from[1], from[2], to[0], to[1], to[2], argb);
+            }
+        });
+    }
+
     public static void drawRingWithDepth(PoseStack stack, double cx, double cy, double cz,
                                          float radius, int segments, int argb,
                                          float lineWidth, DepthMode mode) {
@@ -285,6 +331,54 @@ public final class Render3DUtils {
     public static Vec3 getCameraPos() {
         var camera = Minecraft.getInstance().getEntityRenderDispatcher().camera;
         return camera == null ? Vec3.ZERO : camera.position();
+    }
+
+    public static void captureWorldProjectionMatrix(Matrix4fc projection) {
+        pendingWorldProjection = projection == null ? null : new Matrix4f(projection);
+    }
+
+    public static void finishWorldProjection(Matrix4fc view, Vec3 cameraPosition, float partialTick) {
+        Matrix4f projection = pendingWorldProjection;
+        pendingWorldProjection = null;
+        if (projection == null || view == null || cameraPosition == null) {
+            worldProjection = null;
+            return;
+        }
+        worldProjection = new WorldProjection(projection.mul(view), cameraPosition, partialTick);
+    }
+
+    public static WorldProjection worldProjection() {
+        return worldProjection;
+    }
+
+    public static ProjectedBox projectAabb(AABB box, WorldProjection projection) {
+        if (box == null || projection == null) return null;
+        Vec3 cameraPosition = projection.cameraPosition;
+        Vec3 centerPosition = box.getCenter();
+        Vector3f projected = project(projection.viewProjection, cameraPosition, centerPosition);
+        if (projected == null || !finite(projected) || projected.z < -1f || projected.z > 1f) return null;
+
+        float left = Float.POSITIVE_INFINITY;
+        float top = Float.POSITIVE_INFINITY;
+        float right = Float.NEGATIVE_INFINITY;
+        float bottom = Float.NEGATIVE_INFINITY;
+        for (int mask = 0; mask < 8; mask++) {
+            projected = project(projection.viewProjection, cameraPosition, new Vec3(
+                    (mask & 1) == 0 ? box.minX : box.maxX,
+                    (mask & 2) == 0 ? box.minY : box.maxY,
+                    (mask & 4) == 0 ? box.minZ : box.maxZ
+            ));
+            if (projected == null || !finite(projected)) return null;
+            left = Math.min(left, projected.x);
+            top = Math.min(top, -projected.y);
+            right = Math.max(right, projected.x);
+            bottom = Math.max(bottom, -projected.y);
+        }
+        if (right <= -1f || left >= 1f || bottom <= -1f || top >= 1f) return null;
+        return new ProjectedBox(
+                Math.clamp(left, -1f, 1f), Math.clamp(top, -1f, 1f),
+                Math.clamp(right, -1f, 1f), Math.clamp(bottom, -1f, 1f)
+        );
     }
 
     public static float[] getRelativeCoords(double x, double y, double z) {
@@ -624,6 +718,19 @@ public final class Render3DUtils {
     private static int argb(int r,int g,int b,int a) { return (clamp(a)<<24)|(clamp(r)<<16)|(clamp(g)<<8)|clamp(b); }
     private static int clamp(int value) { return Math.max(0, Math.min(255, value)); }
     private static int withAlpha(int color,int alpha) { return (color & 0x00FFFFFF) | (clamp(alpha) << 24); }
+    private static Vector3f project(Matrix4f projection, Vec3 camera, Vec3 point) {
+        Vector4f clip = projection.transform(new Vector4f(
+                (float) (point.x - camera.x),
+                (float) (point.y - camera.y),
+                (float) (point.z - camera.z),
+                1f
+        ));
+        if (!Float.isFinite(clip.w) || clip.w <= 0.001f) return null;
+        return new Vector3f(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
+    }
+    private static boolean finite(Vector3f point) {
+        return Float.isFinite(point.x) && Float.isFinite(point.y) && Float.isFinite(point.z);
+    }
     private static float sx(float c,float r,double p,double t) { return c+(float)(r*Math.cos(p)*Math.cos(t)); }
     private static float sy(float c,float r,double p) { return c+(float)(r*Math.sin(p)); }
     private static float sz(float c,float r,double p,double t) { return c+(float)(r*Math.cos(p)*Math.sin(t)); }

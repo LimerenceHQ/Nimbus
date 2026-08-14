@@ -306,12 +306,29 @@
   "nimbus.module.click_gui.description": "Opens the Nimbus module interface.",
   "nimbus.module.esp.name": "ESP",
   "nimbus.module.esp.description": "Highlights other players.",
-  "nimbus.module.esp.setting.filled": "Filled",
-  "nimbus.module.esp.setting.through_walls": "Through Walls",
-  "nimbus.module.esp.setting.render_self": "Render Self",
+  "nimbus.module.esp.setting.box": "Box",
+  "nimbus.module.esp.setting.box_mode": "Box Mode",
+  "nimbus.module.esp.setting.box_mode.option.box": "Box",
+  "nimbus.module.esp.setting.box_mode.option.corner_a": "Corner A",
+  "nimbus.module.esp.setting.box_mode.option.corner_b": "Corner B",
+  "nimbus.module.esp.setting.box_mode.option.split": "Split",
+  "nimbus.module.esp.setting.box_fill": "Box Fill",
   "nimbus.module.esp.setting.line_width": "Line Width",
-  "nimbus.module.esp.setting.outline_color": "Outline Color",
-  "nimbus.module.esp.setting.fill_color": "Fill Color",
+  "nimbus.module.esp.setting.health_bar": "Health Bar",
+  "nimbus.module.esp.setting.armor_bar": "Armor Bar",
+  "nimbus.module.esp.setting.equipment": "Equipment",
+  "nimbus.module.esp.setting.potion_effects": "Potion Effects",
+  "nimbus.module.esp.setting.show_self": "Show Self",
+
+  "nimbus.module.projectile.name": "Projectile",
+  "nimbus.module.projectile.description": "Predicts the path of held projectiles.",
+
+  "nimbus.module.old_hitting.name": "Old Hitting",
+  "nimbus.module.old_hitting.description": "Uses a compact classic first-person swing.",
+  "nimbus.module.old_hitting.setting.x": "X",
+  "nimbus.module.old_hitting.setting.y": "Y",
+  "nimbus.module.old_hitting.setting.z": "Z",
+  "nimbus.module.old_hitting.setting.scale": "Scale",
 
   "nimbus.module.full_bright.name": "FullBright",
   "nimbus.module.full_bright.description": "Keeps the world clearly lit without changing game effects.",
@@ -360,9 +377,7 @@
   "nimbus.module.particles.setting.color": "Color",
 
   "nimbus.module.item_physics.name": "Item Physics",
-  "nimbus.module.item_physics.description": "Gives dropped items grounded and airborne physical rotation.",
+  "nimbus.module.item_physics.description": "Lays dropped items flat without vanilla hovering.",
   "nimbus.module.item_physics.setting.remove_bob": "Remove Bob",
-  "nimbus.module.item_physics.setting.grounded_tilt": "Grounded Tilt",
-  "nimbus.module.item_physics.setting.air_rotation": "Air Rotation",
-  "nimbus.module.item_physics.setting.rotation_speed": "Rotation Speed"
+  "nimbus.module.item_physics.setting.grounded_tilt": "Grounded Tilt"
 }
