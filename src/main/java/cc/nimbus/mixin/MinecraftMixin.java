@@ -27,7 +27,7 @@ public class MinecraftMixin {
                 && minecraft.player != null
                 && minecraft.player.isUsingItem()
                 && minecraft.player.getMainHandItem().is(ItemTags.SWORDS)
-                && minecraft.options.keyAttack.consumeClick()) {
+                && minecraft.options.keyAttack.isDown()) {
             minecraft.player.swing(InteractionHand.MAIN_HAND);
         }
     }

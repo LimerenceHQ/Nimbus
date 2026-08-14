@@ -19,6 +19,7 @@
     "FogRendererMixin",
     "ClientClockManagerMixin",
     "CameraMixin",
+    "PlayerMixin",
     "ItemInHandRendererMixin",
     "ItemEntityRendererMixin"
   ],

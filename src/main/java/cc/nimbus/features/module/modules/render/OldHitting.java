@@ -17,7 +17,7 @@ public final class OldHitting extends BasicModule {
     public final NumberSetting scale = new NumberSetting("Scale", 1, 0.1, 4, 0.05);
 
     public void transform(PoseStack matrices, float side, float equipProgress, float swingProgress,
-                          HumanoidArm arm, boolean blocking) {
+                          HumanoidArm arm) {
         matrices.translate(side * 0.56f, -0.52f + equipProgress * -0.6f, -0.71999997f);
         matrices.translate(x.getValue().floatValue(), y.getValue().floatValue(), z.getValue().floatValue());
 
@@ -30,11 +30,9 @@ public final class OldHitting extends BasicModule {
 
         float itemScale = scale.getValue().floatValue() * 0.9f;
         matrices.scale(itemScale, itemScale, itemScale);
-        if (blocking) {
-            matrices.translate(-0.2f, 0.126f, 0.2f);
-            matrices.mulPose(Axis.XP.rotationDegrees(-102.25f));
-            matrices.mulPose((arm == HumanoidArm.RIGHT ? Axis.YP : Axis.YN).rotationDegrees(15.0f));
-            matrices.mulPose((arm == HumanoidArm.RIGHT ? Axis.ZP : Axis.ZN).rotationDegrees(80.0f));
-        }
+        matrices.translate(-0.2f, 0.126f, 0.2f);
+        matrices.mulPose(Axis.XP.rotationDegrees(-102.25f));
+        matrices.mulPose((arm == HumanoidArm.RIGHT ? Axis.YP : Axis.YN).rotationDegrees(15.0f));
+        matrices.mulPose((arm == HumanoidArm.RIGHT ? Axis.ZP : Axis.ZN).rotationDegrees(80.0f));
     }
 }
