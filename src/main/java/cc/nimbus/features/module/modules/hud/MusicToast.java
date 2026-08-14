@@ -12,10 +12,9 @@ import cc.nimbus.features.music.playback.PlaybackPhase;
 import cc.nimbus.managers.MusicManager;
 import net.minecraft.client.Minecraft;
 
-/** Shows Minecraft's native top-left now-playing toast for Nimbus Music. */
 @ModuleInfo(
         name = "MusicToast",
-        displayName = "Music Now Playing Toast",
+        displayName = "Music Toast",
         description = "Shows the native Minecraft toast when the Nimbus Music track changes.",
         category = ModuleCategory.HUD
 )
