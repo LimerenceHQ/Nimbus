@@ -96,7 +96,7 @@ public final class ActiveList extends BasicModule {
 
         if (drawBackground) {
             try (Path regions = backgroundPath(entries, totalWidth, totalHeight,
-                    bounds.x(), bounds.y(), scale)) {
+                    bounds.x(), bounds.y(), scale, anchor.isRight())) {
                 skija.postProcess().add(regions);
             }
         }
@@ -104,31 +104,31 @@ public final class ActiveList extends BasicModule {
         List<RenderEntry> frameEntries = List.copyOf(entries);
         skija.hud().submit(frame -> drag.render(frame, viewport, local -> {
             try (Path surface = backgroundPath(frameEntries, totalWidth, totalHeight,
-                    0f, 0f, 1f);
+                    0f, 0f, 1f, anchor.isRight());
                  Paint backgroundPaint = new Paint().setAntiAlias(true).setColor(BACKGROUND_COLOR);
                  Paint accentPaint = new Paint().setAntiAlias(true)) {
                 if (drawBackground) local.canvas().drawPath(surface, backgroundPaint);
                 float decorWidth = ACCENT_WIDTH * rightRectProgress;
                 if (decorWidth > .01f) {
+                    float decorX = anchor.isRight() ? totalWidth - decorWidth : 0f;
                     accentPaint.setShader(local.effects().linearGradient(
-                            new Point(totalWidth - decorWidth, 0f),
-                            new Point(totalWidth - decorWidth, totalHeight), accentColors));
-                    local.draw().rect(totalWidth - decorWidth, 0f,
-                            decorWidth, totalHeight, accentPaint);
+                            new Point(decorX, 0f), new Point(decorX, totalHeight), accentColors));
+                    local.draw().rect(decorX, 0f, decorWidth, totalHeight, accentPaint);
                 }
                 for (int index = 0; index < frameEntries.size(); index++) {
                     RenderEntry rendered = frameEntries.get(index);
                     Entry entry = rendered.entry();
                     float textProgress = rendered.textProgress();
                     float rowY = rendered.y();
-                    float rowX = totalWidth - entry.width();
+                    float rowX = anchor.isRight() ? totalWidth - entry.width() : 0f;
                     float offset = anchor.isRight() ? (1f - textProgress) * 6f : -(1f - textProgress) * 6f;
                     int textColor = multiplyAlpha(TEXT_COLOR, textProgress);
                     int suffixColor = multiplyAlpha(SUFFIX_COLOR, textProgress);
                     String content = entry.name() + entry.suffix();
                     float visualCenterX = (local.text().visualLeft(FONT, FONT_SIZE, content)
                             + local.text().visualRight(FONT, FONT_SIZE, content)) * .5f;
-                    float textCenterX = rowX + (entry.width() - decorWidth) * .5f + offset;
+                    float textAreaX = rowX + (anchor.isRight() ? 0f : decorWidth);
+                    float textCenterX = textAreaX + (entry.width() - decorWidth) * .5f + offset;
                     float labelX = textCenterX - visualCenterX;
                     float textY = rowY + ROW_HEIGHT * .5f
                             - local.text().visualCenterY(FONT, FONT_SIZE, content);
@@ -238,7 +238,8 @@ public final class ActiveList extends BasicModule {
 
     private static Path backgroundPath(List<RenderEntry> entries,
                                       float totalWidth, float totalHeight,
-                                      float originX, float originY, float scale) {
+                                      float originX, float originY, float scale,
+                                      boolean rightAnchored) {
         List<RenderEntry> ordered = new ArrayList<>(entries);
         ordered.sort(Comparator.comparingDouble(RenderEntry::y));
         PathBuilder path = new PathBuilder();
@@ -251,13 +252,14 @@ public final class ActiveList extends BasicModule {
         float firstX = animatedLeft(ordered, 0, totalWidth, originX, scale);
         float outerRadius = Math.min(CORNER_RADIUS * scale, totalHeight * scale * .5f);
         float firstRadius = outerRadius;
-        path.moveTo(firstX + firstRadius, top);
-        path.lineTo(right, top);
-        path.lineTo(right, bottom);
+        path.moveTo(orientedX(firstX + firstRadius, originX, right, rightAnchored), top);
+        path.lineTo(orientedX(right, originX, right, rightAnchored), top);
+        path.lineTo(orientedX(right, originX, right, rightAnchored), bottom);
         float lastX = animatedLeft(ordered, ordered.size() - 1, totalWidth, originX, scale);
         float lastRadius = outerRadius;
-        path.lineTo(lastX + lastRadius, bottom);
-        path.quadTo(lastX, bottom, lastX, bottom - lastRadius);
+        path.lineTo(orientedX(lastX + lastRadius, originX, right, rightAnchored), bottom);
+        path.quadTo(orientedX(lastX, originX, right, rightAnchored), bottom,
+                orientedX(lastX, originX, right, rightAnchored), bottom - lastRadius);
         for (int index = ordered.size() - 1; index > 0; index--) {
             RenderEntry lower = ordered.get(index);
             RenderEntry upper = ordered.get(index - 1);
@@ -266,21 +268,28 @@ public final class ActiveList extends BasicModule {
             float upperX = animatedLeft(ordered, index - 1, totalWidth, originX, scale);
             float distance = Math.abs(lowerX - upperX);
             if (distance < .01f) {
-                path.lineTo(lowerX, boundary);
+                path.lineTo(orientedX(lowerX, originX, right, rightAnchored), boundary);
                 continue;
             }
             float radius = Math.min(CORNER_RADIUS * scale, distance * .5f);
             float direction = Math.signum(upperX - lowerX);
-            path.lineTo(lowerX, boundary + radius);
-            path.quadTo(lowerX, boundary, lowerX + direction * radius, boundary);
-            path.lineTo(upperX - direction * radius, boundary);
-            path.quadTo(upperX, boundary, upperX, boundary - radius);
+            path.lineTo(orientedX(lowerX, originX, right, rightAnchored), boundary + radius);
+            path.quadTo(orientedX(lowerX, originX, right, rightAnchored), boundary,
+                    orientedX(lowerX + direction * radius, originX, right, rightAnchored), boundary);
+            path.lineTo(orientedX(upperX - direction * radius, originX, right, rightAnchored), boundary);
+            path.quadTo(orientedX(upperX, originX, right, rightAnchored), boundary,
+                    orientedX(upperX, originX, right, rightAnchored), boundary - radius);
         }
         float topRadius = outerRadius;
-        path.lineTo(firstX, top + topRadius);
-        path.quadTo(firstX, top, firstX + topRadius, top);
+        path.lineTo(orientedX(firstX, originX, right, rightAnchored), top + topRadius);
+        path.quadTo(orientedX(firstX, originX, right, rightAnchored), top,
+                orientedX(firstX + topRadius, originX, right, rightAnchored), top);
         path.closePath();
         return path.build();
+    }
+
+    private static float orientedX(float x, float left, float right, boolean rightAnchored) {
+        return rightAnchored ? x : left + right - x;
     }
 
     private static float animatedLeft(List<RenderEntry> entries, int index,

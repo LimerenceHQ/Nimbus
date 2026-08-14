@@ -13,7 +13,13 @@
     "LevelRendererMixin",
     "CommandSuggestionsMixin",
     "NowPlayingToastMixin",
-    "ToastManagerMixin"
+    "ToastManagerMixin",
+    "LightmapRenderStateExtractorMixin",
+    "FogRendererMixin",
+    "ClientClockManagerMixin",
+    "CameraMixin",
+    "ItemEntityRenderStateMixin",
+    "ItemEntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

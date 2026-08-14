@@ -15,7 +15,12 @@ import cc.nimbus.features.module.modules.hud.MusicSpectrum;
 import cc.nimbus.features.module.modules.hud.Watermark;
 import cc.nimbus.features.module.modules.movement.Sprint;
 import cc.nimbus.features.module.modules.render.ClickGui;
+import cc.nimbus.features.module.modules.render.BetterThirdPerson;
 import cc.nimbus.features.module.modules.render.ESP;
+import cc.nimbus.features.module.modules.render.FullBright;
+import cc.nimbus.features.module.modules.render.ItemPhysics;
+import cc.nimbus.features.module.modules.render.Particles;
+import cc.nimbus.features.module.modules.render.WorldTweaks;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
@@ -53,7 +58,12 @@ public final class ModuleManager implements InstanceManager {
                     new MusicToast(),
                     new Watermark(),
                     new Sprint(),
-                    new ESP());
+                    new ESP(),
+                    new FullBright(),
+                    new WorldTweaks(),
+                    new Particles(),
+                    new BetterThirdPerson(),
+                    new ItemPhysics());
             modules.stream()
                     .filter(BasicModule::shouldAutoEnable)
                     .forEach(module -> module.setEnabled(true));

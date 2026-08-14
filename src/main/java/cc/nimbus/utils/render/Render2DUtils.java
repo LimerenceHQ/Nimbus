@@ -4,18 +4,7 @@ import cc.nimbus.utils.render.skija.api.SkijaFrame;
 
 import java.util.Objects;
 
-public final class RenderUtils {
-
-    private RenderUtils() {
-    }
-
-    public static void drawLogo(SkijaFrame frame,
-                                          float x, float y,
-                                          float originX, float originY,
-                                          float scale, int color) {
-        drawLogo(frame, x, y, 24f,
-                originX, originY, scale, color);
-    }
+public final class Render2DUtils {
 
     public static void drawLogo(SkijaFrame frame,
                                           float x, float y, float size,

@@ -14,7 +14,7 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.TextSetting;
-import cc.nimbus.utils.render.RenderUtils;
+import cc.nimbus.utils.render.Render2DUtils;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import io.github.humbleui.skija.Paint;
@@ -77,7 +77,7 @@ public final class Watermark extends BasicModule {
 
         skija.hud().submit(frame -> drag.render(frame, viewport, local -> {
             if (mode.is("Logo")) {
-                RenderUtils.drawLogo(local, 0f, 0f, LOGO_SIZE,
+                Render2DUtils.drawLogo(local, 0f, 0f, LOGO_SIZE,
                         bounds.x(), bounds.y(), scale, accentColors[0]);
                 return;
             }
@@ -90,7 +90,7 @@ public final class Watermark extends BasicModule {
             }
             float logoX = PADDING_X + ACCENT_WIDTH;
             float logoY = (size.height() - COMPACT_LOGO_SIZE) * .5f;
-            RenderUtils.drawLogo(local, logoX, logoY, COMPACT_LOGO_SIZE,
+            Render2DUtils.drawLogo(local, logoX, logoY, COMPACT_LOGO_SIZE,
                     bounds.x(), bounds.y(), scale, accentColors[0]);
 
             float textX = logoX + COMPACT_LOGO_SIZE + LOGO_GAP;

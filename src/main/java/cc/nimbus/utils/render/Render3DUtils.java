@@ -4,11 +4,14 @@ import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.DepthStencilState;
+import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -19,6 +22,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.TextureTransform;
+import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -28,6 +32,7 @@ import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
 import java.awt.Color;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
 
@@ -41,6 +46,17 @@ public final class Render3DUtils {
     private static int savedDepthFunc;
 
     public enum DepthMode { NONE, NORMAL, BOTH, GREATER }
+
+    public record Billboard(double x, double y, double z, float size, int argb) {
+        public Billboard {
+            if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+                throw new IllegalArgumentException("Billboard position must be finite");
+            }
+            if (!Float.isFinite(size) || size <= 0.0f) {
+                throw new IllegalArgumentException("Billboard size must be finite and positive");
+            }
+        }
+    }
 
     private Render3DUtils() {}
 
@@ -394,6 +410,69 @@ public final class Render3DUtils {
         drawLineWithDepth(stack, x1, y1, z1, x2, y2, z2, argb, lineWidth, DepthMode.NONE);
     }
 
+    public static void drawBillboards(PoseStack stack, Identifier texture, List<Billboard> billboards) {
+        if (stack == null || texture == null || billboards == null || billboards.isEmpty()) return;
+        RenderSystem.assertOnRenderThread();
+        Minecraft minecraft = Minecraft.getInstance();
+        Vector3f left = new Vector3f(minecraft.gameRenderer.mainCamera().leftVector());
+        Vector3f up = new Vector3f(minecraft.gameRenderer.mainCamera().upVector());
+        Matrix4f matrix = stack.last().pose();
+
+        try (ByteBufferBuilder allocator = new ByteBufferBuilder(Math.max(64 * 1024, billboards.size() * 128))) {
+            BufferBuilder builder = new BufferBuilder(
+                    allocator, PrimitiveTopology.QUADS, DefaultVertexFormat.PARTICLE);
+            for (Billboard billboard : billboards) {
+                float[] center = getRelativeCoords(billboard.x(), billboard.y(), billboard.z());
+                float half = billboard.size() * 0.5f;
+                float lx = left.x * half;
+                float ly = left.y * half;
+                float lz = left.z * half;
+                float ux = up.x * half;
+                float uy = up.y * half;
+                float uz = up.z * half;
+                particleVertex(builder, matrix, center[0] + lx - ux, center[1] + ly - uy,
+                        center[2] + lz - uz, 0.0f, 1.0f, billboard.argb());
+                particleVertex(builder, matrix, center[0] - lx - ux, center[1] - ly - uy,
+                        center[2] - lz - uz, 1.0f, 1.0f, billboard.argb());
+                particleVertex(builder, matrix, center[0] - lx + ux, center[1] - ly + uy,
+                        center[2] - lz + uz, 1.0f, 0.0f, billboard.argb());
+                particleVertex(builder, matrix, center[0] + lx + ux, center[1] + ly + uy,
+                        center[2] + lz + uz, 0.0f, 0.0f, billboard.argb());
+            }
+
+            MeshData mesh = builder.build();
+            if (mesh == null) return;
+            try (mesh; GpuBuffer vertices = RenderSystem.getDevice().createBuffer(
+                    () -> "Nimbus particle vertices", GpuBuffer.USAGE_VERTEX, mesh.vertexBuffer())) {
+                var indices = RenderSystem.getSequentialBuffer(mesh.drawState().primitiveTopology());
+                GpuBuffer indexBuffer = indices.getBuffer(mesh.drawState().indexCount());
+                GpuBufferSlice transform = RenderSystem.getDynamicUniforms().writeTransform(
+                        IDENTITY, new Vector4f(1, 1, 1, 1), new Vector3f(),
+                        TextureTransform.DEFAULT_TEXTURING.createMatrix());
+                RenderTarget target = minecraft.gameRenderer.mainRenderTarget();
+                AbstractTexture particleTexture = minecraft.getTextureManager().getTexture(texture);
+                try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
+                        () -> "Nimbus particles", target.getColorTextureView(), Optional.empty(),
+                        target.getDepthTextureView(), OptionalDouble.empty())) {
+                    pass.setPipeline(Pipelines.ADDITIVE_PARTICLE);
+                    RenderSystem.bindDefaultUniforms(pass);
+                    pass.setUniform("DynamicTransforms", transform);
+                    pass.bindTexture("Sampler0", particleTexture.getTextureView(), particleTexture.getSampler());
+                    pass.bindTexture("Sampler2", minecraft.gameRenderer.levelLightmap(),
+                            RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+                    pass.setVertexBuffer(0, new GpuBufferSlice(vertices, 0, vertices.size()));
+                    pass.setIndexBuffer(indexBuffer, indices.type());
+                    pass.drawIndexed(mesh.drawState().indexCount(), 1, 0, 0, 0);
+                }
+            }
+        }
+    }
+
+    private static void particleVertex(BufferBuilder builder, Matrix4f matrix, float x, float y, float z,
+                                       float u, float v, int argb) {
+        builder.addVertex(matrix, x, y, z).setUv(u, v).setColor(argb).setLight(0x00F000F0);
+    }
+
     private static void drawQuads(PoseStack stack, DepthMode mode, QuadEmitter emitter) {
         drawMesh(stack, PrimitiveTopology.QUADS, DefaultVertexFormat.POSITION_COLOR, pipeline(false, mode),
                 builder -> emitter.emit(new QuadSink(builder, stack.last().pose())));
@@ -448,12 +527,42 @@ public final class Render3DUtils {
     }
 
     private static final class Pipelines {
+        private static final RenderPipeline ADDITIVE_PARTICLE = additiveParticle();
         private static final RenderPipeline QUADS_ALWAYS = quad("quads_always", CompareOp.ALWAYS_PASS);
         private static final RenderPipeline QUADS_NORMAL = quad("quads_normal", CompareOp.LESS_THAN_OR_EQUAL);
         private static final RenderPipeline QUADS_GREATER = quad("quads_greater", CompareOp.GREATER_THAN);
         private static final RenderPipeline LINES_ALWAYS = line("lines_always", CompareOp.ALWAYS_PASS);
         private static final RenderPipeline LINES_NORMAL = line("lines_normal", CompareOp.LESS_THAN_OR_EQUAL);
         private static final RenderPipeline LINES_GREATER = line("lines_greater", CompareOp.GREATER_THAN);
+
+        private static RenderPipeline additiveParticle() {
+            RenderPipeline base = RenderPipelines.TRANSLUCENT_PARTICLE;
+            RenderPipeline.Builder builder = RenderPipeline.builder()
+                    .withLocation(Identifier.fromNamespaceAndPath("nimbus", "pipeline/additive_particle"))
+                    .withVertexShader(base.getVertexShader())
+                    .withFragmentShader(base.getFragmentShader())
+                    .withColorTargetState(new ColorTargetState(BlendFunction.LIGHTNING))
+                    .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false))
+                    .withPolygonMode(base.getPolygonMode())
+                    .withCull(base.isCull())
+                    .withPrimitiveTopology(base.getPrimitiveTopology());
+            for (var layout : base.getBindGroupLayouts()) {
+                builder.withBindGroupLayout(layout);
+            }
+            var formats = base.getVertexFormatBindings();
+            for (int index = 0; index < formats.length; index++) {
+                if (formats[index] != null) builder.withVertexBinding(index, formats[index]);
+            }
+            base.getShaderDefines().flags().forEach(builder::withShaderDefine);
+            base.getShaderDefines().values().forEach((name, value) -> {
+                try {
+                    builder.withShaderDefine(name, Integer.parseInt(value));
+                } catch (NumberFormatException ignored) {
+                    builder.withShaderDefine(name, Float.parseFloat(value));
+                }
+            });
+            return builder.build();
+        }
 
         private static RenderPipeline quad(String name, CompareOp compare) {
             return RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
