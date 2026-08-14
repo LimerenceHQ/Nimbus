@@ -132,7 +132,7 @@ public final class Render2DUtils {
                         + level + " " + duration;
                 labels.add(text);
             }
-            float textScale = 0.45f;
+            float textScale = 0.5f;
             for (int index = 0; index < effects.size(); index++) {
                 MobEffectInstance effect = effects.get(index);
                 String text = labels.get(index);
