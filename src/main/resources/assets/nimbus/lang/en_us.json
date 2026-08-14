@@ -273,6 +273,8 @@
   "nimbus.module.watermark.setting.accent": "Accent",
   "nimbus.module.test.name": "Test",
   "nimbus.module.test.description": "Setting control test module.",
+  "nimbus.module.music_toast.name": "Music Toast",
+  "nimbus.module.music_toast.description": "Shows the native Minecraft toast when the Nimbus Music track changes.",
   "nimbus.module.music_spectrum.name": "Music Spectrum",
   "nimbus.module.music_spectrum.description": "Displays the current Nimbus Music spectrum along the bottom edge.",
   "nimbus.module.music_spectrum.setting.style": "Style",

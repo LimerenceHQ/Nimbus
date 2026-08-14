@@ -273,6 +273,8 @@
   "nimbus.module.watermark.setting.accent": "强调色",
   "nimbus.module.test.name": "设置测试",
   "nimbus.module.test.description": "用于测试设置控件的功能。",
+  "nimbus.module.music_toast.name": "音乐提示",
+  "nimbus.module.music_toast.description": "Nimbus Music 切换歌曲时显示 Minecraft 原生提示。",
   "nimbus.module.music_spectrum.name": "音乐频谱",
   "nimbus.module.music_spectrum.description": "沿屏幕底边显示 Nimbus Music 的实时频谱。",
   "nimbus.module.music_spectrum.setting.style": "样式",
