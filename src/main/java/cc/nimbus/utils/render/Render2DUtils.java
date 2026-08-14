@@ -140,7 +140,7 @@ public final class Render2DUtils {
                 var pose = graphics.pose();
                 pose.pushMatrix();
                 try {
-                    pose.translate(Math.round(center), Math.round(y));
+                    pose.translate(center, y);
                     pose.scale(textScale, textScale);
                     graphics.text(minecraft.font, text, -minecraft.font.width(text) / 2, 0, color, true);
                 } finally {
