@@ -3,6 +3,7 @@ package cc.nimbus.mixin;
 import cc.nimbus.features.module.modules.render.OldHitting;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.ItemInHandRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -30,14 +31,14 @@ public abstract class ItemInHandRendererMixin {
                                          float equippedProgress, PoseStack poseStack,
                                          SubmitNodeCollector collector, int packedLight, CallbackInfo ci) {
         OldHitting module = MixinModuleLookup.enabled(OldHitting.class);
-        if (module == null || stack.isEmpty() || !stack.is(ItemTags.SWORDS)
-                || player.isUsingItem()) return;
+        if (module == null || hand != InteractionHand.MAIN_HAND || stack.isEmpty()
+                || !stack.is(ItemTags.SWORDS) || player.isScoping()) return;
 
-        HumanoidArm arm = hand == InteractionHand.MAIN_HAND
-                ? player.getMainArm() : player.getMainArm().getOpposite();
+        boolean blocking = Minecraft.getInstance().options.keyUse.isDown();
+        HumanoidArm arm = player.getMainArm();
         int side = arm == HumanoidArm.RIGHT ? 1 : -1;
         poseStack.pushPose();
-        module.transform(poseStack, side, equippedProgress, swingProgress, hand, arm);
+        module.transform(poseStack, side, equippedProgress, swingProgress, arm, blocking);
         renderItem(player, stack, arm == HumanoidArm.RIGHT
                         ? ItemDisplayContext.FIRST_PERSON_RIGHT_HAND
                         : ItemDisplayContext.FIRST_PERSON_LEFT_HAND,
