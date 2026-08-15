@@ -19,6 +19,7 @@ import cc.nimbus.features.module.modules.render.BetterThirdPerson;
 import cc.nimbus.features.module.modules.render.ESP;
 import cc.nimbus.features.module.modules.render.FullBright;
 import cc.nimbus.features.module.modules.render.ItemPhysics;
+import cc.nimbus.features.module.modules.render.Nametag;
 import cc.nimbus.features.module.modules.render.OldHitting;
 import cc.nimbus.features.module.modules.render.Particles;
 import cc.nimbus.features.module.modules.render.Projectile;
@@ -61,6 +62,7 @@ public final class ModuleManager implements InstanceManager {
                     new Watermark(),
                     new Sprint(),
                     new ESP(),
+                    new Nametag(),
                     new FullBright(),
                     new WorldTweaks(),
                     new Particles(),

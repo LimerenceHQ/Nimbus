@@ -61,6 +61,14 @@ public final class Render3DUtils {
         }
     }
 
+    public record LineSegment(Vec3 start, Vec3 end, int argb) {
+        public LineSegment {
+            if (start == null || end == null) {
+                throw new IllegalArgumentException("Line segment endpoints must not be null");
+            }
+        }
+    }
+
     public record ProjectedBox(float left, float top, float right, float bottom) {
         public float width() { return right - left; }
         public float height() { return bottom - top; }
@@ -267,6 +275,29 @@ public final class Render3DUtils {
                 float[] from = relative.get(index - 1);
                 float[] to = relative.get(index);
                 sink.line(from[0], from[1], from[2], to[0], to[1], to[2], argb);
+            }
+        });
+    }
+
+    public static void drawLineSegmentsWithDepth(PoseStack stack, List<LineSegment> segments,
+                                                 float lineWidth, DepthMode mode) {
+        if (stack == null || segments == null || segments.isEmpty()) return;
+        if (mode == DepthMode.BOTH) {
+            drawLineSegments(stack, segments, lineWidth, DepthMode.GREATER, true);
+            drawLineSegments(stack, segments, lineWidth, DepthMode.NORMAL, false);
+            return;
+        }
+        drawLineSegments(stack, segments, lineWidth, mode, false);
+    }
+
+    private static void drawLineSegments(PoseStack stack, List<LineSegment> segments,
+                                         float lineWidth, DepthMode mode, boolean faded) {
+        drawLines(stack, mode, lineWidth, sink -> {
+            for (LineSegment segment : segments) {
+                float[] start = getRelativeCoords(segment.start.x, segment.start.y, segment.start.z);
+                float[] end = getRelativeCoords(segment.end.x, segment.end.y, segment.end.z);
+                int color = faded ? withAlpha(segment.argb, 0x40) : segment.argb;
+                sink.line(start[0], start[1], start[2], end[0], end[1], end[2], color);
             }
         });
     }

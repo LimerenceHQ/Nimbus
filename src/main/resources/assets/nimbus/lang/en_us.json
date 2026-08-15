@@ -318,7 +318,11 @@
   "nimbus.module.esp.setting.armor_bar": "Armor Bar",
   "nimbus.module.esp.setting.equipment": "Equipment",
   "nimbus.module.esp.setting.potion_effects": "Potion Effects",
+  "nimbus.module.esp.setting.skeleton": "Skeleton",
   "nimbus.module.esp.setting.show_self": "Show Self",
+
+  "nimbus.module.nametag.name": "Nametag",
+  "nimbus.module.nametag.description": "Shows player IDs and distance above players.",
 
   "nimbus.module.projectile.name": "Projectile",
   "nimbus.module.projectile.description": "Predicts the path of held projectiles.",

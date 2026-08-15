@@ -21,7 +21,9 @@
     "CameraMixin",
     "PlayerMixin",
     "ItemInHandRendererMixin",
-    "ItemEntityRendererMixin"
+    "ItemEntityRendererMixin",
+    "PlayerModelMixin",
+    "AvatarRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

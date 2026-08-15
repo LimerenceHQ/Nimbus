@@ -318,7 +318,11 @@
   "nimbus.module.esp.setting.armor_bar": "护甲条",
   "nimbus.module.esp.setting.equipment": "装备显示",
   "nimbus.module.esp.setting.potion_effects": "药水效果",
+  "nimbus.module.esp.setting.skeleton": "骨骼",
   "nimbus.module.esp.setting.show_self": "显示自己",
+
+  "nimbus.module.nametag.name": "玩家名牌",
+  "nimbus.module.nametag.description": "在玩家上方显示实体 ID 与距离。",
 
   "nimbus.module.projectile.name": "弹道预测",
   "nimbus.module.projectile.description": "预测手持投掷物与远程武器的飞行轨迹。",
