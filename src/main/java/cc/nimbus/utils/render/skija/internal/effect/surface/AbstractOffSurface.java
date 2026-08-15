@@ -6,7 +6,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-public abstract sealed class AbstractOffSurface<V> implements AutoCloseable permits CanvasOffSurface, GaussianSurface, KawaseSurface, ShadowSurface, TextureSurface {
+public abstract sealed class AbstractOffSurface<V> implements AutoCloseable permits GaussianSurface, KawaseSurface, ShadowSurface, TextureSurface {
     private Surface surface = null;
 
     private Image snapshot;

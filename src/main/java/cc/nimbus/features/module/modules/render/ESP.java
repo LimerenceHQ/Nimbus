@@ -15,12 +15,12 @@ import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.utils.render.Render2DUtils;
 import cc.nimbus.utils.render.Render3DUtils;
+import cc.nimbus.utils.render.PlayerProjectionCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.player.PlayerModel;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
@@ -45,7 +45,9 @@ public final class ESP extends BasicModule {
     public final BooleanSetting showSelf = new BooleanSetting("Show Self", false);
 
     private final Map<Integer, SkeletonPose> skeletonPoses = new HashMap<>();
+    private final Map<Integer, CachedDetails> detailsCache = new HashMap<>();
     private ClientLevel skeletonLevel;
+    private ClientLevel detailsLevel;
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
@@ -54,30 +56,34 @@ public final class ESP extends BasicModule {
 
         Render3DUtils.WorldProjection projection = Render3DUtils.worldProjection();
         if (projection == null) return;
-        float partialTick = projection.partialTick();
+        float guiScale = Math.max(1, minecraft.getWindow().getGuiScale());
         long now = System.currentTimeMillis();
         ClientSettings settings = Core.INSTANCE.getConfigManager().clientSettings();
         List<Entry> entries = new ArrayList<>();
+        if (detailsLevel != minecraft.level) {
+            detailsCache.clear();
+            detailsLevel = minecraft.level;
+        }
+        long gameTime = minecraft.level.getGameTime();
+        boolean drawEquipment = equipment.getValue();
+        boolean drawEffects = potionEffects.getValue();
+        if (gameTime % 20L == 0L) {
+            detailsCache.entrySet().removeIf(entry -> gameTime - entry.getValue().tick() > 20L);
+        }
         int colorIndex = 0;
-        for (Player player : minecraft.level.players()) {
+        for (PlayerProjectionCache.Entry projectedPlayer : PlayerProjectionCache.entries(minecraft, projection)) {
+            if (!(minecraft.level.getEntity(projectedPlayer.entityId()) instanceof Player player)) continue;
             boolean self = player == minecraft.player;
             if (self && (!showSelf.getValue() || minecraft.options.getCameraType().isFirstPerson())) continue;
-            if (player.isSpectator() || player.isRemoved()) continue;
-            double x = Mth.lerp(partialTick, player.xOld, player.getX());
-            double y = Mth.lerp(partialTick, player.yOld, player.getY());
-            double z = Mth.lerp(partialTick, player.zOld, player.getZ());
-            AABB bounds = player.getBoundingBox().move(
-                    x - player.getX(), y - player.getY(), z - player.getZ()
-            ).inflate(0.04, 0.08, 0.04);
-            Render3DUtils.ProjectedBox projected = Render3DUtils.projectAabb(bounds, projection);
-            if (projected == null || projected.width() <= 0f || projected.height() <= 0f) continue;
+            Render3DUtils.ProjectedBox projected = projectedPlayer.bounds();
 
             float health = player.getMaxHealth() <= 0f ? 0f : player.getHealth() / player.getMaxHealth();
             float armor = player.getArmorValue() / 20f;
+            Render2DUtils.EspDetails details = details(player, gameTime, drawEquipment, drawEffects);
             entries.add(new Entry(projected, Math.clamp(armor, 0f, 1f),
-                    Math.clamp(health, 0f, 1f), settings.accentColor(colorIndex++, now)));
-            Render2DUtils.drawEspDetails(event.getGraphics(), player, projected,
-                    equipment.getValue(), potionEffects.getValue());
+                    Math.clamp(health, 0f, 1f), settings.accentColor(colorIndex++, now), details));
+            Render2DUtils.drawEspEquipment(event.getGraphics(), player.getId(), projected,
+                    details.equipment());
         }
         if (entries.isEmpty()) return;
 
@@ -92,6 +98,8 @@ public final class ESP extends BasicModule {
             for (Entry entry : snapshot) {
                 Render2DUtils.drawEspFrame(frame, entry.bounds(), drawBox, mode, fill, strokeWidth,
                         entry.color(), drawArmor, entry.armor(), drawHealth, entry.health());
+                Render2DUtils.drawEspEffects(frame, entry.bounds(), entry.details().effects(),
+                        !entry.details().equipment().isEmpty(), guiScale);
             }
         });
     }
@@ -138,7 +146,21 @@ public final class ESP extends BasicModule {
     @Override
     protected void onDisable() {
         skeletonPoses.clear();
+        detailsCache.clear();
         skeletonLevel = null;
+        detailsLevel = null;
+    }
+
+    private Render2DUtils.EspDetails details(Player player, long tick,
+                                             boolean equipment, boolean effects) {
+        CachedDetails cached = detailsCache.get(player.getId());
+        if (cached != null && cached.tick() == tick
+                && cached.equipment() == equipment && cached.effects() == effects) {
+            return cached.details();
+        }
+        Render2DUtils.EspDetails details = Render2DUtils.collectEspDetails(player, equipment, effects);
+        detailsCache.put(player.getId(), new CachedDetails(tick, equipment, effects, details));
+        return details;
     }
 
     private static void appendSkeleton(List<Render3DUtils.LineSegment> segments, Player player,
@@ -216,8 +238,11 @@ public final class ESP extends BasicModule {
         return new BoneRotation(part.xRot, part.yRot, part.zRot);
     }
 
-    private record Entry(Render3DUtils.ProjectedBox bounds, float armor, float health, int color) { }
+    private record Entry(Render3DUtils.ProjectedBox bounds, float armor, float health, int color,
+                         Render2DUtils.EspDetails details) { }
     private record BoneRotation(float x, float y, float z) { }
     private record SkeletonPose(BoneRotation head, BoneRotation rightArm, BoneRotation leftArm,
                                 BoneRotation rightLeg, BoneRotation leftLeg) { }
+    private record CachedDetails(long tick, boolean equipment, boolean effects,
+                                 Render2DUtils.EspDetails details) { }
 }

@@ -18,4 +18,19 @@ public final class SkijaTextMetrics {
         renderer.requireReady();
         return TextFactory.getTextHeight(family, size);
     }
+
+    public float visualLeft(String family, float size, String text) {
+        renderer.requireReady();
+        return TextFactory.getTextVisualLeft(family, size, text == null ? "" : text);
+    }
+
+    public float visualRight(String family, float size, String text) {
+        renderer.requireReady();
+        return TextFactory.getTextVisualRight(family, size, text == null ? "" : text);
+    }
+
+    public float visualCenterY(String family, float size, String text) {
+        renderer.requireReady();
+        return TextFactory.getTextVisualCenterY(family, size, text == null ? "" : text);
+    }
 }

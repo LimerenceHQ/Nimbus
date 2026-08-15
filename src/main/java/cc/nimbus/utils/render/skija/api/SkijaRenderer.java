@@ -84,8 +84,8 @@ public final class SkijaRenderer {
         SkijaBackend.INSTANCE.invalidateScene();
     }
 
-    void renderHud(int targetFps) {
-        SkijaBackend.INSTANCE.callSurface(targetFps);
+    void renderHud() {
+        SkijaBackend.INSTANCE.callSurface();
     }
 
     public void configurePostProcess(PostProcessOptions options) {

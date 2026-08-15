@@ -3,6 +3,7 @@ package cc.nimbus.utils.render.skija.internal.effect.surface;
 import cc.nimbus.utils.render.skija.internal.effect.shader.Shaders;
 import cc.nimbus.utils.render.skija.internal.image.minecraft.MinecraftSnapshot;
 import io.github.humbleui.skija.*;
+import io.github.humbleui.types.IRect;
 import io.github.humbleui.types.Rect;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,15 +37,25 @@ public final class KawaseSurface extends AbstractOffSurface<KawaseSurface.Target
             return;
         }
 
+        Rect sourceBounds = path == null
+                ? Rect.makeWH(snapshot.getWidth(), snapshot.getHeight()) : path.getBounds();
+        int left = Math.clamp((int) sourceBounds.getLeft(), 0, snapshot.getWidth() - 1);
+        int top = Math.clamp((int) sourceBounds.getTop(), 0, snapshot.getHeight() - 1);
+        int right = Math.clamp((int) sourceBounds.getRight(), left + 1, snapshot.getWidth());
+        int bottom = Math.clamp((int) sourceBounds.getBottom(), top + 1, snapshot.getHeight());
+        Image regionalInput = path == null
+                ? snapshot : snapshot.makeSubset(context, IRect.makeLTRB(left, top, right, bottom));
+        if (regionalInput == null || regionalInput.isClosed()) return;
+
         int passes = Math.max(1, target.pass());
-        float width = snapshot.getWidth();
-        float height = snapshot.getHeight();
+        float width = regionalInput.getWidth();
+        float height = regionalInput.getHeight();
 
         Surface[] pyraSurfaces = ensurePyramid(context, (int) width, (int) height, passes);
         Image[] imagesToClose = new Image[passes];
 
         try {
-            Image currentInput = snapshot;
+            Image currentInput = regionalInput;
 
             for (int i = 0; i < passes; i++) {
                 int targetW = (int) Math.max(1, width / Math.pow(2, i + 1));
@@ -91,7 +102,13 @@ public final class KawaseSurface extends AbstractOffSurface<KawaseSurface.Target
             try (Shader child = upInput.makeShader(Matrix33.makeScale(finalSx, finalSy));
                  Shader effect = Shaders.KAWASE_UPSAMPLE.setUniform(target.upSample()).makeShader(child);
                  Paint paint = new Paint().setShader(effect)) {
-                canvas.drawRect(Rect.makeXYWH(0, 0, width, height), paint);
+                int save = canvas.save();
+                try {
+                    canvas.translate(left, top);
+                    canvas.drawRect(Rect.makeXYWH(0, 0, width, height), paint);
+                } finally {
+                    canvas.restoreToCount(save);
+                }
             }
 
         } finally {
@@ -100,6 +117,7 @@ public final class KawaseSurface extends AbstractOffSurface<KawaseSurface.Target
                     img.close();
                 }
             }
+            if (regionalInput != snapshot && !regionalInput.isClosed()) regionalInput.close();
         }
     }
 

@@ -178,7 +178,8 @@ public final class ClientSettingsTool implements ToolPage {
         return switch (tab) {
             case GENERAL -> List.of(value.clientName, value.language, value.style, value.colorMode,
                     value.accent, value.secondaryAccent, value.rainbowSaturation, value.rainbowBrightness,
-                    value.astolfoIndex, value.astolfoOffset, value.hudScale);
+                    value.astolfoIndex, value.astolfoOffset, value.hudScale,
+                    value.hudRefresh, value.hudRefreshLimit);
             case SURFACE -> List.of(value.postProcessing, value.splitRegions, value.texture, value.textureOpacity);
             case BLUR -> List.of(value.blurMode, value.blurRadius, value.blurPasses, value.downSample,
                     value.upSample, value.blurRefresh, value.blurRefreshLimit);

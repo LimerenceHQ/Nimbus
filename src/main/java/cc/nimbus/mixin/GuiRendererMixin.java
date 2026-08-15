@@ -30,6 +30,11 @@ public class GuiRendererMixin {
     @Unique private SkijaLayer nimbus$hudLayer;
     @Unique private AbstractSkijaScreen nimbus$drawnScreen;
     @Unique private ClientLevel nimbus$scene;
+    @Unique private long nimbus$nextHudUpdateNanos;
+    @Unique private int nimbus$hudRefreshRate;
+    @Unique private int nimbus$hudWidth;
+    @Unique private int nimbus$hudHeight;
+    @Unique private boolean nimbus$hudHadContent;
     @Unique private static final ThreadLocal<Boolean> NIMBUS_RENDERING_AUXILIARY = ThreadLocal.withInitial(() -> false);
 
     @Inject(method = "draw", at = @At("HEAD"))
@@ -72,16 +77,32 @@ public class GuiRendererMixin {
             int framebufferWidth = mainRenderTarget.width;
             int framebufferHeight = mainRenderTarget.height;
             nimbus$hudLayer.ensure(framebufferWidth, framebufferHeight);
-            skija.configurePostProcess(Core.INSTANCE.getConfigManager().clientSettings().postProcessOptions());
+            boolean resized = framebufferWidth != nimbus$hudWidth || framebufferHeight != nimbus$hudHeight;
+            nimbus$hudWidth = framebufferWidth;
+            nimbus$hudHeight = framebufferHeight;
+            var clientSettings = Core.INSTANCE.getConfigManager().clientSettings();
+            skija.configurePostProcess(clientSettings.postProcessOptions());
             var options = skija.postProcessOptions();
-            if (options.blurEnabled()) {
-                skija.captureScene(options.blurRefreshRate());
-            }
             EventBus.call(new EventRender2D(graphics));
-            int windowRefreshRate = minecraft.getWindow().getRefreshRate();
-            int refreshRate = windowRefreshRate > 0 ? windowRefreshRate : 165;
-            nimbus$hudLayer.render(frame -> skija.hud().render(refreshRate));
-            nimbus$hudLayer.extract(graphics, framebufferWidth, framebufferHeight);
+            boolean hasPostProcess = skija.postProcess().hasRegions();
+            boolean hasContent = hasPostProcess || skija.hud().hasPendingContent();
+            boolean forceUpdate = resized || hasContent != nimbus$hudHadContent;
+            boolean updateHud = hasContent || nimbus$hudHadContent;
+            int hudRefreshRate = clientSettings.hudRefreshRate();
+            if (updateHud && nimbus$hudUpdateDue(hudRefreshRate, forceUpdate)) {
+                if (options.blurEnabled() && hasPostProcess) {
+                    skija.captureScene(Math.min(options.blurRefreshRate(), hudRefreshRate));
+                }
+                nimbus$hudLayer.render(frame -> skija.hud().render());
+                nimbus$hudHadContent = hasContent;
+            } else {
+                skija.hud().discardFrame();
+            }
+            if (nimbus$hudHadContent) {
+                nimbus$hudLayer.extract(graphics, framebufferWidth, framebufferHeight);
+            }
+        } else {
+            nimbus$resetHudCadence();
         }
 
         NIMBUS_RENDERING_AUXILIARY.set(true);
@@ -105,7 +126,37 @@ public class GuiRendererMixin {
     private void nimbus$close(CallbackInfo ci) {
         if (nimbus$hudLayer != null) nimbus$hudLayer.releaseTarget();
         nimbus$hudLayer = null;
+        nimbus$hudWidth = nimbus$hudHeight = 0;
+        nimbus$hudHadContent = false;
+        nimbus$resetHudCadence();
         if (nimbus$renderer != null) nimbus$renderer.close();
         nimbus$renderer = null; nimbus$state = null;
+    }
+
+    @Unique
+    private boolean nimbus$hudUpdateDue(int refreshRate, boolean force) {
+        refreshRate = Math.max(1, refreshRate);
+        long now = System.nanoTime();
+        long interval = Math.max(1L, 1_000_000_000L / refreshRate);
+        if (refreshRate != nimbus$hudRefreshRate) {
+            nimbus$hudRefreshRate = refreshRate;
+            nimbus$nextHudUpdateNanos = 0L;
+            force = true;
+        }
+        if (force || nimbus$nextHudUpdateNanos == 0L) {
+            nimbus$nextHudUpdateNanos = now + interval;
+            return true;
+        }
+        if (now < nimbus$nextHudUpdateNanos) return false;
+
+        long elapsedIntervals = (now - nimbus$nextHudUpdateNanos) / interval + 1L;
+        nimbus$nextHudUpdateNanos += elapsedIntervals * interval;
+        return true;
+    }
+
+    @Unique
+    private void nimbus$resetHudCadence() {
+        nimbus$nextHudUpdateNanos = 0L;
+        nimbus$hudRefreshRate = 0;
     }
 }

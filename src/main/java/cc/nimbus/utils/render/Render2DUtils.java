@@ -1,5 +1,6 @@
 package cc.nimbus.utils.render;
 
+import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Point;
@@ -15,6 +16,14 @@ import java.util.List;
 import java.util.Objects;
 
 public final class Render2DUtils {
+    private static final String ESP_EFFECT_FONT = NimbusFonts.BODY_MEDIUM;
+    private static final float ESP_EFFECT_SIZE = 11f;
+    private static final float ESP_EQUIPMENT_SIZE = 8f;
+    private static final float ESP_EQUIPMENT_GAP = 1.5f;
+    private static final EquipmentSlot[] ESP_EQUIPMENT_SLOTS = {
+            EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS,
+            EquipmentSlot.FEET, EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND
+    };
 
     private Render2DUtils() {
     }
@@ -73,55 +82,20 @@ public final class Render2DUtils {
         }
     }
 
-    public static void drawEspDetails(GuiGraphicsExtractor graphics, Player player,
-                                      Render3DUtils.ProjectedBox box,
-                                      boolean showEquipment, boolean showEffects) {
-        Objects.requireNonNull(graphics, "graphics");
+    public static EspDetails collectEspDetails(Player player,
+                                               boolean showEquipment, boolean showEffects) {
         Objects.requireNonNull(player, "player");
-        Objects.requireNonNull(box, "box");
         List<ItemStack> equipment = new ArrayList<>(6);
         if (showEquipment) {
-            for (EquipmentSlot slot : List.of(
-                    EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS,
-                    EquipmentSlot.FEET, EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND)) {
+            for (EquipmentSlot slot : ESP_EQUIPMENT_SLOTS) {
                 ItemStack stack = player.getItemBySlot(slot);
                 if (!stack.isEmpty()) equipment.add(stack);
             }
         }
-        List<MobEffectInstance> effects = showEffects ? player.getActiveEffects().stream()
-                .filter(effect -> effect.isInfiniteDuration() || effect.getDuration() > 0)
-                .toList() : List.of();
-        if (equipment.isEmpty() && effects.isEmpty()) return;
-
-        float center = screen((box.left() + box.right()) * 0.5f, graphics.guiWidth());
-        float y = screen(box.bottom(), graphics.guiHeight());
-
-        if (!equipment.isEmpty()) {
-            int guiScale = Math.max(1, Minecraft.getInstance().getWindow().getGuiScale());
-            float size = 8f;
-            float scale = size / 16f;
-            float startX = Math.round((center - equipment.size() * size * 0.5f) * guiScale)
-                    / (float) guiScale;
-            float itemY = Math.round((y - scale) * guiScale) / (float) guiScale;
-            var pose = graphics.pose();
-            pose.pushMatrix();
-            try {
-                pose.translate(startX, itemY);
-                pose.scale(scale, scale);
-                for (int index = 0; index < equipment.size(); index++) {
-                    graphics.item(equipment.get(index), index * 16, 0, player.getId() + index);
-                }
-            } finally {
-                pose.popMatrix();
-            }
-            y += size;
-        }
-
-        if (!effects.isEmpty()) {
-            Minecraft minecraft = Minecraft.getInstance();
-            List<String> labels = new ArrayList<>(effects.size());
-            y += 1f;
-            for (MobEffectInstance effect : effects) {
+        List<EffectLabel> effects = new ArrayList<>();
+        if (showEffects) {
+            for (MobEffectInstance effect : player.getActiveEffects()) {
+                if (!effect.isInfiniteDuration() && effect.getDuration() <= 0) continue;
                 String duration;
                 if (effect.isInfiniteDuration()) {
                     duration = "\u221E";
@@ -131,27 +105,70 @@ public final class Render2DUtils {
                     duration = seconds / 60 + ":" + (remainder < 10 ? "0" : "") + remainder;
                 }
                 String level = effect.getAmplifier() > 0 ? " " + (effect.getAmplifier() + 1) : "";
-                String text = effect.getEffect().value().getDisplayName().getString()
-                        + level + " " + duration;
-                labels.add(text);
-            }
-            float textScale = 0.5f;
-            for (int index = 0; index < effects.size(); index++) {
-                MobEffectInstance effect = effects.get(index);
-                String text = labels.get(index);
-                int color = 0xFF000000 | effect.getEffect().value().getColor();
-                var pose = graphics.pose();
-                pose.pushMatrix();
-                try {
-                    pose.translate(center, y);
-                    pose.scale(textScale, textScale);
-                    graphics.text(minecraft.font, text, -minecraft.font.width(text) / 2, 0, color, true);
-                } finally {
-                    pose.popMatrix();
-                }
-                y += (minecraft.font.lineHeight + 1f) * textScale;
+                effects.add(new EffectLabel(
+                        effect.getEffect().value().getDisplayName().getString() + level + " " + duration,
+                        0xFF000000 | effect.getEffect().value().getColor()
+                ));
             }
         }
+        return new EspDetails(equipment, effects);
+    }
+
+    public static void drawEspEquipment(GuiGraphicsExtractor graphics, int playerId,
+                                        Render3DUtils.ProjectedBox box, List<ItemStack> equipment) {
+        Objects.requireNonNull(graphics, "graphics");
+        Objects.requireNonNull(box, "box");
+        Objects.requireNonNull(equipment, "equipment");
+        if (equipment.isEmpty()) return;
+
+        float center = screen((box.left() + box.right()) * 0.5f, graphics.guiWidth());
+        float y = screen(box.bottom(), graphics.guiHeight());
+        int guiScale = Math.max(1, Minecraft.getInstance().getWindow().getGuiScale());
+        float scale = ESP_EQUIPMENT_SIZE / 16f;
+        float startX = Math.round((center - equipment.size() * ESP_EQUIPMENT_SIZE * 0.5f) * guiScale)
+                / (float) guiScale;
+        float itemY = Math.round((y + ESP_EQUIPMENT_GAP) * guiScale) / (float) guiScale;
+        var pose = graphics.pose();
+        pose.pushMatrix();
+        try {
+            pose.translate(startX, itemY);
+            pose.scale(scale, scale);
+            for (int index = 0; index < equipment.size(); index++) {
+                graphics.item(equipment.get(index), index * 16, 0, playerId + index);
+            }
+        } finally {
+            pose.popMatrix();
+        }
+    }
+
+    public static void drawEspEffects(SkijaFrame frame, Render3DUtils.ProjectedBox box,
+                                      List<EffectLabel> effects, boolean hasEquipment,
+                                      float guiScale) {
+        Objects.requireNonNull(frame, "frame");
+        Objects.requireNonNull(box, "box");
+        Objects.requireNonNull(effects, "effects");
+        if (effects.isEmpty()) return;
+
+        float center = screen((box.left() + box.right()) * 0.5f, frame.width());
+        float y = screen(box.bottom(), frame.height())
+                + (hasEquipment ? (ESP_EQUIPMENT_GAP + ESP_EQUIPMENT_SIZE) * guiScale : 0f)
+                + guiScale;
+        float lineHeight = frame.text().height(ESP_EFFECT_FONT, ESP_EFFECT_SIZE) + 1f;
+        for (EffectLabel effect : effects) {
+            frame.text().center(ESP_EFFECT_FONT, ESP_EFFECT_SIZE, effect.text(),
+                    center, y, effect.color());
+            y += lineHeight;
+        }
+    }
+
+    public record EspDetails(List<ItemStack> equipment, List<EffectLabel> effects) {
+        public EspDetails {
+            equipment = List.copyOf(equipment);
+            effects = List.copyOf(effects);
+        }
+    }
+
+    public record EffectLabel(String text, int color) {
     }
 
     public static void drawLogo(SkijaFrame frame,

@@ -385,25 +385,30 @@ public final class Render3DUtils {
     public static ProjectedBox projectAabb(AABB box, WorldProjection projection) {
         if (box == null || projection == null) return null;
         Vec3 cameraPosition = projection.cameraPosition;
-        Vec3 centerPosition = box.getCenter();
-        Vector3f projected = project(projection.viewProjection, cameraPosition, centerPosition);
-        if (projected == null || !finite(projected) || projected.z < -1f || projected.z > 1f) return null;
+        Vector4f clip = new Vector4f();
+        if (!project(projection.viewProjection, cameraPosition,
+                (box.minX + box.maxX) * .5,
+                (box.minY + box.maxY) * .5,
+                (box.minZ + box.maxZ) * .5, clip)) return null;
+        float centerZ = clip.z / clip.w;
+        if (!Float.isFinite(centerZ) || centerZ < -1f || centerZ > 1f) return null;
 
         float left = Float.POSITIVE_INFINITY;
         float top = Float.POSITIVE_INFINITY;
         float right = Float.NEGATIVE_INFINITY;
         float bottom = Float.NEGATIVE_INFINITY;
         for (int mask = 0; mask < 8; mask++) {
-            projected = project(projection.viewProjection, cameraPosition, new Vec3(
+            if (!project(projection.viewProjection, cameraPosition,
                     (mask & 1) == 0 ? box.minX : box.maxX,
                     (mask & 2) == 0 ? box.minY : box.maxY,
-                    (mask & 4) == 0 ? box.minZ : box.maxZ
-            ));
-            if (projected == null || !finite(projected)) return null;
-            left = Math.min(left, projected.x);
-            top = Math.min(top, -projected.y);
-            right = Math.max(right, projected.x);
-            bottom = Math.max(bottom, -projected.y);
+                    (mask & 4) == 0 ? box.minZ : box.maxZ, clip)) return null;
+            float projectedX = clip.x / clip.w;
+            float projectedY = clip.y / clip.w;
+            if (!Float.isFinite(projectedX) || !Float.isFinite(projectedY)) return null;
+            left = Math.min(left, projectedX);
+            top = Math.min(top, -projectedY);
+            right = Math.max(right, projectedX);
+            bottom = Math.max(bottom, -projectedY);
         }
         if (right <= -1f || left >= 1f || bottom <= -1f || top >= 1f) return null;
         return new ProjectedBox(
@@ -749,18 +754,13 @@ public final class Render3DUtils {
     private static int argb(int r,int g,int b,int a) { return (clamp(a)<<24)|(clamp(r)<<16)|(clamp(g)<<8)|clamp(b); }
     private static int clamp(int value) { return Math.max(0, Math.min(255, value)); }
     private static int withAlpha(int color,int alpha) { return (color & 0x00FFFFFF) | (clamp(alpha) << 24); }
-    private static Vector3f project(Matrix4f projection, Vec3 camera, Vec3 point) {
-        Vector4f clip = projection.transform(new Vector4f(
-                (float) (point.x - camera.x),
-                (float) (point.y - camera.y),
-                (float) (point.z - camera.z),
-                1f
-        ));
-        if (!Float.isFinite(clip.w) || clip.w <= 0.001f) return null;
-        return new Vector3f(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
-    }
-    private static boolean finite(Vector3f point) {
-        return Float.isFinite(point.x) && Float.isFinite(point.y) && Float.isFinite(point.z);
+    private static boolean project(Matrix4f projection, Vec3 camera,
+                                   double x, double y, double z, Vector4f result) {
+        result.set((float) (x - camera.x), (float) (y - camera.y),
+                (float) (z - camera.z), 1f);
+        projection.transform(result);
+        return Float.isFinite(result.x) && Float.isFinite(result.y)
+                && Float.isFinite(result.z) && Float.isFinite(result.w) && result.w > 0.001f;
     }
     private static float sx(float c,float r,double p,double t) { return c+(float)(r*Math.cos(p)*Math.cos(t)); }
     private static float sy(float c,float r,double p) { return c+(float)(r*Math.sin(p)); }

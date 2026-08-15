@@ -10,7 +10,7 @@ import java.util.Map;
 
 public final class TextFactory {
     private record FontTextKey(String familyName, float size, String text) {}
-    private record TextRun(String family, String text, float x) {}
+    private record TextRun(String family, String text, float x, TextBlob blob) {}
     private record TextLayoutPlan(List<TextRun> runs, float width, float height, float baseline,
                                   float visualLeft, float visualRight, float visualCenterY) {}
 
@@ -60,8 +60,12 @@ public final class TextFactory {
         TextLayoutPlan layout = layout(familyName, size, text);
         float baseline = y + layout.baseline();
         for (TextRun run : layout.runs()) {
-            canvas.drawString(run.text(), x + run.x(), baseline,
-                    FontFamily.getCachedFont(run.family(), size), paint);
+            if (run.blob() != null && !run.blob().isClosed()) {
+                canvas.drawTextBlob(run.blob(), x + run.x(), baseline, paint);
+            } else {
+                canvas.drawString(run.text(), x + run.x(), baseline,
+                        FontFamily.getCachedFont(run.family(), size), paint);
+            }
         }
     }
 
@@ -127,7 +131,7 @@ public final class TextFactory {
             if (!selected.equals(currentFamily) && !current.isEmpty()) {
                 Font font = FontFamily.getCachedFont(currentFamily, key.size());
                 String value = current.toString();
-                runs.add(new TextRun(currentFamily, value, width));
+                runs.add(createRun(currentFamily, value, width, font));
                 width += font.measureTextWidth(value);
                 current.setLength(0);
             }
@@ -138,7 +142,7 @@ public final class TextFactory {
         if (!current.isEmpty()) {
             Font font = FontFamily.getCachedFont(currentFamily, key.size());
             String value = current.toString();
-            runs.add(new TextRun(currentFamily, value, width));
+            runs.add(createRun(currentFamily, value, width, font));
             width += font.measureTextWidth(value);
         }
         for (TextRun run : runs) {
@@ -172,7 +176,9 @@ public final class TextFactory {
         return new LinkedHashMap<>(256, 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<FontTextKey, TextLayoutPlan> eldest) {
-                return size() > MAX_MEASUREMENTS;
+                boolean remove = size() > MAX_MEASUREMENTS;
+                if (remove) closeLayout(eldest.getValue());
+                return remove;
             }
         };
     }
@@ -180,6 +186,7 @@ public final class TextFactory {
     public static synchronized void close() {
         if (closed) return;
         closed = true;
+        for (TextLayoutPlan layout : LAYOUT_CACHE.values()) closeLayout(layout);
         LAYOUT_CACHE.clear();
         if (shadowPaint != null && !shadowPaint.isClosed()) shadowPaint.close();
         shadowPaint = null;
@@ -199,5 +206,18 @@ public final class TextFactory {
 
     private static String normalize(String text) {
         return text == null ? "" : text;
+    }
+
+    private static TextRun createRun(String family, String text, float x, Font font) {
+        short[] glyphs = font.getStringGlyphs(text);
+        TextBlob blob = glyphs.length == 0
+                ? null : TextBlob.makeFromPosH(glyphs, font.getXPositions(glyphs), 0f, font);
+        return new TextRun(family, text, x, blob);
+    }
+
+    private static void closeLayout(TextLayoutPlan layout) {
+        for (TextRun run : layout.runs()) {
+            if (run.blob() != null && !run.blob().isClosed()) run.blob().close();
+        }
     }
 }

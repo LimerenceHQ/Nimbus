@@ -1,5 +1,16 @@
 # Nimbus HUD and Skija Architecture and Usage Guide
 
+> HUD 性能：`EventRender2D` 仍会在每个 Minecraft GUI 帧执行，因为监听器可能向当前
+> `GuiGraphicsExtractor` 追加原版 GUI 项。共享 Skija HUD Layer 按客户端设置指定的刷新率重绘，
+> 两次更新之间复用并合成上一张 HUD 纹理。默认上限为 120 Hz；选择 V-Sync 后恢复为显示器刷新率。
+> 跳过更新时会丢弃已排队的回调和后处理区域。窗口尺寸、刷新率以及内容空/非空状态发生变化时会
+> 强制立即重绘。场景采样只会在实际重绘且存在后处理区域时执行，并且不会超过 HUD 的刷新率。
+>
+> 启用 `splitRegions` 后，高斯模糊、Kawase 模糊和纹理叠加会为互不相连的 HUD 区域分别使用边界紧凑的
+> 离屏 Surface。场景采样通过 Minecraft 命令编码器执行一次同步复制，写入由 Skija 借用的 staging texture。
+> 禁止将 Minecraft 管理的颜色纹理直接挂载到原始 OpenGL framebuffer，也不得增加第二次全屏复制。
+> 文本布局拥有有界的字形 Blob 缓存；缓存项被淘汰或渲染器关闭时，必须同步释放对应资源。
+
 最后同步：2026-08-07。
 
 本文档是 Nimbus 自定义 Skija 子系统的架构说明、使用手册和 AI 修改约束。
@@ -323,7 +334,8 @@ skija.layer("module-name");
 
 独立全屏 Layer 会额外分配 framebuffer，并破坏统一 HUD 合成顺序。HUD 模块只提交绘制内容。
 
-`skija.hud().render(...)` 由渲染基础设施调用，普通功能不要主动调用。
+`skija.hud().render()` 由渲染基础设施调用，普通功能不要主动调用。HUD callback 会直接绘制到共享 HUD Layer，
+由 Layer 在最外层统一提交；不要在 Backend 中增加第二张全屏 Surface 或 snapshot 中转。
 
 ## 8. Screen 使用方式
 
@@ -395,6 +407,9 @@ Frame 外只测量时使用：
 ```java
 float width = skija.text().width(family, size, text);
 float height = skija.text().height(family, size);
+float visualLeft = skija.text().visualLeft(family, size, text);
+float visualRight = skija.text().visualRight(family, size, text);
+float visualCenterY = skija.text().visualCenterY(family, size, text);
 ```
 
 所有公开文本绘制和测量方法都将 `null` 文本视为空字符串；family 名称和字号错误仍会立即抛出异常。
@@ -548,7 +563,7 @@ skija.hud().submit(frame -> {
 });
 ```
 
-HUD 的后处理绘制由 Backend 在 HUD callback 前统一执行。普通 HUD 功能不要主动调用 `hud().render(...)`。
+HUD 的后处理绘制由 Backend 在 HUD callback 前直接写入共享 HUD Layer。普通 HUD 功能不要主动调用 `hud().render()`。
 
 Screen 内可使用：
 
@@ -557,7 +572,9 @@ frame.postProcess().add(RRect.makeXYWH(x, y, width, height, radius));
 frame.postProcess().draw();
 ```
 
-模糊需要有效的场景截图。当前 `GuiRendererMixin` 会根据 `PostProcessOptions` 在正确阶段调用 `captureScene(options.blurRefreshRate())`；新增 Screen 集成时必须同步处理该顺序和刷新率，不能在受限模糊模式下仍然每帧复制整张场景。
+模糊需要有效的场景截图。当前 `GuiRendererMixin` 会在 HUD 提交完成、确认本帧确实存在后处理区域后，
+再根据 `PostProcessOptions` 调用 `captureScene(options.blurRefreshRate())`。没有区域时不得复制整张场景；
+新增 Screen 集成时也必须同步处理该顺序和刷新率，不能在受限模糊模式下仍然每帧复制整张场景。
 
 每帧结束时区域由 `finishFrame()` 清理。不要把后处理区域当成持久配置。
 

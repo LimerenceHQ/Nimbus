@@ -62,6 +62,12 @@ public final class ClientSettings {
             "Astolfo Offset", 5, 0, 20, 1, () -> colorMode.is("Astolfo")
     );
     public final NumberSetting hudScale = new NumberSetting("HUD Scale", 1, 0.5, 2, 0.05);
+    public final ModeSetting hudRefresh = new ModeSetting(
+            "HUD Refresh", new String[]{"Limited", "V-Sync"}, "Limited"
+    );
+    public final NumberSetting hudRefreshLimit = new NumberSetting(
+            "HUD Refresh Limit", 120, 30, 360, 1, () -> hudRefresh.is("Limited")
+    );
 
     public final BooleanSetting postProcessing = new BooleanSetting("Post Processing", true);
     public final BooleanSetting splitRegions = new BooleanSetting(
@@ -125,6 +131,7 @@ public final class ClientSettings {
     private final List<Setting<?>> settings = List.of(
             clientName, language, style, themePreset, colorMode, accent, secondaryAccent,
             rainbowSaturation, rainbowBrightness, astolfoIndex, astolfoOffset, hudScale,
+            hudRefresh, hudRefreshLimit,
             postProcessing, splitRegions, texture, textureOpacity,
             blurMode, blurRadius, blurPasses, downSample, upSample,
             blurRefresh, blurRefreshLimit,
@@ -191,10 +198,11 @@ public final class ClientSettings {
     }
 
     public ThemePreset selectedPreset() {
-        return THEME_PRESETS.stream()
-                .filter(preset -> preset.name().equals(themePreset.getValue()))
-                .findFirst()
-                .orElse(THEME_PRESETS.getFirst());
+        String selected = themePreset.getValue();
+        for (ThemePreset preset : THEME_PRESETS) {
+            if (preset.name().equals(selected)) return preset;
+        }
+        return THEME_PRESETS.getFirst();
     }
 
     public int previewPrimary(ThemePreset preset) {
@@ -228,6 +236,10 @@ public final class ClientSettings {
         );
     }
 
+    public int hudRefreshRate() {
+        return refreshRate(hudRefresh.getValue(), hudRefreshLimit.getValue().intValue(), 60);
+    }
+
     private static String[] refreshModes() {
         return new String[]{"Unlimited", "Limited", "V-Sync"};
     }
@@ -245,10 +257,27 @@ public final class ClientSettings {
     }
 
     private int fade(int color, long timeMillis, int index) {
-        float[] hsb = Color.RGBtoHSB(color >> 16 & 0xFF, color >> 8 & 0xFF, color & 0xFF, null);
+        int red = color >> 16 & 0xFF;
+        int green = color >> 8 & 0xFF;
+        int blue = color & 0xFF;
+        int maximum = Math.max(red, Math.max(green, blue));
+        int minimum = Math.min(red, Math.min(green, blue));
+        float saturation = maximum == 0 ? 0f : (maximum - minimum) / (float) maximum;
+        float hue = 0f;
+        int delta = maximum - minimum;
+        if (delta != 0) {
+            float redDistance = (maximum - red) / (float) delta;
+            float greenDistance = (maximum - green) / (float) delta;
+            float blueDistance = (maximum - blue) / (float) delta;
+            if (red == maximum) hue = blueDistance - greenDistance;
+            else if (green == maximum) hue = 2f + redDistance - blueDistance;
+            else hue = 4f + greenDistance - redDistance;
+            hue /= 6f;
+            if (hue < 0f) hue += 1f;
+        }
         int angle = (int) ((timeMillis / 4L + index * 60L) % 360L);
         angle = (angle > 180 ? 360 - angle : angle) + 180;
-        int rgb = Color.HSBtoRGB(hsb[0], hsb[1], angle / 360f);
+        int rgb = Color.HSBtoRGB(hue, saturation, angle / 360f);
         return rgb & 0x00FFFFFF | color & 0xFF000000;
     }
 

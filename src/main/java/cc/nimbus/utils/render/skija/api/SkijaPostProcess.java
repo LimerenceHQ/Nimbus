@@ -35,4 +35,9 @@ public final class SkijaPostProcess {
         if (canvas == null) throw new IllegalStateException("Post-processing can only be drawn inside a Skija frame");
         PostProcessPipeline.drawAll(canvas, renderer.postProcessOptions());
     }
+
+    public boolean hasRegions() {
+        renderer.requireReady();
+        return PostProcessPipeline.hasRegions();
+    }
 }

@@ -1,9 +1,7 @@
 package cc.nimbus.utils.render.skija.internal.backend;
 
 import io.github.humbleui.skija.*;
-import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
-import cc.nimbus.utils.render.skija.internal.backend.gl.States;
 import cc.nimbus.utils.render.skija.internal.image.minecraft.MinecraftSnapshot;
 import cc.nimbus.utils.render.skija.internal.effect.post.PostProcessPipeline;
 import cc.nimbus.utils.render.skija.api.PostProcessOptions;
@@ -12,7 +10,6 @@ import cc.nimbus.utils.render.skija.internal.image.ImageStore;
 import cc.nimbus.utils.render.skija.internal.image.SvgTextureCache;
 import cc.nimbus.utils.render.skija.internal.resource.ResourceDataCache;
 import cc.nimbus.utils.render.skija.internal.geometry.gn.SmoothRectPathCache;
-import cc.nimbus.utils.render.skija.internal.effect.surface.CanvasOffSurface;
 
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -25,7 +22,6 @@ public final class SkijaBackend implements AutoCloseable {
     private Surface surface;
     private int framebufferId;
     private int width, height;
-    private final CanvasOffSurface canvasOffSurface = new CanvasOffSurface(165);
     private final Deque<SkijaCallback> callbacks = new ConcurrentLinkedDeque<>();
     private volatile PostProcessOptions postProcessOptions = PostProcessOptions.DISABLED;
 
@@ -55,36 +51,27 @@ public final class SkijaBackend implements AutoCloseable {
     }
 
     public void addToSurface(SkijaCallback callback) { if (callback != null) callbacks.add(callback); }
-    public synchronized void callSurface(int targetFps) {
+    public boolean hasSurfaceCallbacks() { return !callbacks.isEmpty(); }
+    public void discardSurfaceCallbacks() { callbacks.clear(); }
+    public synchronized void callSurface() {
         if (non() || callbacks.isEmpty()) {
             callbacks.clear();
             PostProcessPipeline.clear();
             return;
         }
-        States.push();
         try {
             context.resetGLAll();
-            canvasOffSurface.setTargetFps(Math.max(1, targetFps));
-            int gameFps = Math.max(1, Minecraft.getInstance().getFps());
-            if (canvasOffSurface.shouldUpdate(System.currentTimeMillis(), gameFps)) {
-                canvasOffSurface.updateSurface(context, null, null, width, height, offscreen -> {
-                    int save = offscreen.save();
-                    try {
-                        PostProcessPipeline.drawAll(offscreen, postProcessOptions);
-                    } finally {
-                        offscreen.restoreToCount(save);
-                    }
-                    for (SkijaCallback callback : callbacks) callback.call(offscreen, width, height);
-                });
+            Canvas canvas = getCanvas();
+            int save = canvas.save();
+            try {
+                PostProcessPipeline.drawAll(canvas, postProcessOptions);
+            } finally {
+                canvas.restoreToCount(save);
             }
-            callbacks.clear();
-            Image snapshot = canvasOffSurface.getSnapshot();
-            if (snapshot != null) getCanvas().drawImage(snapshot, 0, 0);
-            flushAndSubmit();
+            for (SkijaCallback callback : callbacks) callback.call(canvas, width, height);
         } finally {
             callbacks.clear();
             PostProcessPipeline.clear();
-            States.pop();
         }
     }
     public synchronized void flushAndSubmit() {
@@ -98,7 +85,6 @@ public final class SkijaBackend implements AutoCloseable {
 
     public synchronized void invalidateScene() {
         callbacks.clear();
-        canvasOffSurface.invalidate();
         PostProcessPipeline.invalidateScene();
     }
 
@@ -106,7 +92,6 @@ public final class SkijaBackend implements AutoCloseable {
         callbacks.clear();
         RuntimeException failure = null;
         failure = cleanup(failure, MinecraftSnapshot::clear);
-        failure = cleanup(failure, canvasOffSurface::close);
         failure = cleanup(failure, PostProcessPipeline::close);
         failure = cleanup(failure, Shaders::close);
         failure = cleanup(failure, ImageStore::clear);

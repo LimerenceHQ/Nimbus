@@ -24,10 +24,24 @@ public final class SkijaHud {
         });
     }
 
-    public void render(int targetFps) {
+    public void render() {
         renderer.requireReady();
         try {
-            renderer.renderHud(targetFps);
+            renderer.renderHud();
+        } finally {
+            renderer.finishFrame();
+        }
+    }
+
+    public boolean hasPendingContent() {
+        renderer.requireReady();
+        return SkijaBackend.INSTANCE.hasSurfaceCallbacks();
+    }
+
+    public void discardFrame() {
+        renderer.requireReady();
+        try {
+            SkijaBackend.INSTANCE.discardSurfaceCallbacks();
         } finally {
             renderer.finishFrame();
         }

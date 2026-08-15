@@ -27,7 +27,7 @@ import io.github.humbleui.types.RRect;
         category = ModuleCategory.HUD
 )
 public final class MusicSpectrum extends BasicModule {
-    private static final int BAND_COUNT = 160;
+    private static final int BAND_COUNT = 128;
     private static final float HEIGHT = 96f;
     private static final float SENSITIVITY = 1.15f;
     private static final float RESPONSE = .7f;
@@ -38,6 +38,8 @@ public final class MusicSpectrum extends BasicModule {
     );
 
     private float[] displayed = new float[0];
+    private float[] targets = new float[0];
+    private final int[] gradientColors = new int[17];
     private long lastFrameNanos;
 
     @EventTarget
@@ -54,7 +56,6 @@ public final class MusicSpectrum extends BasicModule {
         float gain = SENSITIVITY;
         float attack = easing(24f, delta);
         float release = easing(7f, delta);
-        float[] targets = new float[BAND_COUNT];
         for (int index = 0; index < BAND_COUNT; index++) {
             float position = index / (BAND_COUNT - 1f);
             float sample = playing ? perceptualSample(spectrum, position) : 0f;
@@ -62,6 +63,7 @@ public final class MusicSpectrum extends BasicModule {
             targets[index] = (float) Math.pow(Math.clamp(sample * gain, 0f, 1f), RESPONSE)
                     * maximumHeight;
         }
+        boolean visible = false;
         for (int index = 0; index < BAND_COUNT; index++) {
             float target = targets[index] * .5f
                     + targets[Math.max(0, index - 1)] * .2f
@@ -71,22 +73,26 @@ public final class MusicSpectrum extends BasicModule {
             float follow = target > displayed[index] ? attack : release;
             displayed[index] += (target - displayed[index]) * follow;
             if (displayed[index] < .05f) displayed[index] = 0f;
+            else visible = true;
         }
+        if (!visible) return;
 
-        float[] frameBars = displayed.clone();
+        float[] frameBars = displayed;
         float width = skija.width();
         float screenHeight = skija.height();
         ClientSettings theme = Core.INSTANCE.getConfigManager().clientSettings();
         long colorTime = System.currentTimeMillis();
-        int[] colors = new int[17];
-        for (int index = 0; index < colors.length; index++) {
-            colors[index] = withAlpha(theme.accentColorAt(index / (float) (colors.length - 1), colorTime), OPACITY);
+        for (int index = 0; index < gradientColors.length; index++) {
+            gradientColors[index] = withAlpha(theme.accentColorAt(
+                    index / (float) (gradientColors.length - 1), colorTime), OPACITY);
         }
+        int[] colors = gradientColors;
+        boolean lineStyle = style.is("Line");
 
         skija.hud().submit(frame -> {
             try (Paint paint = new Paint().setAntiAlias(true).setShader(frame.effects().linearGradient(
                     new Point(0f, screenHeight), new Point(width, screenHeight), colors))) {
-                if (style.is("Line")) {
+                if (lineStyle) {
                     drawLine(frameBars, width, screenHeight, frame, paint);
                     return;
                 }
@@ -141,18 +147,21 @@ public final class MusicSpectrum extends BasicModule {
     @Override
     protected void onDisable() {
         displayed = new float[0];
+        targets = new float[0];
         lastFrameNanos = 0L;
     }
 
     private void ensureCapacity(int count) {
         if (displayed.length == count) return;
         float[] resized = new float[count];
+        float[] targetValues = new float[count];
         if (displayed.length > 0) {
             for (int index = 0; index < count; index++) {
                 resized[index] = sample(displayed, index, count);
             }
         }
         displayed = resized;
+        targets = targetValues;
     }
 
     private static float sample(float[] values, int index, int count) {

@@ -5,11 +5,20 @@ import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Point;
 
-import java.util.NavigableSet;
-import java.util.TreeSet;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public final class LyricVisuals {
     private static final int GRADIENT_SEGMENTS = 16;
+    private static final int MAX_WORD_LAYOUTS = 512;
+    private static final float WORD_GEOMETRY_SIZE = 100f;
+    private static final Map<WordLayoutKey, WordGeometry> WORD_LAYOUTS = new LinkedHashMap<>(64, .75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<WordLayoutKey, WordGeometry> eldest) {
+            return size() > MAX_WORD_LAYOUTS;
+        }
+    };
 
     public enum ProgressStyle {
         FILL,
@@ -51,20 +60,28 @@ public final class LyricVisuals {
             float opacity, float highlight, long colorTime, ProgressStyle style
     ) {
 
-        NavigableSet<Float> stops = new TreeSet<>();
+        float[] rawStops = new float[GRADIENT_SEGMENTS + 4];
+        int rawCount = 0;
         for (int index = 0; index <= GRADIENT_SEGMENTS; index++) {
-            stops.add(index / (float) GRADIENT_SEGMENTS);
+            rawStops[rawCount++] = index / (float) GRADIENT_SEGMENTS;
         }
         float featherScale = style == ProgressStyle.WAVE ? .42f : .14f;
         float feather = Math.min(style == ProgressStyle.WAVE ? .075f : .035f,
                 Math.max(.008f, size * featherScale / textWidth));
-        stops.add(Math.clamp(completion - feather, 0f, 1f));
-        stops.add(completion);
-        stops.add(Math.clamp(completion + feather, 0f, 1f));
-        int[] colors = new int[stops.size()];
-        float[] positions = new float[stops.size()];
-        int index = 0;
-        for (float position : stops) {
+        rawStops[rawCount++] = Math.clamp(completion - feather, 0f, 1f);
+        rawStops[rawCount++] = completion;
+        rawStops[rawCount] = Math.clamp(completion + feather, 0f, 1f);
+        Arrays.sort(rawStops);
+        int uniqueCount = 1;
+        for (int index = 1; index < rawStops.length; index++) {
+            if (Float.compare(rawStops[index], rawStops[uniqueCount - 1]) != 0) {
+                rawStops[uniqueCount++] = rawStops[index];
+            }
+        }
+        int[] colors = new int[uniqueCount];
+        float[] positions = Arrays.copyOf(rawStops, uniqueCount);
+        for (int index = 0; index < positions.length; index++) {
+            float position = positions[index];
             positions[index] = position;
             int resting = multiplyAlpha(baseColor, opacity);
             int flowing = mix(multiplyAlpha(theme.accentColorAt(position, colorTime), opacity),
@@ -72,7 +89,6 @@ public final class LyricVisuals {
             float mix = completion <= 0f ? 1f : completion >= 1f ? 0f
                     : smoothStep((position - completion + feather) / Math.max(.0001f, feather * 2f));
             colors[index] = mix(flowing, resting, mix);
-            index++;
         }
 
         try (Paint paint = new Paint().setAntiAlias(true).setShader(frame.effects().linearGradient(
@@ -87,14 +103,13 @@ public final class LyricVisuals {
             SkijaFrame frame, String family, float size, String text, WordLine line,
             int timeMs, ProgressStyle style
     ) {
+        WordGeometry geometry = wordGeometry(frame, family, text, line);
+        float geometryScale = size / WORD_GEOMETRY_SIZE;
         float completed = 0f;
-        int cursor = 0;
-        for (TimedWord word : line.words()) {
-            int start = text.indexOf(word.text(), cursor);
-            if (start < 0) start = Math.min(cursor, text.length());
-            int end = Math.min(text.length(), start + word.text().length());
-            float startWidth = frame.text().width(family, size, text.substring(0, start));
-            float endWidth = frame.text().width(family, size, text.substring(0, end));
+        for (int index = 0; index < line.words().size(); index++) {
+            TimedWord word = line.words().get(index);
+            float startWidth = geometry.starts()[index] * geometryScale;
+            float endWidth = geometry.ends()[index] * geometryScale;
             if (timeMs >= word.endMs()) {
                 completed = endWidth;
             } else if (timeMs >= word.startMs()) {
@@ -111,9 +126,32 @@ public final class LyricVisuals {
             } else {
                 return completed;
             }
-            cursor = end;
         }
         return completed;
+    }
+
+    private static synchronized WordGeometry wordGeometry(
+            SkijaFrame frame, String family, String text, WordLine line
+    ) {
+        WordLayoutKey key = new WordLayoutKey(family, text, line);
+        WordGeometry cached = WORD_LAYOUTS.get(key);
+        if (cached != null) return cached;
+
+        float[] starts = new float[line.words().size()];
+        float[] ends = new float[line.words().size()];
+        int cursor = 0;
+        for (int index = 0; index < line.words().size(); index++) {
+            TimedWord word = line.words().get(index);
+            int start = text.indexOf(word.text(), cursor);
+            if (start < 0) start = Math.min(cursor, text.length());
+            int end = Math.min(text.length(), start + word.text().length());
+            starts[index] = frame.text().width(family, WORD_GEOMETRY_SIZE, text.substring(0, start));
+            ends[index] = frame.text().width(family, WORD_GEOMETRY_SIZE, text.substring(0, end));
+            cursor = end;
+        }
+        WordGeometry geometry = new WordGeometry(starts, ends);
+        WORD_LAYOUTS.put(key, geometry);
+        return geometry;
     }
 
     private static float smoothStep(float value) {
@@ -133,5 +171,33 @@ public final class LyricVisuals {
         int g = Math.round((first >> 8 & 0xFF) + ((second >> 8 & 0xFF) - (first >> 8 & 0xFF)) * value);
         int b = Math.round((first & 0xFF) + ((second & 0xFF) - (first & 0xFF)) * value);
         return a << 24 | r << 16 | g << 8 | b;
+    }
+
+    private static final class WordLayoutKey {
+        private final String family;
+        private final String text;
+        private final WordLine line;
+
+        private WordLayoutKey(String family, String text, WordLine line) {
+            this.family = family;
+            this.text = text;
+            this.line = line;
+        }
+
+        @Override
+        public boolean equals(Object value) {
+            if (this == value) return true;
+            if (!(value instanceof WordLayoutKey other)) return false;
+            return line == other.line && family.equals(other.family) && text.equals(other.text);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = 31 * family.hashCode() + text.hashCode();
+            return 31 * result + System.identityHashCode(line);
+        }
+    }
+
+    private record WordGeometry(float[] starts, float[] ends) {
     }
 }

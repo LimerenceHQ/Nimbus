@@ -65,6 +65,8 @@ public final class MusicLyrics extends BasicModule {
     private long transitionStartedNanos;
     private long lastFrameNanos;
     private float multiplePosition = Float.NaN;
+    private LyricsTimeline translationTimeline;
+    private boolean timelineHasTranslation;
 
     private final Draggable drag = new Draggable("MusicLyrics", 0.64, 0.82) {
         @Override
@@ -85,6 +87,10 @@ public final class MusicLyrics extends BasicModule {
         LyricsTimeline timeline = state.timeline();
         List<LyricLine> lines = timeline.lines();
         if (lines.isEmpty()) return;
+        if (translationTimeline != timeline) {
+            translationTimeline = timeline;
+            timelineHasTranslation = lines.stream().anyMatch(line -> !line.translation().isBlank());
+        }
 
         int nowMs = Math.round(playback.progressSeconds() * 1000f);
         int active = timeline.activeLine(nowMs);
@@ -112,7 +118,7 @@ public final class MusicLyrics extends BasicModule {
                 local.draw().roundedRect(0f, 0f, WIDTH, height, 4f, 0x52101316);
             }
             if (display.is("Multiple")) {
-                drawMultiple(local, lines, active, nowMs, colorTime);
+                drawMultiple(local, lines, active, nowMs, colorTime, timelineHasTranslation);
             } else {
                 drawSingle(local, lines, nowMs, colorTime);
             }
@@ -155,10 +161,10 @@ public final class MusicLyrics extends BasicModule {
     }
 
     private void drawMultiple(
-            SkijaFrame frame, List<LyricLine> lines, int active, int nowMs, long colorTime
+            SkijaFrame frame, List<LyricLine> lines, int active, int nowMs, long colorTime,
+            boolean hasTranslation
     ) {
-        boolean translated = translation.getValue() && lines.stream()
-                .anyMatch(line -> !line.translation().isBlank());
+        boolean translated = translation.getValue() && hasTranslation;
         float rowHeight = translated ? 44f : 34f;
         int first = Math.max(0, (int) Math.floor(multiplePosition) - 1);
         int last = Math.min(lines.size() - 1, (int) Math.ceil(multiplePosition) + 1);
@@ -250,9 +256,9 @@ public final class MusicLyrics extends BasicModule {
     }
 
     private static float fitSize(SkijaFrame frame, String text, float preferred, float minimum, float width) {
-        float size = preferred;
-        while (size > minimum && frame.text().width(FONT, size, text) > width) size -= .5f;
-        return Math.max(minimum, size);
+        float measured = frame.text().width(FONT, preferred, text);
+        if (measured <= width || measured <= .01f) return preferred;
+        return Math.max(minimum, preferred * width / measured);
     }
 
     private float transitionProgress() {
@@ -268,6 +274,8 @@ public final class MusicLyrics extends BasicModule {
         transitionStartedNanos = 0L;
         lastFrameNanos = 0L;
         multiplePosition = Float.NaN;
+        translationTimeline = null;
+        timelineHasTranslation = false;
     }
 
     private static float smoothStep(float value) {
