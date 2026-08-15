@@ -1,6 +1,8 @@
 package cc.nimbus.utils.render;
 
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
+import io.github.humbleui.skija.Paint;
+import io.github.humbleui.types.Point;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -87,7 +89,8 @@ public final class Render2DUtils {
             }
         }
         List<MobEffectInstance> effects = showEffects ? player.getActiveEffects().stream()
-                .filter(MobEffectInstance::isVisible).limit(6).toList() : List.of();
+                .filter(effect -> effect.isInfiniteDuration() || effect.getDuration() > 0)
+                .toList() : List.of();
         if (equipment.isEmpty() && effects.isEmpty()) return;
 
         float center = screen((box.left() + box.right()) * 0.5f, graphics.guiWidth());
@@ -155,6 +158,41 @@ public final class Render2DUtils {
                                           float x, float y, float size,
                                           float originX, float originY,
                                           float scale, int color) {
+        validateLogo(frame, size, scale);
+        drawLogoSolid(frame, x, y, size, originX, originY, scale, color);
+    }
+
+    public static void drawLogo(SkijaFrame frame,
+                                          float x, float y, float size,
+                                          float originX, float originY,
+                                          float scale, int[] colors) {
+        Objects.requireNonNull(colors, "colors");
+        if (colors.length == 0) {
+            throw new IllegalArgumentException("colors must not be empty");
+        }
+        validateLogo(frame, size, scale);
+        if (colors.length == 1) {
+            drawLogoSolid(frame, x, y, size, originX, originY, scale, colors[0]);
+            return;
+        }
+
+        float unit = size / 24f;
+        x -= .5f * unit;
+        try (Paint paint = new Paint().setAntiAlias(true)) {
+            paint.setShader(frame.effects().linearGradient(
+                    new Point(x + 2f * unit, y + size * .5f),
+                    new Point(x + 22f * unit, y + size * .5f), colors));
+            logoRect(frame, originX, originY, scale, x + 9f * unit, y + 3f * unit, 7f * unit, 3f * unit, paint);
+            logoRect(frame, originX, originY, scale, x + 6f * unit, y + 6f * unit, 13f * unit, 3f * unit, paint);
+            logoRect(frame, originX, originY, scale, x + 3f * unit, y + 9f * unit, 19f * unit, 7f * unit, paint);
+            float rainX = x - unit;
+            logoRain(frame, originX, originY, scale, rainX + 7f * unit, y + 18f * unit, unit, paint);
+            logoRain(frame, originX, originY, scale, rainX + 12f * unit, y + 18f * unit, unit, paint);
+            logoRain(frame, originX, originY, scale, rainX + 17f * unit, y + 18f * unit, unit, paint);
+        }
+    }
+
+    private static void validateLogo(SkijaFrame frame, float size, float scale) {
         Objects.requireNonNull(frame, "frame");
         if (!Float.isFinite(size) || size <= 0f) {
             throw new IllegalArgumentException("size must be finite and positive");
@@ -162,7 +200,12 @@ public final class Render2DUtils {
         if (!Float.isFinite(scale) || scale <= 0f) {
             throw new IllegalArgumentException("scale must be finite and positive");
         }
+    }
 
+    private static void drawLogoSolid(SkijaFrame frame,
+                                      float x, float y, float size,
+                                      float originX, float originY,
+                                      float scale, int color) {
         float unit = size / 24f;
         x -= .5f * unit;
         logoRect(frame, originX, originY, scale, x + 9f * unit, y + 3f * unit, 7f * unit, 3f * unit, color);
@@ -182,6 +225,14 @@ public final class Render2DUtils {
         logoRect(frame, originX, originY, scale, x - 2f * unit, y + 4f * unit, 3f * unit, unit, color);
     }
 
+    private static void logoRain(SkijaFrame frame,
+                                 float originX, float originY, float scale,
+                                 float x, float y, float unit, Paint paint) {
+        logoRect(frame, originX, originY, scale, x, y, 3f * unit, 2f * unit, paint);
+        logoRect(frame, originX, originY, scale, x - unit, y + 2f * unit, 3f * unit, 2f * unit, paint);
+        logoRect(frame, originX, originY, scale, x - 2f * unit, y + 4f * unit, 3f * unit, unit, paint);
+    }
+
     private static void logoRect(SkijaFrame frame,
                                   float originX, float originY, float scale,
                                   float x, float y, float width, float height, int color) {
@@ -190,6 +241,16 @@ public final class Render2DUtils {
         float right = snapLocal(x + width, originX, scale);
         float bottom = snapLocal(y + height, originY, scale);
         frame.draw().rect(left, top, right - left, bottom - top, color);
+    }
+
+    private static void logoRect(SkijaFrame frame,
+                                 float originX, float originY, float scale,
+                                 float x, float y, float width, float height, Paint paint) {
+        float left = snapLocal(x, originX, scale);
+        float top = snapLocal(y, originY, scale);
+        float right = snapLocal(x + width, originX, scale);
+        float bottom = snapLocal(y + height, originY, scale);
+        frame.draw().rect(left, top, right - left, bottom - top, paint);
     }
 
     private static float snapLocal(float value, float origin, float scale) {

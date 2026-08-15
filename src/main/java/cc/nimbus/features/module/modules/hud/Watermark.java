@@ -65,9 +65,13 @@ public final class Watermark extends BasicModule {
         float scale = drag.getRenderScale(viewport);
         ClientSettings clientSettings = Core.INSTANCE.getConfigManager().clientSettings();
         long colorTime = System.currentTimeMillis();
-        int[] accentColors = Core.INSTANCE.isInitialized() && Core.INSTANCE.getConfigManager().clientSettings().customStyle()
+        boolean customStyle = Core.INSTANCE.isInitialized() && clientSettings.customStyle();
+        int[] accentColors = customStyle
                 ? new int[]{accent.getValue(), accent.getValue()}
                 : new int[]{clientSettings.accentColor(0, colorTime), clientSettings.accentColor(1, colorTime)};
+        int[] logoColors = customStyle
+                ? new int[]{accent.getValue(), accent.getValue()}
+                : new int[]{clientSettings.accentColor(0, colorTime), clientSettings.accentColor(-1, colorTime)};
 
         if (!mode.is("Logo")) {
             skija.postProcess().add(RRect.makeXYWH(
@@ -78,7 +82,7 @@ public final class Watermark extends BasicModule {
         skija.hud().submit(frame -> drag.render(frame, viewport, local -> {
             if (mode.is("Logo")) {
                 Render2DUtils.drawLogo(local, 0f, 0f, LOGO_SIZE,
-                        bounds.x(), bounds.y(), scale, accentColors[0]);
+                        bounds.x(), bounds.y(), scale, logoColors);
                 return;
             }
 
@@ -91,7 +95,7 @@ public final class Watermark extends BasicModule {
             float logoX = PADDING_X + ACCENT_WIDTH;
             float logoY = (size.height() - COMPACT_LOGO_SIZE) * .5f;
             Render2DUtils.drawLogo(local, logoX, logoY, COMPACT_LOGO_SIZE,
-                    bounds.x(), bounds.y(), scale, accentColors[0]);
+                    bounds.x(), bounds.y(), scale, logoColors);
 
             float textX = logoX + COMPACT_LOGO_SIZE + LOGO_GAP;
             float textY = (size.height() - local.text().height(FONT, FONT_SIZE)) * 0.5f;
