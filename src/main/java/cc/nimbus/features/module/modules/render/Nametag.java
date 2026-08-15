@@ -28,6 +28,9 @@ public final class Nametag extends BasicModule {
     private static final float HEIGHT = 36f;
     private static final float PADDING_X = 9f;
     private static final float RADIUS = 4f;
+    private static final float MIN_SCALE = 0.3f;
+    private static final float GAP = 3f;
+    private static final int BACKGROUND_COLOR = 0x70171A1E;
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
@@ -39,10 +42,6 @@ public final class Nametag extends BasicModule {
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         float guiScale = event.getGraphics().guiWidth() > 0
                 ? skija.width() / (float) event.getGraphics().guiWidth() : 1f;
-        float nameSize = NAME_SIZE * guiScale;
-        float metaSize = META_SIZE * guiScale;
-        float height = HEIGHT * guiScale;
-        float paddingX = PADDING_X * guiScale;
         float partialTick = projection.partialTick();
         long now = System.currentTimeMillis();
         ClientSettings settings = Core.INSTANCE.getConfigManager().clientSettings();
@@ -60,16 +59,23 @@ public final class Nametag extends BasicModule {
             Render3DUtils.ProjectedBox projected = Render3DUtils.projectAabb(bounds, projection);
             if (projected == null) continue;
 
+            float espWidth = projected.width() * 0.5f * skija.width();
+            if (espWidth <= 2f) continue;
+            float distance = minecraft.player.distanceTo(player);
             String name = player.getName().getString();
             String metadata = String.format(Locale.ROOT, "ID %d  ·  %.1fm",
-                    player.getId(), minecraft.player.distanceTo(player));
-            float width = Math.max(
-                    skija.text().width(NAME_FONT, nameSize, name),
-                    skija.text().width(META_FONT, metaSize, metadata)
-            ) + paddingX * 2f;
+                    player.getId(), distance);
+            float naturalWidth = Math.max(
+                    skija.text().width(NAME_FONT, NAME_SIZE * guiScale, name),
+                    skija.text().width(META_FONT, META_SIZE * guiScale, metadata)
+            ) + PADDING_X * guiScale * 2f;
+            float relativeScale = Math.max(MIN_SCALE, Math.min(1f, espWidth / naturalWidth));
+            float scale = guiScale * relativeScale;
+            float width = Math.max(espWidth, naturalWidth * relativeScale);
+            float height = HEIGHT * scale;
             entries.add(new Entry(
                     (projected.left() + projected.right()) * 0.5f,
-                    projected.top(), width, height, name, metadata,
+                    projected.top(), width, height, scale, name, metadata,
                     settings.accentColor(colorIndex++, now)
             ));
         }
@@ -79,17 +85,20 @@ public final class Nametag extends BasicModule {
         skija.hud().submit(frame -> {
             for (Entry entry : snapshot) {
                 float centerX = screen(entry.centerX, frame.width());
-                float y = screen(entry.top, frame.height()) - entry.height - 5f * guiScale;
+                float y = screen(entry.top, frame.height()) - entry.height - GAP * guiScale;
                 float x = centerX - entry.width * 0.5f;
+                float radius = RADIUS * entry.scale;
                 frame.draw().roundedRect(x, y, entry.width, entry.height,
-                        RADIUS * guiScale, 0x70171A1E);
-                frame.draw().roundedRect(x, y + entry.height - 2f * guiScale,
-                        entry.width, 2f * guiScale, RADIUS * guiScale,
+                        radius, BACKGROUND_COLOR);
+                frame.draw().rect(x, y + radius, entry.width,
+                        entry.height - radius, BACKGROUND_COLOR);
+                frame.draw().rect(x, y + entry.height - 2f * entry.scale,
+                        entry.width, 2f * entry.scale,
                         0xE6000000 | (entry.accent & 0x00FFFFFF));
-                frame.text().center(NAME_FONT, nameSize, entry.name,
-                        centerX, y + 4f * guiScale, 0xFFF4F7F8);
-                frame.text().center(META_FONT, metaSize, entry.metadata,
-                        centerX, y + 20f * guiScale, 0xFFB8C0C7);
+                frame.text().center(NAME_FONT, NAME_SIZE * entry.scale, entry.name,
+                        centerX, y + 4f * entry.scale, 0xFFF4F7F8);
+                frame.text().center(META_FONT, META_SIZE * entry.scale, entry.metadata,
+                        centerX, y + 20f * entry.scale, 0xFFB8C0C7);
             }
         });
     }
@@ -98,6 +107,6 @@ public final class Nametag extends BasicModule {
         return (normalized + 1f) * 0.5f * size;
     }
 
-    private record Entry(float centerX, float top, float width, float height,
+    private record Entry(float centerX, float top, float width, float height, float scale,
                          String name, String metadata, int accent) { }
 }
