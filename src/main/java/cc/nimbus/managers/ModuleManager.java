@@ -25,7 +25,6 @@ import cc.nimbus.features.module.modules.render.FullBright;
 import cc.nimbus.features.module.modules.render.ItemPhysics;
 import cc.nimbus.features.module.modules.render.Nametag;
 import cc.nimbus.features.module.modules.render.OldHitting;
-import cc.nimbus.features.module.modules.render.Particles;
 import cc.nimbus.features.module.modules.render.Projectile;
 import cc.nimbus.features.module.modules.render.WorldTweaks;
 import net.minecraft.client.Minecraft;
@@ -72,7 +71,6 @@ public final class ModuleManager implements InstanceManager {
                     new Nametag(),
                     new FullBright(),
                     new WorldTweaks(),
-                    new Particles(),
                     new BetterThirdPerson(),
                     new ItemPhysics(),
                     new Projectile(),

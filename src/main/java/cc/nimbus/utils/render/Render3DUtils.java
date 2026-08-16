@@ -2,13 +2,11 @@ package cc.nimbus.utils.render;
 
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -19,7 +17,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.TextureTransform;
-import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -47,17 +44,6 @@ public final class Render3DUtils {
     private static WorldProjection worldProjection;
 
     public enum DepthMode { NONE, NORMAL, BOTH, GREATER }
-
-    public record Billboard(double x, double y, double z, float size, int argb) {
-        public Billboard {
-            if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
-                throw new IllegalArgumentException("Billboard position must be finite");
-            }
-            if (!Float.isFinite(size) || size <= 0.0f) {
-                throw new IllegalArgumentException("Billboard size must be finite and positive");
-            }
-        }
-    }
 
     public record LineSegment(Vec3 start, Vec3 end, int argb) {
         public LineSegment {
@@ -538,78 +524,6 @@ public final class Render3DUtils {
         drawLineWithDepth(stack, x1, y1, z1, x2, y2, z2, argb, lineWidth, DepthMode.NONE);
     }
 
-    public static void drawBillboards(PoseStack stack, Identifier texture, List<Billboard> billboards) {
-        drawBillboards(stack, texture, billboards, Pipelines.TRANSLUCENT_PARTICLE);
-    }
-
-    public static void drawAdditiveBillboards(PoseStack stack, Identifier texture, List<Billboard> billboards) {
-        drawBillboards(stack, texture, billboards, Pipelines.ADDITIVE_PARTICLE);
-    }
-
-    private static void drawBillboards(PoseStack stack, Identifier texture, List<Billboard> billboards,
-                                       RenderPipeline pipeline) {
-        if (stack == null || texture == null || billboards == null || billboards.isEmpty()) return;
-        RenderSystem.assertOnRenderThread();
-        Minecraft minecraft = Minecraft.getInstance();
-        Vector3f left = new Vector3f(minecraft.gameRenderer.getMainCamera().leftVector());
-        Vector3f up = new Vector3f(minecraft.gameRenderer.getMainCamera().upVector());
-        Matrix4f matrix = stack.last().pose();
-
-        try (ByteBufferBuilder allocator = new ByteBufferBuilder(Math.max(64 * 1024, billboards.size() * 128))) {
-            BufferBuilder builder = new BufferBuilder(
-                    allocator, VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
-            for (Billboard billboard : billboards) {
-                float[] center = getRelativeCoords(billboard.x(), billboard.y(), billboard.z());
-                float half = billboard.size() * 0.5f;
-                float lx = left.x * half;
-                float ly = left.y * half;
-                float lz = left.z * half;
-                float ux = up.x * half;
-                float uy = up.y * half;
-                float uz = up.z * half;
-                particleVertex(builder, matrix, center[0] + lx - ux, center[1] + ly - uy,
-                        center[2] + lz - uz, 0.0f, 1.0f, billboard.argb());
-                particleVertex(builder, matrix, center[0] - lx - ux, center[1] - ly - uy,
-                        center[2] - lz - uz, 1.0f, 1.0f, billboard.argb());
-                particleVertex(builder, matrix, center[0] - lx + ux, center[1] - ly + uy,
-                        center[2] - lz + uz, 1.0f, 0.0f, billboard.argb());
-                particleVertex(builder, matrix, center[0] + lx + ux, center[1] + ly + uy,
-                        center[2] + lz + uz, 0.0f, 0.0f, billboard.argb());
-            }
-
-            MeshData mesh = builder.build();
-            if (mesh == null) return;
-            try (mesh; GpuBuffer vertices = RenderSystem.getDevice().createBuffer(
-                    () -> "Nimbus particle vertices", GpuBuffer.USAGE_VERTEX, mesh.vertexBuffer())) {
-                var indices = RenderSystem.getSequentialBuffer(mesh.drawState().mode());
-                GpuBuffer indexBuffer = indices.getBuffer(mesh.drawState().indexCount());
-                GpuBufferSlice transform = RenderSystem.getDynamicUniforms().writeTransform(
-                        IDENTITY, new Vector4f(1, 1, 1, 1), new Vector3f(),
-                        TextureTransform.DEFAULT_TEXTURING.getMatrix());
-                RenderTarget target = minecraft.getMainRenderTarget();
-                AbstractTexture particleTexture = minecraft.getTextureManager().getTexture(texture);
-                try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-                        () -> "Nimbus particles", target.getColorTextureView(), OptionalInt.empty(),
-                        target.getDepthTextureView(), OptionalDouble.empty())) {
-                    pass.setPipeline(pipeline);
-                    RenderSystem.bindDefaultUniforms(pass);
-                    pass.setUniform("DynamicTransforms", transform);
-                    pass.bindTexture("Sampler0", particleTexture.getTextureView(), particleTexture.getSampler());
-                    pass.bindTexture("Sampler2", minecraft.gameRenderer.lightTexture().getTextureView(),
-                            RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
-                    pass.setVertexBuffer(0, vertices);
-                    pass.setIndexBuffer(indexBuffer, indices.type());
-                    pass.drawIndexed(0, 0, mesh.drawState().indexCount(), 1);
-                }
-            }
-        }
-    }
-
-    private static void particleVertex(BufferBuilder builder, Matrix4f matrix, float x, float y, float z,
-                                       float u, float v, int argb) {
-        builder.addVertex(matrix, x, y, z).setUv(u, v).setColor(argb).setLight(0x00F000F0);
-    }
-
     private static void drawQuads(PoseStack stack, DepthMode mode, QuadEmitter emitter) {
         drawMesh(stack, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR, pipeline(false, mode),
                 builder -> emitter.emit(new QuadSink(builder, stack.last().pose())));
@@ -664,29 +578,12 @@ public final class Render3DUtils {
     }
 
     private static final class Pipelines {
-        private static final RenderPipeline TRANSLUCENT_PARTICLE = particle(
-                "translucent_particle", BlendFunction.TRANSLUCENT);
-        private static final RenderPipeline ADDITIVE_PARTICLE = additiveParticle();
         private static final RenderPipeline QUADS_ALWAYS = quad("quads_always", DepthTestFunction.NO_DEPTH_TEST);
         private static final RenderPipeline QUADS_NORMAL = quad("quads_normal", DepthTestFunction.LEQUAL_DEPTH_TEST);
         private static final RenderPipeline QUADS_GREATER = quad("quads_greater", DepthTestFunction.GREATER_DEPTH_TEST);
         private static final RenderPipeline LINES_ALWAYS = line("lines_always", DepthTestFunction.NO_DEPTH_TEST);
         private static final RenderPipeline LINES_NORMAL = line("lines_normal", DepthTestFunction.LEQUAL_DEPTH_TEST);
         private static final RenderPipeline LINES_GREATER = line("lines_greater", DepthTestFunction.GREATER_DEPTH_TEST);
-
-        private static RenderPipeline additiveParticle() {
-            return particle("additive_particle", BlendFunction.ADDITIVE);
-        }
-
-        private static RenderPipeline particle(String name, BlendFunction blend) {
-            return RenderPipeline.builder(RenderPipelines.PARTICLE_SNIPPET)
-                    .withLocation(Identifier.fromNamespaceAndPath("nimbus", "pipeline/" + name))
-                    .withBlend(blend)
-                    .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
-                    .withDepthWrite(false)
-                    .withCull(false)
-                    .build();
-        }
 
         private static RenderPipeline quad(String name, DepthTestFunction compare) {
             return RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
