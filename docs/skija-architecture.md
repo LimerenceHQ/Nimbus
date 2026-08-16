@@ -1,7 +1,7 @@
 # Nimbus HUD and Skija Architecture and Usage Guide
 
 > HUD 性能：`EventRender2D` 仍会在每个 Minecraft GUI 帧执行，因为监听器可能向当前
-> `GuiGraphicsExtractor` 追加原版 GUI 项。共享 Skija HUD Layer 按客户端设置指定的刷新率重绘，
+> `GuiGraphics` 追加原版 GUI 项。共享 Skija HUD Layer 按客户端设置指定的刷新率重绘，
 > 两次更新之间复用并合成上一张 HUD 纹理。默认上限为 120 Hz；选择 V-Sync 后恢复为显示器刷新率。
 > 跳过更新时会丢弃已排队的回调和后处理区域。窗口尺寸、刷新率以及内容空/非空状态发生变化时会
 > 强制立即重绘。场景采样只会在实际重绘且存在后处理区域时执行，并且不会超过 HUD 的刷新率。
@@ -240,11 +240,11 @@ SkijaLayer layer = skija.layer("my-screen");
 所有长期维护的 Skija Screen 继承 `cc.nimbus.ui.screen.AbstractSkijaScreen`。基类统一负责：
 
 1. 取得稳定命名的 Layer。
-2. 在 `extractRenderState` 中提取 framebuffer 尺寸、鼠标坐标和 Layer 状态。
-3. 暂存待渲染帧，并由通用 `GuiRendererMixin` 分发 `renderExtractedFrame()`。
+2. 在 `render(GuiGraphics, ...)` 中提取 framebuffer 尺寸、鼠标坐标和 Layer 状态。
+3. 暂存待渲染帧，并由通用 `GuiRendererMixin` 分发 `GuiGraphics state submission`。
 4. Screen 移除时调用 `layer.releaseTarget()`。
 
-子类只实现 `renderSkija(SkijaFrame)`，可按需覆盖 `extractSkijaState(...)`、`removedSkijaScreen()` 和 `requestedSceneCaptureRate(...)`。Mixin 只判断 `AbstractSkijaScreen`，不得再按具体 Screen 类名增加分支。
+子类只实现 `renderSkija(SkijaFrame)`，可按需覆盖 `render state is prepared by AbstractSkijaScreen`、`removedSkijaScreen()` 和 `requestedSceneCaptureRate(...)`。Mixin 只判断 `AbstractSkijaScreen`，不得再按具体 Screen 类名增加分支。
 
 `removed()` 表示 Screen 当前不再显示，不表示 Java 对象永久销毁。因此基类释放可重建 target，不关闭进程字体、命名 Layer 句柄或共享图片缓存。
 
@@ -356,7 +356,7 @@ public final class ExampleScreen extends AbstractSkijaScreen {
 }
 ```
 
-继承基类后无需修改 Mixin。输入事件仍由具体 Screen 接收，并使用基类提供的 `framebufferX/Y(...)` 与渲染所用逻辑变换做逆变换。修改提取和辅助渲染顺序前必须阅读当前 Minecraft 26.2 映射源码与现有 Mixin。
+继承基类后无需修改 Mixin。输入事件仍由具体 Screen 接收，并使用基类提供的 `framebufferX/Y(...)` 与渲染所用逻辑变换做逆变换。修改提取和辅助渲染顺序前必须阅读当前 Minecraft 1.21.11 映射源码与现有 Mixin。
 
 ## 9. 文本
 

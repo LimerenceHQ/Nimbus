@@ -345,11 +345,7 @@
   "nimbus.module.full_bright.setting.mode.option.night_vision": "夜视",
 
   "nimbus.module.world_tweaks.name": "世界调整",
-  "nimbus.module.world_tweaks.description": "在客户端覆盖雾效和显示的世界时间。",
-  "nimbus.module.world_tweaks.setting.modify_fog": "修改雾效",
-  "nimbus.module.world_tweaks.setting.fog_start": "雾起始距离",
-  "nimbus.module.world_tweaks.setting.fog_end": "雾结束距离",
-  "nimbus.module.world_tweaks.setting.fog_color": "雾颜色",
+  "nimbus.module.world_tweaks.description": "覆盖客户端显示的世界时间。",
   "nimbus.module.world_tweaks.setting.change_time": "修改时间",
   "nimbus.module.world_tweaks.setting.hour": "小时",
 

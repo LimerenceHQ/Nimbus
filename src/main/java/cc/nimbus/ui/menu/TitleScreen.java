@@ -14,7 +14,7 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Rect;
 import io.github.humbleui.types.RRect;
 
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
@@ -32,9 +32,9 @@ public class TitleScreen extends AbstractSkijaScreen {
     }
 
     @Override
-    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        extractPanorama(graphics, partialTick);
-        extractBlurredBackground(graphics);
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        renderPanorama(graphics, partialTick);
+        renderBlurredBackground(graphics);
     }
 
     @Override
@@ -112,7 +112,7 @@ public class TitleScreen extends AbstractSkijaScreen {
             case 0 -> minecraft.setScreenAndShow(new SelectWorldScreen(this));
             case 1 -> minecraft.setScreenAndShow(new JoinMultiplayerScreen(this));
             case 2 -> minecraft.setScreenAndShow(new AccountScreen(this));
-            case 3 -> minecraft.setScreenAndShow(new OptionsScreen(this, minecraft.options, true));
+            case 3 -> minecraft.setScreenAndShow(new OptionsScreen(this, minecraft.options));
         }
     }
 

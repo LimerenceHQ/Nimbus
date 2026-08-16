@@ -42,7 +42,7 @@ public final class Nametag extends BasicModule {
     @EventTarget
     private void onRender2D(EventRender2D event) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || minecraft.player == null || minecraft.gui.screen() != null) return;
+        if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) return;
         Render3DUtils.WorldProjection projection = Render3DUtils.worldProjection();
         if (projection == null) return;
 

@@ -255,7 +255,7 @@ public final class HudManager implements InstanceManager {
     }
 
     private static boolean isEditing() {
-        return Minecraft.getInstance().gui.screen() instanceof ChatScreen;
+        return Minecraft.getInstance().screen instanceof ChatScreen;
     }
 
     private static boolean controlDown() {

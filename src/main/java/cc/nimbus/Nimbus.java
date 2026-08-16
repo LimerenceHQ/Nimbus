@@ -31,8 +31,8 @@ public final class Nimbus implements ClientModInitializer {
         Minecraft.getInstance().schedule(() -> {
             var support = Core.INSTANCE.getRenderManager().skija();
             support.validateSupport();
-            if (!support.isSupported() && Minecraft.getInstance().gui.screen() == null) {
-                Minecraft.getInstance().gui.setScreen(new UnsupportedPlatformScreen(support.unsupportedReason()));
+            if (!support.isSupported() && Minecraft.getInstance().screen == null) {
+                Minecraft.getInstance().setScreen(new UnsupportedPlatformScreen(support.unsupportedReason()));
             }
         });
     }

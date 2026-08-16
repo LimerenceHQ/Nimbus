@@ -17,10 +17,10 @@ public final class ClickGui extends BasicModule {
     @Override protected void onEnable() {
         Minecraft.getInstance().schedule(() -> {
             Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.level == null || minecraft.player == null || minecraft.gui.screen() != null) return;
+            if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) return;
             var skija = Core.INSTANCE.getRenderManager().skija();
             skija.validateSupport();
-            minecraft.gui.setScreen(skija.isSupported()
+            minecraft.setScreen(skija.isSupported()
                     ? new ClickGuiScreen(session)
                     : new UnsupportedPlatformScreen(skija.unsupportedReason()));
         });

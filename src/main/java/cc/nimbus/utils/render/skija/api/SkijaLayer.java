@@ -3,7 +3,7 @@ package cc.nimbus.utils.render.skija.api;
 import cc.nimbus.utils.render.skija.internal.backend.SkijaRenderTarget;
 import cc.nimbus.utils.render.skija.internal.backend.SkijaBackend;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
@@ -36,7 +36,7 @@ public final class SkijaLayer {
         target.close();
     }
 
-    public void extract(GuiGraphicsExtractor graphics, int width, int height) {
+    public void extract(GuiGraphics graphics, int width, int height) {
         Objects.requireNonNull(graphics, "graphics");
         ensure(width, height);
         //SCALE 取整

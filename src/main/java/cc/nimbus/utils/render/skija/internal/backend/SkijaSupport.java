@@ -25,7 +25,7 @@ public final class SkijaSupport {
     public static synchronized void validateBackend() {
         if (backendValidated) return;
         try {
-            String backendName = RenderSystem.getDevice().getDeviceInfo().backendName();
+            String backendName = RenderSystem.getDevice().getBackendName();
             backendUnsupportedReason = backendName == null || !backendName.toLowerCase(Locale.ROOT).contains("opengl")
                     ? "Nimbus Skija requires the OpenGL backend; detected: " + backendName
                     : null;

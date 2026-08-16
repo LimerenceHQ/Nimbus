@@ -8,11 +8,11 @@ import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.input.PreeditEvent;
+import cc.nimbus.ui.input.PreeditEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
@@ -114,20 +114,20 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
     @Override public boolean charTyped(CharacterEvent event) {
         return !acceptsInput() || view.charTyped(event) || super.charTyped(event);
     }
-    @Override public boolean preeditUpdated(PreeditEvent event) {
-        return !acceptsInput() || view.preeditUpdated(event) || super.preeditUpdated(event);
+    public boolean preeditUpdated(PreeditEvent event) {
+        return !acceptsInput() || view.preeditUpdated(event);
     }
     @Override public void onClose() { requestClose(); }
     @Override protected void extractedSkijaFramePresented() {
         if (!closeReady || closeScheduled) return;
         closeScheduled = true;
-        finishClose();
+        minecraft.schedule(this::finishClose);
     }
     @Override protected void removedSkijaScreen() { view.close(); }
     @Override public boolean isPauseScreen() { return false; }
 
     @Override
-    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         // Nimbus post-processing is the only background effect for this screen.
     }
 
@@ -143,7 +143,7 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
     }
 
     private void finishClose() {
-        if (minecraft.gui.screen() == this) super.onClose();
+        if (minecraft.screen == this) super.onClose();
     }
 
     private float visibility(long now, float closeProgress) {

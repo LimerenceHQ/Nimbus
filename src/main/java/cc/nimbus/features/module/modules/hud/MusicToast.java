@@ -51,11 +51,11 @@ public final class MusicToast extends BasicModule {
             return;
         }
         MusicToastState.set(current.name() + " · " + current.artistsText());
-        Minecraft.getInstance().gui.toastManager().showNowPlayingToast();
+        Minecraft.getInstance().getToastManager().showNowPlayingToast();
     }
 
     private static void hideToast() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.gui != null) minecraft.gui.toastManager().hideNowPlayingToast();
+        minecraft.getToastManager().hideNowPlayingToast();
     }
 }

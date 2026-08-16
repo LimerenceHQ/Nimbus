@@ -5,7 +5,7 @@ import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Point;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -114,7 +114,7 @@ public final class Render2DUtils {
         return new EspDetails(equipment, effects);
     }
 
-    public static void drawEspEquipment(GuiGraphicsExtractor graphics, int playerId,
+    public static void drawEspEquipment(GuiGraphics graphics, int playerId,
                                         Render3DUtils.ProjectedBox box, List<ItemStack> equipment) {
         Objects.requireNonNull(graphics, "graphics");
         Objects.requireNonNull(box, "box");
@@ -134,7 +134,7 @@ public final class Render2DUtils {
             pose.translate(startX, itemY);
             pose.scale(scale, scale);
             for (int index = 0; index < equipment.size(); index++) {
-                graphics.item(equipment.get(index), index * 16, 0, playerId + index);
+                graphics.renderItem(equipment.get(index), index * 16, 0, playerId + index);
             }
         } finally {
             pose.popMatrix();

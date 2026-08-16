@@ -19,7 +19,7 @@ import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.PreeditEvent;
+import cc.nimbus.ui.input.PreeditEvent;
 import org.lwjgl.glfw.GLFW;
 
 import java.awt.Color;

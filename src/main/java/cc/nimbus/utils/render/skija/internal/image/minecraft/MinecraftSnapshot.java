@@ -1,6 +1,5 @@
 package cc.nimbus.utils.render.skija.internal.image.minecraft;
 
-import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -58,7 +57,7 @@ public final class MinecraftSnapshot {
             return false;
         }
 
-        RenderTarget target = Minecraft.getInstance().gameRenderer.mainRenderTarget();
+        RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
         if (!(target.getColorTexture() instanceof GlTexture sourceTexture) || sourceTexture.isClosed()) {
             return false;
         }
@@ -79,7 +78,7 @@ public final class MinecraftSnapshot {
             stagingTexture = RenderSystem.getDevice().createTexture(
                     "Nimbus Skija Scene Snapshot",
                     GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_COPY_DST,
-                    GpuFormat.RGBA8_UNORM,
+                    com.mojang.blaze3d.textures.TextureFormat.RGBA8,
                     width, height, 1, 1
             );
         }
@@ -87,7 +86,6 @@ public final class MinecraftSnapshot {
         var encoder = RenderSystem.getDevice().createCommandEncoder();
         encoder.copyTextureToTexture(target.getColorTexture(), stagingTexture,
                 0, 0, 0, 0, 0, width, height);
-        encoder.submit();
 
         if (!(stagingTexture instanceof GlTexture stagingGlTexture) || stagingGlTexture.isClosed()) {
             return false;

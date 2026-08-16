@@ -29,7 +29,7 @@ public final class Projectile extends BasicModule {
     @EventTarget
     private void onRender3D(EventRender3D event) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || minecraft.player == null || minecraft.gui.screen() != null) return;
+        if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) return;
 
         boolean usingItem = minecraft.player.isUsingItem();
         ItemStack stack = usingItem && supported(minecraft.player.getUseItem())

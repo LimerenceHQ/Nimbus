@@ -40,7 +40,7 @@ public class State {
         glGetIntegerv(GL_VIEWPORT, props.lastViewport);
         glGetIntegerv(GL_SCISSOR_BOX, props.lastScissorBox);
         glGetIntegerv(GL_COLOR_WRITEMASK, props.lastColorMask);
-        glGetFloatv(GL_BLEND_COLOR, props.lastBlendColor);
+        glGetFloatv(0x8005, props.lastBlendColor);
         glGetFloatv(GL_COLOR_CLEAR_VALUE, props.lastClearColor);
         glGetDoublev(GL_DEPTH_CLEAR_VALUE, props.lastClearDepth);
         glGetIntegerv(GL_STENCIL_CLEAR_VALUE, props.lastClearStencil);

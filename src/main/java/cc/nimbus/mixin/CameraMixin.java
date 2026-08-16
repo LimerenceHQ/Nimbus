@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 
 @Mixin(Camera.class)
 public abstract class CameraMixin {
-    @ModifyArg(method = "alignWithEntity", at = @At(value = "INVOKE",
+    @ModifyArg(method = "setup", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/Camera;getMaxZoom(F)F"), index = 0)
     private float nimbus$thirdPersonDistance(float vanillaDistance) {
         BetterThirdPerson module = MixinModuleLookup.enabled(BetterThirdPerson.class);

@@ -4,7 +4,7 @@ import cc.nimbus.ui.clickgui.component.UiContext;
 import cc.nimbus.ui.clickgui.component.UiRect;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.PreeditEvent;
+import cc.nimbus.ui.input.PreeditEvent;
 
 public interface ToolPage {
     default void opened() {

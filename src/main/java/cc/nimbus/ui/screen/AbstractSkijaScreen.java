@@ -5,7 +5,7 @@ import cc.nimbus.utils.render.skija.api.PostProcessOptions;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import cc.nimbus.utils.render.skija.api.SkijaLayer;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -15,7 +15,6 @@ public abstract class AbstractSkijaScreen extends Screen {
     private int framebufferHeight;
     private float framebufferMouseX;
     private float framebufferMouseY;
-    private boolean framePending;
 
     protected AbstractSkijaScreen(Component title, String layerName) {
         super(title);
@@ -23,34 +22,28 @@ public abstract class AbstractSkijaScreen extends Screen {
     }
 
     @Override
-    public final void extractRenderState(
-            GuiGraphicsExtractor graphics,
+    public final void render(
+            GuiGraphics graphics,
             int mouseX,
             int mouseY,
             float partialTick
     ) {
-        RenderTarget target = minecraft.gameRenderer.mainRenderTarget();
+        RenderTarget target = minecraft.getMainRenderTarget();
         framebufferWidth = target.width;
         framebufferHeight = target.height;
         framebufferMouseX = toFramebufferX(mouseX, graphics.guiWidth(), framebufferWidth);
         framebufferMouseY = toFramebufferY(mouseY, graphics.guiHeight(), framebufferHeight);
-        layer.extract(graphics, framebufferWidth, framebufferHeight);
-        extractSkijaState(partialTick);
-        framePending = true;
-    }
-
-    protected void extractSkijaState(float partialTick) {
-    }
-
-    public final void renderExtractedFrame() {
-        if (!framePending) return;
-        framePending = false;
+        var skija = Core.INSTANCE.getRenderManager().skija();
+        skija.configurePostProcess(Core.INSTANCE.getConfigManager().clientSettings().postProcessOptions());
+        var options = skija.postProcessOptions();
+        int captureRate = requestedSceneCaptureRate(options);
+        if (captureRate > 0) skija.captureScene(captureRate);
+        layer.ensure(framebufferWidth, framebufferHeight);
         layer.clear();
         layer.render(this::renderSkija);
-    }
-
-    public final void extractedFramePresented() {
+        layer.extract(graphics, framebufferWidth, framebufferHeight);
         extractedSkijaFramePresented();
+        super.render(graphics, mouseX, mouseY, partialTick);
     }
 
     protected void extractedSkijaFramePresented() {
@@ -79,11 +72,11 @@ public abstract class AbstractSkijaScreen extends Screen {
     }
 
     protected final float framebufferX(double guiX) {
-        return toFramebufferX(guiX, width, minecraft.gameRenderer.mainRenderTarget().width);
+        return toFramebufferX(guiX, width, minecraft.getMainRenderTarget().width);
     }
 
     protected final float framebufferY(double guiY) {
-        return toFramebufferY(guiY, height, minecraft.gameRenderer.mainRenderTarget().height);
+        return toFramebufferY(guiY, height, minecraft.getMainRenderTarget().height);
     }
 
     @Override
@@ -91,7 +84,7 @@ public abstract class AbstractSkijaScreen extends Screen {
         try {
             removedSkijaScreen();
         } finally {
-            layer.releaseTarget();
+            minecraft.schedule(layer::releaseTarget);
             super.removed();
         }
     }

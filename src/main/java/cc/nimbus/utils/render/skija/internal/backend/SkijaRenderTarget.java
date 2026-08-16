@@ -1,6 +1,5 @@
 package cc.nimbus.utils.render.skija.internal.backend;
 
-import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -45,7 +44,7 @@ public final class SkijaRenderTarget implements AutoCloseable {
             destroy();
             this.width = Math.max(1, width); this.height = Math.max(1, height);
             var device = RenderSystem.getDevice();
-            GpuTexture texture = device.createTexture("Nimbus Skija Color", GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC, GpuFormat.RGBA8_UNORM, this.width, this.height, 1, 1);
+            GpuTexture texture = device.createTexture("Nimbus Skija Color", GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC, TextureFormat.RGBA8, this.width, this.height, 1, 1);
             GpuTextureView view = device.createTextureView(texture);
             GpuSampler sampler = device.createSampler(AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, FilterMode.NEAREST, FilterMode.NEAREST, 1, OptionalDouble.empty());
             registeredTexture = new Texture(texture, view, sampler);

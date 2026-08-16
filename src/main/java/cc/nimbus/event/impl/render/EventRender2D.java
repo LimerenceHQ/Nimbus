@@ -1,10 +1,10 @@
 package cc.nimbus.event.impl.render;
 
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import cc.nimbus.event.Cancelable;
 
 public class EventRender2D extends Cancelable {
-    private final GuiGraphicsExtractor graphics;
-    public EventRender2D(GuiGraphicsExtractor graphics) { this.graphics = graphics; }
-    public GuiGraphicsExtractor getGraphics() { return graphics; }
+    private final GuiGraphics graphics;
+    public EventRender2D(GuiGraphics graphics) { this.graphics = graphics; }
+    public GuiGraphics getGraphics() { return graphics; }
 }

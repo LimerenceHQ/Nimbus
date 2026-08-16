@@ -162,7 +162,7 @@ public final class ModuleManager implements InstanceManager {
 
     private static boolean acceptsModuleKeybinds() {
         Minecraft minecraft = Minecraft.getInstance();
-        return minecraft.level != null && minecraft.player != null && minecraft.gui.screen() == null;
+        return minecraft.level != null && minecraft.player != null && minecraft.screen == null;
     }
 
     private void validateName(String name) {

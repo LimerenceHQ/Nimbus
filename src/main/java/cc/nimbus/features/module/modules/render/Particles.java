@@ -173,7 +173,7 @@ public final class Particles extends BasicModule {
 
     private List<Render3DUtils.Billboard> billboards(List<AmbientParticle> values, float particleSize,
                                                      float partialTick, long time, boolean firefly) {
-        Vec3 camera = Minecraft.getInstance().gameRenderer.mainCamera().position();
+        Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().position();
         List<AmbientParticle> sorted = new ArrayList<>(values);
         sorted.sort(Comparator.comparingDouble((AmbientParticle particle) -> particle.distanceSquared(camera)).reversed());
         List<Render3DUtils.Billboard> result = new ArrayList<>(sorted.size());

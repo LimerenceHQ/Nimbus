@@ -345,11 +345,7 @@
   "nimbus.module.full_bright.setting.mode.option.night_vision": "Night Vision",
 
   "nimbus.module.world_tweaks.name": "World Tweaks",
-  "nimbus.module.world_tweaks.description": "Overrides client-side fog and displayed world time.",
-  "nimbus.module.world_tweaks.setting.modify_fog": "Modify Fog",
-  "nimbus.module.world_tweaks.setting.fog_start": "Fog Start",
-  "nimbus.module.world_tweaks.setting.fog_end": "Fog End",
-  "nimbus.module.world_tweaks.setting.fog_color": "Fog Color",
+  "nimbus.module.world_tweaks.description": "Overrides the displayed client-side world time.",
   "nimbus.module.world_tweaks.setting.change_time": "Change Time",
   "nimbus.module.world_tweaks.setting.hour": "Hour",
 

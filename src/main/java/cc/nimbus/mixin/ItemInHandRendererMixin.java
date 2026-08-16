@@ -26,7 +26,7 @@ public abstract class ItemInHandRendererMixin {
     public abstract void renderItem(LivingEntity entity, ItemStack stack, ItemDisplayContext displayContext,
                                     PoseStack poseStack, SubmitNodeCollector collector, int packedLight);
 
-    @Inject(method = "submitArmWithItem", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "renderArmWithItem", at = @At("HEAD"), cancellable = true)
     private void nimbus$transformHeldItem(AbstractClientPlayer player, float partialTick, float pitch,
                                          InteractionHand hand, float swingProgress, ItemStack stack,
                                          float equippedProgress, PoseStack poseStack,
@@ -49,7 +49,7 @@ public abstract class ItemInHandRendererMixin {
     }
 
     @Redirect(
-            method = "submitArmWithItem",
+            method = "renderArmWithItem",
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/client/renderer/ItemInHandRenderer;renderItem(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemDisplayContext;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;I)V"

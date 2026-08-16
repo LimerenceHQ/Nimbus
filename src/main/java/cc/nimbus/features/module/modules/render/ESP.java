@@ -52,7 +52,7 @@ public final class ESP extends BasicModule {
     @EventTarget
     private void onRender2D(EventRender2D event) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || minecraft.player == null || minecraft.gui.screen() != null) return;
+        if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) return;
 
         Render3DUtils.WorldProjection projection = Render3DUtils.worldProjection();
         if (projection == null) return;
@@ -108,7 +108,7 @@ public final class ESP extends BasicModule {
     private void onRender3D(EventRender3D event) {
         if (!skeleton.getValue()) return;
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || minecraft.player == null || minecraft.gui.screen() != null) return;
+        if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) return;
         if (skeletonLevel != minecraft.level) {
             skeletonPoses.clear();
             skeletonLevel = minecraft.level;

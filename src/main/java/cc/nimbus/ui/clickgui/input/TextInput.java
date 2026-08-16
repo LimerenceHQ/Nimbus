@@ -7,7 +7,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.PreeditEvent;
+import cc.nimbus.ui.input.PreeditEvent;
 import net.minecraft.network.chat.Component;
 
 public final class TextInput {
@@ -17,7 +17,7 @@ public final class TextInput {
     private float scrollX;
 
     public TextInput(Font font, int maximumLength) {
-        editor = new EditBox(font, Component.empty());
+        editor = new EditBox(font, 0, 0, 1, 20, Component.empty());
         editor.setBordered(false);
         editor.setMaxLength(Math.max(1, maximumLength));
     }
@@ -57,7 +57,6 @@ public final class TextInput {
     public boolean preeditUpdated(PreeditEvent event) {
         if (!focused) return false;
         preedit = event == null ? "" : event.fullText();
-        editor.preeditUpdated(event);
         return true;
     }
 

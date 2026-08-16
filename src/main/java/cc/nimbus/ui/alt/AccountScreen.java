@@ -5,7 +5,7 @@ import cc.nimbus.managers.AccountManager;
 import cc.nimbus.ui.alt.model.Alt;
 import cc.nimbus.ui.alt.model.OfflineAlt;
 import cc.nimbus.ui.alt.model.OriginalAlt;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -61,39 +61,39 @@ public final class AccountScreen extends Screen {
     }
 
     @Override
-    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        if (minecraft.level == null) extractPanorama(graphics, partialTick);
-        else extractBlurredBackground(graphics);
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (minecraft.level == null) renderPanorama(graphics, partialTick);
+        else renderBlurredBackground(graphics);
         graphics.fill(0, 0, graphics.guiWidth(), graphics.guiHeight(), 0xCC0B1015);
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         int panelLeft = width / 2 - 160;
         int panelRight = width / 2 + 160;
         int listTop = 86;
         int listBottom = formTop() - 26;
         graphics.fill(panelLeft, 16, panelRight, height - 16, 0xE9161D25);
         graphics.fill(panelLeft, 16, panelLeft + 4, height - 16, 0xFF39C59A);
-        graphics.text(font, title, panelLeft + 16, 28, 0xFFFFFFFF, false);
-        graphics.text(font, tr("nimbus.account.current", "Current: %s", minecraft.getUser().getName()),
+        graphics.drawString(font, title, panelLeft + 16, 28, 0xFFFFFFFF, false);
+        graphics.drawString(font, tr("nimbus.account.current", "Current: %s", minecraft.getUser().getName()),
                 panelLeft + 16, 48, 0xFF9AA6B2, false);
-        graphics.text(font, tr("nimbus.account.select", "Select account"),
+        graphics.drawString(font, tr("nimbus.account.select", "Select account"),
                 panelLeft + 16, 68, 0xFFB9C4CC, false);
-        graphics.text(font, status, panelRight - 150, 68, 0xFFB9C4CC, false);
+        graphics.drawString(font, status, panelRight - 150, 68, 0xFFB9C4CC, false);
         int y = listTop - listScroll;
         for (Alt alt : accounts().getAccounts()) {
             if (y + 28 >= listTop && y <= listBottom) {
                 boolean active = alt == selected;
                 graphics.fill(panelLeft + 14, y, panelRight - 14, y + 28,
                         active ? 0xFF25483F : 0x66232B33);
-                graphics.text(font, alt.getUserName(), panelLeft + 24, y + 6, 0xFFF1F5F7, false);
-                graphics.text(font, alt.getAccountType().getWriteName(), panelRight - 120, y + 6,
+                graphics.drawString(font, alt.getUserName(), panelLeft + 24, y + 6, 0xFFF1F5F7, false);
+                graphics.drawString(font, alt.getAccountType().getWriteName(), panelRight - 120, y + 6,
                         0xFF9AA6B2, false);
             }
             y += 32;
         }
-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+        super.render(graphics, mouseX, mouseY, partialTick);
     }
 
     @Override

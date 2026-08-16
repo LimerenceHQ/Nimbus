@@ -518,7 +518,7 @@ public final class MusicManager implements InstanceManager {
     }
     private static boolean acceptsHotkeys() {
         Minecraft minecraft = Minecraft.getInstance();
-        return minecraft.level != null && minecraft.player != null && minecraft.gui.screen() == null;
+        return minecraft.level != null && minecraft.player != null && minecraft.screen == null;
     }
     private static boolean matches(int pressed, int[] keys) {
         if (keys.length == 0 || java.util.Arrays.stream(keys).noneMatch(key -> key == pressed)) return false;

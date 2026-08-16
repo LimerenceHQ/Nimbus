@@ -1,14 +1,11 @@
 package cc.nimbus.utils.render;
 
-import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.platform.CompareOp;
+import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.FilterMode;
@@ -36,6 +33,7 @@ import java.awt.Color;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.OptionalInt;
 
 @SuppressWarnings({"unused", "deprecation"})
 public final class Render3DUtils {
@@ -544,13 +542,13 @@ public final class Render3DUtils {
         if (stack == null || texture == null || billboards == null || billboards.isEmpty()) return;
         RenderSystem.assertOnRenderThread();
         Minecraft minecraft = Minecraft.getInstance();
-        Vector3f left = new Vector3f(minecraft.gameRenderer.mainCamera().leftVector());
-        Vector3f up = new Vector3f(minecraft.gameRenderer.mainCamera().upVector());
+        Vector3f left = new Vector3f(minecraft.gameRenderer.getMainCamera().leftVector());
+        Vector3f up = new Vector3f(minecraft.gameRenderer.getMainCamera().upVector());
         Matrix4f matrix = stack.last().pose();
 
         try (ByteBufferBuilder allocator = new ByteBufferBuilder(Math.max(64 * 1024, billboards.size() * 128))) {
             BufferBuilder builder = new BufferBuilder(
-                    allocator, PrimitiveTopology.QUADS, DefaultVertexFormat.PARTICLE);
+                    allocator, VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
             for (Billboard billboard : billboards) {
                 float[] center = getRelativeCoords(billboard.x(), billboard.y(), billboard.z());
                 float half = billboard.size() * 0.5f;
@@ -574,25 +572,25 @@ public final class Render3DUtils {
             if (mesh == null) return;
             try (mesh; GpuBuffer vertices = RenderSystem.getDevice().createBuffer(
                     () -> "Nimbus particle vertices", GpuBuffer.USAGE_VERTEX, mesh.vertexBuffer())) {
-                var indices = RenderSystem.getSequentialBuffer(mesh.drawState().primitiveTopology());
+                var indices = RenderSystem.getSequentialBuffer(mesh.drawState().mode());
                 GpuBuffer indexBuffer = indices.getBuffer(mesh.drawState().indexCount());
                 GpuBufferSlice transform = RenderSystem.getDynamicUniforms().writeTransform(
                         IDENTITY, new Vector4f(1, 1, 1, 1), new Vector3f(),
-                        TextureTransform.DEFAULT_TEXTURING.createMatrix());
-                RenderTarget target = minecraft.gameRenderer.mainRenderTarget();
+                        TextureTransform.DEFAULT_TEXTURING.getMatrix());
+                RenderTarget target = minecraft.getMainRenderTarget();
                 AbstractTexture particleTexture = minecraft.getTextureManager().getTexture(texture);
                 try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-                        () -> "Nimbus particles", target.getColorTextureView(), Optional.empty(),
+                        () -> "Nimbus particles", target.getColorTextureView(), OptionalInt.empty(),
                         target.getDepthTextureView(), OptionalDouble.empty())) {
                     pass.setPipeline(Pipelines.ADDITIVE_PARTICLE);
                     RenderSystem.bindDefaultUniforms(pass);
                     pass.setUniform("DynamicTransforms", transform);
                     pass.bindTexture("Sampler0", particleTexture.getTextureView(), particleTexture.getSampler());
-                    pass.bindTexture("Sampler2", minecraft.gameRenderer.levelLightmap(),
+                    pass.bindTexture("Sampler2", minecraft.gameRenderer.lightTexture().getTextureView(),
                             RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
-                    pass.setVertexBuffer(0, new GpuBufferSlice(vertices, 0, vertices.size()));
+                    pass.setVertexBuffer(0, vertices);
                     pass.setIndexBuffer(indexBuffer, indices.type());
-                    pass.drawIndexed(mesh.drawState().indexCount(), 1, 0, 0, 0);
+                    pass.drawIndexed(0, mesh.drawState().indexCount(), 0, 1);
                 }
             }
         }
@@ -604,16 +602,16 @@ public final class Render3DUtils {
     }
 
     private static void drawQuads(PoseStack stack, DepthMode mode, QuadEmitter emitter) {
-        drawMesh(stack, PrimitiveTopology.QUADS, DefaultVertexFormat.POSITION_COLOR, pipeline(false, mode),
+        drawMesh(stack, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR, pipeline(false, mode),
                 builder -> emitter.emit(new QuadSink(builder, stack.last().pose())));
     }
 
     private static void drawLines(PoseStack stack, DepthMode mode, float width, LineEmitter emitter) {
-        drawMesh(stack, PrimitiveTopology.LINES, DefaultVertexFormat.POSITION_COLOR_NORMAL_LINE_WIDTH, pipeline(true, mode),
+        drawMesh(stack, VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR_NORMAL_LINE_WIDTH, pipeline(true, mode),
                 builder -> emitter.emit(new LineSink(builder, stack.last().pose(), width)));
     }
 
-    private static void drawMesh(PoseStack stack, PrimitiveTopology topology, VertexFormat format,
+    private static void drawMesh(PoseStack stack, VertexFormat.Mode topology, VertexFormat format,
                                  RenderPipeline pipeline, BuilderEmitter emitter) {
         RenderSystem.assertOnRenderThread();
         try (ByteBufferBuilder allocator = new ByteBufferBuilder(256 * 1024)) {
@@ -623,21 +621,21 @@ public final class Render3DUtils {
             if (mesh == null) return;
             try (mesh; GpuBuffer vertices = RenderSystem.getDevice().createBuffer(
                     () -> "Nimbus 3D vertices", GpuBuffer.USAGE_VERTEX, mesh.vertexBuffer())) {
-                var indices = RenderSystem.getSequentialBuffer(mesh.drawState().primitiveTopology());
+                var indices = RenderSystem.getSequentialBuffer(mesh.drawState().mode());
                 GpuBuffer indexBuffer = indices.getBuffer(mesh.drawState().indexCount());
                 GpuBufferSlice transform = RenderSystem.getDynamicUniforms().writeTransform(
                         IDENTITY, new Vector4f(1, 1, 1, 1), new Vector3f(),
-                        TextureTransform.DEFAULT_TEXTURING.createMatrix());
-                RenderTarget target = Minecraft.getInstance().gameRenderer.mainRenderTarget();
+                        TextureTransform.DEFAULT_TEXTURING.getMatrix());
+                RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
                 try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-                        () -> "Nimbus 3D", target.getColorTextureView(), Optional.empty(),
+                        () -> "Nimbus 3D", target.getColorTextureView(), OptionalInt.empty(),
                         target.getDepthTextureView(), OptionalDouble.empty())) {
                     pass.setPipeline(pipeline);
                     RenderSystem.bindDefaultUniforms(pass);
                     pass.setUniform("DynamicTransforms", transform);
-                    pass.setVertexBuffer(0, new GpuBufferSlice(vertices, 0, vertices.size()));
+                    pass.setVertexBuffer(0, vertices);
                     pass.setIndexBuffer(indexBuffer, indices.type());
-                    pass.drawIndexed(mesh.drawState().indexCount(), 1, 0, 0, 0);
+                    pass.drawIndexed(0, mesh.drawState().indexCount(), 0, 1);
                 }
             }
         }
@@ -658,52 +656,33 @@ public final class Render3DUtils {
 
     private static final class Pipelines {
         private static final RenderPipeline ADDITIVE_PARTICLE = additiveParticle();
-        private static final RenderPipeline QUADS_ALWAYS = quad("quads_always", CompareOp.ALWAYS_PASS);
-        private static final RenderPipeline QUADS_NORMAL = quad("quads_normal", CompareOp.LESS_THAN_OR_EQUAL);
-        private static final RenderPipeline QUADS_GREATER = quad("quads_greater", CompareOp.GREATER_THAN);
-        private static final RenderPipeline LINES_ALWAYS = line("lines_always", CompareOp.ALWAYS_PASS);
-        private static final RenderPipeline LINES_NORMAL = line("lines_normal", CompareOp.LESS_THAN_OR_EQUAL);
-        private static final RenderPipeline LINES_GREATER = line("lines_greater", CompareOp.GREATER_THAN);
+        private static final RenderPipeline QUADS_ALWAYS = quad("quads_always", DepthTestFunction.NO_DEPTH_TEST);
+        private static final RenderPipeline QUADS_NORMAL = quad("quads_normal", DepthTestFunction.LEQUAL_DEPTH_TEST);
+        private static final RenderPipeline QUADS_GREATER = quad("quads_greater", DepthTestFunction.GREATER_DEPTH_TEST);
+        private static final RenderPipeline LINES_ALWAYS = line("lines_always", DepthTestFunction.NO_DEPTH_TEST);
+        private static final RenderPipeline LINES_NORMAL = line("lines_normal", DepthTestFunction.LEQUAL_DEPTH_TEST);
+        private static final RenderPipeline LINES_GREATER = line("lines_greater", DepthTestFunction.GREATER_DEPTH_TEST);
 
         private static RenderPipeline additiveParticle() {
-            RenderPipeline base = RenderPipelines.TRANSLUCENT_PARTICLE;
-            RenderPipeline.Builder builder = RenderPipeline.builder()
+            return RenderPipeline.builder(RenderPipelines.PARTICLE_SNIPPET)
                     .withLocation(Identifier.fromNamespaceAndPath("nimbus", "pipeline/additive_particle"))
-                    .withVertexShader(base.getVertexShader())
-                    .withFragmentShader(base.getFragmentShader())
-                    .withColorTargetState(new ColorTargetState(BlendFunction.LIGHTNING))
-                    .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false))
-                    .withPolygonMode(base.getPolygonMode())
-                    .withCull(base.isCull())
-                    .withPrimitiveTopology(base.getPrimitiveTopology());
-            for (var layout : base.getBindGroupLayouts()) {
-                builder.withBindGroupLayout(layout);
-            }
-            var formats = base.getVertexFormatBindings();
-            for (int index = 0; index < formats.length; index++) {
-                if (formats[index] != null) builder.withVertexBinding(index, formats[index]);
-            }
-            base.getShaderDefines().flags().forEach(builder::withShaderDefine);
-            base.getShaderDefines().values().forEach((name, value) -> {
-                try {
-                    builder.withShaderDefine(name, Integer.parseInt(value));
-                } catch (NumberFormatException ignored) {
-                    builder.withShaderDefine(name, Float.parseFloat(value));
-                }
-            });
-            return builder.build();
+                    .withBlend(BlendFunction.ADDITIVE)
+                    .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+                    .withDepthWrite(false)
+                    .withCull(false)
+                    .build();
         }
 
-        private static RenderPipeline quad(String name, CompareOp compare) {
+        private static RenderPipeline quad(String name, DepthTestFunction compare) {
             return RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
                     .withLocation(Identifier.fromNamespaceAndPath("nimbus", "pipeline/" + name))
-                    .withDepthStencilState(new DepthStencilState(compare, false)).withCull(false).build();
+                    .withDepthTestFunction(compare).withDepthWrite(false).withCull(false).build();
         }
 
-        private static RenderPipeline line(String name, CompareOp compare) {
+        private static RenderPipeline line(String name, DepthTestFunction compare) {
             return RenderPipeline.builder(RenderPipelines.LINES_SNIPPET)
                     .withLocation(Identifier.fromNamespaceAndPath("nimbus", "pipeline/" + name))
-                    .withDepthStencilState(new DepthStencilState(compare, false)).withCull(false).build();
+                    .withDepthTestFunction(compare).withDepthWrite(false).withCull(false).build();
         }
     }
 
