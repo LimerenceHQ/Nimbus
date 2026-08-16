@@ -14,8 +14,10 @@ import cc.nimbus.features.module.modules.hud.MusicLyrics;
 import cc.nimbus.features.module.modules.hud.MusicToast;
 import cc.nimbus.features.module.modules.hud.MusicSpectrum;
 import cc.nimbus.features.module.modules.hud.Watermark;
+import cc.nimbus.features.module.modules.movement.Scaffold;
 import cc.nimbus.features.module.modules.movement.Sprint;
 import cc.nimbus.features.module.modules.player.AntiBot;
+import cc.nimbus.features.module.modules.player.Stuck;
 import cc.nimbus.features.module.modules.player.Target;
 import cc.nimbus.features.module.modules.player.Teams;
 import cc.nimbus.features.module.modules.render.ClickGui;
@@ -64,9 +66,11 @@ public final class ModuleManager implements InstanceManager {
                     new MusicToast(),
                     new Watermark(),
                     new Sprint(),
+                    new Scaffold(),
                     new Target(),
                     new Teams(),
                     new AntiBot(),
+                    new Stuck(),
                     new ESP(),
                     new Nametag(),
                     new FullBright(),

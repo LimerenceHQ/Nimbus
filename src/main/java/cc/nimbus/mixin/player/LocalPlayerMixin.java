@@ -3,15 +3,19 @@ package cc.nimbus.mixin.player;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.EventType;
 import cc.nimbus.event.impl.player.EventMotion;
+import cc.nimbus.utils.mixin.LocalPlayerStateAccess;
 import net.minecraft.client.player.LocalPlayer;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LocalPlayer.class)
-public abstract class LocalPlayerMixin {
+public abstract class LocalPlayerMixin implements LocalPlayerStateAccess {
+    @Shadow private int positionReminder;
+
     @Unique private boolean nimbus$motionActive;
     @Unique private double nimbus$oldX;
     @Unique private double nimbus$oldY;
@@ -70,5 +74,10 @@ public abstract class LocalPlayerMixin {
                 motion.getYaw(), motion.getPitch(),
                 nimbus$oldYaw, nimbus$oldPitch,
                 motion.isGround(), EventType.POST));
+    }
+
+    @Override
+    public void nimbus$setPositionReminder(int ticks) {
+        positionReminder = ticks;
     }
 }
