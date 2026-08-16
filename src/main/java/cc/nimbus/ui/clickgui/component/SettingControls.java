@@ -54,6 +54,7 @@ public final class SettingControls {
     private final Map<NumberSetting, Double> displayedNumbers = new IdentityHashMap<>();
     private final Map<Setting<?>, Float> disclosureAnimations = new IdentityHashMap<>();
     private final Map<Setting<?>, Float> visibilityAnimations = new IdentityHashMap<>();
+    private final Map<Setting<?>, MarqueeState> marqueeStates = new IdentityHashMap<>();
     private final Map<OptionKey, Float> optionAnimations = new java.util.HashMap<>();
     private final Set<Setting<?>> disclosuresUpdated = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Setting<?>> visibilityUpdated = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
@@ -417,8 +418,8 @@ public final class SettingControls {
     private void renderMode(UiContext context, ModeSetting setting, UiRect bounds) {
         UiRect value = new UiRect(bounds.x() + bounds.width() * 0.44f, bounds.y(),
                 bounds.width() * 0.56f - 29f, ROW_HEIGHT);
-        rightText(context, ellipsize(context, translatedOption(context, setting, setting.getValue()), value.width()), value, 10.5f,
-                ClickGuiTheme.MUTED);
+        scrollingValueText(context, setting,
+                translatedOption(context, setting, setting.getValue()), value, 10.5f, ClickGuiTheme.MUTED);
         float disclosure = disclosureAnimations.getOrDefault(setting, openOptions == setting ? 1f : 0f);
         disclosureIcon(context, bounds, disclosure);
         addHit(new Hit(setting, HitKind.MODE, new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT), null));
@@ -453,10 +454,7 @@ public final class SettingControls {
         UiRect value = new UiRect(bounds.x() + bounds.width() * 0.44f, bounds.y(),
                 bounds.width() * 0.56f - 29f, ROW_HEIGHT);
         String summary = multiSummary(context, setting);
-        if (context.width(UiContext.FONT, 10.5f, summary) > value.width()) {
-            summary = setting.getValue().size() + "/" + setting.getModes().length;
-        }
-        rightText(context, ellipsize(context, summary, value.width()), value, 10.5f, ClickGuiTheme.MUTED);
+        scrollingValueText(context, setting, summary, value, 10.5f, ClickGuiTheme.MUTED);
         float disclosure = disclosureAnimations.getOrDefault(setting, openOptions == setting ? 1f : 0f);
         disclosureIcon(context, bounds, disclosure);
         addHit(new Hit(setting, HitKind.MULTI, new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT), null));
@@ -733,6 +731,53 @@ public final class SettingControls {
         context.text(value, bounds.x() + Math.max(0f, bounds.width() - width), y, size, color);
     }
 
+    private void scrollingValueText(UiContext context, Setting<?> setting, String value,
+                                    UiRect bounds, float size, int color) {
+        String text = value == null ? "" : value;
+        float textWidth = context.width(UiContext.FONT, size, text);
+        if (textWidth <= bounds.width()) {
+            marqueeStates.remove(setting);
+            rightText(context, text, bounds, size, color);
+            return;
+        }
+
+        long now = context.nowMillis();
+        MarqueeState state = marqueeStates.get(setting);
+        if (state == null || !state.value().equals(text)) {
+            state = new MarqueeState(text, now);
+            marqueeStates.put(setting, state);
+        }
+
+        float overflow = textWidth - bounds.width();
+        long hold = 900L;
+        long travel = Math.max(1000L, Math.round(overflow / 28f * 1000f));
+        long cycle = hold * 2L + travel * 2L;
+        long elapsed = Math.floorMod(now - state.startedAt(), cycle);
+        float offset;
+        if (elapsed < hold) {
+            offset = 0f;
+        } else if (elapsed < hold + travel) {
+            offset = overflow * smoothStep((elapsed - hold) / (float) travel);
+        } else if (elapsed < hold * 2L + travel) {
+            offset = overflow;
+        } else {
+            offset = overflow * (1f - smoothStep((elapsed - hold * 2L - travel) / (float) travel));
+        }
+
+        float y = bounds.y() + (bounds.height() - context.height(UiContext.FONT, size, text)) * .5f;
+        int clip = context.clip(bounds, 0f);
+        try {
+            context.text(text, bounds.x() - offset, y, size, color);
+        } finally {
+            context.restore(clip);
+        }
+    }
+
+    private static float smoothStep(float value) {
+        float bounded = Math.clamp(value, 0f, 1f);
+        return bounded * bounded * (3f - 2f * bounded);
+    }
+
     private static void icon(UiContext context, String svg, float x, float y, float size, int color) {
         try (Paint paint = new Paint().setAntiAlias(true).setColor(color)) {
             context.frame().draw().svg(svg, x, y, size, paint);
@@ -859,6 +904,9 @@ public final class SettingControls {
         private Hit(Setting<?> setting, HitKind kind, UiRect bounds, String option) {
             this(setting, kind, bounds, option, null);
         }
+    }
+
+    private record MarqueeState(String value, long startedAt) {
     }
 
     private record OptionKey(Setting<?> setting, String option) { }

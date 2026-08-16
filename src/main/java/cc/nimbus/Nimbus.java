@@ -10,10 +10,6 @@ import cc.nimbus.event.impl.game.EventChatSend;
 import cc.nimbus.ui.screen.UnsupportedPlatformScreen;
 
 public final class Nimbus implements ClientModInitializer {
-    public static final String NAME = "Nimbus";
-    public static final String VERSION = "1.0";
-    public static final String AUTHOR = "Limerence";
-
     private static volatile boolean initialized;
 
     public Nimbus() {}
