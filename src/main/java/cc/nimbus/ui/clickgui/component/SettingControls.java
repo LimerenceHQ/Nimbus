@@ -54,7 +54,8 @@ public final class SettingControls {
     private final Map<NumberSetting, Double> displayedNumbers = new IdentityHashMap<>();
     private final Map<Setting<?>, Float> disclosureAnimations = new IdentityHashMap<>();
     private final Map<Setting<?>, Float> visibilityAnimations = new IdentityHashMap<>();
-    private final Map<Setting<?>, MarqueeState> marqueeStates = new IdentityHashMap<>();
+    private final Map<Setting<?>, MarqueeState> labelMarqueeStates = new IdentityHashMap<>();
+    private final Map<Setting<?>, MarqueeState> valueMarqueeStates = new IdentityHashMap<>();
     private final Map<OptionKey, Float> optionAnimations = new java.util.HashMap<>();
     private final Set<Setting<?>> disclosuresUpdated = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Setting<?>> visibilityUpdated = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
@@ -303,9 +304,10 @@ public final class SettingControls {
         float labelHeight = stackedText ? STACKED_TEXT_HEADER_HEIGHT
                 : setting instanceof NumberSetting ? 28f : ROW_HEIGHT;
         float labelWidth = labelWidth(setting, bounds.width(), stackedText);
-        context.textIn(ellipsize(context, translatedName(context, setting), labelWidth),
-                new UiRect(bounds.x() + 8f, bounds.y(), labelWidth, labelHeight),
-                11f, ClickGuiTheme.TEXT);
+        UiRect labelBounds = new UiRect(bounds.x() + 8f, bounds.y(), labelWidth, labelHeight);
+        String settingName = translatedName(context, setting);
+        scrollingText(context, labelMarqueeStates, setting, settingName,
+                labelBounds, 11f, ClickGuiTheme.TEXT, false);
 
         if (setting instanceof BooleanSetting value) renderBoolean(context, value, row);
         else if (setting instanceof FoldSetting value) renderFold(context, value, row);
@@ -418,8 +420,9 @@ public final class SettingControls {
     private void renderMode(UiContext context, ModeSetting setting, UiRect bounds) {
         UiRect value = new UiRect(bounds.x() + bounds.width() * 0.44f, bounds.y(),
                 bounds.width() * 0.56f - 29f, ROW_HEIGHT);
-        scrollingValueText(context, setting,
-                translatedOption(context, setting, setting.getValue()), value, 10.5f, ClickGuiTheme.MUTED);
+        scrollingText(context, valueMarqueeStates, setting,
+                translatedOption(context, setting, setting.getValue()), value,
+                10.5f, ClickGuiTheme.MUTED, true);
         float disclosure = disclosureAnimations.getOrDefault(setting, openOptions == setting ? 1f : 0f);
         disclosureIcon(context, bounds, disclosure);
         addHit(new Hit(setting, HitKind.MODE, new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT), null));
@@ -454,7 +457,8 @@ public final class SettingControls {
         UiRect value = new UiRect(bounds.x() + bounds.width() * 0.44f, bounds.y(),
                 bounds.width() * 0.56f - 29f, ROW_HEIGHT);
         String summary = multiSummary(context, setting);
-        scrollingValueText(context, setting, summary, value, 10.5f, ClickGuiTheme.MUTED);
+        scrollingText(context, valueMarqueeStates, setting, summary, value,
+                10.5f, ClickGuiTheme.MUTED, true);
         float disclosure = disclosureAnimations.getOrDefault(setting, openOptions == setting ? 1f : 0f);
         disclosureIcon(context, bounds, disclosure);
         addHit(new Hit(setting, HitKind.MULTI, new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT), null));
@@ -731,28 +735,31 @@ public final class SettingControls {
         context.text(value, bounds.x() + Math.max(0f, bounds.width() - width), y, size, color);
     }
 
-    private void scrollingValueText(UiContext context, Setting<?> setting, String value,
-                                    UiRect bounds, float size, int color) {
+    private static void scrollingText(UiContext context, Map<Setting<?>, MarqueeState> states,
+                                      Setting<?> setting, String value, UiRect bounds,
+                                      float size, int color, boolean alignRight) {
         String text = value == null ? "" : value;
         float textWidth = context.width(UiContext.FONT, size, text);
         if (textWidth <= bounds.width()) {
-            marqueeStates.remove(setting);
-            rightText(context, text, bounds, size, color);
+            states.remove(setting);
+            if (alignRight) rightText(context, text, bounds, size, color);
+            else context.textIn(text, bounds, size, color);
             return;
         }
 
-        long now = context.nowMillis();
-        MarqueeState state = marqueeStates.get(setting);
+        long now = System.nanoTime();
+        MarqueeState state = states.get(setting);
         if (state == null || !state.value().equals(text)) {
             state = new MarqueeState(text, now);
-            marqueeStates.put(setting, state);
+            states.put(setting, state);
         }
 
         float overflow = textWidth - bounds.width();
-        long hold = 900L;
-        long travel = Math.max(1000L, Math.round(overflow / 28f * 1000f));
+        long hold = 900_000_000L;
+        long travel = Math.max(1_000_000_000L,
+                Math.round(overflow / 28.0 * 1_000_000_000.0));
         long cycle = hold * 2L + travel * 2L;
-        long elapsed = Math.floorMod(now - state.startedAt(), cycle);
+        long elapsed = Math.floorMod(now - state.startedAtNanos(), cycle);
         float offset;
         if (elapsed < hold) {
             offset = 0f;
@@ -906,7 +913,7 @@ public final class SettingControls {
         }
     }
 
-    private record MarqueeState(String value, long startedAt) {
+    private record MarqueeState(String value, long startedAtNanos) {
     }
 
     private record OptionKey(Setting<?> setting, String option) { }
