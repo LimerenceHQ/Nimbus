@@ -6,19 +6,29 @@ public class EventMoveInput extends Cancelable {
     private float forward;
     private float strafe;
     private boolean jump;
+    private boolean sprint;
 
     public EventMoveInput() {
     }
 
     public EventMoveInput(float forward, float strafe, boolean jump) {
-        set(forward, strafe, jump);
+        set(forward, strafe, jump, false);
+    }
+
+    public EventMoveInput(float forward, float strafe, boolean jump, boolean sprint) {
+        set(forward, strafe, jump, sprint);
     }
 
     public EventMoveInput set(float forward, float strafe, boolean jump) {
+        return set(forward, strafe, jump, false);
+    }
+
+    public EventMoveInput set(float forward, float strafe, boolean jump, boolean sprint) {
         reset();
         this.forward = forward;
         this.strafe = strafe;
         this.jump = jump;
+        this.sprint = sprint;
         return this;
     }
 
@@ -44,5 +54,13 @@ public class EventMoveInput extends Cancelable {
 
     public void setJump(boolean jump) {
         this.jump = jump;
+    }
+
+    public boolean getSprint() {
+        return sprint;
+    }
+
+    public void setSprint(boolean sprint) {
+        this.sprint = sprint;
     }
 }

@@ -1,7 +1,7 @@
 package cc.nimbus.features.module.modules.movement;
 
 import cc.nimbus.event.component.EventTarget;
-import cc.nimbus.event.impl.game.EventTick;
+import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
@@ -24,16 +24,15 @@ public final class Sprint extends BasicModule {
     }
 
     @EventTarget
-    private void onTick(EventTick event) {
-        if (event.getPhase() != EventTick.Phase.PRE) return;
-
+    private void onMoveInput(EventMoveInput event) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || minecraft.player == null || minecraft.player.input == null) {
+        if (minecraft.level == null || minecraft.player == null) {
             setSprintKey(false);
             return;
         }
-
-        setSprintKey(minecraft.player.input.getMoveVector().lengthSquared() > 0.0f);
+        boolean moving = event.getForward() != 0.0f || event.getStrafe() != 0.0f;
+        event.setSprint(moving);
+        setSprintKey(moving);
     }
 
     private static void setSprintKey(boolean down) {

@@ -17,7 +17,8 @@ public abstract class KeyboardInputMixin extends ClientInput {
     private void nimbus$moveInput(CallbackInfo ci) {
         float originalForward = axis(keyPresses.forward(), keyPresses.backward());
         float originalStrafe = axis(keyPresses.left(), keyPresses.right());
-        EventMoveInput event = EventBus.call(new EventMoveInput(originalForward, originalStrafe, keyPresses.jump()));
+        EventMoveInput event = EventBus.call(new EventMoveInput(
+                originalForward, originalStrafe, keyPresses.jump(), keyPresses.sprint()));
         float forward = event.isCancel() ? 0.0f : event.getForward();
         float strafe = event.isCancel() ? 0.0f : event.getStrafe();
         Vec2 next = new Vec2(strafe, forward);
@@ -29,7 +30,7 @@ public abstract class KeyboardInputMixin extends ClientInput {
                 strafe < 0.0f,
                 !event.isCancel() && event.getJump(),
                 keyPresses.shift(),
-                keyPresses.sprint()
+                !event.isCancel() && event.getSprint()
         );
     }
 
