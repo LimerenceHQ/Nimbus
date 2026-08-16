@@ -104,7 +104,7 @@ public final class Particles extends BasicModule {
                     particles, size.getValue().floatValue(), event.getPartialTick(), time, false);
             Identifier texture = selectedTexture();
             if (!mode.is("Bloom")) {
-                Render3DUtils.drawBillboards(event.getPoseStack(), texture, glowBillboards(shapes));
+                Render3DUtils.drawAdditiveBillboards(event.getPoseStack(), texture, glowBillboards(shapes));
             }
             Render3DUtils.drawBillboards(event.getPoseStack(), texture, shapes);
         }

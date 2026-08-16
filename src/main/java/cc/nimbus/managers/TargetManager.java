@@ -99,7 +99,6 @@ public final class TargetManager implements InstanceManager {
         if (antiBot != null && antiBot.isBot(entity)) return false;
         Teams teams = modules.getModule(Teams.class);
         if (entity instanceof Player player && teams != null && teams.isSameTeam(minecraft.player, player)) return false;
-
         if (entity instanceof Player) return target.player.getValue();
         if (entity instanceof AbstractGolem) return target.golem.getValue();
         if (entity instanceof Villager) return target.villager.getValue();

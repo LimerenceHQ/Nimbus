@@ -539,6 +539,15 @@ public final class Render3DUtils {
     }
 
     public static void drawBillboards(PoseStack stack, Identifier texture, List<Billboard> billboards) {
+        drawBillboards(stack, texture, billboards, Pipelines.TRANSLUCENT_PARTICLE);
+    }
+
+    public static void drawAdditiveBillboards(PoseStack stack, Identifier texture, List<Billboard> billboards) {
+        drawBillboards(stack, texture, billboards, Pipelines.ADDITIVE_PARTICLE);
+    }
+
+    private static void drawBillboards(PoseStack stack, Identifier texture, List<Billboard> billboards,
+                                       RenderPipeline pipeline) {
         if (stack == null || texture == null || billboards == null || billboards.isEmpty()) return;
         RenderSystem.assertOnRenderThread();
         Minecraft minecraft = Minecraft.getInstance();
@@ -582,7 +591,7 @@ public final class Render3DUtils {
                 try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
                         () -> "Nimbus particles", target.getColorTextureView(), OptionalInt.empty(),
                         target.getDepthTextureView(), OptionalDouble.empty())) {
-                    pass.setPipeline(Pipelines.ADDITIVE_PARTICLE);
+                    pass.setPipeline(pipeline);
                     RenderSystem.bindDefaultUniforms(pass);
                     pass.setUniform("DynamicTransforms", transform);
                     pass.bindTexture("Sampler0", particleTexture.getTextureView(), particleTexture.getSampler());
@@ -590,7 +599,7 @@ public final class Render3DUtils {
                             RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
                     pass.setVertexBuffer(0, vertices);
                     pass.setIndexBuffer(indexBuffer, indices.type());
-                    pass.drawIndexed(0, mesh.drawState().indexCount(), 0, 1);
+                    pass.drawIndexed(0, 0, mesh.drawState().indexCount(), 1);
                 }
             }
         }
@@ -635,7 +644,7 @@ public final class Render3DUtils {
                     pass.setUniform("DynamicTransforms", transform);
                     pass.setVertexBuffer(0, vertices);
                     pass.setIndexBuffer(indexBuffer, indices.type());
-                    pass.drawIndexed(0, mesh.drawState().indexCount(), 0, 1);
+                    pass.drawIndexed(0, 0, mesh.drawState().indexCount(), 1);
                 }
             }
         }
@@ -655,6 +664,8 @@ public final class Render3DUtils {
     }
 
     private static final class Pipelines {
+        private static final RenderPipeline TRANSLUCENT_PARTICLE = particle(
+                "translucent_particle", BlendFunction.TRANSLUCENT);
         private static final RenderPipeline ADDITIVE_PARTICLE = additiveParticle();
         private static final RenderPipeline QUADS_ALWAYS = quad("quads_always", DepthTestFunction.NO_DEPTH_TEST);
         private static final RenderPipeline QUADS_NORMAL = quad("quads_normal", DepthTestFunction.LEQUAL_DEPTH_TEST);
@@ -664,9 +675,13 @@ public final class Render3DUtils {
         private static final RenderPipeline LINES_GREATER = line("lines_greater", DepthTestFunction.GREATER_DEPTH_TEST);
 
         private static RenderPipeline additiveParticle() {
+            return particle("additive_particle", BlendFunction.ADDITIVE);
+        }
+
+        private static RenderPipeline particle(String name, BlendFunction blend) {
             return RenderPipeline.builder(RenderPipelines.PARTICLE_SNIPPET)
-                    .withLocation(Identifier.fromNamespaceAndPath("nimbus", "pipeline/additive_particle"))
-                    .withBlend(BlendFunction.ADDITIVE)
+                    .withLocation(Identifier.fromNamespaceAndPath("nimbus", "pipeline/" + name))
+                    .withBlend(blend)
                     .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
                     .withDepthWrite(false)
                     .withCull(false)

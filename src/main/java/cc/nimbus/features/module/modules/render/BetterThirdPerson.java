@@ -59,15 +59,12 @@ public final class BetterThirdPerson extends BasicModule {
 
     @Override
     protected void onEnable() {
-        resetAnimation();
+        animatedDistance = Float.NaN;
+        lastUpdateNanos = 0L;
     }
 
     @Override
     protected void onDisable() {
-        resetAnimation();
-    }
-
-    private void resetAnimation() {
         animatedDistance = Float.NaN;
         lastUpdateNanos = 0L;
     }
