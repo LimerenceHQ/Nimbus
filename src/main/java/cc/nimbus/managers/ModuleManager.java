@@ -8,6 +8,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 
 import cc.nimbus.features.module.modules.combat.KillAura;
+import cc.nimbus.features.module.modules.exploit.Disabler;
 import cc.nimbus.features.module.modules.hud.ActiveList;
 import cc.nimbus.features.module.modules.hud.MusicLyrics;
 import cc.nimbus.features.module.modules.hud.MusicToast;
@@ -56,6 +57,7 @@ public final class ModuleManager implements InstanceManager {
         try {
             registerModules(
                     new KillAura(),
+                    new Disabler(),
                     new ClickGui(),
                     new ActiveList(),
                     new MusicLyrics(),

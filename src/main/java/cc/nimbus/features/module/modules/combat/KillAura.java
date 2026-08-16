@@ -22,7 +22,7 @@ import cc.nimbus.features.rotation.RotationPriority;
 import cc.nimbus.features.rotation.RotationRaycast;
 import cc.nimbus.features.rotation.RotationRequest;
 import cc.nimbus.features.rotation.SmoothMode;
-import cc.nimbus.mixin.accessor.MultiPlayerGameModeAccessor;
+import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import cc.nimbus.managers.RotationManager;
 import cc.nimbus.managers.TargetManager;
 import net.minecraft.client.Minecraft;
