@@ -1,6 +1,6 @@
 # Nimbus
 
-文档同步：2026-08-07。
+文档同步：2026-08-16。
 
 Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工作是建立一套简洁、明确且容易长期维护的客户端：统一客户端写法、集中配置管理、保留可靠的自动发现能力。
 
@@ -15,6 +15,8 @@ Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工�
 - Account 系统：账户列表和最后使用账户拥有独立的存储边界。
 - Command 系统：集中注册命令、别名和补全逻辑。
 - EventBus：支持优先级、取消语义以及与 Module 启用状态绑定的监听生命周期。
+- Rotation：集中处理请求优先级、平滑、服务端角度、移动修正、RayCast 和本地玩家模型转头。
+- Combat Target：统一维护不可变目标快照、范围缓存、Teams/AntiBot 过滤，并由 KillAura 消费。
 - I18N：Nimbus 自有语言选择、资源加载和英文回退，不改变 Minecraft 全局语言。
 - Skija 渲染子系统：统一 HUD、Screen、文本、图片、SVG、效果和后处理入口。
 - UI 基础：包含菜单、账户界面、六列 List ClickGUI，以及共用窗口系统的 Config、Client Settings 与 Nimbus Music；右 Shift 是默认打开键。
@@ -27,10 +29,10 @@ Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工�
 
 | 组件 | 当前版本 |
 |---|---|
-| Minecraft | `26.2` |
+| Minecraft | `1.21.11` |
 | Fabric Loader | `0.19.3` 或更高 |
-| Fabric API | `0.156.0+26.2` |
-| Java | `25` 或更高 |
+| Fabric API | `0.141.4+1.21.11` |
+| Java | `21` 或更高 |
 | Gradle | Wrapper `9.5.1` |
 | Skija | `0.143.17`，Windows x64 native |
 
@@ -58,6 +60,7 @@ src/main/java/cc/nimbus
 ├─ managers             # 进程级服务及其所有权边界
 ├─ features
 │  ├─ module            # Module API 与分类实现
+│  ├─ rotation          # Rotation 类型、平滑、命中点与旋转 RayCast
 │  ├─ client            # 全局 Client Settings、语言和主题数据对象
 │  ├─ hud               # HUD 视口、锚点和拖拽模型
 │  ├─ music             # 网易云模型、网络、歌词、缓存与播放
@@ -74,7 +77,9 @@ src/main/java/cc/nimbus
 Nimbus.onInitializeClient()
 └─ Core.INSTANCE.init(configDir)
    ├─ RenderManager
+   ├─ RotationManager
    ├─ ModuleManager
+   ├─ TargetManager
    ├─ HudManager
    ├─ ConfigManager
    ├─ I18nManager

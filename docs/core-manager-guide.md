@@ -1,6 +1,6 @@
 # Nimbus Core and Manager Guide
 
-最后同步：2026-08-07。
+最后同步：2026-08-16。
 
 本文档说明 Nimbus Core、Manager、Module、Setting、Command、Config 和 EventBus 的当前结构与注册方式。它既是开发手册，也是 AI 修改这些基础设施时的约束。
 
@@ -12,7 +12,9 @@
 Nimbus.onInitializeClient()
 └─ Core.INSTANCE.init(configDir)
    ├─ RenderManager
+   ├─ RotationManager
    ├─ ModuleManager
+   ├─ TargetManager
    ├─ HudManager
    ├─ ConfigManager
    ├─ I18nManager
@@ -79,13 +81,15 @@ default Core core() {
 
 ```text
 1. RenderManager
-2. ModuleManager
-3. HudManager
-4. ConfigManager
-5. I18nManager
-6. AccountManager
-7. MusicManager
-8. CommandManager
+2. RotationManager
+3. ModuleManager
+4. TargetManager
+5. HudManager
+6. ConfigManager
+7. I18nManager
+8. AccountManager
+9. MusicManager
+10. CommandManager
 ```
 
 shutdown 使用相反顺序：
@@ -97,23 +101,31 @@ shutdown 使用相反顺序：
 4. I18nManager
 5. ConfigManager
 6. HudManager
-7. ModuleManager
-8. RenderManager
+7. TargetManager
+8. ModuleManager
+9. RotationManager
+10. RenderManager
 ```
 
 Core 先用局部变量创建全部 Manager，全部成功后才提交到字段：
 
 ```java
 RenderManager renders = new RenderManager();
+RotationManager rotations = new RotationManager(Minecraft.getInstance());
 ModuleManager modules = new ModuleManager();
+TargetManager targets = new TargetManager(Minecraft.getInstance(), modules);
 ConfigManager configs = new ConfigManager(nimbusDirectory, modules);
 
 start(renders, started);
+start(rotations, started);
 start(modules, started);
+start(targets, started);
 start(configs, started);
 
 renderManager = renders;
+rotationManager = rotations;
 moduleManager = modules;
+targetManager = targets;
 configManager = configs;
 initialized = true;
 ```
@@ -215,7 +227,9 @@ public ExampleManager getExampleManager() {
 | Manager | 职责 | 主要依赖 |
 |---|---|---|
 | `RenderManager` | 持有 `SkijaRenderer`，初始化和关闭渲染子系统 | 无 |
+| `RotationManager` | Rotation 请求裁决、平滑恢复、服务端角度、MovementFix、RayCast/模型使用的活动角度 | Minecraft client、EventBus |
 | `ModuleManager` | Module 注册、索引、按键映射和自动启用 | EventBus |
+| `TargetManager` | 每 Tick 构建不可变候选快照和范围缓存，集中应用 Target、Teams、AntiBot 过滤 | ModuleManager、Minecraft client、EventBus |
 | `HudManager` | HUD 元素注册、编辑状态和拖拽布局 | ModuleManager、RenderManager |
 | `ConfigManager` | 命名 Module 配置、全局 Client Settings、自动保存和配置文件切换 | ModuleManager、EventBus |
 | `I18nManager` | Nimbus 独立语言选择、翻译加载、英文回退和参数格式化 | ClientSettings、Minecraft LanguageManager |
@@ -224,6 +238,10 @@ public ExampleManager getExampleManager() {
 | `CommandManager` | Command 注册、执行、建议和聊天拦截 | EventBus |
 
 Manager 之间只能通过明确依赖协作。不要把所有 Manager 互相注入，也不要让 Core 变成业务中转站。
+
+Rotation 请求由调用方对象作为 owner 提交。Manager 每 Tick 选择最高优先级请求，同优先级采用最后提交者；调用方禁用时必须按 owner 取消。没有活动请求时，Manager 平滑恢复到玩家真实视角，并在世界切换、玩家为空和 shutdown 时清空请求与临时旋转状态。
+
+TargetManager 不暴露可变集合。Combat Module 只能通过 `getCandidates()`、`getTargets(range)` 和 `isTarget(entity)` 使用统一目标语义，不能自行复制世界扫描和 Teams/AntiBot 判断。
 
 ## 6. Module 注册
 

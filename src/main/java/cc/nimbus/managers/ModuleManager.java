@@ -6,14 +6,17 @@ import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.input.EventKeyPress;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
-import cc.nimbus.features.module.modules.combat.SettingPreview;
-import cc.nimbus.features.module.modules.combat.TestMod;
+
+import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.hud.ActiveList;
 import cc.nimbus.features.module.modules.hud.MusicLyrics;
 import cc.nimbus.features.module.modules.hud.MusicToast;
 import cc.nimbus.features.module.modules.hud.MusicSpectrum;
 import cc.nimbus.features.module.modules.hud.Watermark;
 import cc.nimbus.features.module.modules.movement.Sprint;
+import cc.nimbus.features.module.modules.player.AntiBot;
+import cc.nimbus.features.module.modules.player.Target;
+import cc.nimbus.features.module.modules.player.Teams;
 import cc.nimbus.features.module.modules.render.ClickGui;
 import cc.nimbus.features.module.modules.render.BetterThirdPerson;
 import cc.nimbus.features.module.modules.render.ESP;
@@ -52,8 +55,7 @@ public final class ModuleManager implements InstanceManager {
         clear();
         try {
             registerModules(
-                    new SettingPreview(),
-                    new TestMod(),
+                    new KillAura(),
                     new ClickGui(),
                     new ActiveList(),
                     new MusicLyrics(),
@@ -61,6 +63,9 @@ public final class ModuleManager implements InstanceManager {
                     new MusicToast(),
                     new Watermark(),
                     new Sprint(),
+                    new Target(),
+                    new Teams(),
+                    new AntiBot(),
                     new ESP(),
                     new Nametag(),
                     new FullBright(),

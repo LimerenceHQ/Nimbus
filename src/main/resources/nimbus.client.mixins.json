@@ -22,7 +22,14 @@
     "ItemInHandRendererMixin",
     "ItemEntityRendererMixin",
     "PlayerModelMixin",
-    "AvatarRendererMixin"
+    "AvatarRendererMixin",
+    "LocalPlayerMixin",
+    "KeyboardInputMixin",
+    "EntityMixin",
+    "LivingEntityMixin",
+    "ConnectionMixin",
+    "MultiPlayerGameModeMixin",
+    "accessor.MultiPlayerGameModeAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

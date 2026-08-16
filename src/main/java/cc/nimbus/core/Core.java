@@ -11,6 +11,9 @@ import cc.nimbus.managers.I18nManager;
 import cc.nimbus.managers.ModuleManager;
 import cc.nimbus.managers.MusicManager;
 import cc.nimbus.managers.RenderManager;
+import cc.nimbus.managers.RotationManager;
+import cc.nimbus.managers.TargetManager;
+import net.minecraft.client.Minecraft;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -28,6 +31,8 @@ public enum Core {
     private HudManager hudManager;
     private MusicManager musicManager;
     private I18nManager i18nManager;
+    private RotationManager rotationManager;
+    private TargetManager targetManager;
     private boolean initialized;
 
     public synchronized void init(Path fabricConfigDirectory) {
@@ -35,19 +40,23 @@ public enum Core {
 
         Path nimbusDirectory = Objects.requireNonNull(fabricConfigDirectory, "fabricConfigDirectory").resolve("nimbus");
         RenderManager renders = new RenderManager();
+        RotationManager rotations = new RotationManager(Minecraft.getInstance());
         ModuleManager modules = new ModuleManager();
+        TargetManager targets = new TargetManager(Minecraft.getInstance(), modules);
         ConfigManager configs = new ConfigManager(nimbusDirectory, modules);
         I18nManager i18n = new I18nManager(() -> ClientLanguage.fromValue(configs.clientSettings().language.getValue()));
         HudManager hud = new HudManager(modules, renders, configs.clientSettings());
         AccountManager accounts = new AccountManager(nimbusDirectory.resolve("accounts"));
         MusicManager music = new MusicManager(nimbusDirectory.resolve("music"));
         CommandManager commands = new CommandManager();
-        List<InstanceManager> started = new ArrayList<>(8);
+        List<InstanceManager> started = new ArrayList<>(10);
 
         EventBus.clear();
         try {
             start(renders, started);
+            start(rotations, started);
             start(modules, started);
+            start(targets, started);
             start(hud, started);
             start(configs, started);
             start(i18n, started);
@@ -61,6 +70,8 @@ public enum Core {
         }
 
         moduleManager = modules;
+        rotationManager = rotations;
+        targetManager = targets;
         renderManager = renders;
         hudManager = hud;
         configManager = configs;
@@ -76,7 +87,9 @@ public enum Core {
 
         RuntimeException failure = shutdownReverse(List.of(
                 renderManager,
+                rotationManager,
                 moduleManager,
+                targetManager,
                 hudManager,
                 configManager,
                 i18nManager,
@@ -89,6 +102,8 @@ public enum Core {
         } finally {
             EventBus.clear();
             moduleManager = null;
+            rotationManager = null;
+            targetManager = null;
             renderManager = null;
             hudManager = null;
             configManager = null;
@@ -122,6 +137,14 @@ public enum Core {
 
     public ModuleManager getModuleManager() {
         return requireInitialized(moduleManager, "ModuleManager");
+    }
+
+    public RotationManager getRotationManager() {
+        return requireInitialized(rotationManager, "RotationManager");
+    }
+
+    public TargetManager getTargetManager() {
+        return requireInitialized(targetManager, "TargetManager");
     }
 
     public CommandManager getCommandManager() {

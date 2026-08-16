@@ -1,5 +1,7 @@
 package cc.nimbus.mixin;
 
+import cc.nimbus.core.Core;
+import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.render.OldHitting;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -32,9 +34,14 @@ public abstract class ItemInHandRendererMixin {
                                          float equippedProgress, PoseStack poseStack,
                                          SubmitNodeCollector collector, int packedLight, CallbackInfo ci) {
         OldHitting module = MixinModuleLookup.enabled(OldHitting.class);
+        KillAura aura = MixinModuleLookup.enabled(KillAura.class);
+        boolean auraBlocking = aura != null && aura.isRenderBlocking();
+        if (module == null && auraBlocking && Core.INSTANCE.isInitialized()) {
+            module = Core.INSTANCE.getModuleManager().getModule(OldHitting.class);
+        }
         if (module == null || hand != InteractionHand.MAIN_HAND || stack.isEmpty()
                 || !stack.is(ItemTags.SWORDS) || player.isScoping()
-                || !Minecraft.getInstance().options.keyUse.isDown()) return;
+                || (!Minecraft.getInstance().options.keyUse.isDown() && !auraBlocking)) return;
 
         HumanoidArm arm = player.getMainArm();
         int side = arm == HumanoidArm.RIGHT ? 1 : -1;
