@@ -37,6 +37,10 @@ public final class SkijaText {
         return TextFactory.getTextVisualCenterY(family, size, normalize(text));
     }
 
+    public float baselineFromTop(String family, float size, String text, float top) {
+        return top + TextFactory.getTextBaseline(family, size, normalize(text));
+    }
+
     public void draw(String family, float size, String text, float x, float y, int color) {
         try (Paint paint = paint(color)) {
             TextFactory.drawText(canvas, family, size, normalize(text), x, y, paint);
@@ -45,6 +49,11 @@ public final class SkijaText {
 
     public void draw(String family, float size, String text, float x, float y, Paint paint) {
         TextFactory.drawText(canvas, family, size, normalize(text), x, y, paint);
+    }
+
+    public void drawAtBaseline(String family, float size, String text,
+                               float x, float baseline, Paint paint) {
+        TextFactory.drawTextAtBaseline(canvas, family, size, normalize(text), x, baseline, paint);
     }
 
     public void drawWithShadow(String family, float size, String text, float x, float y, int color) {

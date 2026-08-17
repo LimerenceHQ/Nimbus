@@ -144,12 +144,14 @@ public final class ActiveList extends BasicModule {
                     float textCenterX = textAreaX + (entry.width() - decorWidth) * .5f + offset;
                     float labelX = textCenterX - entry.visualCenterX();
                     float textY = rowY + ROW_HEIGHT * .5f - entry.visualCenterY();
+                    String content = entry.name() + entry.suffix();
+                    float baseline = local.text().baselineFromTop(FONT, FONT_SIZE, content, textY);
                     textPaint.setColor(textColor);
-                    local.text().draw(FONT, FONT_SIZE, entry.name(), labelX, textY, textPaint);
+                    local.text().drawAtBaseline(FONT, FONT_SIZE, entry.name(), labelX, baseline, textPaint);
                     if (!entry.suffix().isEmpty()) {
                         textPaint.setColor(suffixColor);
-                        local.text().draw(FONT, FONT_SIZE, entry.suffix(),
-                                labelX + entry.nameWidth(), textY, textPaint);
+                        local.text().drawAtBaseline(FONT, FONT_SIZE, entry.suffix(),
+                                labelX + entry.nameWidth(), baseline, textPaint);
                     }
                 }
             }

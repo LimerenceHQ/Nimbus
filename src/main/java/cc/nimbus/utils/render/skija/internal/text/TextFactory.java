@@ -53,12 +53,21 @@ public final class TextFactory {
         return layout(familyName, size, normalize(text)).visualCenterY();
     }
 
+    public static synchronized float getTextBaseline(String familyName, float size, String text) {
+        ensureOpen();
+        return layout(familyName, size, normalize(text)).baseline();
+    }
+
     @ApiStatus.Internal
     private static void drawGlyphsSplice(Canvas canvas, String familyName, float size, String text, float x, float y, Paint paint) {
         ensureOpen();
         text = normalize(text);
         TextLayoutPlan layout = layout(familyName, size, text);
-        float baseline = y + layout.baseline();
+        drawLayoutAtBaseline(canvas, size, layout, x, y + layout.baseline(), paint);
+    }
+
+    private static void drawLayoutAtBaseline(Canvas canvas, float size, TextLayoutPlan layout,
+                                             float x, float baseline, Paint paint) {
         for (TextRun run : layout.runs()) {
             if (run.blob() != null && !run.blob().isClosed()) {
                 canvas.drawTextBlob(run.blob(), x + run.x(), baseline, paint);
@@ -71,6 +80,13 @@ public final class TextFactory {
 
     public static void drawText(Canvas canvas, String family, float size, String text, float x, float y, Paint paint) {
         drawGlyphsSplice(canvas, family, size, text, x, y, paint);
+    }
+
+    public static void drawTextAtBaseline(Canvas canvas, String family, float size, String text,
+                                          float x, float baseline, Paint paint) {
+        ensureOpen();
+        TextLayoutPlan layout = layout(family, size, normalize(text));
+        drawLayoutAtBaseline(canvas, size, layout, x, baseline, paint);
     }
 
     public static void drawCenteredText(Canvas canvas, String family, float size, String text, float x, float y, Paint paint) {
