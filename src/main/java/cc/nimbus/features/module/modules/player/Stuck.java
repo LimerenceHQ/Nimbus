@@ -1,6 +1,7 @@
 package cc.nimbus.features.module.modules.player;
 
 import cc.nimbus.event.component.EventTarget;
+import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.event.impl.network.EventPacketReceive;
@@ -16,6 +17,9 @@ import cc.nimbus.utils.mixin.LocalPlayerStateAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.Items;
 
 @ModuleInfo(
         name = "Stuck",
@@ -26,14 +30,21 @@ public final class Stuck extends BasicModule {
     private static final int MAX_MOVEMENT_PACKETS_WITHOUT_POSITION = 19;
 
     private int movementPacketsWithoutPosition;
-    private boolean releaseNextTick;
+    private boolean releaseTick;
     private boolean releasing;
+    
+    public void release(InteractionHand hand) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null && minecraft.player.getItemInHand(hand).is(Items.ENDER_PEARL)) {
+            setEnabled(false);
+        }
+    }
 
 
     @Override
     protected void onEnable() {
         movementPacketsWithoutPosition = 0;
-        releaseNextTick = false;
+        releaseTick = false;
         releasing = false;
         if (Minecraft.getInstance().player != null) Disabler.setStuck();
     }
@@ -41,7 +52,7 @@ public final class Stuck extends BasicModule {
     @Override
     protected void onDisable() {
         movementPacketsWithoutPosition = 0;
-        releaseNextTick = false;
+        releaseTick = false;
         releasing = false;
         Disabler.offStuck();
         Minecraft minecraft = Minecraft.getInstance();
@@ -75,8 +86,8 @@ public final class Stuck extends BasicModule {
             movementPacketsWithoutPosition = 0;
             Disabler.setStuck();
         }
-        if (releaseNextTick) {
-            releaseNextTick = false;
+        if (releaseTick) {
+            releaseTick = false;
             releasing = true;
             Disabler.offStuck();
             if (minecraft.player instanceof LocalPlayerStateAccess access) {
@@ -85,16 +96,20 @@ public final class Stuck extends BasicModule {
         }
     }
 
-    @EventTarget
+    @EventTarget(priority = Priority.Highest)
     private void onPacketSend(EventPacketSend event) {
+        if (event.getPacket() instanceof ServerboundUseItemPacket useItem) {
+            release(useItem.getHand());
+            return;
+        }
         if (!(event.getPacket() instanceof ServerboundMovePlayerPacket packet)) return;
         if (packet.hasPosition()) {
             movementPacketsWithoutPosition = 0;
-            releaseNextTick = false;
+            releaseTick = false;
             return;
         }
         movementPacketsWithoutPosition++;
-        if (movementPacketsWithoutPosition >= MAX_MOVEMENT_PACKETS_WITHOUT_POSITION) releaseNextTick = true;
+        if (movementPacketsWithoutPosition >= MAX_MOVEMENT_PACKETS_WITHOUT_POSITION) releaseTick = true;
     }
 
     @EventTarget

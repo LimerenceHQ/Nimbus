@@ -3,12 +3,15 @@ package cc.nimbus.mixin.player;
 import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.player.EventAttack;
+import cc.nimbus.features.module.modules.player.Stuck;
 import cc.nimbus.features.rotation.Rotation;
+import cc.nimbus.utils.mixin.MixinModuleLookup;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import org.spongepowered.asm.mixin.Mixin;
@@ -55,6 +58,7 @@ public abstract class MultiPlayerGameModeMixin {
     @Inject(method = "useItem", at = @At("HEAD"))
     private void nimbus$useItemRotation(Player player, InteractionHand hand,
                                         CallbackInfoReturnable<InteractionResult> cir) {
+        nimbus$releaseStuckForPearl(player, hand);
         nimbus$pushRotation(player);
     }
 
@@ -67,6 +71,7 @@ public abstract class MultiPlayerGameModeMixin {
     @Inject(method = "useItemOn", at = @At("HEAD"))
     private void nimbus$useItemOnRotation(net.minecraft.client.player.LocalPlayer player, InteractionHand hand,
                                           BlockHitResult hit, CallbackInfoReturnable<InteractionResult> cir) {
+        nimbus$releaseStuckForPearl(player, hand);
         nimbus$pushRotation(player);
     }
 
@@ -117,5 +122,13 @@ public abstract class MultiPlayerGameModeMixin {
         if (--nimbus$rotationDepth > 0) return;
         player.setYRot(nimbus$oldYaw);
         player.setXRot(nimbus$oldPitch);
+    }
+
+    @Unique
+    private static void nimbus$releaseStuckForPearl(Player player, InteractionHand hand) {
+        if (player.getItemInHand(hand).is(Items.ENDER_PEARL)) {
+            Stuck stuck = MixinModuleLookup.enabled(Stuck.class);
+            if (stuck != null) stuck.release(hand);
+        }
     }
 }
