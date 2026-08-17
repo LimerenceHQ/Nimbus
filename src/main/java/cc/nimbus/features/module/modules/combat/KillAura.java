@@ -3,11 +3,13 @@ package cc.nimbus.features.module.modules.combat;
 import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.component.EventTarget;
+import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventClick;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.event.impl.player.EventAttack;
 import cc.nimbus.event.impl.player.EventMotion;
+import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
@@ -26,10 +28,7 @@ import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import cc.nimbus.managers.RotationManager;
 import cc.nimbus.managers.TargetManager;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundInteractPacket;
-import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
 import net.minecraft.network.protocol.game.ServerboundSwingPacket;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
@@ -70,7 +69,7 @@ public final class KillAura extends BasicModule {
     public final MultiSelectSetting particles = new MultiSelectSetting(
             "Particles", new String[]{"Critical", "Sharpness"});
     public final ModeSetting autoBlock = new ModeSetting(
-            "AutoBlock", new String[]{"Off", "Fake", "Packet"}, "Off");
+            "AutoBlock", new String[]{"Off", "Fake"}, "Off");
 
     private LivingEntity attackTarget;
     private List<LivingEntity> searchedTargets = List.of();
@@ -78,11 +77,8 @@ public final class KillAura extends BasicModule {
     private Rotation requestedRotation;
     private double attackAccumulator;
     private boolean firstAttack;
-    private boolean packetBlocking;
     private boolean renderBlocking;
-    private boolean attackPending;
-    private boolean reblockPending;
-    private boolean skipNextReblockMotion;
+    private boolean shouldStopSprint;
 
     @Override
     protected void onEnable() {
@@ -112,20 +108,19 @@ public final class KillAura extends BasicModule {
     @EventTarget
     private void onMotion(EventMotion event) {
         if (!event.isPre()) return;
-        if (attackTarget == null || !holdingSword()) {
-            stopBlocking();
-            return;
+        renderBlocking = autoBlock.is("Fake") && attackTarget != null && holdingSword();
+    }
+
+    @EventTarget(priority = Priority.Lowest)
+    private void onMoveInput(EventMoveInput event) {
+        if (!shouldStopSprint) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        event.setSprint(false);
+        if (minecraft.options != null) minecraft.options.keySprint.setDown(false);
+        if (minecraft.player != null && minecraft.player.isSprinting()) {
+            minecraft.player.setSprinting(false);
         }
-        if (autoBlock.is("Fake")) {
-            renderBlocking = true;
-        } else if (autoBlock.is("Packet") && reblockPending) {
-            if (skipNextReblockMotion) {
-                skipNextReblockMotion = false;
-                return;
-            }
-            startPacketBlocking();
-            reblockPending = false;
-        }
+        shouldStopSprint = false;
     }
 
     public boolean isRenderBlocking() {
@@ -147,8 +142,6 @@ public final class KillAura extends BasicModule {
             return;
         }
 
-        double delay = 1000.0 / cps.getValue().doubleValue();
-        attackAccumulator = Math.min(attackAccumulator + 50.0, delay * 2.0);
         updateTargets();
         if (attackTarget == null) {
             firstAttack = false;
@@ -156,12 +149,7 @@ public final class KillAura extends BasicModule {
             stopBlocking();
             return;
         }
-        if (autoBlock.is("Off")) {
-            stopBlocking();
-        } else if (autoBlock.is("Fake") && packetBlocking) {
-            stopBlocking();
-            renderBlocking = holdingSword();
-        }
+        if (autoBlock.is("Off")) stopBlocking();
 
         RotationMath.AimPoint point = aimPoint(attackTarget);
         if (!point.exists() || point.distance() > rotationRange.getValue().doubleValue()) {
@@ -185,36 +173,26 @@ public final class KillAura extends BasicModule {
 
     private void attackTick() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.level == null || minecraft.gameMode == null
-                || minecraft.getConnection() == null || attackTarget == null) return;
+        if (minecraft.player == null) return;
         double delay = 1000.0 / cps.getValue().doubleValue();
-        if (reblockPending) return;
-        if (!attackPending && attackAccumulator < delay) return;
+        attackAccumulator = Math.min(attackAccumulator + 50.0, delay * 2.0);
+        if (minecraft.level == null || minecraft.gameMode == null
+                || minecraft.getConnection() == null || attackTarget == null) return;
+        if (attackAccumulator < delay) return;
         if (stopAttackWhileUsingItem.getValue() && minecraft.player.isUsingItem()) return;
 
         LivingEntity raycastTarget = resolveRaycastTarget();
         if (raycastTarget == null) return;
         attackTarget = raycastTarget;
 
-        if (autoBlock.is("Packet") && packetBlocking && !attackPending) {
-            releasePacketBlocking();
-            attackPending = true;
-            return;
+        boolean skipSprintStop = skipFirstAttack.getValue() && !firstAttack;
+        if (keepSprint.is("Legit") && minecraft.player.isSprinting() && !skipSprintStop) {
+            shouldStopSprint = true;
         }
-
-        if (keepSprint.is("Legit") && minecraft.player.isSprinting()
-                && !(skipFirstAttack.getValue() && !firstAttack)) {
-            minecraft.player.setSprinting(false);
-            return;
-        }
+        if (shouldStopSprint && !skipSprintStop) return;
         if (!performAttack(attackTarget)) return;
         attackAccumulator -= delay;
-        attackPending = false;
         firstAttack = true;
-        if (autoBlock.is("Packet") && holdingSword()) {
-            reblockPending = true;
-            skipNextReblockMotion = true;
-        }
     }
 
     private boolean performAttack(LivingEntity target) {
@@ -320,34 +298,8 @@ public final class KillAura extends BasicModule {
         };
     }
 
-    private void startPacketBlocking() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.gameMode == null || !holdingSword()) return;
-        Core.INSTANCE.getRotationManager().withEffectiveRotation(
-                minecraft.player,
-                () -> minecraft.gameMode.useItem(minecraft.player, InteractionHand.MAIN_HAND));
-        packetBlocking = true;
-        renderBlocking = true;
-    }
-
     private void stopBlocking() {
-        releasePacketBlocking();
         renderBlocking = false;
-        attackPending = false;
-        reblockPending = false;
-        skipNextReblockMotion = false;
-    }
-
-    private void releasePacketBlocking() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (packetBlocking && minecraft.getConnection() != null) {
-            minecraft.getConnection().send(new ServerboundPlayerActionPacket(
-                    ServerboundPlayerActionPacket.Action.RELEASE_USE_ITEM,
-                    BlockPos.ZERO,
-                    Direction.DOWN
-            ));
-        }
-        packetBlocking = false;
     }
 
     private boolean holdingSword() {
@@ -364,5 +316,6 @@ public final class KillAura extends BasicModule {
         requestedRotation = null;
         attackAccumulator = 0.0;
         firstAttack = false;
+        shouldStopSprint = false;
     }
 }
