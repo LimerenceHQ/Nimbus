@@ -7,28 +7,13 @@ import cc.nimbus.event.impl.input.EventKeyPress;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 
-import cc.nimbus.features.module.modules.combat.KillAura;
-import cc.nimbus.features.module.modules.exploit.Disabler;
-import cc.nimbus.features.module.modules.hud.ActiveList;
-import cc.nimbus.features.module.modules.hud.MusicLyrics;
-import cc.nimbus.features.module.modules.hud.MusicToast;
-import cc.nimbus.features.module.modules.hud.MusicSpectrum;
-import cc.nimbus.features.module.modules.hud.Watermark;
-import cc.nimbus.features.module.modules.movement.Scaffold;
-import cc.nimbus.features.module.modules.movement.Sprint;
-import cc.nimbus.features.module.modules.player.AntiBot;
-import cc.nimbus.features.module.modules.player.Stuck;
-import cc.nimbus.features.module.modules.player.Target;
-import cc.nimbus.features.module.modules.player.Teams;
-import cc.nimbus.features.module.modules.render.ClickGui;
-import cc.nimbus.features.module.modules.render.BetterThirdPerson;
-import cc.nimbus.features.module.modules.render.ESP;
-import cc.nimbus.features.module.modules.render.FullBright;
-import cc.nimbus.features.module.modules.render.ItemPhysics;
-import cc.nimbus.features.module.modules.render.Nametag;
-import cc.nimbus.features.module.modules.render.OldHitting;
-import cc.nimbus.features.module.modules.render.Projectile;
-import cc.nimbus.features.module.modules.render.WorldTweaks;
+import cc.nimbus.features.module.modules.combat.*;
+import cc.nimbus.features.module.modules.exploit.*;
+import cc.nimbus.features.module.modules.hud.*;
+import cc.nimbus.features.module.modules.movement.*;
+import cc.nimbus.features.module.modules.player.*;
+import cc.nimbus.features.module.modules.render.*;
+
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
@@ -74,6 +59,8 @@ public final class ModuleManager implements InstanceManager {
                     new ESP(),
                     new Nametag(),
                     new FullBright(),
+                    new NoFov(),
+                    new NoHurtCamera(),
                     new WorldTweaks(),
                     new BetterThirdPerson(),
                     new ItemPhysics(),

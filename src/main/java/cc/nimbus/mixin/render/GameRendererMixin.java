@@ -4,7 +4,9 @@ import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.player.EventRayTrace;
 import cc.nimbus.utils.render.Render3DUtils;
 import cc.nimbus.features.module.modules.render.FullBright;
+import cc.nimbus.features.module.modules.render.NoHurtCamera;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.client.Minecraft;
@@ -73,5 +75,10 @@ public abstract class GameRendererMixin {
                                                      CallbackInfoReturnable<Float> cir) {
         FullBright module = MixinModuleLookup.enabled(FullBright.class);
         if (module != null && module.mode.is("Night Vision")) cir.setReturnValue(1.0f);
+    }
+
+    @Inject(method = "bobHurt", at = @At("HEAD"), cancellable = true)
+    private void nimbus$noHurtCamera(PoseStack poseStack, float partialTick, CallbackInfo ci) {
+        if (MixinModuleLookup.enabled(NoHurtCamera.class) != null) ci.cancel();
     }
 }

@@ -431,6 +431,13 @@
   "nimbus.module.old_hitting.setting.z": "Z 位置",
   "nimbus.module.old_hitting.setting.scale": "大小",
 
+  "nimbus.module.no_fov.name": "固定视野",
+  "nimbus.module.no_fov.description": "移除玩家动作和状态效果引起的视野变化。",
+  "nimbus.module.no_fov.setting.fov": "视野倍率",
+
+  "nimbus.module.no_hurt_camera.name": "无受伤摇晃",
+  "nimbus.module.no_hurt_camera.description": "移除受到伤害时的相机倾斜效果。",
+
   "nimbus.module.full_bright.name": "全局高亮",
   "nimbus.module.full_bright.description": "在不修改游戏状态效果的情况下保持世界明亮。",
   "nimbus.module.full_bright.setting.mode": "模式",

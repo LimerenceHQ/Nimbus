@@ -431,6 +431,13 @@
   "nimbus.module.old_hitting.setting.z": "Z",
   "nimbus.module.old_hitting.setting.scale": "Scale",
 
+  "nimbus.module.no_fov.name": "No FOV",
+  "nimbus.module.no_fov.description": "Removes field-of-view changes caused by player actions and effects.",
+  "nimbus.module.no_fov.setting.fov": "FOV",
+
+  "nimbus.module.no_hurt_camera.name": "No Hurt Camera",
+  "nimbus.module.no_hurt_camera.description": "Removes the camera tilt effect when taking damage.",
+
   "nimbus.module.full_bright.name": "FullBright",
   "nimbus.module.full_bright.description": "Keeps the world clearly lit without changing game effects.",
   "nimbus.module.full_bright.setting.mode": "Mode",
