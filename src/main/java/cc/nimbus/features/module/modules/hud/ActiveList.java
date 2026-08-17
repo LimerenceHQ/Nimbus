@@ -51,6 +51,7 @@ public final class ActiveList extends BasicModule {
     private static final int SUFFIX_COLOR = 0xFF9EA8B2;
 
     public final BooleanSetting showSuffix = new BooleanSetting("Show suffix", true);
+    public final BooleanSetting hideVisuals = new BooleanSetting("Hide visuals", false);
     public final BooleanSetting background = new BooleanSetting("Background", true);
     public final BooleanSetting rightRect = new BooleanSetting("Right rect", true);
     public final ColorSetting accent = new ColorSetting("Accent", 0xFF82A9FF, this::customStyle);
@@ -174,6 +175,9 @@ public final class ActiveList extends BasicModule {
         Set<String> keys = new HashSet<>();
         for (BasicModule module : Core.INSTANCE.getModuleManager().getModules()) {
             if (!module.isEnabled() || module.isHidden() || module == this) continue;
+            if (hideVisuals.getValue()
+                    && (module.getCategory() == ModuleCategory.Render
+                    || module.getCategory() == ModuleCategory.HUD)) continue;
             String name = Core.INSTANCE.getI18nManager().get(
                     module.getDisplayNameTranslationKey(), module.getDisplayName());
             String suffix = showSuffix.getValue() && !module.getSuffix().isBlank()

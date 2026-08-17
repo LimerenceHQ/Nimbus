@@ -19,13 +19,13 @@ import net.minecraft.client.Minecraft;
         category = ModuleCategory.HUD
 )
 public final class MusicToast extends BasicModule {
-    private long observedSongId = -1L;
+    private static final long UNOBSERVED_SONG = Long.MIN_VALUE;
+
+    private long observedSongId = UNOBSERVED_SONG;
 
     @Override
     protected void onEnable() {
-        MusicManager music = Core.INSTANCE.getMusicManager();
-        Music current = music.state().music();
-        observedSongId = current == null ? -1L : current.id();
+        observedSongId = UNOBSERVED_SONG;
         MusicToastState.clear();
     }
 
@@ -44,6 +44,10 @@ public final class MusicToast extends BasicModule {
         var state = music.state();
         Music current = state.music();
         long currentId = current == null ? -1L : current.id();
+        if (observedSongId == UNOBSERVED_SONG) {
+            observedSongId = currentId;
+            return;
+        }
         if (currentId == observedSongId) return;
         observedSongId = currentId;
         if (current == null || state.phase() == PlaybackPhase.IDLE) {
