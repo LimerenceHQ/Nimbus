@@ -458,5 +458,29 @@
   "nimbus.module.item_physics.name": "物品物理",
   "nimbus.module.item_physics.description": "让掉落物立即平放并移除原版悬浮效果。",
   "nimbus.module.item_physics.setting.remove_bob": "移除浮动",
-  "nimbus.module.item_physics.setting.grounded_tilt": "落地倾角"
+  "nimbus.module.item_physics.setting.grounded_tilt": "落地倾角",
+
+  "nimbus.module.no_fall.name": "无摔落伤害",
+  "nimbus.module.no_fall.description": "使用水桶或梯子 MLG 避免摔落伤害。",
+  "nimbus.module.no_fall.setting.mode": "模式",
+  "nimbus.module.no_fall.setting.mode.option.mlg": "MLG",
+  "nimbus.module.no_fall.setting.fall_distance_mode": "触发距离模式",
+  "nimbus.module.no_fall.setting.fall_distance_mode.option.safe_distance": "安全距离",
+  "nimbus.module.no_fall.setting.fall_distance_mode.option.custom": "自定义",
+  "nimbus.module.no_fall.setting.fall_distance": "摔落距离",
+
+  "nimbus.module.fire_guard.name": "火焰防护",
+  "nimbus.module.fire_guard.description": "自动防护附近的火焰与岩浆危险。",
+  "nimbus.module.fire_guard.setting.lava_seal": "封堵岩浆",
+  "nimbus.module.fire_guard.setting.flame_clear": "清除火焰",
+  "nimbus.module.fire_guard.setting.water_rescue": "水桶自救",
+  "nimbus.module.fire_guard.setting.rotation_speed": "转向速度",
+  "nimbus.module.fire_guard.setting.movement_fix": "移动修正",
+  "nimbus.module.fire_guard.setting.movement_fix.option.none": "关闭",
+  "nimbus.module.fire_guard.setting.movement_fix.option.strict": "严格",
+  "nimbus.module.fire_guard.setting.movement_fix.option.silent": "静默",
+  "nimbus.module.fire_guard.setting.swing_mode": "挥手模式",
+  "nimbus.module.fire_guard.setting.swing_mode.option.off": "关闭",
+  "nimbus.module.fire_guard.setting.swing_mode.option.normal": "普通",
+  "nimbus.module.fire_guard.setting.swing_mode.option.silent": "静默"
 }

@@ -458,5 +458,29 @@
   "nimbus.module.item_physics.name": "Item Physics",
   "nimbus.module.item_physics.description": "Lays dropped items flat without vanilla hovering.",
   "nimbus.module.item_physics.setting.remove_bob": "Remove Bob",
-  "nimbus.module.item_physics.setting.grounded_tilt": "Grounded Tilt"
+  "nimbus.module.item_physics.setting.grounded_tilt": "Grounded Tilt",
+
+  "nimbus.module.no_fall.name": "NoFall",
+  "nimbus.module.no_fall.description": "Prevents fall damage with water-bucket and ladder MLG actions.",
+  "nimbus.module.no_fall.setting.mode": "Mode",
+  "nimbus.module.no_fall.setting.mode.option.mlg": "MLG",
+  "nimbus.module.no_fall.setting.fall_distance_mode": "Fall Distance Mode",
+  "nimbus.module.no_fall.setting.fall_distance_mode.option.safe_distance": "Safe Distance",
+  "nimbus.module.no_fall.setting.fall_distance_mode.option.custom": "Custom",
+  "nimbus.module.no_fall.setting.fall_distance": "Fall Distance",
+
+  "nimbus.module.fire_guard.name": "FireGuard",
+  "nimbus.module.fire_guard.description": "Protects the player from nearby fire and lava hazards.",
+  "nimbus.module.fire_guard.setting.lava_seal": "Lava Seal",
+  "nimbus.module.fire_guard.setting.flame_clear": "Flame Clear",
+  "nimbus.module.fire_guard.setting.water_rescue": "Water Rescue",
+  "nimbus.module.fire_guard.setting.rotation_speed": "Rotation Speed",
+  "nimbus.module.fire_guard.setting.movement_fix": "Movement Fix",
+  "nimbus.module.fire_guard.setting.movement_fix.option.none": "None",
+  "nimbus.module.fire_guard.setting.movement_fix.option.strict": "Strict",
+  "nimbus.module.fire_guard.setting.movement_fix.option.silent": "Silent",
+  "nimbus.module.fire_guard.setting.swing_mode": "Swing Mode",
+  "nimbus.module.fire_guard.setting.swing_mode.option.off": "Off",
+  "nimbus.module.fire_guard.setting.swing_mode.option.normal": "Normal",
+  "nimbus.module.fire_guard.setting.swing_mode.option.silent": "Silent"
 }
