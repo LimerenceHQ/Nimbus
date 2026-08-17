@@ -138,6 +138,7 @@ public final class Scaffold extends BasicModule {
     private boolean reachable = true;
     private boolean yawNormal;
     private boolean forcedSneak;
+    private int placementAttemptTick = Integer.MIN_VALUE;
     private long lastPlaceTime;
 
     @Override
@@ -221,6 +222,7 @@ public final class Scaffold extends BasicModule {
 
         BlockHitResult hit = new BlockHitResult(
                 currentHit.hitVec(), currentPlace.direction(), currentPlace.blockPos(), false);
+        placementAttemptTick = minecraft.player.tickCount;
         if (minecraft.gameMode.useItemOn(minecraft.player, InteractionHand.MAIN_HAND, hit).consumesAction()) {
             minecraft.player.swing(InteractionHand.MAIN_HAND);
             lastPlaceTime = System.currentTimeMillis();
@@ -562,6 +564,11 @@ public final class Scaffold extends BasicModule {
                 && block != Blocks.LILY_PAD;
     }
 
+    public boolean attemptedPlacementThisTick() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.player != null && placementAttemptTick == minecraft.player.tickCount;
+    }
+
     private void clearPlacement() {
         currentPlace = null;
         currentHit = null;
@@ -593,6 +600,7 @@ public final class Scaffold extends BasicModule {
         reachable = true;
         yawNormal = false;
         forcedSneak = false;
+        placementAttemptTick = Integer.MIN_VALUE;
         lastPlaceTime = 0L;
     }
 }
