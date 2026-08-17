@@ -14,6 +14,7 @@ import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.game.EventClick;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
+import cc.nimbus.features.module.modules.combat.BowAssistant;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.movement.Scaffold;
 import cc.nimbus.features.module.modules.render.OldHitting;
@@ -57,7 +58,10 @@ public class MinecraftMixin {
     @Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
     private void nimbus$suppressOwnedItemUse(CallbackInfo ci) {
         Scaffold scaffold = MixinModuleLookup.enabled(Scaffold.class);
-        if ((scaffold != null && scaffold.attemptedPlacementThisTick()) || nimbus$auraOwnsSwordUse()) {
+        BowAssistant bowAssistant = MixinModuleLookup.enabled(BowAssistant.class);
+        if ((scaffold != null && scaffold.attemptedPlacementThisTick())
+                || (bowAssistant != null && bowAssistant.autoReleasedThisTick())
+                || nimbus$auraOwnsSwordUse()) {
             ci.cancel();
         }
     }

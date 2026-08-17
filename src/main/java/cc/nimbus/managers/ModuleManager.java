@@ -43,6 +43,8 @@ public final class ModuleManager implements InstanceManager {
         try {
             registerModules(
                     new KillAura(),
+                    new ProjectileAura(),
+                    new BowAssistant(),
                     new Disabler(),
                     new ClickGui(),
                     new ActiveList(),

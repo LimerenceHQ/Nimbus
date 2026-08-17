@@ -7,6 +7,7 @@ import cc.nimbus.features.client.ClientSettings;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
+import cc.nimbus.features.module.modules.combat.BowAssistant;
 import cc.nimbus.utils.render.Render3DUtils;
 import cc.nimbus.utils.render.PlayerProjectionCache;
 import cc.nimbus.utils.render.font.NimbusFonts;
@@ -57,6 +58,7 @@ public final class Nametag extends BasicModule {
             labelLevel = minecraft.level;
         }
         long gameTime = minecraft.level.getGameTime();
+        TargetIndicators targetIndicators = targetIndicators();
         int colorIndex = 0;
 
         for (PlayerProjectionCache.Entry projectedPlayer : PlayerProjectionCache.entries(minecraft, projection)) {
@@ -66,7 +68,8 @@ public final class Nametag extends BasicModule {
 
             float espWidth = projected.width() * 0.5f * skija.width();
             if (espWidth <= 2f) continue;
-            LabelCache label = label(player, minecraft.player, skija, guiScale, gameTime);
+            String targetIndicator = targetIndicators.label(player.getId());
+            LabelCache label = label(player, minecraft.player, skija, guiScale, gameTime, targetIndicator);
             float naturalWidth = label.naturalWidth;
             float relativeScale = Math.max(MIN_SCALE, Math.min(1f, espWidth / naturalWidth));
             float scale = guiScale * relativeScale;
@@ -75,6 +78,7 @@ public final class Nametag extends BasicModule {
             entries.add(new Entry(
                     (projected.left() + projected.right()) * 0.5f,
                     projected.top(), width, height, scale, label.name, label.metadata,
+                    label.targetIndicator,
                     settings.accentColor(colorIndex++, now)
             ));
         }
@@ -106,8 +110,19 @@ public final class Nametag extends BasicModule {
                             0xE6000000 | (entry.accent & 0x00FFFFFF));
                     frame.text().center(NAME_FONT, NAME_SIZE * entry.scale, entry.name,
                             centerX, y + 4f * entry.scale, 0xFFF4F7F8);
-                    frame.text().center(META_FONT, META_SIZE * entry.scale, entry.metadata,
-                            centerX, y + 20f * entry.scale, 0xFFB8C0C7);
+                    float metadataSize = META_SIZE * entry.scale;
+                    String indicator = entry.targetIndicator.isEmpty()
+                            ? "" : "  ·  " + entry.targetIndicator;
+                    float metadataWidth = frame.text().width(META_FONT, metadataSize, entry.metadata);
+                    float indicatorWidth = frame.text().width(META_FONT, metadataSize, indicator);
+                    float metadataX = centerX - (metadataWidth + indicatorWidth) * 0.5f;
+                    frame.text().draw(META_FONT, metadataSize, entry.metadata,
+                            metadataX, y + 18f * entry.scale, 0xFFB8C0C7);
+                    if (!indicator.isEmpty()) {
+                        frame.text().draw(META_FONT, metadataSize, indicator,
+                                metadataX + metadataWidth, y + 18f * entry.scale,
+                                0xFF000000 | (entry.accent & 0x00FFFFFF));
+                    }
                 }
             }
         });
@@ -120,25 +135,44 @@ public final class Nametag extends BasicModule {
     }
 
     private LabelCache label(Player player, Player viewer, SkijaRenderer skija,
-                             float guiScale, long gameTime) {
+                             float guiScale, long gameTime, String targetIndicator) {
         LabelCache cached = labels.computeIfAbsent(player.getId(), ignored -> new LabelCache());
-        if (cached.tick == gameTime && Float.compare(cached.guiScale, guiScale) == 0) return cached;
+        if (cached.tick == gameTime && Float.compare(cached.guiScale, guiScale) == 0
+                && targetIndicator.equals(cached.targetIndicator)) return cached;
 
         String name = player.getName().getString();
-        String metadata = String.format(Locale.ROOT, "ID %d  ·  %.1fm",
-                player.getId(), viewer.distanceTo(player));
+        String metadata = String.format(Locale.ROOT, "ID %d  ·  %.1fm", player.getId(), viewer.distanceTo(player));
         if (!name.equals(cached.name) || !metadata.equals(cached.metadata)
+                || !targetIndicator.equals(cached.targetIndicator)
                 || Float.compare(cached.guiScale, guiScale) != 0) {
             cached.name = name;
             cached.metadata = metadata;
             cached.guiScale = guiScale;
+            String indicator = targetIndicator.isEmpty() ? "" : "  ·  " + targetIndicator;
             cached.naturalWidth = Math.max(
                     skija.text().width(NAME_FONT, NAME_SIZE * guiScale, name),
                     skija.text().width(META_FONT, META_SIZE * guiScale, metadata)
+                            + skija.text().width(META_FONT, META_SIZE * guiScale, indicator)
             ) + PADDING_X * guiScale * 2f;
         }
         cached.tick = gameTime;
+        cached.targetIndicator = targetIndicator;
         return cached;
+    }
+
+    private TargetIndicators targetIndicators() {
+        Projectile projectile = Core.INSTANCE.getModuleManager().getModule(Projectile.class);
+        BowAssistant bowAssistant = Core.INSTANCE.getModuleManager().getModule(BowAssistant.class);
+
+        int projectileTargetId = projectile != null && projectile.isEnabled()
+                ? projectile.getTargetEntityId() : -1;
+        int bowTargetId = bowAssistant != null && bowAssistant.isEnabled() && bowAssistant.getTarget() != null
+                ? bowAssistant.getTarget().getId() : -1;
+        String projectileLabel = projectileTargetId == -1 ? "" : Core.INSTANCE.getI18nManager().get(
+                projectile.getDisplayNameTranslationKey(), projectile.getDisplayName());
+        String bowLabel = bowTargetId == -1 ? "" : Core.INSTANCE.getI18nManager().get(
+                bowAssistant.getDisplayNameTranslationKey(), bowAssistant.getDisplayName());
+        return new TargetIndicators(projectileTargetId, bowTargetId, projectileLabel, bowLabel);
     }
 
     private static float screen(float normalized, float size) {
@@ -146,7 +180,18 @@ public final class Nametag extends BasicModule {
     }
 
     private record Entry(float centerX, float top, float width, float height, float scale,
-                         String name, String metadata, int accent) { }
+                         String name, String metadata, String targetIndicator, int accent) { }
+
+    private record TargetIndicators(int projectileTargetId, int bowTargetId,
+                                    String projectileLabel, String bowLabel) {
+        private String label(int entityId) {
+            boolean projectile = projectileTargetId == entityId;
+            boolean bow = bowTargetId == entityId;
+            if (projectile && bow) return projectileLabel + " / " + bowLabel;
+            if (projectile) return projectileLabel;
+            return bow ? bowLabel : "";
+        }
+    }
 
     private static final class LabelCache {
         private long tick = Long.MIN_VALUE;
@@ -154,5 +199,6 @@ public final class Nametag extends BasicModule {
         private float naturalWidth;
         private String name = "";
         private String metadata = "";
+        private String targetIndicator = "";
     }
 }

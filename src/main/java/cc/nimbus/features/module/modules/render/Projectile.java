@@ -26,8 +26,11 @@ import java.util.List;
 
 @ModuleInfo(name = "Projectile", description = "Predicts the path of held projectiles.", category = ModuleCategory.Render)
 public final class Projectile extends BasicModule {
+    private int targetEntityId = -1;
+
     @EventTarget
     private void onRender3D(EventRender3D event) {
+        targetEntityId = -1;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) return;
 
@@ -131,16 +134,22 @@ public final class Projectile extends BasicModule {
                     new AABB(impact, impact).inflate(0.035), 0xF0FFFFFF, 2f,
                     Render3DUtils.DepthMode.NONE);
         } else if (landingHit instanceof EntityHitResult entityHit) {
-            Render3DUtils.drawFilledBoxWithDepth(event.getPoseStack(), entityHit.getEntity().getBoundingBox(),
-                    0x24FF5C68, Render3DUtils.DepthMode.BOTH);
-            Render3DUtils.drawBoxOutlineWithDepth(event.getPoseStack(), entityHit.getEntity().getBoundingBox(),
-                    0xE6FF5C68, 2.5f, Render3DUtils.DepthMode.BOTH);
+            targetEntityId = entityHit.getEntity().getId();
         } else if (landingHit != null) {
             Vec3 landing = landingHit.getLocation();
             Render3DUtils.drawBoxOutlineWithDepth(event.getPoseStack(),
                     new AABB(landing, landing).inflate(0.09), color, 2.5f,
                     Render3DUtils.DepthMode.BOTH);
         }
+    }
+
+    @Override
+    protected void onDisable() {
+        targetEntityId = -1;
+    }
+
+    public int getTargetEntityId() {
+        return targetEntityId;
     }
 
     private static boolean supported(ItemStack stack) {
