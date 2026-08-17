@@ -2,11 +2,13 @@ package cc.nimbus.mixin.render;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.features.module.modules.combat.KillAura;
+import cc.nimbus.features.module.modules.player.AutoTool;
 import cc.nimbus.features.module.modules.render.OldHitting;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.ItemInHandRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.tags.ItemTags;
@@ -27,6 +29,16 @@ public abstract class ItemInHandRendererMixin {
     @Shadow
     public abstract void renderItem(LivingEntity entity, ItemStack stack, ItemDisplayContext displayContext,
                                     PoseStack poseStack, SubmitNodeCollector collector, int packedLight);
+
+    @Redirect(
+            method = "tick",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;getMainHandItem()Lnet/minecraft/world/item/ItemStack;")
+    )
+    private ItemStack nimbus$spoofMainHand(LocalPlayer player) {
+        AutoTool autoTool = MixinModuleLookup.enabled(AutoTool.class);
+        ItemStack spoof = autoTool == null ? null : autoTool.getSpoofStack();
+        return spoof == null ? player.getMainHandItem() : spoof;
+    }
 
     @Inject(method = "renderArmWithItem", at = @At("HEAD"), cancellable = true)
     private void nimbus$transformHeldItem(AbstractClientPlayer player, float partialTick, float pitch,
@@ -66,6 +78,11 @@ public abstract class ItemInHandRendererMixin {
                                        ItemDisplayContext displayContext, PoseStack poseStack,
                                        SubmitNodeCollector collector, int packedLight) {
         OldHitting module = MixinModuleLookup.enabled(OldHitting.class);
+        AutoTool autoTool = MixinModuleLookup.enabled(AutoTool.class);
+        if (autoTool != null && entity == Minecraft.getInstance().player) {
+            ItemStack spoof = autoTool.getSpoofStack();
+            if (spoof != null) stack = spoof;
+        }
         boolean mainHand = entity instanceof AbstractClientPlayer player
                 && (player.getMainArm() == HumanoidArm.RIGHT
                 ? displayContext == ItemDisplayContext.FIRST_PERSON_RIGHT_HAND

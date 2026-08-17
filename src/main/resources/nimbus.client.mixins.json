@@ -30,6 +30,7 @@
     "render.TitleScreenMixin",
     "render.ToastManagerMixin",
     "world.ClientLevelDataMixin",
+    "accessor.client.MinecraftAccessor",
     "accessor.player.MultiPlayerGameModeAccessor"
   ],
   "injectors": {
