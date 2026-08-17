@@ -14,9 +14,9 @@ public record RotationRequest(
 ) {
     public RotationRequest {
         rotation = Objects.requireNonNull(rotation, "rotation").normalized();
-        priority = Objects.requireNonNull(priority, "priority");
-        movementFix = Objects.requireNonNull(movementFix, "movementFix");
-        smoothMode = Objects.requireNonNull(smoothMode, "smoothMode");
+        Objects.requireNonNull(priority, "priority");
+        Objects.requireNonNull(movementFix, "movementFix");
+        Objects.requireNonNull(smoothMode, "smoothMode");
         speed = Math.max(0.0f, speed);
         keepTicks = Math.max(0, keepTicks);
         returnTicks = Math.max(0, returnTicks);
