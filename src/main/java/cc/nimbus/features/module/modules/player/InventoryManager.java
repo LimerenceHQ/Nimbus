@@ -56,6 +56,10 @@ public final class InventoryManager extends BasicModule {
             "Splash Potion", "Projectile", "Fishing Rod", "TNT", "Totem", "Shield", "Fire Charge",
             "Flint And Steel", "God Axe", "Knockback Ball"
     };
+    private static final String[] DEFAULT_SLOT_TYPES = {
+            "Sword", "Block", "Golden Apple", "Pearl", "Projectile",
+            "Water Bucket", "Bow", "Pickaxe", "Axe"
+    };
     private static final EquipmentSlot[] ARMOR_SLOTS = {
             EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
@@ -88,7 +92,12 @@ public final class InventoryManager extends BasicModule {
 
     public InventoryManager() {
         for (int i = 0; i < 9; i++) {
-            slotTypes[i] = new ModeSetting("Slot " + (i + 1), new Modes(SORT_TYPES), "None", sortInventory::getValue);
+            slotTypes[i] = new ModeSetting(
+                    "Slot " + (i + 1),
+                    new Modes(SORT_TYPES),
+                    DEFAULT_SLOT_TYPES[i],
+                    sortInventory::getValue
+            );
             addSetting(slotTypes[i]);
         }
         slotTypes[9] = new ModeSetting("Offhand", new Modes(SORT_TYPES), "None", sortInventory::getValue);
