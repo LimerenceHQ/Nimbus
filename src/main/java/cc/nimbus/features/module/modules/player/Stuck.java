@@ -28,8 +28,10 @@ import net.minecraft.world.item.Items;
 )
 public final class Stuck extends BasicModule {
     private static final int MAX_MOVEMENT_PACKETS_WITHOUT_POSITION = 19;
+    private static final int MAX_TICKS_WITHOUT_POSITION = 20;
 
     private int movementPacketsWithoutPosition;
+    private int ticksWithoutPosition;
     private boolean releaseTick;
     private boolean releasing;
     
@@ -44,6 +46,7 @@ public final class Stuck extends BasicModule {
     @Override
     protected void onEnable() {
         movementPacketsWithoutPosition = 0;
+        ticksWithoutPosition = 0;
         releaseTick = false;
         releasing = false;
         if (Minecraft.getInstance().player != null) Disabler.setStuck();
@@ -52,6 +55,7 @@ public final class Stuck extends BasicModule {
     @Override
     protected void onDisable() {
         movementPacketsWithoutPosition = 0;
+        ticksWithoutPosition = 0;
         releaseTick = false;
         releasing = false;
         Disabler.offStuck();
@@ -84,8 +88,10 @@ public final class Stuck extends BasicModule {
         if (releasing) {
             releasing = false;
             movementPacketsWithoutPosition = 0;
+            ticksWithoutPosition = 0;
             Disabler.setStuck();
         }
+        if (++ticksWithoutPosition >= MAX_TICKS_WITHOUT_POSITION) releaseTick = true;
         if (releaseTick) {
             releaseTick = false;
             releasing = true;
@@ -105,6 +111,7 @@ public final class Stuck extends BasicModule {
         if (!(event.getPacket() instanceof ServerboundMovePlayerPacket packet)) return;
         if (packet.hasPosition()) {
             movementPacketsWithoutPosition = 0;
+            ticksWithoutPosition = 0;
             releaseTick = false;
             return;
         }
