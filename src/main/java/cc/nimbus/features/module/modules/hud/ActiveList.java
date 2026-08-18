@@ -274,6 +274,12 @@ public final class ActiveList extends BasicModule {
                                       float originX, float originY, float scale,
                                       boolean rightAnchored) {
         try (PathBuilder path = new PathBuilder()) {
+            // An entry can remain in the animation map for a few frames after its
+            // background height has reached zero. Do not feed those degenerate rows
+            // into the rounded path; they produce a small detached corner during exit.
+            entries = entries.stream()
+                    .filter(entry -> entry.height() > .05f)
+                    .toList();
             if (entries.isEmpty()) return path.build();
             RenderEntry first = entries.getFirst();
             RenderEntry last = entries.getLast();

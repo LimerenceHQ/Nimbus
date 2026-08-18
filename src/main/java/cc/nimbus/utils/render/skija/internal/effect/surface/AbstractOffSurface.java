@@ -29,6 +29,16 @@ public abstract sealed class AbstractOffSurface<V> implements AutoCloseable perm
         return snapshot == null || nowMs - lastUpdateTimeMs >= interval;
     }
 
+    public boolean shouldUpdateForPath(long nowMs, float currentFps,
+                                       @Nullable Path path, @Nullable V target) {
+        if (snapshot == null) return true;
+        if (path != null && target != null) {
+            Rect requestedBounds = path.getBounds().inflate(inflate(target));
+            if (!sameBounds(snapshotBounds, requestedBounds)) return true;
+        }
+        return shouldUpdate(nowMs, currentFps);
+    }
+
     public void updateSurface(DirectContext context, @Nullable Path path, @Nullable List<Rect> srcs, float screenWidth, float screenHeight, V target) {
         if (context == null || target == null) {
             return;
@@ -108,6 +118,15 @@ public abstract sealed class AbstractOffSurface<V> implements AutoCloseable perm
         snapshot = null;
         snapshotBounds = null;
         lastUpdateTimeMs = 0;
+    }
+
+    private static boolean sameBounds(@Nullable Rect first, @Nullable Rect second) {
+        if (first == second) return true;
+        if (first == null || second == null) return false;
+        return Float.compare(first.getLeft(), second.getLeft()) == 0
+                && Float.compare(first.getTop(), second.getTop()) == 0
+                && Float.compare(first.getRight(), second.getRight()) == 0
+                && Float.compare(first.getBottom(), second.getBottom()) == 0;
     }
 
     @Override

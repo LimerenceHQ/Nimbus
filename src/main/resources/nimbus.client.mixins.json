@@ -27,6 +27,7 @@
     "render.LightmapRenderStateMixin",
     "render.NowPlayingToastMixin",
     "render.PlayerModelMixin",
+    "render.PotionEffectGuiMixin",
     "render.TitleScreenMixin",
     "render.ToastManagerMixin",
     "world.ClientLevelDataMixin",
