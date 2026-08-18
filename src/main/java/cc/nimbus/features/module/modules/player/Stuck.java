@@ -56,7 +56,7 @@ public final class Stuck extends BasicModule {
         releasing = false;
         pearlAwaitingTeleport = false;
         pearlTicksSinceThrow = 0;
-        if (Minecraft.getInstance().player != null) Disabler.setStuck();
+       // if (Minecraft.getInstance().player != null) Disabler.setStuck();
     }
 
     @Override
@@ -98,7 +98,7 @@ public final class Stuck extends BasicModule {
             releasing = false;
             movementPacketsWithoutPosition = 0;
             ticksWithoutPosition = 0;
-            Disabler.setStuck();
+           // Disabler.setStuck();
         }
         if (pearlAwaitingTeleport && ++pearlTicksSinceThrow >= PEARL_TELEPORT_TIMEOUT_TICKS) {
             pearlAwaitingTeleport = false;
