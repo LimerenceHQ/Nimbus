@@ -32,26 +32,29 @@ import java.util.List;
 public final class PotionHUD extends BasicModule {
     private static final String FONT = NimbusFonts.BODY_MEDIUM;
     private static final String TIME_FONT = NimbusFonts.BODY_MEDIUM;
-    private static final float WIDTH = 230f;
+    private static final float MAX_WIDTH = 230f;
     private static final float ROW_HEIGHT = 19f;
     private static final float ICON_SIZE = 18f;
     private static final float CONTENT_PADDING = 5f;
     private static final float TEXT_GAP = 5f;
     private static final float TIME_GAP = 4f;
 
+    private HudSize layoutSize = new HudSize(2f, 2f);
+
     private final Draggable drag = new Draggable("PotionHUD", 0.98, 0.38) {
         @Override
         public HudSize getSize() {
-            Minecraft minecraft = Minecraft.getInstance();
-            int count = minecraft.player == null ? 0 : minecraft.player.getActiveEffects().size();
-            return new HudSize(WIDTH, Math.max(ROW_HEIGHT, count * ROW_HEIGHT));
+            return layoutSize;
         }
     };
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.level == null) return;
+        if (minecraft.player == null || minecraft.level == null) {
+            layoutSize = new HudSize(2f, 2f);
+            return;
+        }
         if (minecraft.screen != null && !(minecraft.screen instanceof ChatScreen)) return;
 
         List<MobEffectInstance> effects = new ArrayList<>();
@@ -59,21 +62,13 @@ public final class PotionHUD extends BasicModule {
             if (effect.isInfiniteDuration() || effect.getDuration() > 0) effects.add(effect);
         }
         effects.sort(Comparator.comparingInt(PotionHUD::displayLength));
-        if (effects.isEmpty()) return;
+        if (effects.isEmpty()) {
+            layoutSize = new HudSize(2f, 2f);
+            return;
+        }
 
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         HudViewport viewport = Core.INSTANCE.getHudManager().viewport(skija.width(), skija.height());
-        List<MobEffectInstance> snapshot = List.copyOf(effects);
-        boolean rightAligned = drag.getAnchor().isRight();
-        skija.hud().submit(frame -> drag.render(frame, viewport,
-                local -> draw(local, snapshot, rightAligned)));
-    }
-
-    @Override
-    protected void onDisable() {
-    }
-
-    private static void draw(SkijaFrame frame, List<MobEffectInstance> effects, boolean rightAligned) {
         List<EffectLine> lines = effects.stream()
                 .map(effect -> new EffectLine(
                         displayName(effect),
@@ -81,7 +76,22 @@ public final class PotionHUD extends BasicModule {
                         0xFF000000 | effect.getEffect().value().getColor(),
                         icon(effect)))
                 .toList();
-        float availableWidth = WIDTH - CONTENT_PADDING * 2f;
+        float layoutWidth = measureWidth(skija, lines);
+        float layoutHeight = Math.max(ROW_HEIGHT, lines.size() * ROW_HEIGHT);
+        layoutSize = new HudSize(layoutWidth, layoutHeight);
+        boolean rightAligned = drag.getAnchor().isRight();
+        skija.hud().submit(frame -> drag.render(frame, viewport,
+                local -> draw(local, lines, layoutWidth, rightAligned)));
+    }
+
+    @Override
+    protected void onDisable() {
+        layoutSize = new HudSize(2f, 2f);
+    }
+
+    private static void draw(SkijaFrame frame, List<EffectLine> lines,
+                             float layoutWidth, boolean rightAligned) {
+        float availableWidth = layoutWidth - CONTENT_PADDING * 2f;
         float y = 0f;
         for (EffectLine line : lines) {
             String time = "(" + line.time() + ")";
@@ -92,7 +102,7 @@ public final class PotionHUD extends BasicModule {
             float rowWidth = ICON_SIZE + TEXT_GAP
                     + frame.text().width(FONT, 13f, visibleName)
                     + TIME_GAP + timeWidth;
-            float rowX = rightAligned ? WIDTH - CONTENT_PADDING - rowWidth : CONTENT_PADDING;
+            float rowX = rightAligned ? layoutWidth - CONTENT_PADDING - rowWidth : CONTENT_PADDING;
             float iconX = rowX;
             float nameX = iconX + ICON_SIZE + TEXT_GAP;
             Image icon = frame.images().resource(line.icon());
@@ -106,6 +116,18 @@ public final class PotionHUD extends BasicModule {
             frame.text().drawWithShadow(TIME_FONT, 12.5f, time, timeX, timeY, 0xFFE1E4E7);
             y += ROW_HEIGHT;
         }
+    }
+
+    private static float measureWidth(SkijaRenderer skija, List<EffectLine> lines) {
+        float width = 2f;
+        for (EffectLine line : lines) {
+            String time = "(" + line.time() + ")";
+            float rowWidth = CONTENT_PADDING * 2f + ICON_SIZE + TEXT_GAP
+                    + skija.text().width(FONT, 13f, line.name())
+                    + TIME_GAP + skija.text().width(TIME_FONT, 12.5f, time);
+            width = Math.max(width, Math.min(MAX_WIDTH, rowWidth));
+        }
+        return width;
     }
 
     private static String ellipsize(SkijaFrame frame, String value, String font, float size, float width) {
