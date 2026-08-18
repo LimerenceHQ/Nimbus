@@ -29,16 +29,21 @@ import net.minecraft.world.item.Items;
 public final class Stuck extends BasicModule {
     private static final int MAX_MOVEMENT_PACKETS_WITHOUT_POSITION = 19;
     private static final int MAX_TICKS_WITHOUT_POSITION = 20;
+    private static final int PEARL_TELEPORT_TIMEOUT_TICKS = 60;
 
     private int movementPacketsWithoutPosition;
     private int ticksWithoutPosition;
     private boolean releaseTick;
     private boolean releasing;
+    private boolean pearlAwaitingTeleport;
+    private int pearlTicksSinceThrow;
     
     public void release(InteractionHand hand) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player != null && minecraft.player.getItemInHand(hand).is(Items.ENDER_PEARL)) {
-            setEnabled(false);
+            // Allow the use packet through, but keep Stuck active until the server applies the teleport.
+            pearlAwaitingTeleport = true;
+            pearlTicksSinceThrow = 0;
         }
     }
 
@@ -49,6 +54,8 @@ public final class Stuck extends BasicModule {
         ticksWithoutPosition = 0;
         releaseTick = false;
         releasing = false;
+        pearlAwaitingTeleport = false;
+        pearlTicksSinceThrow = 0;
         if (Minecraft.getInstance().player != null) Disabler.setStuck();
     }
 
@@ -58,6 +65,8 @@ public final class Stuck extends BasicModule {
         ticksWithoutPosition = 0;
         releaseTick = false;
         releasing = false;
+        pearlAwaitingTeleport = false;
+        pearlTicksSinceThrow = 0;
         Disabler.offStuck();
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player instanceof LocalPlayerStateAccess access) {
@@ -90,6 +99,12 @@ public final class Stuck extends BasicModule {
             movementPacketsWithoutPosition = 0;
             ticksWithoutPosition = 0;
             Disabler.setStuck();
+        }
+        if (pearlAwaitingTeleport && ++pearlTicksSinceThrow >= PEARL_TELEPORT_TIMEOUT_TICKS) {
+            pearlAwaitingTeleport = false;
+            pearlTicksSinceThrow = 0;
+            setEnabled(false);
+            return;
         }
         if (++ticksWithoutPosition >= MAX_TICKS_WITHOUT_POSITION) releaseTick = true;
         if (releaseTick) {
