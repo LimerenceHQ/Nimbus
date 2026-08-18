@@ -82,20 +82,20 @@ public abstract class ItemInHandRendererMixin {
                                        ItemDisplayContext displayContext, PoseStack poseStack,
                                        SubmitNodeCollector collector, int packedLight) {
         OldHitting module = MixinModuleLookup.enabled(OldHitting.class);
-        AutoTool autoTool = MixinModuleLookup.enabled(AutoTool.class);
-        if (autoTool != null && entity == Minecraft.getInstance().player) {
-            ItemStack spoof = autoTool.getSpoofStack();
-            if (spoof != null) stack = spoof;
-        }
-        MidPearl midPearl = MixinModuleLookup.enabled(MidPearl.class);
-        if (midPearl != null && entity == Minecraft.getInstance().player) {
-            ItemStack spoof = midPearl.getSpoofStack();
-            if (spoof != null) stack = spoof;
-        }
         boolean mainHand = entity instanceof AbstractClientPlayer player
                 && (player.getMainArm() == HumanoidArm.RIGHT
                 ? displayContext == ItemDisplayContext.FIRST_PERSON_RIGHT_HAND
                 : displayContext == ItemDisplayContext.FIRST_PERSON_LEFT_HAND);
+        AutoTool autoTool = MixinModuleLookup.enabled(AutoTool.class);
+        if (autoTool != null && mainHand && entity == Minecraft.getInstance().player) {
+            ItemStack spoof = autoTool.getSpoofStack();
+            if (spoof != null) stack = spoof;
+        }
+        MidPearl midPearl = MixinModuleLookup.enabled(MidPearl.class);
+        if (midPearl != null && mainHand && entity == Minecraft.getInstance().player) {
+            ItemStack spoof = midPearl.getSpoofStack();
+            if (spoof != null) stack = spoof;
+        }
         if (module == null || !mainHand || !stack.is(ItemTags.SWORDS)) {
             renderItem(entity, stack, displayContext, poseStack, collector, packedLight);
             return;
