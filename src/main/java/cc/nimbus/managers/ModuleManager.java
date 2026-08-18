@@ -59,6 +59,7 @@ public final class ModuleManager implements InstanceManager {
                     new Teams(),
                     new AntiBot(),
                     new Stuck(),
+                    new MidPearl(),
                     new FireGuard(),
                     new ContainerStealer(),
                     new InventoryManager(),

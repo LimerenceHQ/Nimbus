@@ -319,6 +319,13 @@
   "nimbus.module.stuck.name": "Stuck",
   "nimbus.module.stuck.description": "Freezes your position until damage or a server correction is received.",
 
+  "nimbus.module.mid_pearl.name": "Mid Pearl",
+  "nimbus.module.mid_pearl.description": "Throws a hotbar ender pearl with a configurable mouse button.",
+  "nimbus.module.mid_pearl.setting.key_mode": "Key Mode",
+  "nimbus.module.mid_pearl.setting.key_mode.option.middle": "Middle Mouse",
+  "nimbus.module.mid_pearl.setting.key_mode.option.mouse3": "Mouse 3",
+  "nimbus.module.mid_pearl.setting.key_mode.option.mouse4": "Mouse 4",
+
   "nimbus.module.kill_aura.name": "Kill Aura",
   "nimbus.module.kill_aura.description": "Attacks valid targets using server-side rotations.",
   "nimbus.module.kill_aura.setting.cps": "CPS",

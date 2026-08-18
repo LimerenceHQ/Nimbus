@@ -3,6 +3,7 @@ package cc.nimbus.mixin.render;
 import cc.nimbus.core.Core;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.player.AutoTool;
+import cc.nimbus.features.module.modules.player.MidPearl;
 import cc.nimbus.features.module.modules.render.OldHitting;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -35,6 +36,9 @@ public abstract class ItemInHandRendererMixin {
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;getMainHandItem()Lnet/minecraft/world/item/ItemStack;")
     )
     private ItemStack nimbus$spoofMainHand(LocalPlayer player) {
+        MidPearl midPearl = MixinModuleLookup.enabled(MidPearl.class);
+        ItemStack pearlSpoof = midPearl == null ? null : midPearl.getSpoofStack();
+        if (pearlSpoof != null) return pearlSpoof;
         AutoTool autoTool = MixinModuleLookup.enabled(AutoTool.class);
         ItemStack spoof = autoTool == null ? null : autoTool.getSpoofStack();
         return spoof == null ? player.getMainHandItem() : spoof;
@@ -81,6 +85,11 @@ public abstract class ItemInHandRendererMixin {
         AutoTool autoTool = MixinModuleLookup.enabled(AutoTool.class);
         if (autoTool != null && entity == Minecraft.getInstance().player) {
             ItemStack spoof = autoTool.getSpoofStack();
+            if (spoof != null) stack = spoof;
+        }
+        MidPearl midPearl = MixinModuleLookup.enabled(MidPearl.class);
+        if (midPearl != null && entity == Minecraft.getInstance().player) {
+            ItemStack spoof = midPearl.getSpoofStack();
             if (spoof != null) stack = spoof;
         }
         boolean mainHand = entity instanceof AbstractClientPlayer player

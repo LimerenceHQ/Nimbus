@@ -319,6 +319,13 @@
   "nimbus.module.stuck.name": "位置停滞",
   "nimbus.module.stuck.description": "冻结当前位置，受到伤害或服务端位置修正时自动关闭。",
 
+  "nimbus.module.mid_pearl.name": "快捷珍珠",
+  "nimbus.module.mid_pearl.description": "通过指定鼠标键快速投掷快捷栏中的末影珍珠。",
+  "nimbus.module.mid_pearl.setting.key_mode": "鼠标按键",
+  "nimbus.module.mid_pearl.setting.key_mode.option.middle": "鼠标中键",
+  "nimbus.module.mid_pearl.setting.key_mode.option.mouse3": "鼠标侧键 3",
+  "nimbus.module.mid_pearl.setting.key_mode.option.mouse4": "鼠标侧键 4",
+
   "nimbus.module.kill_aura.name": "杀戮光环",
   "nimbus.module.kill_aura.description": "使用服务端转向自动攻击有效目标。",
   "nimbus.module.kill_aura.setting.cps": "每秒攻击次数",
