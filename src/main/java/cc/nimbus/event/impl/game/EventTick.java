@@ -14,6 +14,14 @@ public class EventTick extends Cancelable {
         this.phase = phase;
     }
 
+    public boolean isPre() {
+        return phase == Phase.PRE;
+    }
+
+    public boolean isPost() {
+        return phase == Phase.POST;
+    }
+
     public Phase getPhase() {
         return phase;
     }
