@@ -14,6 +14,7 @@ import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
+import cc.nimbus.features.module.modules.combat.AutoTrap;
 import cc.nimbus.features.module.modules.movement.Scaffold;
 import cc.nimbus.features.rotation.MovementFix;
 import cc.nimbus.features.rotation.Rotation;
@@ -33,6 +34,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.Blocks;
@@ -103,6 +105,11 @@ public final class FireGuard extends BasicModule {
     private void onPlanTick(EventTick event) {
         if (event.getPhase() != EventTick.Phase.PRE) return;
         if (minecraft.player == null || minecraft.level == null || minecraft.gameMode == null || minecraft.screen != null) {
+            reset(true);
+            return;
+        }
+
+        if (shouldYieldToItemUse() || isAutoTrapWorking()) {
             reset(true);
             return;
         }
@@ -184,6 +191,11 @@ public final class FireGuard extends BasicModule {
             return;
         }
 
+        if (shouldYieldToItemUse() || isAutoTrapWorking()) {
+            reset(true);
+            return;
+        }
+
         if (stage == Stage.WATER_PLACE && waterAction != null) {
             InteractionResult result = useItem(waterAction.rotation(), waterAction.hit());
             if (result.consumesAction() || minecraft.player.getMainHandItem().getItem() == Items.BUCKET) {
@@ -254,6 +266,30 @@ public final class FireGuard extends BasicModule {
                 && (killAura == null || killAura.getAttackTarget() == null)
                 && predictLandingSupport() != null
                 && findHotbarSlot(Items.WATER_BUCKET) != -1;
+    }
+
+    public boolean isActing() {
+        return isEnabled() && stage != Stage.IDLE;
+    }
+
+    private boolean isAutoTrapWorking() {
+        AutoTrap autoTrap = Core.INSTANCE.getModuleManager().getModule(AutoTrap.class);
+        return autoTrap != null && autoTrap.isActing();
+    }
+
+    private boolean shouldYieldToItemUse() {
+        if (minecraft.player == null) return false;
+        if (minecraft.player.isUsingItem()) return true;
+        if (minecraft.options == null || !minecraft.options.keyUse.isDown()) return false;
+        if (isFoodOrDrink(minecraft.player.getMainHandItem())
+                || isFoodOrDrink(minecraft.player.getOffhandItem())) return true;
+        return oldSlot >= 0 && oldSlot < 9
+                && isFoodOrDrink(minecraft.player.getInventory().getItem(oldSlot));
+    }
+
+    private boolean isFoodOrDrink(ItemStack stack) {
+        ItemUseAnimation animation = stack.getUseAnimation();
+        return animation == ItemUseAnimation.EAT || animation == ItemUseAnimation.DRINK;
     }
 
     private BucketAction findWaterPlaceAction() {

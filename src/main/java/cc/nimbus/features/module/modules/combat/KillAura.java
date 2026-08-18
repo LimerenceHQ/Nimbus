@@ -34,6 +34,8 @@ import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -142,6 +144,11 @@ public final class KillAura extends BasicModule {
             return;
         }
 
+        if (isEatingOrDrinking()) {
+            resetState(true);
+            return;
+        }
+
         updateTargets();
         if (attackTarget == null) {
             firstAttack = false;
@@ -174,6 +181,10 @@ public final class KillAura extends BasicModule {
     private void attackTick() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
+        if (isEatingOrDrinking()) {
+            resetState(true);
+            return;
+        }
         double delay = 1000.0 / cps.getValue().doubleValue();
         attackAccumulator = Math.min(attackAccumulator + 50.0, delay * 2.0);
         if (minecraft.level == null || minecraft.gameMode == null
@@ -305,6 +316,22 @@ public final class KillAura extends BasicModule {
     private boolean holdingSword() {
         Minecraft minecraft = Minecraft.getInstance();
         return minecraft.player != null && minecraft.player.getMainHandItem().is(ItemTags.SWORDS);
+    }
+
+    private boolean isEatingOrDrinking() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) return false;
+        if (minecraft.player.isUsingItem()) {
+            return isFoodOrDrink(minecraft.player.getUseItem());
+        }
+        if (minecraft.options == null || !minecraft.options.keyUse.isDown()) return false;
+        return isFoodOrDrink(minecraft.player.getMainHandItem())
+                || isFoodOrDrink(minecraft.player.getOffhandItem());
+    }
+
+    private boolean isFoodOrDrink(ItemStack stack) {
+        ItemUseAnimation animation = stack.getUseAnimation();
+        return animation == ItemUseAnimation.EAT || animation == ItemUseAnimation.DRINK;
     }
 
     private void resetState(boolean releaseRotation) {
