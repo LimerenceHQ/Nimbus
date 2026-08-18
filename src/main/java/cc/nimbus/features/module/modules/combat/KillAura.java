@@ -181,9 +181,9 @@ public final class KillAura extends BasicModule {
         if (attackAccumulator < delay) return;
         if (stopAttackWhileUsingItem.getValue() && minecraft.player.isUsingItem()) return;
 
-        LivingEntity raycastTarget = resolveRaycastTarget();
-        if (raycastTarget == null) return;
-        attackTarget = raycastTarget;
+        LivingEntity rayCastTarget = resolveRayCastTarget();
+        if (rayCastTarget == null) return;
+        attackTarget = rayCastTarget;
 
         boolean skipSprintStop = skipFirstAttack.getValue() && !firstAttack;
         if (keepSprint.is("Legit") && minecraft.player.isSprinting() && !skipSprintStop) {
@@ -222,7 +222,7 @@ public final class KillAura extends BasicModule {
         return true;
     }
 
-    private LivingEntity resolveRaycastTarget() {
+    private LivingEntity resolveRayCastTarget() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || attackTarget == null) return null;
         RotationManager rotations = Core.INSTANCE.getRotationManager();
