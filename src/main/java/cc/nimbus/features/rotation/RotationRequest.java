@@ -10,8 +10,14 @@ public record RotationRequest(
         SmoothMode smoothMode,
         float speed,
         int keepTicks,
-        int returnTicks
+        int returnTicks,
+        boolean sensitivityPatch
 ) {
+    public RotationRequest(Rotation rotation, RotationPriority priority, MovementFix movementFix,
+                           boolean smooth, SmoothMode smoothMode, float speed, int keepTicks, int returnTicks) {
+        this(rotation, priority, movementFix, smooth, smoothMode, speed, keepTicks, returnTicks, true);
+    }
+
     public RotationRequest {
         rotation = Objects.requireNonNull(rotation, "rotation").normalized();
         Objects.requireNonNull(priority, "priority");

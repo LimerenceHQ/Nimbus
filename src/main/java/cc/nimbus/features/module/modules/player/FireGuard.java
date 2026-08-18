@@ -78,6 +78,7 @@ public final class FireGuard extends BasicModule {
     private int oldSlot = -1;
     private int cooldownTicks;
     private boolean shouldPickupWater;
+    private boolean blockBreakOwnedThisTick;
 
     @Override
     protected void onEnable() {
@@ -96,6 +97,7 @@ public final class FireGuard extends BasicModule {
     @EventTarget(priority = Priority.Highest)
     private void onCooldownTick(EventTick event) {
         if (event.getPhase() != EventTick.Phase.PRE) return;
+        blockBreakOwnedThisTick = false;
         if (cooldownTicks > 0) {
             cooldownTicks--;
         }
@@ -229,6 +231,7 @@ public final class FireGuard extends BasicModule {
         }
 
         if (stage == Stage.FIRE_CLEAR && fireAction != null) {
+            blockBreakOwnedThisTick = true;
             minecraft.hitResult = fireAction.hit();
             if (minecraft.gameMode.startDestroyBlock(fireAction.pos(), fireAction.hit().getDirection())) {
                 swing();
@@ -270,6 +273,10 @@ public final class FireGuard extends BasicModule {
 
     public boolean isActing() {
         return isEnabled() && stage != Stage.IDLE;
+    }
+
+    public boolean ownsBlockBreaking() {
+        return isEnabled() && (stage == Stage.FIRE_CLEAR || blockBreakOwnedThisTick);
     }
 
     private boolean isAutoTrapWorking() {
@@ -803,7 +810,8 @@ public final class FireGuard extends BasicModule {
                 SmoothMode.ADVANCED,
                 rotationSpeed.getValue().floatValue(),
                 0,
-                0
+                0,
+                false
         ));
     }
 

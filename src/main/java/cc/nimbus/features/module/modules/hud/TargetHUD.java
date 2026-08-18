@@ -1,0 +1,181 @@
+package cc.nimbus.features.module.modules.hud;
+
+import cc.nimbus.core.Core;
+import cc.nimbus.event.component.EventTarget;
+import cc.nimbus.event.impl.render.EventRender2D;
+import cc.nimbus.features.client.ClientSettings;
+import cc.nimbus.features.hud.Draggable;
+import cc.nimbus.features.hud.HudRect;
+import cc.nimbus.features.hud.HudSize;
+import cc.nimbus.features.hud.HudViewport;
+import cc.nimbus.features.module.api.BasicModule;
+import cc.nimbus.features.module.api.ModuleCategory;
+import cc.nimbus.features.module.api.ModuleInfo;
+import cc.nimbus.features.module.modules.combat.KillAura;
+import cc.nimbus.utils.render.font.NimbusFonts;
+import cc.nimbus.utils.render.skija.api.SkijaFrame;
+import cc.nimbus.utils.render.skija.api.SkijaRenderer;
+import io.github.humbleui.skija.FilterTileMode;
+import io.github.humbleui.skija.GradientStyle;
+import io.github.humbleui.skija.Image;
+import io.github.humbleui.skija.Paint;
+import io.github.humbleui.skija.SamplingMode;
+import io.github.humbleui.types.Point;
+import io.github.humbleui.types.RRect;
+import io.github.humbleui.types.Rect;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.world.entity.LivingEntity;
+
+@ModuleInfo(
+        name = "TargetHUD",
+        displayName = "Target HUD",
+        description = "Shows the current combat target's face, name and health.",
+        category = ModuleCategory.HUD
+)
+public final class TargetHUD extends BasicModule {
+    private static final String FONT = NimbusFonts.BODY_STRONG;
+    private static final float WIDTH = 236f;
+    private static final float HEIGHT = 56f;
+    private static final float AVATAR_X = 7f;
+    private static final float AVATAR_Y = 7f;
+    private static final float AVATAR_SIZE = 42f;
+    private static final float CONTENT_X = 59f;
+    private static final float CONTENT_WIDTH = 169f;
+    private static final float BAR_Y = 39f;
+    private static final float BAR_HEIGHT = 8f;
+    private static final int BACKGROUND = 0x5C171A1E;
+    private static final long TARGET_HOLD_MILLIS = 700L;
+
+    private final Draggable drag = new Draggable("TargetHUD", 0.5, 0.32) {
+        @Override
+        public HudSize getSize() {
+            return new HudSize(WIDTH, HEIGHT);
+        }
+    };
+
+    private LivingEntity target;
+    private long targetSeenAt;
+    private long lastFrameNanos;
+    private float animatedHealth = 1f;
+
+    @EventTarget
+    private void onRender2D(EventRender2D event) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || minecraft.level == null) return;
+        boolean preview = minecraft.screen instanceof ChatScreen;
+        if (minecraft.screen != null && !preview) return;
+
+        LivingEntity current = combatTarget();
+        if (current != null && current.isAlive()) {
+            if (target != current) animatedHealth = health(current);
+            target = current;
+            targetSeenAt = System.currentTimeMillis();
+        } else if (target == null || System.currentTimeMillis() - targetSeenAt > TARGET_HOLD_MILLIS) {
+            target = preview ? minecraft.player : null;
+        }
+        if (target == null) return;
+
+        float health = health(target);
+        float delta = frameDelta();
+        animatedHealth += (health - animatedHealth) * (1f - (float) Math.exp(-14f * delta));
+        if (Math.abs(animatedHealth - health) < .001f) animatedHealth = health;
+
+        SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
+        HudViewport viewport = Core.INSTANCE.getHudManager().viewport(skija.width(), skija.height());
+        HudRect bounds = drag.getRect(viewport);
+        skija.postProcess().add(RRect.makeXYWH(
+                bounds.x(), bounds.y(), bounds.width(), bounds.height(), 9f * drag.getRenderScale(viewport)));
+        ClientSettings settings = Core.INSTANCE.getConfigManager().clientSettings();
+        long now = System.currentTimeMillis();
+        int[] accent = new int[6];
+        for (int index = -2; index <= 2; index++) {
+            accent[index + 2] = settings.accentColor(index, now);
+        }
+        accent[5] = accent[0];
+        float flowCycle = CONTENT_WIDTH * 2f;
+        float flowPhase = (float) ((System.nanoTime() / 1_000_000d * .055d) % flowCycle);
+        String name = target.getName().getString();
+        String visibleName = ellipsize(skija, name, FONT, 16f, CONTENT_WIDTH);
+        String percentage = Math.round(health * 100f) + "%";
+        LivingEntity shownTarget = target;
+        float shownHealth = animatedHealth;
+
+        skija.hud().submit(frame -> drag.render(frame, viewport, local -> draw(
+                local, shownTarget, visibleName, percentage, shownHealth, accent, flowPhase)));
+    }
+
+    @Override
+    protected void onDisable() {
+        target = null;
+        targetSeenAt = 0L;
+        lastFrameNanos = 0L;
+        animatedHealth = 1f;
+    }
+
+    private static void draw(SkijaFrame frame, LivingEntity entity, String name, String percentage,
+                             float health, int[] accent, float flowPhase) {
+        frame.draw().roundedRect(0f, 0f, WIDTH, HEIGHT, 9f, BACKGROUND);
+
+        int avatarSave = frame.canvas().save();
+        try {
+            frame.draw().clipSmoothRoundedRect(AVATAR_X, AVATAR_Y, AVATAR_SIZE, AVATAR_SIZE, 8f);
+            Image image = frame.images().minecraftTexture(frame.images().entityTexture(entity));
+            if (image != null && !image.isClosed()) {
+                try (Paint paint = new Paint().setAntiAlias(true)) {
+                    Rect source = Rect.makeXYWH(8f, 8f, 8f, 8f);
+                    frame.canvas().drawImageRect(image, source,
+                            Rect.makeXYWH(AVATAR_X, AVATAR_Y, AVATAR_SIZE, AVATAR_SIZE),
+                            SamplingMode.DEFAULT, paint, true);
+                    frame.canvas().drawImageRect(image, Rect.makeXYWH(40f, 8f, 8f, 8f),
+                            Rect.makeXYWH(AVATAR_X, AVATAR_Y, AVATAR_SIZE, AVATAR_SIZE),
+                            SamplingMode.DEFAULT, paint, true);
+                }
+            }
+        } finally {
+            frame.canvas().restoreToCount(avatarSave);
+        }
+
+        frame.text().draw(FONT, 16f, name, CONTENT_X, 7f, 0xFFF2F4F5);
+        frame.text().center(NimbusFonts.BODY_MEDIUM, 11f, percentage,
+                CONTENT_X + CONTENT_WIDTH * .5f, 23f, 0xFFD8DEE2);
+        frame.draw().roundedRect(CONTENT_X, BAR_Y, CONTENT_WIDTH, BAR_HEIGHT, 4f, 0xE3000000);
+        float fillWidth = CONTENT_WIDTH * Math.clamp(health, 0f, 1f);
+        if (fillWidth > .01f) {
+            float[] positions = {0f, .2f, .4f, .6f, .8f, 1f};
+            GradientStyle repeat = GradientStyle.DEFAULT.withTileMode(FilterTileMode.REPEAT);
+            try (Paint fill = new Paint().setAntiAlias(true).setShader(frame.effects().linearGradient(
+                    new Point(flowPhase, 0f), new Point(flowPhase + CONTENT_WIDTH * 2f, 0f),
+                    accent, positions, repeat))) {
+                frame.draw().roundedRect(CONTENT_X, BAR_Y, fillWidth, BAR_HEIGHT, 4f, fill);
+            }
+        }
+    }
+
+    private LivingEntity combatTarget() {
+        KillAura aura = Core.INSTANCE.getModuleManager().getModule(KillAura.class);
+        return aura != null && aura.isEnabled() ? aura.getAttackTarget() : null;
+    }
+
+    private float frameDelta() {
+        long now = System.nanoTime();
+        float delta = lastFrameNanos == 0L ? 1f / 60f
+                : Math.min(.05f, (now - lastFrameNanos) / 1_000_000_000f);
+        lastFrameNanos = now;
+        return delta;
+    }
+
+    private static float health(LivingEntity entity) {
+        float max = Math.max(.01f, entity.getMaxHealth());
+        return Math.clamp(entity.getHealth() / max, 0f, 1f);
+    }
+
+    private static String ellipsize(SkijaRenderer skija, String value, String font, float size, float width) {
+        if (skija.text().width(font, size, value) <= width) return value;
+        String result = value;
+        while (result.length() > 1 && skija.text().width(font, size, result + "…") > width) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result + "…";
+    }
+}

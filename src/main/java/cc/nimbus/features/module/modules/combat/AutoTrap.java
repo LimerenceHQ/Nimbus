@@ -98,6 +98,7 @@ public final class AutoTrap extends BasicModule {
     private int lavaTicks;
     private int igniteTicks;
     private int cooldownTicks;
+    private boolean blockBreakOwnedThisTick;
 
     @Override
     protected void onEnable() {
@@ -120,6 +121,8 @@ public final class AutoTrap extends BasicModule {
     @EventTarget
     private void onTick(EventTick event) {
         if (event.getPhase() != EventTick.Phase.PRE) return;
+
+        blockBreakOwnedThisTick = false;
 
         if (cooldownTicks > 0) cooldownTicks--;
         if (stage == Stage.LAVA_WAIT_BURN) lavaTicks++;
@@ -272,6 +275,7 @@ public final class AutoTrap extends BasicModule {
         }
 
         if (stage == Stage.IGNITE_CLEAR && clearAction != null) {
+            blockBreakOwnedThisTick = true;
             minecraft.hitResult = clearAction.hit();
             if (minecraft.gameMode.startDestroyBlock(clearAction.firePos(), clearAction.hit().getDirection())) swing();
             reset(true);
@@ -329,6 +333,10 @@ public final class AutoTrap extends BasicModule {
 
     public boolean isActing() {
         return isEnabled() && stage != Stage.IDLE;
+    }
+
+    public boolean ownsBlockBreaking() {
+        return isEnabled() && (stage == Stage.IGNITE_CLEAR || blockBreakOwnedThisTick);
     }
 
     private boolean validEnvironment() {

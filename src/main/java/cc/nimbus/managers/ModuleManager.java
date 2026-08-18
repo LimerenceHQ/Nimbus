@@ -53,6 +53,8 @@ public final class ModuleManager implements InstanceManager {
                     new MusicLyrics(),
                     new MusicSpectrum(),
                     new MusicToast(),
+                    new TargetHUD(),
+                    new PotionHUD(),
                     new Watermark(),
                     new Sprint(),
                     new Scaffold(),

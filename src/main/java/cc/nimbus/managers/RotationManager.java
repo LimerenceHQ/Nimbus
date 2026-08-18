@@ -238,7 +238,9 @@ public final class RotationManager implements InstanceManager {
         Rotation next = request.smooth()
                 ? request.smoothMode().apply(current, target, request.speed())
                 : target;
-        return RotationMath.sensitivityPatch(next.clamped(), current);
+        return request.sensitivityPatch()
+                ? RotationMath.sensitivityPatch(next.clamped(), current)
+                : next.clamped();
     }
 
     private float restoreSpeed(Rotation current, Rotation target) {
