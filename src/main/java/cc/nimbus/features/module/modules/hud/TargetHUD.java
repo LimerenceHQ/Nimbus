@@ -128,9 +128,9 @@ public final class TargetHUD extends BasicModule {
         float flowPhase = (float) ((System.nanoTime() / 1_000_000d * .055d) % flowCycle);
         String name = target.getName().getString();
         String visibleName = ellipsize(skija, name, FONT, 16f, CONTENT_WIDTH);
-        String percentage = Math.round(health * 100f) + "%";
         LivingEntity shownTarget = target;
         float shownHealth = animatedHealth;
+        String percentage = Math.round(shownHealth * 100f) + "%";
         float shownVisibility = visibility;
         boolean rightAnchored = drag.getAnchor().isRight();
 
@@ -191,13 +191,17 @@ public final class TargetHUD extends BasicModule {
                     multiplyAlpha(0xE3000000, progress));
             float fillWidth = CONTENT_WIDTH * Math.clamp(health, 0f, 1f);
             if (fillWidth > .01f) {
+                float visibleFillWidth = Math.max(BAR_HEIGHT, fillWidth);
+                float capOpacity = Math.min(1f, fillWidth / BAR_HEIGHT);
                 float[] positions = {0f, .2f, .4f, .6f, .8f, 1f};
                 GradientStyle repeat = GradientStyle.DEFAULT.withTileMode(FilterTileMode.REPEAT);
-                try (Paint fill = new Paint().setAntiAlias(true).setAlpha(Math.round(255f * progress))
+                try (Paint fill = new Paint().setAntiAlias(true)
+                        .setAlpha(Math.round(255f * progress * capOpacity))
                         .setShader(frame.effects().linearGradient(
                                 new Point(flowPhase, 0f), new Point(flowPhase + CONTENT_WIDTH * 2f, 0f),
                                 accent, positions, repeat))) {
-                    frame.draw().roundedRect(contentX, BAR_Y, fillWidth, BAR_HEIGHT, 4f, fill);
+                    frame.draw().roundedRect(contentX, BAR_Y, visibleFillWidth, BAR_HEIGHT,
+                            BAR_HEIGHT * .5f, fill);
                 }
             }
         } finally {
