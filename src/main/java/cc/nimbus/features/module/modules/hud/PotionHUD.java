@@ -151,8 +151,7 @@ public final class PotionHUD extends BasicModule {
 
     private static void draw(SkijaFrame frame, List<AnimatedLine> lines,
                              float layoutWidth, boolean rightAligned, float slideDistance) {
-        float groupWidth = Math.max(1f, layoutWidth - CONTENT_PADDING * 2f);
-        float availableWidth = groupWidth;
+        float availableWidth = Math.max(1f, layoutWidth - CONTENT_PADDING * 2f);
         float timeSlotWidth = frame.text().width(TIME_FONT, 12.5f, TIME_SLOT);
         float y = 0f;
         try (Paint imagePaint = new Paint().setAntiAlias(true)) {
@@ -168,8 +167,7 @@ public final class PotionHUD extends BasicModule {
                 float nameWidth = frame.text().width(FONT, 13f, visibleName);
                 float timeWidth = frame.text().width(TIME_FONT, 12.5f, time);
                 float rowWidth = ICON_SIZE + TEXT_GAP + nameWidth + TIME_GAP + timeWidth;
-                float rowX = (rightAligned ? layoutWidth - rowWidth : CONTENT_PADDING) + slide;
-                float iconX = rowX;
+                float iconX = (rightAligned ? layoutWidth - rowWidth : CONTENT_PADDING) + slide;
                 float nameX = iconX + ICON_SIZE + TEXT_GAP;
                 float timeX = nameX + nameWidth + TIME_GAP;
                 Image icon = frame.images().resource(line.icon());
