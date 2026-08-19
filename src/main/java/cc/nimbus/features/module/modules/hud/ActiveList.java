@@ -46,6 +46,7 @@ public final class ActiveList extends BasicModule {
     private static final float PADDING_X = 8f;
     private static final float ACCENT_WIDTH = 2.5f;
     private static final float CORNER_RADIUS = 5f;
+    private static final float PATH_PIXEL_EPSILON = .75f;
     private static final float TEXT_REVEAL_START = .58f;
     private static final int BACKGROUND_COLOR = 0x5C171A1E;
     private static final int TEXT_COLOR = 0xFFF4F7F8;
@@ -110,7 +111,9 @@ public final class ActiveList extends BasicModule {
                 1f - (float) Math.exp(-delta * 14f));
         long colorTime = System.currentTimeMillis();
         int[] accentColors = accentColors(clientSettings, entries.size(), anchor, colorTime);
-        List<RenderEntry> pathEntries = orderedByY(entries);
+        List<RenderEntry> pathEntries = orderedByY(entries).stream()
+                .filter(entry -> entry.height() * scale > PATH_PIXEL_EPSILON)
+                .toList();
 
         if (drawBackground) {
             try (Path regions = backgroundPath(pathEntries, layoutWidth, layoutHeight,
@@ -280,9 +283,6 @@ public final class ActiveList extends BasicModule {
                                       float originX, float originY, float scale,
                                       boolean rightAnchored) {
         try (PathBuilder path = new PathBuilder()) {
-            entries = entries.stream()
-                    .filter(entry -> entry.height() > .001f)
-                    .toList();
             if (entries.isEmpty()) return path.build();
             RenderEntry first = entries.getFirst();
             RenderEntry last = entries.getLast();
@@ -311,14 +311,21 @@ public final class ActiveList extends BasicModule {
                     path.lineTo(orientedX(lowerX, originX, right, rightAnchored), boundary);
                     continue;
                 }
-                float radius = Math.min(CORNER_RADIUS * scale, distance * .5f);
+                float maxRadius = Math.min(CORNER_RADIUS * scale, distance * .5f);
+                float lowerRadius = Math.min(maxRadius, lower.height() * scale * .5f);
+                float upperRadius = Math.min(maxRadius, upper.height() * scale * .5f);
                 float direction = Math.signum(upperX - lowerX);
-                path.lineTo(orientedX(lowerX, originX, right, rightAnchored), boundary + radius);
-                path.quadTo(orientedX(lowerX, originX, right, rightAnchored), boundary,
-                        orientedX(lowerX + direction * radius, originX, right, rightAnchored), boundary);
-                path.lineTo(orientedX(upperX - direction * radius, originX, right, rightAnchored), boundary);
-                path.quadTo(orientedX(upperX, originX, right, rightAnchored), boundary,
-                        orientedX(upperX, originX, right, rightAnchored), boundary - radius);
+                path.lineTo(orientedX(lowerX, originX, right, rightAnchored), boundary + lowerRadius);
+                if (lowerRadius > .01f) {
+                    path.quadTo(orientedX(lowerX, originX, right, rightAnchored), boundary,
+                            orientedX(lowerX + direction * lowerRadius, originX, right, rightAnchored), boundary);
+                }
+                path.lineTo(orientedX(upperX - direction * upperRadius,
+                        originX, right, rightAnchored), boundary);
+                if (upperRadius > .01f) {
+                    path.quadTo(orientedX(upperX, originX, right, rightAnchored), boundary,
+                            orientedX(upperX, originX, right, rightAnchored), boundary - upperRadius);
+                }
             }
             float topRadius = outerRadius;
             path.lineTo(orientedX(firstX, originX, right, rightAnchored), top + topRadius);
