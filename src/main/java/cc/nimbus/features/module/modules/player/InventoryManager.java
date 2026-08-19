@@ -54,7 +54,7 @@ public final class InventoryManager extends BasicModule {
     private static final String SORT_TYPE_TRANSLATION_SCOPE =
             "nimbus.module.inventory_manager.setting.sort_type";
     private static final String[] SORT_TYPES = {
-            "None", "Sword", "Bow", "Crossbow", "Pickaxe", "Axe", "Shovel", "Shears",
+            "None", "Sword", "Bow", "Crossbow", "Arrow", "Pickaxe", "Axe", "Shovel", "Shears",
             "Food", "Block", "Water Bucket", "Lava Bucket", "Golden Apple", "Pearl", "Potion",
             "Splash Potion", "Projectile", "Fishing Rod", "TNT", "Totem", "Shield", "Fire Charge",
             "Flint And Steel", "God Axe", "Knockback Ball"
@@ -73,7 +73,11 @@ public final class InventoryManager extends BasicModule {
     public final NumberSetting sortDelay = new NumberSetting("Sort Delay", 0, 0, 500, 1, sortInventory::getValue);
     public final BooleanSetting throwUseless = new BooleanSetting("Throw Useless Items", false);
     public final NumberSetting throwDelay = new NumberSetting("Throw Delay", 0, 0, 500, 1, throwUseless::getValue);
-    public final NumberSetting maxBlockCount = new NumberSetting("Max Block Count", 512, 0, 512, 1, throwUseless::getValue);
+    public final NumberSetting maxProjectileSize = new NumberSetting("Max Projectile Size", 64, 16, 256, 16, throwUseless::getValue);
+    public final NumberSetting maxArrowSize = new NumberSetting("Max Arrow Size", 256, 64, 512, 64, throwUseless::getValue);
+    public final NumberSetting maxBlockSize = new NumberSetting("Max Block Size", 256, 64, 512, 64, throwUseless::getValue);
+    public final NumberSetting maxFoodSize = new NumberSetting("Max Food Size", 128, 32, 256, 32, throwUseless::getValue);
+    public final NumberSetting maxRodSize = new NumberSetting("Max Rod Size", 1, 1, 16, 1, throwUseless::getValue);
     public final BooleanSetting autoCraft = new BooleanSetting("Auto Craft", false);
     public final NumberSetting autoCraftDelay = new NumberSetting("Auto Craft Delay", 0, 0, 500, 1, autoCraft::getValue);
     public final BooleanSetting autoArmor = new BooleanSetting("Auto Armor", false);
@@ -292,7 +296,16 @@ public final class InventoryManager extends BasicModule {
         if (stack == InventoryUtils.getGodAxe()) return false;
         if (InventoryUtils.notUsefulItem(stack)) return true;
         if (isCountedBlock(stack) && slot == extraBlockDropSlot()) return true;
+        if (stack.is(Items.ARROW) && slot == extraCountDropSlot(
+                candidate -> candidate.is(Items.ARROW), maxArrowSize.getValue().intValue())) return true;
+        if ((stack.is(Items.SNOWBALL) || stack.is(Items.EGG)) && slot == extraCountDropSlot(
+                candidate -> candidate.is(Items.SNOWBALL) || candidate.is(Items.EGG),
+                maxProjectileSize.getValue().intValue())) return true;
+        if (matchesLargestType(stack, "Food") && slot == extraCountDropSlot(
+                candidate -> matchesLargestType(candidate, "Food"), maxFoodSize.getValue().intValue())) return true;
         if ((stack.is(Items.WATER_BUCKET) || stack.is(Items.LAVA_BUCKET)) && hasDuplicate(stack.getItem(), slot)) return true;
+        if (stack.is(Items.FISHING_ROD) && slot == extraCountDropSlot(
+                candidate -> candidate.is(Items.FISHING_ROD), maxRodSize.getValue().intValue())) return true;
         if (stack.getItem() instanceof BowItem)
             return duplicateBest(slot, stack, "Bow", InventoryUtils.getBestBow(), InventoryUtils::bowScore);
         if (stack.getItem() instanceof CrossbowItem)
@@ -343,7 +356,7 @@ public final class InventoryManager extends BasicModule {
 
     private int extraBlockDropSlot() {
         int total = totalBlockCount();
-        int maximum = maxBlockCount.getValue().intValue();
+        int maximum = maxBlockSize.getValue().intValue();
         if (total <= maximum) return -1;
         int excess = total - maximum;
         boolean unreservedExists = hasUnreservedBlock();
@@ -356,6 +369,36 @@ public final class InventoryManager extends BasicModule {
                 closestCount = stack.getCount(); closestSlot = slot;
             }
             if (stack.getCount() > largestCount) { largestCount = stack.getCount(); largestSlot = slot; }
+        }
+        return closestSlot != -1 ? closestSlot : largestSlot;
+    }
+
+    private int extraCountDropSlot(Predicate<ItemStack> predicate, int maximum) {
+        int total = 0;
+        for (int slot = 0; slot < minecraft.player.getInventory().getContainerSize(); slot++) {
+            if (isEquipmentSlot(slot)) continue;
+            ItemStack stack = minecraft.player.getInventory().getItem(slot);
+            if (!stack.isEmpty() && predicate.test(stack)) total += stack.getCount();
+        }
+        if (total <= maximum) return -1;
+
+        int excess = total - maximum;
+        int closestSlot = -1;
+        int closestCount = Integer.MAX_VALUE;
+        int largestSlot = -1;
+        int largestCount = -1;
+        for (int slot = 0; slot < minecraft.player.getInventory().getContainerSize(); slot++) {
+            if (isEquipmentSlot(slot)) continue;
+            ItemStack stack = minecraft.player.getInventory().getItem(slot);
+            if (stack.isEmpty() || !predicate.test(stack)) continue;
+            if (stack.getCount() >= excess && stack.getCount() < closestCount) {
+                closestCount = stack.getCount();
+                closestSlot = slot;
+            }
+            if (stack.getCount() > largestCount) {
+                largestCount = stack.getCount();
+                largestSlot = slot;
+            }
         }
         return closestSlot != -1 ? closestSlot : largestSlot;
     }
@@ -454,6 +497,7 @@ public final class InventoryManager extends BasicModule {
             case "Sword" -> findInventorySlot(InventoryUtils.getBestWeapon());
             case "Bow" -> findInventorySlot(InventoryUtils.getBestBow());
             case "Crossbow" -> findInventorySlot(InventoryUtils.getBestCrossbow());
+            case "Arrow" -> largestConfiguredStack(target, type);
             case "Pickaxe" -> findInventorySlot(InventoryUtils.getBestPickaxe(true));
             case "Axe" -> findInventorySlot(InventoryUtils.getBestAxe(true));
             case "Shovel" -> findInventorySlot(InventoryUtils.getBestShovel(true));
@@ -496,6 +540,7 @@ public final class InventoryManager extends BasicModule {
             case "Block" -> stack.getItem() instanceof BlockItem && !stack.is(Items.TNT);
             case "Golden Apple" -> stack.is(Items.GOLDEN_APPLE) || stack.is(Items.ENCHANTED_GOLDEN_APPLE);
             case "Pearl" -> stack.is(Items.ENDER_PEARL);
+            case "Arrow" -> stack.is(Items.ARROW);
             case "Projectile" -> stack.is(Items.EGG) || stack.is(Items.SNOWBALL);
             case "TNT" -> stack.is(Items.TNT);
             default -> false;
@@ -505,7 +550,7 @@ public final class InventoryManager extends BasicModule {
     private boolean sameSortedStack(String type, ItemStack target, ItemStack source) {
         if (source.isEmpty()) return true;
         return switch (type) {
-            case "Food", "Block", "Golden Apple", "Pearl", "Projectile", "TNT" ->
+            case "Food", "Block", "Golden Apple", "Pearl", "Arrow", "Projectile", "TNT" ->
                     !target.isEmpty() && ItemStack.isSameItemSameComponents(target, source)
                             && target.getCount() == source.getCount();
             case "Sword" -> sameRank(target, source, InventoryUtils::weaponScore);

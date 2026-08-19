@@ -79,6 +79,7 @@ public enum Core {
         musicManager = music;
         commandManager = commands;
         initialized = true;
+        configs.applyDeferredModuleStates();
     }
 
     public synchronized void shutdown() {

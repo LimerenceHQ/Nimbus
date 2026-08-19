@@ -128,9 +128,15 @@ moduleManager = modules;
 targetManager = targets;
 configManager = configs;
 initialized = true;
+configs.applyDeferredModuleStates();
 ```
 
 重要限制：Manager 的 `init()` 执行期间，Core getter 尚未指向这些局部 Manager。
+
+`ConfigManager.init()` 在这一阶段只解析配置并恢复 Setting、按键、隐藏状态等不依赖
+Core getter 的数据。配置中的 Module enabled 状态会暂存，等全部 Manager 成功启动、
+Core 字段完成提交且 `initialized == true` 后，由 `applyDeferredModuleStates()` 统一恢复。
+运行期间手动加载命名配置仍会立即应用 enabled 状态。
 
 错误方式：
 

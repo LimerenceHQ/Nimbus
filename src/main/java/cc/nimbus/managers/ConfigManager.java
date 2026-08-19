@@ -25,7 +25,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -48,6 +50,7 @@ public final class ConfigManager implements InstanceManager {
     private boolean initialized;
     private long dirtySince;
     private long clientDirtySince;
+    private final Map<BasicModule, Boolean> deferredModuleStates = new LinkedHashMap<>();
 
     public ConfigManager(Path rootDirectory, ModuleManager moduleManager) {
         this.rootDirectory = Objects.requireNonNull(rootDirectory, "rootDirectory");
@@ -81,7 +84,7 @@ public final class ConfigManager implements InstanceManager {
         }
         Path defaultFile = file(DEFAULT_CONFIG);
         if (Files.isRegularFile(defaultFile)) {
-            if (!loadConfig(DEFAULT_CONFIG)) {
+            if (!loadConfig(DEFAULT_CONFIG, true)) {
                 throw failInitialization("Unable to load default config: " + defaultFile);
             }
         } else if (!saveConfig(DEFAULT_CONFIG)) {
@@ -208,14 +211,19 @@ public final class ConfigManager implements InstanceManager {
     }
 
     public synchronized boolean loadConfig(String name) {
+        return loadConfig(name, false);
+    }
+
+    private boolean loadConfig(String name, boolean deferModuleStates) {
         if (!isValidConfigName(name) || !Files.isRegularFile(file(name))) return false;
+        deferredModuleStates.clear();
         try (Reader reader = Files.newBufferedReader(file(name), StandardCharsets.UTF_8)) {
             JsonElement parsed = JsonParser.parseReader(reader);
             if (!parsed.isJsonObject()) return false;
             JsonObject root = parsed.getAsJsonObject();
             loading = true;
             if (root.has("modules") && root.get("modules").isJsonObject()) {
-                deserializeModules(root.getAsJsonObject("modules"));
+                deserializeModules(root.getAsJsonObject("modules"), deferModuleStates);
             }
             currentConfig = name;
             dirty = false;
@@ -224,6 +232,24 @@ public final class ConfigManager implements InstanceManager {
             System.err.println("[Nimbus] Failed to load config '" + name + "': " + message(error));
             return false;
         } finally {
+            loading = false;
+        }
+    }
+
+    public synchronized void applyDeferredModuleStates() {
+        if (!initialized || deferredModuleStates.isEmpty()) return;
+        loading = true;
+        try {
+            for (var entry : List.copyOf(deferredModuleStates.entrySet())) {
+                try {
+                    entry.getKey().setEnabled(entry.getValue());
+                } catch (RuntimeException error) {
+                    System.err.println("[Nimbus] Ignoring damaged enabled state for "
+                            + entry.getKey().getName() + ": " + message(error));
+                }
+            }
+        } finally {
+            deferredModuleStates.clear();
             loading = false;
         }
     }
@@ -328,7 +354,7 @@ public final class ConfigManager implements InstanceManager {
         return GSON.toJsonTree(value);
     }
 
-    private void deserializeModules(JsonObject source) {
+    private void deserializeModules(JsonObject source, boolean deferModuleStates) {
         for (BasicModule module : moduleManager.getModules()) {
             JsonElement element = findIgnoreCase(source, module.getName());
             if (element == null || !element.isJsonObject()) continue;
@@ -342,7 +368,11 @@ public final class ConfigManager implements InstanceManager {
                 if (value.has("draggables") && value.get("draggables").isJsonObject()) {
                     deserializeDraggables(value.getAsJsonObject("draggables"), module);
                 }
-                if (value.has("enabled")) module.setEnabled(value.get("enabled").getAsBoolean());
+                if (value.has("enabled")) {
+                    boolean enabled = value.get("enabled").getAsBoolean();
+                    if (deferModuleStates) deferredModuleStates.put(module, enabled);
+                    else module.setEnabled(enabled);
+                }
             } catch (RuntimeException error) {
                 System.err.println("[Nimbus] Ignoring damaged config entry for " + module.getName() + ": " + error.getMessage());
             }
