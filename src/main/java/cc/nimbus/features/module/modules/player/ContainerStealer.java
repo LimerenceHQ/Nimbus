@@ -98,6 +98,7 @@ public final class ContainerStealer extends BasicModule {
 
     private boolean useful(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
+        if (!InventoryUtils.hasValidProfileComponent(stack)) return false;
         return !filterTrash.getValue() || !InventoryUtils.notUsefulItem(stack);
     }
 
