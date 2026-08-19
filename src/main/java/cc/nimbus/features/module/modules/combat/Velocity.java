@@ -416,8 +416,6 @@ public final class Velocity extends BasicModule {
             target = player;
         }
 
-        if (!isWithinServerRange(target)) return;
-
         ((MultiPlayerGameModeAccessor) minecraft.gameMode).nimbus$ensureHasSentCarriedItem();
         minecraft.getConnection().send(ServerboundInteractPacket.createAttackPacket(
                 target, mc.player.isShiftKeyDown()));
@@ -426,94 +424,6 @@ public final class Velocity extends BasicModule {
             mc.player.setSprinting(false);
         }
         mc.player.swing(InteractionHand.MAIN_HAND);
-    }
-
-    private void recordMove(ClientboundMoveEntityPacket packet) {
-        if (minecraft.level == null) return;
-        Entity entity = packet.getEntity(minecraft.level);
-        if (entity == null) return;
-        if (packet.hasPosition()) {
-            serverPositions.put(entity.getId(), entity.getPositionCodec().decode(
-                    packet.getXa(), packet.getYa(), packet.getZa()));
-        } else {
-            serverPositions.putIfAbsent(entity.getId(), entity.getPositionCodec().getBase());
-        }
-    }
-
-    @EventTarget(priority = Priority.Low)
-    private void onPacketSend(EventPacketSend event) {
-        if (!mode.is("Legit") || !legitModules.isSelected("Delay") || delayState != DelayState.BUFFERING
-                || !(event.getPacket() instanceof ServerboundInteractPacket packet)
-                || !isAttack(packet) || minecraft.level == null || mc.player == null) return;
-        Entity target = minecraft.level.getEntity(
-                ((ServerboundInteractPacketAccessor) packet).nimbus$getEntityId());
-        if (target != null && !isWithinServerInteractionRange(target)) event.cancelEvent();
-    }
-
-    private void recordTeleport(ClientboundTeleportEntityPacket packet) {
-        if (minecraft.level == null) return;
-        Entity entity = minecraft.level.getEntity(packet.id());
-        if (entity == null) return;
-        Vec3 previous = serverPositions.getOrDefault(packet.id(), entity.position());
-        Vec3 position = packet.change().position();
-        if (packet.relatives().contains(Relative.X)) position = new Vec3(position.x + previous.x, position.y, position.z);
-        if (packet.relatives().contains(Relative.Y)) position = new Vec3(position.x, position.y + previous.y, position.z);
-        if (packet.relatives().contains(Relative.Z)) position = new Vec3(position.x, position.y, position.z + previous.z);
-        serverPositions.put(packet.id(), position);
-    }
-
-    private boolean isWithinServerRange(Player target) {
-        double distance = serverDistance(target);
-        if (!Double.isFinite(distance)) return true;
-
-        double serverRange = Math.min(
-                attackRange.getValue().doubleValue(), mc.player.entityInteractionRange());
-        if (distance <= serverRange) return true;
-        return throughWalls.getValue()
-                && distance <= Math.min(throughWallsRange.getValue().doubleValue(), mc.player.entityInteractionRange());
-    }
-
-    private boolean isWithinServerInteractionRange(Entity target) {
-        double distance = serverDistance(target);
-        return !Double.isFinite(distance) || distance <= mc.player.entityInteractionRange();
-    }
-
-    private double serverDistance(Entity target) {
-        Vec3 serverPosition = serverPositions.get(target.getId());
-        if (serverPosition == null) return Double.NaN;
-
-        Vec3 visiblePosition = target.position();
-        AABB serverBox = target.getBoundingBox().move(
-                serverPosition.x - visiblePosition.x,
-                serverPosition.y - visiblePosition.y,
-                serverPosition.z - visiblePosition.z
-        ).inflate(target.getPickRadius());
-        Vec3 eyes = mc.player.getEyePosition();
-        Vec3 closest = new Vec3(
-                Mth.clamp(eyes.x, serverBox.minX, serverBox.maxX),
-                Mth.clamp(eyes.y, serverBox.minY, serverBox.maxY),
-                Mth.clamp(eyes.z, serverBox.minZ, serverBox.maxZ)
-        );
-        return eyes.distanceTo(closest);
-    }
-
-    private boolean isAttack(ServerboundInteractPacket packet) {
-        boolean[] attack = {false};
-        packet.dispatch(new ServerboundInteractPacket.Handler() {
-            @Override
-            public void onInteraction(InteractionHand hand) {
-            }
-
-            @Override
-            public void onInteraction(InteractionHand hand, Vec3 location) {
-            }
-
-            @Override
-            public void onAttack() {
-                attack[0] = true;
-            }
-        });
-        return attack[0];
     }
 
     private void releaseInbound() {
