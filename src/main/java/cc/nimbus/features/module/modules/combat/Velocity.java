@@ -181,7 +181,20 @@ public final class Velocity extends BasicModule {
     private void onPacket(EventPacketReceive event) {
         Packet<?> packet = event.getPacket();
         if (minecraft.player == null || packet == null) return;
-        
+
+        if (mode.is("Legit") && legitModules.isSelected("Delay")) {
+            if (packet instanceof ClientboundMoveEntityPacket move) {
+                recordMove(move);
+                if (delayState == DelayState.BUFFERING) event.setBypassInboundQueue(true);
+            } else if (packet instanceof ClientboundTeleportEntityPacket teleport) {
+                recordTeleport(teleport);
+                if (delayState == DelayState.BUFFERING) event.setBypassInboundQueue(true);
+            } else if (packet instanceof ClientboundRemoveEntitiesPacket remove) {
+                IntList ids = remove.getEntityIds();
+                for (int index = 0; index < ids.size(); index++) serverPositions.remove(ids.getInt(index));
+            }
+        }
+
         if (packet instanceof ClientboundPlayerPositionPacket) {
             if (delayState == DelayState.BUFFERING) releaseInbound();
             resetDelay();
