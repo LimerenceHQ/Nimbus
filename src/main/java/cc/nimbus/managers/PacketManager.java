@@ -137,8 +137,7 @@ public final class PacketManager implements InstanceManager {
 
     @EventTarget(priority = Priority.Lowest)
     private void onPacketReceive(EventPacketReceive event) {
-        if (event.isBypassInboundQueue()
-                || !inboundFrozen || event.getPacket() == null || PacketUtils.isEssential(event.getPacket())) return;
+        if (!inboundFrozen || event.getPacket() == null || PacketUtils.isEssential(event.getPacket())) return;
         if (enqueueOrFlush(inbound, event.getPacket(), PacketUtils::receivePacketNoEvent)) {
             event.cancelEvent();
         }
