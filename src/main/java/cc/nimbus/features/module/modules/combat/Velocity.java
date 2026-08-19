@@ -266,7 +266,7 @@ public final class Velocity extends BasicModule {
 
         if (ticksSinceVelocity >= 0) {
             if (ticksSinceVelocity < 4 && Math.abs(finalRotation.difference) <= 45F) {
-                if (mc.player != null && GameStateManager.clientOnGround()) {
+                if (mc.player != null && mc.player.onGround()) {
                     handleJumpReset = true;
                     event.setJump(true);
                 }
@@ -361,7 +361,7 @@ public final class Velocity extends BasicModule {
         int maxTicks = maxLimitedTick.getValue().intValue();
         boolean untilLanding = releaseTiming.isSelected("Until Landing");
         boolean untilSprint = releaseTiming.isSelected("Until Sprint");
-        boolean onGround = mc.player != null && GameStateManager.clientOnGround();
+        boolean onGround = mc.player != null && mc.player.onGround();
         boolean sprinting = mc.player != null && mc.player.isSprinting();
         boolean timedOut = bufferTicks >= maxTicks;
         boolean cannotSprint = cantSprint();
