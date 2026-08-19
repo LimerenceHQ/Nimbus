@@ -82,7 +82,7 @@ public class NoSlow extends BasicModule {
 
         switch (mode.getValue()) {
             case "GrimFull" -> {
-                if (mc.player.getTicksUsingItem() > 2 && isUse) {
+                if (mc.player.getTicksUsingItem() > 2 && isUse && !mc.player.input.keyPresses.backward()) {
                     event.cancelEvent();
                     mc.player.setSprinting(true);
                 }
@@ -181,10 +181,6 @@ public class NoSlow extends BasicModule {
             if (useTicks >= 0) {
                 useTicks++;
             }
-        } else if (pendingUseItem) {
-            InteractionHand hand = isHoldingConsumable(mc.player.getMainHandItem()) ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
-            ClientManger.useItem(mc.player, mc.level, hand);
-            pendingUseItem = false;
         }
     }
 
@@ -210,8 +206,18 @@ public class NoSlow extends BasicModule {
 
     @EventTarget
     public void onTick(EventTick event) {
-        if (!event.isPre()) return;
         if (mc.player == null || mc.level == null || mc.getConnection() == null || !mode.is("GrimFull")) {
+            return;
+        }
+
+        if (event.isPost()) {
+            if (pendingUseItem) {
+                InteractionHand hand = isHoldingConsumable(mc.player.getMainHandItem())
+                        ? InteractionHand.OFF_HAND
+                        : InteractionHand.MAIN_HAND;
+                ClientManger.useItem(mc.player, mc.level, hand);
+                pendingUseItem = false;
+            }
             return;
         }
 
