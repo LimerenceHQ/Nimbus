@@ -1,5 +1,6 @@
 package cc.nimbus.mixin.client;
 
+import cc.nimbus.event.impl.player.EventItemUse;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.tags.ItemTags;
@@ -65,6 +66,11 @@ public class MinecraftMixin {
 
     @Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
     private void nimbus$suppressOwnedItemUse(CallbackInfo ci) {
+        EventItemUse event = new EventItemUse();
+        EventBus.call(event);
+        if (event.isCancel()) {
+            ci.cancel();
+        }
         Scaffold scaffold = MixinModuleLookup.enabled(Scaffold.class);
         BowAssistant bowAssistant = MixinModuleLookup.enabled(BowAssistant.class);
         if ((scaffold != null && scaffold.attemptedPlacementThisTick())

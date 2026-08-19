@@ -79,7 +79,7 @@ public final class KillAura extends BasicModule {
     public final ModeSetting autoBlock = new ModeSetting(
             "AutoBlock", new String[]{"Off", "Fake"}, "Off");
 
-    private LivingEntity attackTarget;
+    public LivingEntity attackTarget;
     private List<LivingEntity> searchedTargets = List.of();
     private List<LivingEntity> targets = List.of();
     private Rotation requestedRotation;
