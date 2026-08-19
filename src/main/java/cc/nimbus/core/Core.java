@@ -52,7 +52,7 @@ public enum Core {
         AccountManager accounts = new AccountManager(nimbusDirectory.resolve("accounts"));
         MusicManager music = new MusicManager(nimbusDirectory.resolve("music"));
         CommandManager commands = new CommandManager();
-        List<InstanceManager> started = new ArrayList<>(10);
+        List<InstanceManager> started = new ArrayList<>(11);
 
         EventBus.clear();
         try {

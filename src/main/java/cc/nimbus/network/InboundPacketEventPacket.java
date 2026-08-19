@@ -6,7 +6,6 @@ import net.minecraft.network.PacketListener;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketType;
 
-/** Packet adapter used by PacketUtilsMixin to dispatch receive events on the client thread. */
 public final class InboundPacketEventPacket<T extends PacketListener> implements Packet<T> {
     private final Packet<T> packet;
 
