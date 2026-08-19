@@ -212,8 +212,8 @@ public final class InventoryUtils {
                 || stack.is(Items.DIAMOND) || stack.is(Items.EMERALD) || stack.is(Items.NETHER_STAR)
                 || stack.is(Items.BUCKET) || stack.is(Items.WATER_BUCKET) || stack.is(Items.LAVA_BUCKET)
                 || stack.is(Items.MILK_BUCKET) || stack.is(Items.ENDER_PEARL) || stack.is(Items.ARROW)
-                || stack.is(Items.COMPASS) || stack.is(Items.STICK) || stack.is(Items.EXPERIENCE_BOTTLE) || stack.is(Items.ELYTRA)
-                || stack.is(Items.BOOK) || stack.is(Items.ENCHANTED_BOOK) || stack.is(Items.SHIELD)
+                || stack.is(Items.COMPASS) || stack.is(Items.STICK) || stack.is(Items.ELYTRA)
+                || stack.is(Items.SHIELD)
                 || stack.is(Items.END_CRYSTAL)) return false;
 
         return !isConsumable(stack);
