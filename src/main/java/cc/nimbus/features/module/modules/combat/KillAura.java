@@ -70,6 +70,7 @@ public final class KillAura extends BasicModule {
             "Movement Fix", new String[]{"None", "Strict", "Silent"}, "None");
     public final BooleanSetting stopAttackWhileUsingItem = new BooleanSetting("Stop Attack While Using Item", false);
     public final BooleanSetting stopWhileScaffolding = new BooleanSetting("Stop While Scaffolding", true);
+    public final BooleanSetting disableOnWorldChange = new BooleanSetting("Disable On World Change", true);
     public final ModeSetting keepSprint = new ModeSetting(
             "Keep Sprint", new String[]{"Off", "Vanilla", "Legit"}, "Off");
     public final BooleanSetting skipFirstAttack = new BooleanSetting(
@@ -101,6 +102,7 @@ public final class KillAura extends BasicModule {
     @EventTarget
     private void onWorldLoad(EventWorldLoad event) {
         resetState(true);
+        if (disableOnWorldChange.getValue() && isEnabled()) setEnabled(false);
     }
 
     @EventTarget
