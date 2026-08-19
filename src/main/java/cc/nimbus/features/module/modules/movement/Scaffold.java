@@ -24,6 +24,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.StandingAndWallBlockItem;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
@@ -144,6 +145,7 @@ public final class Scaffold extends BasicModule {
         if (minecraft.player != null) {
             oldSlot = minecraft.player.getInventory().getSelectedSlot();
             baseY = yLevel = Mth.floor(minecraft.player.getY() - 1.0);
+            stopGoldenAppleUse(minecraft);
         }
     }
 
@@ -179,6 +181,7 @@ public final class Scaffold extends BasicModule {
             baseY = yLevel = Mth.floor(minecraft.player.getY() - 1.0);
         }
 
+        stopGoldenAppleUse(minecraft);
         setSuffix(mode.getValue());
         updateGroundTicks(minecraft.player);
         updateSneak(minecraft.player, minecraft.level);
@@ -553,6 +556,14 @@ public final class Scaffold extends BasicModule {
     public boolean attemptedPlacementThisTick() {
         Minecraft minecraft = Minecraft.getInstance();
         return minecraft.player != null && placementAttemptTick == minecraft.player.tickCount;
+    }
+
+    private static void stopGoldenAppleUse(Minecraft minecraft) {
+        if (minecraft.player == null || minecraft.gameMode == null || !minecraft.player.isUsingItem()) return;
+        ItemStack stack = minecraft.player.getUseItem();
+        if (stack.is(Items.GOLDEN_APPLE) || stack.is(Items.ENCHANTED_GOLDEN_APPLE)) {
+            minecraft.gameMode.releaseUsingItem(minecraft.player);
+        }
     }
 
     private void clearPlacement() {

@@ -4,6 +4,7 @@ import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.player.EventAttack;
 import cc.nimbus.features.module.modules.player.Stuck;
+import cc.nimbus.features.module.modules.movement.Scaffold;
 import cc.nimbus.features.rotation.Rotation;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
@@ -55,9 +56,13 @@ public abstract class MultiPlayerGameModeMixin {
         EventBus.call(new EventAttack(target, EventAttack.Stage.POST));
     }
 
-    @Inject(method = "useItem", at = @At("HEAD"))
+    @Inject(method = "useItem", at = @At("HEAD"), cancellable = true)
     private void nimbus$useItemRotation(Player player, InteractionHand hand,
                                         CallbackInfoReturnable<InteractionResult> cir) {
+        if (nimbus$shouldBlockGoldenApple(player, hand)) {
+            cir.setReturnValue(InteractionResult.FAIL);
+            return;
+        }
         nimbus$releaseStuckForPearl(player, hand);
         nimbus$pushRotation(player);
     }
@@ -130,5 +135,13 @@ public abstract class MultiPlayerGameModeMixin {
             Stuck stuck = MixinModuleLookup.enabled(Stuck.class);
             if (stuck != null) stuck.release(hand);
         }
+    }
+
+    @Unique
+    private static boolean nimbus$shouldBlockGoldenApple(Player player, InteractionHand hand) {
+        Scaffold scaffold = MixinModuleLookup.enabled(Scaffold.class);
+        if (scaffold == null) return false;
+        return player.getItemInHand(hand).is(Items.GOLDEN_APPLE)
+                || player.getItemInHand(hand).is(Items.ENCHANTED_GOLDEN_APPLE);
     }
 }

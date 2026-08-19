@@ -39,9 +39,11 @@ public class MinecraftMixin {
     private void nimbus$oldHittingSwingWhileUsing(CallbackInfo ci) {
         EventBus.call(new EventClick());
         Minecraft minecraft = Minecraft.getInstance();
-        if (MixinModuleLookup.enabled(OldHitting.class) != null
+        OldHitting oldHitting = MixinModuleLookup.enabled(OldHitting.class);
+        if (oldHitting != null
                 && minecraft.player != null
                 && minecraft.player.isUsingItem()
+                && !oldHitting.shouldIgnoreUse(minecraft.player)
                 && minecraft.player.getMainHandItem().is(ItemTags.SWORDS)
                 && minecraft.options.keyAttack.consumeClick()) {
             minecraft.player.swing(InteractionHand.MAIN_HAND);

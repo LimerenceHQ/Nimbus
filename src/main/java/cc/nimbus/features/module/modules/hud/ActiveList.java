@@ -139,8 +139,7 @@ public final class ActiveList extends BasicModule {
                         local.canvas().restoreToCount(clipSave);
                     }
                 }
-                for (int index = 0; index < entries.size(); index++) {
-                    RenderEntry rendered = entries.get(index);
+                for (RenderEntry rendered : entries) {
                     Entry entry = rendered.entry();
                     float textProgress = rendered.textProgress();
                     float rowY = rendered.y();
@@ -282,7 +281,7 @@ public final class ActiveList extends BasicModule {
                                       boolean rightAnchored) {
         try (PathBuilder path = new PathBuilder()) {
             entries = entries.stream()
-                    .filter(entry -> entry.height() > ROW_HEIGHT * .2f)
+                    .filter(entry -> entry.height() > .001f)
                     .toList();
             if (entries.isEmpty()) return path.build();
             RenderEntry first = entries.getFirst();
