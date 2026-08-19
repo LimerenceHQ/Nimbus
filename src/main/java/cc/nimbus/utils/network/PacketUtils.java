@@ -66,7 +66,8 @@ public final class PacketUtils {
                 || packet instanceof ClientboundSetHealthPacket
                 || packet instanceof ClientboundSoundPacket
                 || packet instanceof ClientboundSetPlayerTeamPacket
-                || packet instanceof ClientboundAddEntityPacket) {
+                || packet instanceof ClientboundAddEntityPacket
+        ) {
             return true;
         }
         if (packet instanceof ClientboundEntityEventPacket status && minecraft.level != null) {

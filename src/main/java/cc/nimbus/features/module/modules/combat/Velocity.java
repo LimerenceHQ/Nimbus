@@ -7,6 +7,7 @@ import cc.nimbus.event.impl.game.EventClick;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.event.impl.network.EventPacketReceive;
+import cc.nimbus.event.impl.network.EventPacketSend;
 import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
@@ -23,23 +24,33 @@ import cc.nimbus.features.rotation.RotationRaycast;
 import cc.nimbus.features.rotation.RotationRequest;
 import cc.nimbus.features.rotation.SmoothMode;
 import cc.nimbus.managers.PacketDirection;
+import cc.nimbus.mixin.accessor.network.ServerboundInteractPacketAccessor;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
+import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientboundMoveEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
+import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
+import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
 import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Relative;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @ModuleInfo(
         name = "Velocity",
@@ -91,10 +102,12 @@ public final class Velocity extends BasicModule {
     private boolean holdingSprintEntityData;
     private int ticksSinceVelocity = -1;
     private int attackCount = -1;
-    private boolean handleVelocity;
+    public boolean handleVelocity;
     private boolean needHandleRotation;
     private RotationData finalRotation = new RotationData(new Rotation(0, 0), 0);
     private boolean handleJumpReset;
+    /** Last server-authoritative position for entities whose movement is shown immediately. */
+    private final Map<Integer, Vec3> serverPositions = new HashMap<>();
 
     @Override
     protected void onEnable() {
@@ -109,6 +122,7 @@ public final class Velocity extends BasicModule {
     @EventTarget
     private void onWorldLoad(EventWorldLoad event) {
         resetState(false);
+        serverPositions.clear();
     }
 
     @EventTarget
@@ -168,9 +182,23 @@ public final class Velocity extends BasicModule {
         Packet<?> packet = event.getPacket();
         if (minecraft.player == null || packet == null) return;
 
+        if (mode.is("Legit") && legitModules.isSelected("Delay")) {
+            if (packet instanceof ClientboundMoveEntityPacket move) {
+                recordMove(move);
+                if (delayState == DelayState.BUFFERING) event.setBypassInboundQueue(true);
+            } else if (packet instanceof ClientboundTeleportEntityPacket teleport) {
+                recordTeleport(teleport);
+                if (delayState == DelayState.BUFFERING) event.setBypassInboundQueue(true);
+            } else if (packet instanceof ClientboundRemoveEntitiesPacket remove) {
+                IntList ids = remove.getEntityIds();
+                for (int index = 0; index < ids.size(); index++) serverPositions.remove(ids.getInt(index));
+            }
+        }
+
         if (packet instanceof ClientboundPlayerPositionPacket) {
             if (delayState == DelayState.BUFFERING) releaseInbound();
             resetDelay();
+            serverPositions.clear();
             handleVelocity = false;
             ticksSinceVelocity = -1;
             needHandleRotation = false;
@@ -381,6 +409,8 @@ public final class Velocity extends BasicModule {
             target = player;
         }
 
+        if (!isWithinServerRange(target)) return;
+
         ((MultiPlayerGameModeAccessor) minecraft.gameMode).nimbus$ensureHasSentCarriedItem();
         minecraft.getConnection().send(ServerboundInteractPacket.createAttackPacket(
                 target, minecraft.player.isShiftKeyDown()));
@@ -389,6 +419,94 @@ public final class Velocity extends BasicModule {
             minecraft.player.setSprinting(false);
         }
         minecraft.player.swing(InteractionHand.MAIN_HAND);
+    }
+
+    private void recordMove(ClientboundMoveEntityPacket packet) {
+        if (minecraft.level == null) return;
+        Entity entity = packet.getEntity(minecraft.level);
+        if (entity == null) return;
+        if (packet.hasPosition()) {
+            serverPositions.put(entity.getId(), entity.getPositionCodec().decode(
+                    packet.getXa(), packet.getYa(), packet.getZa()));
+        } else {
+            serverPositions.putIfAbsent(entity.getId(), entity.getPositionCodec().getBase());
+        }
+    }
+
+    @EventTarget(priority = Priority.Low)
+    private void onPacketSend(EventPacketSend event) {
+        if (!mode.is("Legit") || !legitModules.isSelected("Delay") || delayState != DelayState.BUFFERING
+                || !(event.getPacket() instanceof ServerboundInteractPacket packet)
+                || !isAttack(packet) || minecraft.level == null || minecraft.player == null) return;
+        Entity target = minecraft.level.getEntity(
+                ((ServerboundInteractPacketAccessor) packet).nimbus$getEntityId());
+        if (target != null && !isWithinServerInteractionRange(target)) event.cancelEvent();
+    }
+
+    private void recordTeleport(ClientboundTeleportEntityPacket packet) {
+        if (minecraft.level == null) return;
+        Entity entity = minecraft.level.getEntity(packet.id());
+        if (entity == null) return;
+        Vec3 previous = serverPositions.getOrDefault(packet.id(), entity.position());
+        Vec3 position = packet.change().position();
+        if (packet.relatives().contains(Relative.X)) position = new Vec3(position.x + previous.x, position.y, position.z);
+        if (packet.relatives().contains(Relative.Y)) position = new Vec3(position.x, position.y + previous.y, position.z);
+        if (packet.relatives().contains(Relative.Z)) position = new Vec3(position.x, position.y, position.z + previous.z);
+        serverPositions.put(packet.id(), position);
+    }
+
+    private boolean isWithinServerRange(Player target) {
+        double distance = serverDistance(target);
+        if (!Double.isFinite(distance)) return true;
+
+        double serverRange = Math.min(
+                attackRange.getValue().doubleValue(), minecraft.player.entityInteractionRange());
+        if (distance <= serverRange) return true;
+        return throughWalls.getValue()
+                && distance <= Math.min(throughWallsRange.getValue().doubleValue(), minecraft.player.entityInteractionRange());
+    }
+
+    private boolean isWithinServerInteractionRange(Entity target) {
+        double distance = serverDistance(target);
+        return !Double.isFinite(distance) || distance <= minecraft.player.entityInteractionRange();
+    }
+
+    private double serverDistance(Entity target) {
+        Vec3 serverPosition = serverPositions.get(target.getId());
+        if (serverPosition == null) return Double.NaN;
+
+        Vec3 visiblePosition = target.position();
+        AABB serverBox = target.getBoundingBox().move(
+                serverPosition.x - visiblePosition.x,
+                serverPosition.y - visiblePosition.y,
+                serverPosition.z - visiblePosition.z
+        ).inflate(target.getPickRadius());
+        Vec3 eyes = minecraft.player.getEyePosition();
+        Vec3 closest = new Vec3(
+                Mth.clamp(eyes.x, serverBox.minX, serverBox.maxX),
+                Mth.clamp(eyes.y, serverBox.minY, serverBox.maxY),
+                Mth.clamp(eyes.z, serverBox.minZ, serverBox.maxZ)
+        );
+        return eyes.distanceTo(closest);
+    }
+
+    private boolean isAttack(ServerboundInteractPacket packet) {
+        boolean[] attack = {false};
+        packet.dispatch(new ServerboundInteractPacket.Handler() {
+            @Override
+            public void onInteraction(InteractionHand hand) {
+            }
+
+            @Override
+            public void onInteraction(InteractionHand hand, Vec3 location) {
+            }
+
+            @Override
+            public void onAttack() {
+                attack[0] = true;
+            }
+        });
+        return attack[0];
     }
 
     private void releaseInbound() {
@@ -408,6 +526,7 @@ public final class Velocity extends BasicModule {
         needHandleRotation = false;
         handleJumpReset = false;
         finalRotation = new RotationData(new Rotation(0, 0), 0);
+        serverPositions.clear();
     }
 
     private void resetDelay() {

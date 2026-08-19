@@ -33,6 +33,8 @@
     "render.ToastManagerMixin",
     "world.ClientLevelDataMixin",
     "accessor.client.MinecraftAccessor",
+    "accessor.client.DeltaTrackerTimerAccessor",
+    "accessor.network.ServerboundInteractPacketAccessor",
     "accessor.player.MultiPlayerGameModeAccessor"
   ],
   "injectors": {

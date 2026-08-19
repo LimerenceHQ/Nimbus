@@ -5,6 +5,7 @@ import cc.nimbus.event.EventBus;
 import cc.nimbus.event.EventType;
 import cc.nimbus.event.impl.player.EventMotion;
 import cc.nimbus.event.impl.player.EventPreUpdate;
+import cc.nimbus.event.impl.player.EventSlowDown;
 import cc.nimbus.event.impl.player.EventUpdate;
 import cc.nimbus.utils.mixin.LocalPlayerStateAccess;
 import com.mojang.authlib.GameProfile;
@@ -15,13 +16,17 @@ import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.PlayerRideableJumping;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Abilities;
+import net.minecraft.world.item.component.UseEffects;
 import net.minecraft.world.level.block.Portal;
+import net.minecraft.world.phys.Vec2;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -30,6 +35,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(LocalPlayer.class)
 public abstract class LocalPlayerMixin extends AbstractClientPlayer implements LocalPlayerStateAccess {
@@ -71,6 +77,17 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
     protected abstract void moveTowardsClosestSpace(double p_108705_, double p_108706_);
 
     @Shadow
+    protected abstract float itemUseSpeedMultiplier();
+
+    @Shadow
+    private static Vec2 modifyInputSpeedForSquareMovement(Vec2 vec2) {
+        throw new AssertionError();
+    }
+
+    @Shadow
+    protected abstract boolean isMovingSlowly();
+
+    @Shadow
     protected abstract void  handlePortalTransitionEffect(boolean b);
 
     @Shadow
@@ -109,6 +126,28 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
 
     @Shadow
     protected abstract void sendRidingJump();
+
+    @Inject(method = "modifyInput", at = @At("HEAD"), cancellable = true)
+    private void nimbus$modifyInput(Vec2 vec2,
+                                     CallbackInfoReturnable<Vec2> cir) {
+        if (vec2.lengthSquared() == 0.0F) {
+            cir.setReturnValue(vec2);
+        } else {
+            EventSlowDown event = new EventSlowDown();
+            EventBus.call(event);
+            Vec2 vec22 = vec2.scale(0.98F);
+            if (this.isUsingItem() && !this.isPassenger() && !event.isCancel()) {
+                vec22 = vec22.scale(this.itemUseSpeedMultiplier());
+            }
+
+            if (this.isMovingSlowly()) {
+                float f = (float)this.getAttributeValue(Attributes.SNEAKING_SPEED);
+                vec22 = vec22.scale(f);
+            }
+
+            cir.setReturnValue(modifyInputSpeedForSquareMovement(vec22));
+        }
+    }
 
     @Inject(method = "aiStep", at = @At("HEAD"), cancellable = true)
     private void onAiStep(CallbackInfo ci) {
