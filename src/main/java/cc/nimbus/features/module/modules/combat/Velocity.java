@@ -197,9 +197,6 @@ public final class Velocity extends BasicModule {
         if (mc.player == null || packet == null) return;
 
         if (packet instanceof ClientboundPlayerPositionPacket) {
-            if (delayState == DelayState.BUFFERING) releaseInbound();
-            resetDelay();
-            serverPositions.clear();
             handleVelocity = false;
             ticksSinceVelocity = -1;
             needHandleRotation = false;
