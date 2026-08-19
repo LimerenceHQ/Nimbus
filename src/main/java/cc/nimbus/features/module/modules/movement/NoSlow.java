@@ -82,7 +82,7 @@ public class NoSlow extends BasicModule {
 
         switch (mode.getValue()) {
             case "GrimFull" -> {
-                if (mc.player.getTicksUsingItem() > 2 && isUse && !mc.player.input.keyPresses.backward()) {
+                if (mc.player.getTicksUsingItem() > 2 && isUse) {
                     event.cancelEvent();
                     mc.player.setSprinting(true);
                 }

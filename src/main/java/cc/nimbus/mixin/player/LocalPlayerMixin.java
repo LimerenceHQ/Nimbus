@@ -52,6 +52,7 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
     @Unique private float nimbus$oldPitch;
     @Unique private boolean nimbus$oldGround;
     @Unique private EventMotion nimbus$motion;
+    @Unique private boolean nimbus$cancelItemSlowDown;
     @Final
     public ClientPacketListener connection;
     @Shadow
@@ -128,25 +129,20 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
     protected abstract void sendRidingJump();
 
     @Inject(method = "modifyInput", at = @At("HEAD"), cancellable = true)
-    private void nimbus$modifyInput(Vec2 vec2,
-                                     CallbackInfoReturnable<Vec2> cir) {
+    private void nimbus$modifyInput(Vec2 vec2, CallbackInfoReturnable<Vec2> cir) {
         if (vec2.lengthSquared() == 0.0F) {
             cir.setReturnValue(vec2);
-        } else {
-            EventSlowDown event = new EventSlowDown();
-            EventBus.call(event);
-            Vec2 vec22 = vec2.scale(0.98F);
-            if (this.isUsingItem() && !this.isPassenger() && !event.isCancel()) {
-                vec22 = vec22.scale(this.itemUseSpeedMultiplier());
-            }
-
-            if (this.isMovingSlowly()) {
-                float f = (float)this.getAttributeValue(Attributes.SNEAKING_SPEED);
-                vec22 = vec22.scale(f);
-            }
-
-            cir.setReturnValue(modifyInputSpeedForSquareMovement(vec22));
+            return;
         }
+
+        Vec2 movement = vec2.scale(0.98F);
+        if (this.isUsingItem() && !this.isPassenger() && !nimbus$cancelItemSlowDown) {
+            movement = movement.scale(this.itemUseSpeedMultiplier());
+        }
+        if (this.isMovingSlowly()) {
+            movement = movement.scale((float) this.getAttributeValue(Attributes.SNEAKING_SPEED));
+        }
+        cir.setReturnValue(modifyInputSpeedForSquareMovement(movement));
     }
 
     @Inject(method = "aiStep", at = @At("HEAD"), cancellable = true)
@@ -154,6 +150,7 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
         if (!Core.INSTANCE.isInitialized()) return;
 
         ci.cancel();
+        nimbus$cancelItemSlowDown = false;
 
         EventUpdate preUpdate = new EventUpdate(EventType.PRE);
         EventBus.call(preUpdate);
@@ -177,6 +174,8 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
         Abilities abilities = this.getAbilities();
         this.crouching = !abilities.flying && !this.isSwimming() && !this.isPassenger() && this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.CROUCHING) && (this.isShiftKeyDown() || !this.isSleeping() && !this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.STANDING));
         this.input.tick();
+        EventSlowDown slowDown = EventBus.call(new EventSlowDown());
+        nimbus$cancelItemSlowDown = slowDown.isCancel();
         this.minecraft.getTutorial().onInput(this.input);
         boolean bl4 = false;
         if (this.autoJumpTime > 0) {
@@ -192,7 +191,9 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
             this.moveTowardsClosestSpace(this.getX() + (double)this.getBbWidth() * 0.35, this.getZ() + (double)this.getBbWidth() * 0.35);
         }
 
-        if (bl2 || this.isSlowDueToUsingItem() && !this.isPassenger() || this.input.keyPresses.backward()) {
+        if (bl2
+                || this.isSlowDueToUsingItem() && !this.isPassenger() && !nimbus$cancelItemSlowDown
+                || this.input.keyPresses.backward()) {
             this.sprintTriggerTime = 0;
         }
 
