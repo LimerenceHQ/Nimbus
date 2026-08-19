@@ -10,6 +10,7 @@ import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.event.impl.player.EventAttack;
 import cc.nimbus.event.impl.player.EventMotion;
 import cc.nimbus.event.impl.player.EventMoveInput;
+import cc.nimbus.event.impl.player.EventUpdate;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
@@ -27,6 +28,7 @@ import cc.nimbus.features.rotation.SmoothMode;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import cc.nimbus.managers.RotationManager;
 import cc.nimbus.managers.TargetManager;
+import cc.nimbus.utils.entity.rotation.RotationUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.network.protocol.game.ServerboundSwingPacket;
@@ -34,14 +36,16 @@ import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUseAnimation;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.GameType;
-import net.minecraft.world.phys.EntityHitResult;
-import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.*;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Predicate;
 
 @ModuleInfo(
         name = "KillAura",
@@ -113,16 +117,17 @@ public final class KillAura extends BasicModule {
         renderBlocking = autoBlock.is("Fake") && attackTarget != null && holdingSword();
     }
 
-    @EventTarget(priority = Priority.Lowest)
-    private void onMoveInput(EventMoveInput event) {
-        if (!shouldStopSprint) return;
-        Minecraft minecraft = Minecraft.getInstance();
-        event.setSprint(false);
-        if (minecraft.options != null) minecraft.options.keySprint.setDown(false);
-        if (minecraft.player != null && minecraft.player.isSprinting()) {
-            minecraft.player.setSprinting(false);
+    @EventTarget
+    public void onUpdate(EventUpdate event) {
+        if (event.isPre() || mc.player == null) return;
+
+        boolean cantKeepSprint = !firstAttack && skipFirstAttack.getValue();
+        if (shouldStopSprint) {
+            if (!cantKeepSprint && mc.player.isSprinting()) {
+                mc.player.setSprinting(false);
+            }
+            shouldStopSprint = false;
         }
-        shouldStopSprint = false;
     }
 
     public boolean isRenderBlocking() {
@@ -179,40 +184,42 @@ public final class KillAura extends BasicModule {
     }
 
     private void attackTick() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) return;
+        if (mc.player == null) return;
         if (isEatingOrDrinking()) {
             resetState(true);
             return;
         }
         double delay = 1000.0 / cps.getValue().doubleValue();
         attackAccumulator = Math.min(attackAccumulator + 50.0, delay * 2.0);
-        if (minecraft.level == null || minecraft.gameMode == null
-                || minecraft.getConnection() == null || attackTarget == null) return;
-        if (attackAccumulator < delay) return;
-        if (stopAttackWhileUsingItem.getValue() && minecraft.player.isUsingItem()) return;
+        if (mc.level == null || mc.gameMode == null
+                || mc.getConnection() == null || attackTarget == null) return;
+        if (stopAttackWhileUsingItem.getValue() && mc.player.isUsingItem()) return;
 
         LivingEntity rayCastTarget = resolveRayCastTarget();
         if (rayCastTarget == null) return;
         attackTarget = rayCastTarget;
 
         boolean skipSprintStop = skipFirstAttack.getValue() && !firstAttack;
-        if (keepSprint.is("Legit") && minecraft.player.isSprinting() && !skipSprintStop) {
-            shouldStopSprint = true;
+        if (attackAccumulator >= delay) {
+            if (keepSprint.is("Legit")) {
+                if (mc.player.isSprinting() && !skipSprintStop) {
+                    shouldStopSprint = true;
+                }
+            }
+            if (!shouldStopSprint || skipSprintStop) {
+                performAttack(rayCastTarget);
+                attackAccumulator -= delay;
+            }
         }
-        if (shouldStopSprint && !skipSprintStop) return;
-        if (!performAttack(attackTarget)) return;
-        attackAccumulator -= delay;
-        firstAttack = true;
     }
 
-    private boolean performAttack(LivingEntity target) {
+    private void performAttack(LivingEntity target) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.gameMode == null || minecraft.getConnection() == null) return false;
+        if (minecraft.player == null || minecraft.gameMode == null || minecraft.getConnection() == null) return;
 
         if (keepSprint.is("Vanilla")) {
             EventAttack pre = EventBus.call(new EventAttack(target, EventAttack.Stage.PRE));
-            if (pre.isCancel() || pre.getEntity() == null) return false;
+            if (pre.isCancel() || pre.getEntity() == null) return;
             Entity actualTarget = pre.getEntity();
             ((MultiPlayerGameModeAccessor) minecraft.gameMode).nimbus$ensureHasSentCarriedItem();
             minecraft.getConnection().send(ServerboundInteractPacket.createAttackPacket(
@@ -230,7 +237,6 @@ public final class KillAura extends BasicModule {
             if (particles.isSelected("Critical")) minecraft.player.crit(target);
             if (particles.isSelected("Sharpness")) minecraft.player.magicCrit(target);
         }
-        return true;
     }
 
     private LivingEntity resolveRayCastTarget() {
@@ -342,7 +348,5 @@ public final class KillAura extends BasicModule {
         targets = List.of();
         requestedRotation = null;
         attackAccumulator = 0.0;
-        firstAttack = false;
-        shouldStopSprint = false;
     }
 }

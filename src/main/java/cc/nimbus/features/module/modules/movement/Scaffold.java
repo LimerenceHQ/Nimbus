@@ -16,12 +16,7 @@ import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.movement.scaffold.FallingPlayer;
 import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceInfo;
 import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceSearch;
-import cc.nimbus.features.rotation.MovementFix;
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
-import cc.nimbus.features.rotation.RotationPriority;
-import cc.nimbus.features.rotation.RotationRequest;
-import cc.nimbus.features.rotation.SmoothMode;
+import cc.nimbus.features.rotation.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -65,6 +60,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.Objects;
 import java.util.Set;
 
 @ModuleInfo(
@@ -205,7 +201,7 @@ public final class Scaffold extends BasicModule {
         Rotation rayRotation = Core.INSTANCE.getRotationManager().getEffectiveRotation();
         if (!raycast.is("Off")) {
             Rotation checkRotation = raycast.is("Medium") && targetRotation != null ? targetRotation : rayRotation;
-            BlockPos hitBlock = rayCastBlock(checkRotation, 4.5);
+            BlockPos hitBlock = RotationRaycast.rayCastBlock(checkRotation, 4.5);
             if (!currentPlace.blockPos().equals(hitBlock)
                     && minecraft.level.noCollision(minecraft.player,
                     minecraft.player.getBoundingBox().inflate(0.1, 0.0, 0.1))) {
@@ -329,7 +325,7 @@ public final class Scaffold extends BasicModule {
         if (canRotate && (player.getDeltaMovement().y > 0.0 || player.getY() > yLevel + 1.0)) {
             float deltaYaw = Mth.wrapDegrees(applied.yaw() - lastHypixelRotation.yaw());
             int speed = slow.getValue() ? (offGroundTicks <= 1 ? 60 : 30) : (offGroundTicks <= 1 ? 130 : 90);
-            if (!currentPlace.blockPos().equals(rayCastBlock(lastHypixelRotation, 4.5))
+            if (!currentPlace.blockPos().equals(Objects.requireNonNull(RotationRaycast.rayCastBlock(lastHypixelRotation, 4.5)))
                     && Math.abs(deltaYaw) > speed) {
                 applied = new Rotation(updateRotation(lastHypixelRotation.yaw(),
                         lastHypixelRotation.yaw() + deltaYaw, speed), applied.pitch());
@@ -457,16 +453,6 @@ public final class Scaffold extends BasicModule {
             case "Nearest" -> ScaffoldPlaceInfo.RotatePoint.NEAREST;
             default -> ScaffoldPlaceInfo.RotatePoint.NORMAL;
         };
-    }
-
-    private static BlockPos rayCastBlock(Rotation rotation, double range) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.level == null || rotation == null) return null;
-        Vec3 start = minecraft.player.getEyePosition();
-        Vec3 end = start.add(RotationMath.direction(rotation).scale(range));
-        BlockHitResult hit = minecraft.level.clip(new ClipContext(
-                start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, minecraft.player));
-        return hit.getType() == HitResult.Type.BLOCK ? hit.getBlockPos() : null;
     }
 
     private static boolean isDiagonal(Player player) {

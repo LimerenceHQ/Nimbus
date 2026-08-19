@@ -2,7 +2,28 @@ package cc.nimbus.features.rotation;
 
 import net.minecraft.util.Mth;
 
-public record Rotation(float yaw, float pitch) {
+public class Rotation {
+    private float yaw;
+    private final float pitch;
+    public static final Rotation ZERO = new Rotation(0f, 0f);
+
+    public Rotation(float yaw, float pitch) {
+        this.yaw = yaw;
+        this.pitch = pitch;
+    }
+
+    public float yaw() {
+        return yaw;
+    }
+
+    public float pitch() {
+        return pitch;
+    }
+
+    public void setYaw(float yaw) {
+        this.yaw = yaw;
+    }
+
     public Rotation normalized() {
         return new Rotation(Mth.wrapDegrees(yaw), Mth.clamp(pitch, -90.0f, 90.0f));
     }
@@ -17,6 +38,10 @@ public record Rotation(float yaw, float pitch) {
 
     public float pitchDelta(Rotation other) {
         return other.pitch - pitch;
+    }
+
+    public Rotation setPitch(float pitch) {
+        return new Rotation(yaw, pitch);
     }
 
     public double distanceTo(Rotation other) {

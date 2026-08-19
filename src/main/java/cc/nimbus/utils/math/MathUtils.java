@@ -38,7 +38,7 @@ public class MathUtils {
     }
 
     public static float clampPitch_To90(float pitch) {
-        return pitch > 90.0F ? 90.0F : (pitch < -90.0F ? -90.0F : pitch);
+        return pitch > 90.0F ? 90.0F : (Math.max(pitch, -90.0F));
     }
 
     public static float roundToFloat(double d) {
