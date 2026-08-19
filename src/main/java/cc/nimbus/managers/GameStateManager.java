@@ -2,6 +2,8 @@ package cc.nimbus.managers;
 
 import cc.nimbus.core.interfaces.InstanceManager;
 import cc.nimbus.event.EventBus;
+import cc.nimbus.event.component.EventTarget;
+import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.prediction.PredictiveAction;
@@ -45,6 +47,23 @@ public class GameStateManager implements InstanceManager {
         if (mc.level == null || mc.getConnection() == null || mc.gameMode == null) return;
 
         ((MultiPlayerGameModeAccessor) mc.gameMode).nimbus$startPrediction(mc.level, packetCreator);
+    }
+
+    @EventTarget
+    private void onTick(EventTick event) {
+        if (!event.isPre()) return;
+        if (mc.player != null) {
+            if (mc.player.onGround()) {
+                onGroundTicks++;
+                offGroundTicks = 0;
+            } else {
+                onGroundTicks = 0;
+                offGroundTicks++;
+            }
+        } else {
+            onGroundTicks = 0;
+            offGroundTicks = 0;
+        }
     }
 
     public static InteractionResult useItem(Player player, Level level, InteractionHand hand) {
