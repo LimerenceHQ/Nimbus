@@ -284,8 +284,18 @@ public final class Velocity extends BasicModule {
 
     @EventTarget
     private void onClick(EventClick event) {
-        if (!mode.is("Legit") || !legitModules.isSelected("Reduce") || !handleVelocity) return;
-        attackTargetAfterVelocity();
+        if (!mode.is("Legit") || !legitModules.isSelected("Reduce") || mc.gameMode == null || mc.player == null) return;
+        if (handleVelocity) {
+            if (getRayCastPlayer() != null && mc.player.isSprinting()) {
+                ((MultiPlayerGameModeAccessor)mc.gameMode).nimbus$ensureHasSentCarriedItem();
+                mc.getConnection().send(ServerboundInteractPacket.createAttackPacket(getRayCastPlayer(), mc.player.isShiftKeyDown()));
+                if (mc.gameMode.getPlayerMode() != GameType.SPECTATOR) {
+                    mc.player.setDeltaMovement(mc.player.getDeltaMovement().multiply(0.6, 1.0, 0.6));
+                    mc.player.setSprinting(false);
+                }
+                mc.player.swing(InteractionHand.MAIN_HAND);
+            }
+        }
     }
 
     private void applyVanilla(EventPacketReceive event) {
@@ -300,6 +310,24 @@ public final class Velocity extends BasicModule {
                         movement.x * horizontalScale,
                         movement.y * verticalScale,
                         movement.z * horizontalScale)));
+    }
+
+    private Player getRayCastPlayer() {
+        EntityHitResult hitResult = RotationRaycast.rayCastEntity(
+                Core.INSTANCE.getRotationManager().getCurrentRotation(), attackRange.getValue().doubleValue(), false);
+
+        if (!(hitResult != null && hitResult.getType() == HitResult.Type.ENTITY)
+                && throughWallsRange.getValue().doubleValue() > 0) {
+            hitResult = RotationRaycast.rayCastEntity(
+                    Core.INSTANCE.getRotationManager().getCurrentRotation(), throughWallsRange.getValue().doubleValue(), false);
+        }
+
+        if (hitResult != null && hitResult.getType() == HitResult.Type.ENTITY
+                && hitResult.getEntity() instanceof Player) {
+            return (Player) hitResult.getEntity();
+        }
+
+        return null;
     }
 
     private boolean isValidVelocityPacket(ClientboundSetEntityMotionPacket packet) {
@@ -396,34 +424,6 @@ public final class Velocity extends BasicModule {
             }
         }
         return false;
-    }
-
-    private void attackTargetAfterVelocity() {
-        if (mc.player == null || !mc.player.isSprinting()
-                || minecraft.level == null || minecraft.gameMode == null
-                || minecraft.getConnection() == null) return;
-        HitResult hit = RotationRaycast.raycast(
-                mc.player, Core.INSTANCE.getRotationManager().getEffectiveRotation(),
-                attackRange.getValue().doubleValue(), false, Entity::isPickable);
-        Player target = hit instanceof EntityHitResult entityHit && entityHit.getEntity() instanceof Player player
-                ? player : null;
-        if (target == null) {
-            if (!throughWalls.getValue() || throughWallsRange.getValue().doubleValue() <= 0.0) return;
-            hit = RotationRaycast.raycast(
-                    mc.player, Core.INSTANCE.getRotationManager().getEffectiveRotation(),
-                    throughWallsRange.getValue().doubleValue(), true, Entity::isPickable);
-            if (!(hit instanceof EntityHitResult entityHit) || !(entityHit.getEntity() instanceof Player player)) return;
-            target = player;
-        }
-
-        ((MultiPlayerGameModeAccessor) minecraft.gameMode).nimbus$ensureHasSentCarriedItem();
-        minecraft.getConnection().send(ServerboundInteractPacket.createAttackPacket(
-                target, mc.player.isShiftKeyDown()));
-        if (minecraft.gameMode.getPlayerMode() != GameType.SPECTATOR) {
-            mc.player.setDeltaMovement(mc.player.getDeltaMovement().multiply(0.6, 1.0, 0.6));
-            mc.player.setSprinting(false);
-        }
-        mc.player.swing(InteractionHand.MAIN_HAND);
     }
 
     private void releaseInbound() {
