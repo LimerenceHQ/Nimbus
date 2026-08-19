@@ -5,12 +5,12 @@ import net.minecraft.network.PacketListener;
 import net.minecraft.network.PacketProcessor;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketUtils;
+import net.minecraft.server.RunningOnDifferentThreadException;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Applies the client-thread handoff to Nimbus receive-event packets. */
 @Mixin(PacketUtils.class)
 public abstract class PacketUtilsMixin {
     @Inject(method = "ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/network/PacketProcessor;)V",
@@ -22,6 +22,7 @@ public abstract class PacketUtilsMixin {
         ci.cancel();
         if (!processor.isSameThread()) {
             nimbus$schedule(processor, listener, eventPacket);
+            throw RunningOnDifferentThreadException.RUNNING_ON_DIFFERENT_THREAD;
         }
     }
 

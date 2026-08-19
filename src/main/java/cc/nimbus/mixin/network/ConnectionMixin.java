@@ -9,6 +9,8 @@ import cc.nimbus.utils.network.access.ConnectionPacketAccess;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
+import net.minecraft.client.multiplayer.ClientHandshakePacketListenerImpl;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.PacketProcessor;
@@ -66,7 +68,7 @@ public abstract class ConnectionMixin implements ConnectionPacketAccess {
                     target = "Lnet/minecraft/network/Connection;genericsFtw(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;)V"))
     private static void nimbus$dispatchInbound(Packet<?> packet, PacketListener listener) {
         if (nimbus$isProtocolControlPacket(packet) || PacketEventGuard.isSuppressed()
-                || !Core.INSTANCE.isInitialized()) {
+                || !Core.INSTANCE.isInitialized() || !nimbus$isClientListener(listener)) {
             nimbus$handlePacket(packet, listener);
             return;
         }
@@ -95,6 +97,12 @@ public abstract class ConnectionMixin implements ConnectionPacketAccess {
         return packet instanceof ClientboundLoginCompressionPacket
                 || packet instanceof ClientboundLoginFinishedPacket
                 || packet instanceof ClientboundFinishConfigurationPacket;
+    }
+
+    @Unique
+    private static boolean nimbus$isClientListener(PacketListener listener) {
+        return listener instanceof ClientCommonPacketListenerImpl
+                || listener instanceof ClientHandshakePacketListenerImpl;
     }
 
     @Override
