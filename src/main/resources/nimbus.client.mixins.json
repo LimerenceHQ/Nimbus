@@ -36,7 +36,8 @@
     "accessor.client.MinecraftAccessor",
     "accessor.client.DeltaTrackerTimerAccessor",
     "accessor.network.ServerboundInteractPacketAccessor",
-    "accessor.player.MultiPlayerGameModeAccessor"
+    "accessor.player.MultiPlayerGameModeAccessor",
+    "accessor.player.LocalPlayerAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

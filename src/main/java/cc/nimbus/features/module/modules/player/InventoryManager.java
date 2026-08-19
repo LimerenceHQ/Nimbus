@@ -16,6 +16,7 @@ import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.modes.Modes;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.movement.Scaffold;
+import cc.nimbus.mixin.accessor.player.LocalPlayerAccessor;
 import cc.nimbus.utils.entity.player.InventoryUtils;
 import cc.nimbus.utils.network.PacketUtils;
 import net.minecraft.client.Minecraft;
@@ -596,9 +597,14 @@ public final class InventoryManager extends BasicModule {
     }
 
     private void click(AbstractContainerMenu menu, int slot, int button, ClickType type) {
-        if (menu == null || minecraft.player == null || minecraft.gameMode == null) return;
+        if (menu == null || mc.player == null || minecraft.gameMode == null) return;
         packetClick = clickMode.is("Packet");
-        try { minecraft.gameMode.handleInventoryMouseClick(menu.containerId, slot, button, type, minecraft.player); }
+        boolean isSprinting = ((LocalPlayerAccessor)mc.player).isWasSprinting();
+        if (isSprinting) return;
+        try {
+            minecraft.gameMode.handleInventoryMouseClick(menu.containerId, slot, button, type, mc.player);
+            PacketUtils.sendPacketNoEvent(new ServerboundContainerClosePacket(menu.containerId));
+        }
         finally { packetClick = false; }
     }
 
