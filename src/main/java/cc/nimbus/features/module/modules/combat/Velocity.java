@@ -41,7 +41,6 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
-/** Reduces server knockback while retaining the configurable vanilla and legit paths. */
 @ModuleInfo(
         name = "Velocity",
         description = "Reduces incoming knockback with vanilla or legit techniques.",

@@ -25,6 +25,7 @@ import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.world.entity.LivingEntity;
 
 @ModuleInfo(
@@ -69,6 +70,13 @@ public final class TargetHUD extends BasicModule {
         if (minecraft.screen != null && !preview) return;
 
         LivingEntity current = combatTarget();
+        if (current != null && !(current instanceof AbstractClientPlayer)) {
+            target = null;
+            targetSeenAt = 0L;
+            targetActive = false;
+            visibility = 0f;
+            return;
+        }
         if (current != null && current.isAlive()) {
             if (target == null) animatedHealth = 0f;
             target = current;
@@ -183,15 +191,22 @@ public final class TargetHUD extends BasicModule {
                 frame.canvas().restoreToCount(avatarSave);
             }
 
+            float fillWidth = CONTENT_WIDTH * Math.clamp(health, 0f, 1f);
+            float visibleFillWidth = fillWidth > .01f ? Math.max(BAR_HEIGHT, fillWidth) : 0f;
+            float percentageSize = 8f;
+            float percentageWidth = frame.text().width(NimbusFonts.BODY_MEDIUM, percentageSize, percentage);
+            float percentageCenterX = Math.clamp(
+                    contentX + visibleFillWidth,
+                    contentX + percentageWidth * .5f,
+                    contentX + CONTENT_WIDTH - percentageWidth * .5f);
+
             frame.text().draw(FONT, 16f, name, contentX, 7f,
                     multiplyAlpha(0xFFF2F4F5, progress));
-            frame.text().center(NimbusFonts.BODY_MEDIUM, 11f, percentage,
-                    contentX + CONTENT_WIDTH * .5f, 23f, multiplyAlpha(0xFFD8DEE2, progress));
+            frame.text().center(NimbusFonts.BODY_MEDIUM, percentageSize, percentage,
+                    percentageCenterX, 29f, multiplyAlpha(0xFFD8DEE2, progress));
             frame.draw().roundedRect(contentX, BAR_Y, CONTENT_WIDTH, BAR_HEIGHT, 4f,
                     multiplyAlpha(0xE3000000, progress));
-            float fillWidth = CONTENT_WIDTH * Math.clamp(health, 0f, 1f);
             if (fillWidth > .01f) {
-                float visibleFillWidth = Math.max(BAR_HEIGHT, fillWidth);
                 float capOpacity = Math.min(1f, fillWidth / BAR_HEIGHT);
                 float[] positions = {0f, .2f, .4f, .6f, .8f, 1f};
                 GradientStyle repeat = GradientStyle.DEFAULT.withTileMode(FilterTileMode.REPEAT);

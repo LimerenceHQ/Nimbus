@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** Owns packet freezing and replay for modules that need a temporary network view. */
 public final class PacketManager implements InstanceManager {
     public static final int DEFAULT_CAPACITY = 131_072;
 
@@ -166,9 +165,6 @@ public final class PacketManager implements InstanceManager {
         if (packet == null) return false;
         if (queue.offer(packet, internalTimer)) return true;
         queue.drain(Integer.MAX_VALUE, fallback);
-        // The current packet must continue through the normal pipeline after
-        // the backlog is released; keeping it queued would silently extend the
-        // freeze at the exact point where the bounded queue is under pressure.
         fallback.accept(packet);
         return false;
     }

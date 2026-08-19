@@ -1,6 +1,5 @@
 package cc.nimbus.network;
 
-/** Thread-local guard used while replaying packets without event dispatch. */
 public final class PacketEventGuard {
     private static final ThreadLocal<Integer> DEPTH = ThreadLocal.withInitial(() -> 0);
 
