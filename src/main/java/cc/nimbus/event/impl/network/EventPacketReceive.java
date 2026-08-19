@@ -10,8 +10,6 @@ public class EventPacketReceive extends Cancelable {
      * a module's inbound delay queue. It does not skip event delivery or the
      * vanilla packet handler.
      */
-    private boolean bypassInboundQueue;
-
     public EventPacketReceive() {
     }
 
@@ -22,7 +20,6 @@ public class EventPacketReceive extends Cancelable {
     public EventPacketReceive set(Packet<?> packet) {
         reset();
         this.packet = packet;
-        this.bypassInboundQueue = false;
         return this;
     }
 
@@ -34,11 +31,4 @@ public class EventPacketReceive extends Cancelable {
         this.packet = packet;
     }
 
-    public boolean isBypassInboundQueue() {
-        return bypassInboundQueue;
-    }
-
-    public void setBypassInboundQueue(boolean bypassInboundQueue) {
-        this.bypassInboundQueue = bypassInboundQueue;
-    }
 }

@@ -1,5 +1,6 @@
 package cc.nimbus.mixin.client;
 
+import cc.nimbus.event.impl.game.EventRotation;
 import cc.nimbus.event.impl.player.EventItemUse;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -25,6 +26,11 @@ import cc.nimbus.utils.mixin.MixinModuleLookup;
 
 @Mixin(Minecraft.class)
 public class MinecraftMixin {
+    @Inject(method = "tick",at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;pick(F)V", shift = At.Shift.BEFORE))
+    public void hookRotation(CallbackInfo ci) {
+        EventBus.call(new EventRotation());
+    }
+
     @Inject(method = "tick", at = @At("HEAD")) private void nimbus$preTick(CallbackInfo ci) {
         EventBus.call(new EventTick(EventTick.Phase.PRE));
     }

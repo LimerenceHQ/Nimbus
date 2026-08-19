@@ -4,16 +4,19 @@ import cc.nimbus.core.interfaces.InstanceManager;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.game.EventTick;
+import cc.nimbus.event.impl.network.EventPacketSend;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.prediction.PredictiveAction;
-import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.game.*;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Objects;
@@ -23,6 +26,8 @@ public class GameStateManager implements InstanceManager {
     public static float timerSpeed = 1.0f;
     public static int onGroundTicks = 0, offGroundTicks = 0, skipTicks = 0;
     public static Vec3 eyePos = null;
+
+    private static boolean packetOnGround;
 
     public static float getTimerSpeed() {
         return timerSpeed;
@@ -47,6 +52,22 @@ public class GameStateManager implements InstanceManager {
         if (mc.level == null || mc.getConnection() == null || mc.gameMode == null) return;
 
         ((MultiPlayerGameModeAccessor) mc.gameMode).nimbus$startPrediction(mc.level, packetCreator);
+    }
+
+    public static boolean clientOnGround() {
+        if (mc.player == null) return false;
+        return packetOnGround && mc.player.onGround();
+    }
+
+    @EventTarget
+    public void onPacket(EventPacketSend event) {
+        if (mc.level == null) {
+            return;
+        }
+        if (event.getPacket() instanceof ServerboundMovePlayerPacket packet) {
+            packetOnGround = packet.isOnGround();
+        }
+
     }
 
     @EventTarget

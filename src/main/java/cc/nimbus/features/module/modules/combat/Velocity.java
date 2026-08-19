@@ -4,6 +4,7 @@ import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventClick;
+import cc.nimbus.event.impl.game.EventRotation;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.event.impl.network.EventPacketReceive;
@@ -23,9 +24,11 @@ import cc.nimbus.features.rotation.RotationPriority;
 import cc.nimbus.features.rotation.RotationRaycast;
 import cc.nimbus.features.rotation.RotationRequest;
 import cc.nimbus.features.rotation.SmoothMode;
+import cc.nimbus.managers.GameStateManager;
 import cc.nimbus.managers.PacketDirection;
 import cc.nimbus.mixin.accessor.network.ServerboundInteractPacketAccessor;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
+import cc.nimbus.utils.entity.rotation.RotationUtils;
 import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.Packet;
@@ -111,7 +114,7 @@ public final class Velocity extends BasicModule {
 
     @Override
     protected void onEnable() {
-        resetState(false);
+        resetState(true);
     }
 
     @Override
@@ -121,8 +124,19 @@ public final class Velocity extends BasicModule {
 
     @EventTarget
     private void onWorldLoad(EventWorldLoad event) {
-        resetState(false);
+        resetState(true);
         serverPositions.clear();
+    }
+
+    @EventTarget
+    private void onRotate(EventRotation event) {
+        if (needHandleRotation && mc.player != null && mc.player.onGround()
+                && Math.abs(finalRotation.difference()) <= 45.0f) {
+            Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
+                    finalRotation.rotation(), RotationPriority.VERY_HIGH, MovementFix.SILENT,
+                    true, SmoothMode.ADVANCED, 180.0f, 0, 0));
+            needHandleRotation = false;
+        }
     }
 
     @EventTarget
@@ -141,16 +155,13 @@ public final class Velocity extends BasicModule {
             }
         }
 
-        if (needHandleRotation && minecraft.player != null && minecraft.player.onGround()
-                && Math.abs(finalRotation.difference()) <= 45.0f) {
-            Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
-                    finalRotation.rotation(), RotationPriority.VERY_HIGH, MovementFix.SILENT,
-                    true, SmoothMode.ADVANCED, 180.0f, 0, 0));
-            needHandleRotation = false;
+        if (delayState != DelayState.BUFFERING) {
+            return;
         }
 
-        if (!legitModules.isSelected("Delay") || delayState != DelayState.BUFFERING) return;
-        if (bufferTicks >= 0) bufferTicks++;
+        if (bufferTicks >= 0) {
+            bufferTicks++;
+        }
 
         if (holdingSprintEntityData) {
             if (!handleVelocity) {
@@ -160,10 +171,14 @@ public final class Velocity extends BasicModule {
             return;
         }
 
-        if (!shouldRelease()) return;
+        if (!shouldRelease()) {
+            return;
+        }
+
         if (releaseMode.is("EntityData Delay")) {
             boolean stoppedAtSprintEntityData = releaseUntilSprintEntityData();
             startVelocityHandling();
+
             if (stoppedAtSprintEntityData) {
                 holdingSprintEntityData = true;
                 return;
@@ -171,7 +186,6 @@ public final class Velocity extends BasicModule {
             resetDelay();
             return;
         }
-
         releaseInbound();
         startVelocityHandling();
         resetDelay();
@@ -180,20 +194,7 @@ public final class Velocity extends BasicModule {
     @EventTarget
     private void onPacket(EventPacketReceive event) {
         Packet<?> packet = event.getPacket();
-        if (minecraft.player == null || packet == null) return;
-
-        if (mode.is("Legit") && legitModules.isSelected("Delay")) {
-            if (packet instanceof ClientboundMoveEntityPacket move) {
-                recordMove(move);
-                if (delayState == DelayState.BUFFERING) event.setBypassInboundQueue(true);
-            } else if (packet instanceof ClientboundTeleportEntityPacket teleport) {
-                recordTeleport(teleport);
-                if (delayState == DelayState.BUFFERING) event.setBypassInboundQueue(true);
-            } else if (packet instanceof ClientboundRemoveEntitiesPacket remove) {
-                IntList ids = remove.getEntityIds();
-                for (int index = 0; index < ids.size(); index++) serverPositions.remove(ids.getInt(index));
-            }
-        }
+        if (mc.player == null || packet == null) return;
 
         if (packet instanceof ClientboundPlayerPositionPacket) {
             if (delayState == DelayState.BUFFERING) releaseInbound();
@@ -210,26 +211,51 @@ public final class Velocity extends BasicModule {
             return;
         }
 
-        if (!(packet instanceof ClientboundSetEntityMotionPacket motion)
-                || !isValidVelocityPacket(motion)) return;
+        if (event.getPacket() instanceof ClientboundSetEntityMotionPacket motion) {
+            if (isValidVelocityPacket(motion)) {
 
-        attackCount = computeReduceTicks(motion.getMovement().x, motion.getMovement().z);
-        if (legitModules.isSelected("Jump Reset")) {
-            prepareJumpReset(motion);
-        }
+                double velocityX = motion.getMovement().x / 8000.0;
+                double velocityZ = motion.getMovement().z / 8000.0;
+                Vec3 knockback = new Vec3(velocityX, 0.0, velocityZ).normalize();
+                Vec3 opposite = mc.player.position().add(-knockback.x, 0.0, -knockback.z);
+                finalRotation = getOppositeRotation(RotationUtils.toRotation(opposite, false));
 
-        if (legitModules.isSelected("Delay") && !cantSprint()) {
-            if (delayState == DelayState.IDLE && minecraft.player.tickCount > 60
-                    && minecraft.level != null && minecraft.getConnection() != null) {
-                bufferTicks = 0;
-                holdingSprintEntityData = false;
-                delayState = DelayState.BUFFERING;
-                Core.INSTANCE.getPacketManager().freeze(PacketDirection.INBOUND);
+                attackCount = computeReduceTicks(motion.getMovement().x, motion.getMovement().z);
+
+                if (!legitModules.isSelected("Delay") || cantSprint()) {
+                    handleVelocity = true;
+                    ticksSinceVelocity = 0;
+                    if (legitModules.isSelected("Jump Reset")) {
+                        needHandleRotation = true;
+                    }
+                }
             }
-        } else {
-            startVelocityHandling();
         }
     }
+
+    @EventTarget
+    private void onPacketReceive(EventPacketReceive event) {
+        if (event.getPacket() instanceof ClientboundPlayerPositionPacket) {
+            if (delayState == DelayState.BUFFERING) {
+                releaseInbound();
+            }
+            resetDelay();
+        }
+
+        if (!(event.getPacket() instanceof ClientboundSetEntityMotionPacket packet)) {
+            return;
+        }
+
+        if (delayState != DelayState.IDLE || cantSprint() || !isValidVelocityPacket(packet)) {
+            return;
+        }
+
+        bufferTicks = 0;
+        delayState = DelayState.BUFFERING;
+        holdingSprintEntityData = false;
+        Core.INSTANCE.getPacketManager().freeze(PacketDirection.INBOUND);
+    }
+
 
     @EventTarget(priority = Priority.Lowest)
     private void onMoveInput(EventMoveInput event) {
@@ -240,21 +266,19 @@ public final class Velocity extends BasicModule {
             event.setForward(1.0f);
         }
 
-        if (!mode.is("Legit") || !legitModules.isSelected("Jump Reset") || !handleVelocity
-                || ticksSinceVelocity < 0 || ticksSinceVelocity >= 4
-                || Math.abs(finalRotation.difference()) > 45.0f) {
-            handleJumpReset = false;
-            return;
-        }
 
-        if (minecraft.player != null && minecraft.player.onGround()) {
-            handleJumpReset = true;
-            event.setJump(true);
-        }
-        if (handleJumpReset) {
-            float[] movement = computeMovement(finalRotation.rotation());
-            if (movement[0] != 0.0f) event.setForward(movement[0]);
-            if (movement[1] != 0.0f) event.setStrafe(movement[1]);
+        if (ticksSinceVelocity >= 0) {
+            if (ticksSinceVelocity < 4 && Math.abs(finalRotation.difference) <= 45F) {
+                if (mc.player != null && GameStateManager.clientOnGround()) {
+                    handleJumpReset = true;
+                    event.setJump(true);
+                }
+                if (handleJumpReset) {
+                    float[] movement = computeMovement(finalRotation.rotation());
+                    if (movement[0] != 0.0f) event.setForward(movement[0]);
+                    if (movement[1] != 0.0f) event.setStrafe(movement[1]);
+                }
+            }else if (handleJumpReset) handleJumpReset = false;
         }
     }
 
@@ -266,7 +290,7 @@ public final class Velocity extends BasicModule {
 
     private void applyVanilla(EventPacketReceive event) {
         if (!(event.getPacket() instanceof ClientboundSetEntityMotionPacket packet)
-                || minecraft.player == null || packet.getId() != minecraft.player.getId()) return;
+                || mc.player == null || packet.getId() != mc.player.getId()) return;
 
         Vec3 movement = packet.getMovement();
         double horizontalScale = horizontal.getValue().doubleValue() / 100.0;
@@ -279,32 +303,41 @@ public final class Velocity extends BasicModule {
     }
 
     private boolean isValidVelocityPacket(ClientboundSetEntityMotionPacket packet) {
-        if (minecraft.player == null || packet.getId() != minecraft.player.getId()) return false;
+        if (mc.player == null || packet.getId() != mc.player.getId()) return false;
         Vec3 movement = packet.getMovement();
         return movement.y > 0.0
                 && new Vec3(movement.x, 0.0, movement.z).length() >= 0.1
-                && !minecraft.player.onClimbable()
-                && !minecraft.player.isInWater()
-                && !minecraft.player.isInLava();
+                && !mc.player.onClimbable()
+                && !mc.player.isInWater()
+                && !mc.player.isInLava();
     }
 
+    private RotationData getOppositeRotation(Rotation rotation) {
+        if (mc.player == null) return null;
+
+        float targetYaw = rotation.yaw();
+        Rotation oppositeRotation = new Rotation(targetYaw,Core.INSTANCE.getRotationManager().getCurrentRotation().pitch());
+        return new RotationData(oppositeRotation,0);
+    }
+
+
     private boolean cantSprint() {
-        if (minecraft.player == null) return true;
-        return minecraft.player.hasEffect(MobEffects.BLINDNESS)
-                || minecraft.player.hasEffect(MobEffects.SLOWNESS)
-                || minecraft.player.isShiftKeyDown()
-                || minecraft.player.isCrouching()
-                || (!minecraft.player.isPassenger()
-                && minecraft.player.getFoodData().getFoodLevel() <= 6
-                && !minecraft.player.getAbilities().mayfly);
+        if (mc.player == null) return true;
+        return mc.player.hasEffect(MobEffects.BLINDNESS)
+                || mc.player.hasEffect(MobEffects.SLOWNESS)
+                || mc.player.isShiftKeyDown()
+                || mc.player.isCrouching()
+                || (!mc.player.isPassenger()
+                && mc.player.getFoodData().getFoodLevel() <= 6
+                && !mc.player.getAbilities().mayfly);
     }
 
     private boolean shouldRelease() {
         int maxTicks = maxLimitedTick.getValue().intValue();
         boolean untilLanding = releaseTiming.isSelected("Until Landing");
         boolean untilSprint = releaseTiming.isSelected("Until Sprint");
-        boolean onGround = minecraft.player != null && minecraft.player.onGround();
-        boolean sprinting = minecraft.player != null && minecraft.player.isSprinting();
+        boolean onGround = mc.player != null && GameStateManager.clientOnGround();
+        boolean sprinting = mc.player != null && mc.player.isSprinting();
         boolean timedOut = bufferTicks >= maxTicks;
         boolean cannotSprint = cantSprint();
 
@@ -314,33 +347,14 @@ public final class Velocity extends BasicModule {
         return timedOut || cannotSprint;
     }
 
-    private void prepareJumpReset(ClientboundSetEntityMotionPacket packet) {
-        Vec3 horizontalKnockback = new Vec3(packet.getMovement().x, 0.0, packet.getMovement().z);
-        if (horizontalKnockback.lengthSqr() <= 1.0E-8 || minecraft.player == null) return;
-        Vec3 opposite = minecraft.player.position().subtract(horizontalKnockback.normalize());
-        Rotation target = RotationMath.toRotation(minecraft.player.getEyePosition(), opposite);
-        Rotation current = Core.INSTANCE.getRotationManager().getEffectiveRotation();
-        finalRotation = new RotationData(new Rotation(target.yaw(), current.pitch()),
-                Mth.wrapDegrees(target.yaw() - current.yaw()));
-        needHandleRotation = true;
-        if (minecraft.player.onGround() && Math.abs(finalRotation.difference()) <= 45.0f) {
-            Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
-                    finalRotation.rotation(), RotationPriority.VERY_HIGH, MovementFix.SILENT,
-                    true, SmoothMode.ADVANCED, 180.0f, 0, 0));
-            needHandleRotation = false;
-        }
-    }
-
     private int computeReduceTicks(double motionX, double motionZ) {
-        // ClientboundSetEntityMotionPacket exposes movement in blocks/tick; the
-        // reference formula was calibrated against the old 1/8000 wire values.
         double knockback = Math.hypot(motionX, motionZ) * 8000.0;
         double value = 0.000408163 * knockback + 0.7142857;
         return Mth.clamp((int) Math.round(value), 1, 5);
     }
 
     private float[] computeMovement(Rotation target) {
-        if (minecraft.player == null) return new float[]{0.0f, 0.0f};
+        if (mc.player == null) return new float[]{0.0f, 0.0f};
         float deltaYaw = Mth.wrapDegrees(target.yaw()
                 - Core.INSTANCE.getRotationManager().getEffectiveRotation().yaw());
         if (deltaYaw > 22.5f) deltaYaw -= 45.0f;
@@ -359,13 +373,6 @@ public final class Velocity extends BasicModule {
         handleVelocity = true;
         if (legitModules.isSelected("Jump Reset")) {
             needHandleRotation = true;
-            if (minecraft.player != null && minecraft.player.onGround()
-                    && Math.abs(finalRotation.difference()) <= 45.0f) {
-                Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
-                        finalRotation.rotation(), RotationPriority.VERY_HIGH, MovementFix.SILENT,
-                        true, SmoothMode.ADVANCED, 180.0f, 0, 0));
-                needHandleRotation = false;
-            }
         }
     }
 
@@ -381,8 +388,8 @@ public final class Velocity extends BasicModule {
     }
 
     private boolean isSprintEntityData(Packet<?> packet) {
-        if (minecraft.player == null || !(packet instanceof ClientboundSetEntityDataPacket data)
-                || data.id() != minecraft.player.getId()) return false;
+        if (mc.player == null || !(packet instanceof ClientboundSetEntityDataPacket data)
+                || data.id() != mc.player.getId()) return false;
         for (SynchedEntityData.DataValue<?> value : data.packedItems()) {
             if (value.id() == ENTITY_FLAGS_INDEX && value.value() instanceof Byte flags) {
                 return (flags & (1 << SPRINTING_FLAG)) == 0;
@@ -392,18 +399,18 @@ public final class Velocity extends BasicModule {
     }
 
     private void attackTargetAfterVelocity() {
-        if (minecraft.player == null || !minecraft.player.isSprinting()
+        if (mc.player == null || !mc.player.isSprinting()
                 || minecraft.level == null || minecraft.gameMode == null
                 || minecraft.getConnection() == null) return;
         HitResult hit = RotationRaycast.raycast(
-                minecraft.player, Core.INSTANCE.getRotationManager().getEffectiveRotation(),
+                mc.player, Core.INSTANCE.getRotationManager().getEffectiveRotation(),
                 attackRange.getValue().doubleValue(), false, Entity::isPickable);
         Player target = hit instanceof EntityHitResult entityHit && entityHit.getEntity() instanceof Player player
                 ? player : null;
         if (target == null) {
             if (!throughWalls.getValue() || throughWallsRange.getValue().doubleValue() <= 0.0) return;
             hit = RotationRaycast.raycast(
-                    minecraft.player, Core.INSTANCE.getRotationManager().getEffectiveRotation(),
+                    mc.player, Core.INSTANCE.getRotationManager().getEffectiveRotation(),
                     throughWallsRange.getValue().doubleValue(), true, Entity::isPickable);
             if (!(hit instanceof EntityHitResult entityHit) || !(entityHit.getEntity() instanceof Player player)) return;
             target = player;
@@ -413,12 +420,12 @@ public final class Velocity extends BasicModule {
 
         ((MultiPlayerGameModeAccessor) minecraft.gameMode).nimbus$ensureHasSentCarriedItem();
         minecraft.getConnection().send(ServerboundInteractPacket.createAttackPacket(
-                target, minecraft.player.isShiftKeyDown()));
+                target, mc.player.isShiftKeyDown()));
         if (minecraft.gameMode.getPlayerMode() != GameType.SPECTATOR) {
-            minecraft.player.setDeltaMovement(minecraft.player.getDeltaMovement().multiply(0.6, 1.0, 0.6));
-            minecraft.player.setSprinting(false);
+            mc.player.setDeltaMovement(mc.player.getDeltaMovement().multiply(0.6, 1.0, 0.6));
+            mc.player.setSprinting(false);
         }
-        minecraft.player.swing(InteractionHand.MAIN_HAND);
+        mc.player.swing(InteractionHand.MAIN_HAND);
     }
 
     private void recordMove(ClientboundMoveEntityPacket packet) {
@@ -437,7 +444,7 @@ public final class Velocity extends BasicModule {
     private void onPacketSend(EventPacketSend event) {
         if (!mode.is("Legit") || !legitModules.isSelected("Delay") || delayState != DelayState.BUFFERING
                 || !(event.getPacket() instanceof ServerboundInteractPacket packet)
-                || !isAttack(packet) || minecraft.level == null || minecraft.player == null) return;
+                || !isAttack(packet) || minecraft.level == null || mc.player == null) return;
         Entity target = minecraft.level.getEntity(
                 ((ServerboundInteractPacketAccessor) packet).nimbus$getEntityId());
         if (target != null && !isWithinServerInteractionRange(target)) event.cancelEvent();
@@ -460,15 +467,15 @@ public final class Velocity extends BasicModule {
         if (!Double.isFinite(distance)) return true;
 
         double serverRange = Math.min(
-                attackRange.getValue().doubleValue(), minecraft.player.entityInteractionRange());
+                attackRange.getValue().doubleValue(), mc.player.entityInteractionRange());
         if (distance <= serverRange) return true;
         return throughWalls.getValue()
-                && distance <= Math.min(throughWallsRange.getValue().doubleValue(), minecraft.player.entityInteractionRange());
+                && distance <= Math.min(throughWallsRange.getValue().doubleValue(), mc.player.entityInteractionRange());
     }
 
     private boolean isWithinServerInteractionRange(Entity target) {
         double distance = serverDistance(target);
-        return !Double.isFinite(distance) || distance <= minecraft.player.entityInteractionRange();
+        return !Double.isFinite(distance) || distance <= mc.player.entityInteractionRange();
     }
 
     private double serverDistance(Entity target) {
@@ -481,7 +488,7 @@ public final class Velocity extends BasicModule {
                 serverPosition.y - visiblePosition.y,
                 serverPosition.z - visiblePosition.z
         ).inflate(target.getPickRadius());
-        Vec3 eyes = minecraft.player.getEyePosition();
+        Vec3 eyes = mc.player.getEyePosition();
         Vec3 closest = new Vec3(
                 Mth.clamp(eyes.x, serverBox.minX, serverBox.maxX),
                 Mth.clamp(eyes.y, serverBox.minY, serverBox.maxY),
@@ -525,7 +532,6 @@ public final class Velocity extends BasicModule {
         handleVelocity = false;
         needHandleRotation = false;
         handleJumpReset = false;
-        finalRotation = new RotationData(new Rotation(0, 0), 0);
         serverPositions.clear();
     }
 
