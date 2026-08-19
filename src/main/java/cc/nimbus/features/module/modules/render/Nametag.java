@@ -31,11 +31,12 @@ public final class Nametag extends BasicModule {
     private static final String META_FONT = NimbusFonts.BODY_MEDIUM;
     private static final float NAME_SIZE = 15f;
     private static final float META_SIZE = 11.5f;
-    private static final float HEIGHT = 36f;
+    private static final float HEIGHT = 42f;
     private static final float PADDING_X = 9f;
     private static final float RADIUS = 4f;
     private static final float MIN_SCALE = 0.3f;
     private static final float GAP = 3f;
+    private static final float META_Y = 24f;
     private static final int BACKGROUND_COLOR = 0x70171A1E;
     private final Map<Integer, LabelCache> labels = new HashMap<>();
     private ClientLevel labelLevel;
@@ -117,10 +118,10 @@ public final class Nametag extends BasicModule {
                     float indicatorWidth = frame.text().width(META_FONT, metadataSize, indicator);
                     float metadataX = centerX - (metadataWidth + indicatorWidth) * 0.5f;
                     frame.text().draw(META_FONT, metadataSize, entry.metadata,
-                            metadataX, y + 18f * entry.scale, 0xFFB8C0C7);
+                            metadataX, y + META_Y * entry.scale, 0xFFB8C0C7);
                     if (!indicator.isEmpty()) {
                         frame.text().draw(META_FONT, metadataSize, indicator,
-                                metadataX + metadataWidth, y + 18f * entry.scale,
+                                metadataX + metadataWidth, y + META_Y * entry.scale,
                                 0xFF000000 | (entry.accent & 0x00FFFFFF));
                     }
                 }
