@@ -162,6 +162,10 @@ public enum Core {
         return requireInitialized(configManager, "ConfigManager");
     }
 
+    public GameStateManager getGameStateManager() {
+        return requireInitialized(gameStateManager, "GameStateManager");
+    }
+
     public AccountManager getAccountManager() {
         return requireInitialized(accountManager, "AccountManager");
     }
