@@ -127,9 +127,7 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
     @Override public boolean isPauseScreen() { return false; }
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // Nimbus post-processing is the only background effect for this screen.
-    }
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {}
 
     private float logicalX(float value) { return (value - originX) / scale; }
     private float logicalY(float value) { return (value - originY) / scale; }

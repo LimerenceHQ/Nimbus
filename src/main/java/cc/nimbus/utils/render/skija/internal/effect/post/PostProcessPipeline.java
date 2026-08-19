@@ -127,7 +127,7 @@ public final class PostProcessPipeline {
                 try (PathBuilder builder = new PathBuilder()) {
                     builder.addRect(bounds.get(index));
                     try (Path region = builder.detach()) {
-                        if (regionSurface.shouldUpdate(now, fps)) {
+                        if (regionSurface.shouldUpdateForPath(now, fps, region, target)) {
                             regionSurface.updateSurface(context(), region, null, width(), height(), target);
                         }
                     }
@@ -156,7 +156,7 @@ public final class PostProcessPipeline {
                 try (PathBuilder builder = new PathBuilder()) {
                     builder.addRect(boundsForRegion);
                     try (Path region = builder.detach()) {
-                        if (regionSurface.shouldUpdate(now, fps)) {
+                        if (regionSurface.shouldUpdateForPath(now, fps, region, target)) {
                             regionSurface.updateSurface(context(), region, null, width(), height(), target);
                         }
                     }

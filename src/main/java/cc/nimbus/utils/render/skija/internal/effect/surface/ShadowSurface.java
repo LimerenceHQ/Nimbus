@@ -36,7 +36,11 @@ public final class ShadowSurface extends AbstractOffSurface<ShadowSurface.Target
         boolean changed = Float.compare(cachedRadius, target.radius()) != 0
                 || cachedAlpha != target.alpha()
                 || !cachedPath.equals(path);
-        return changed && super.shouldUpdate(nowMs, currentFps);
+        Rect expectedBounds = path.getBounds().inflate(inflate(target));
+        boolean boundsChanged = !sameBounds(getSnapshotBounds(), expectedBounds);
+        // A moving outer boundary must invalidate immediately; shape-only changes still
+        // respect the configured shadow refresh rate to avoid forcing a full blur every frame.
+        return boundsChanged || (changed && super.shouldUpdate(nowMs, currentFps));
     }
 
     @Override
@@ -68,6 +72,14 @@ public final class ShadowSurface extends AbstractOffSurface<ShadowSurface.Target
     }
 
     public record Target(float radius, int color, int alpha) {
+    }
+
+    private static boolean sameBounds(Rect first, Rect second) {
+        if (first == null || second == null) return first == second;
+        return Float.compare(first.getLeft(), second.getLeft()) == 0
+                && Float.compare(first.getTop(), second.getTop()) == 0
+                && Float.compare(first.getRight(), second.getRight()) == 0
+                && Float.compare(first.getBottom(), second.getBottom()) == 0;
     }
 
     @Override

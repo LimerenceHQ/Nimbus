@@ -16,6 +16,7 @@ import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import cc.nimbus.utils.render.font.NimbusFonts;
+import io.github.humbleui.skija.ClipMode;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.skija.PathBuilder;
@@ -130,7 +131,13 @@ public final class ActiveList extends BasicModule {
                     float decorX = anchor.isRight() ? layoutWidth - decorWidth : 0f;
                     accentPaint.setShader(local.effects().linearGradient(
                             new Point(decorX, 0f), new Point(decorX, layoutHeight), accentColors));
-                    local.draw().rect(decorX, 0f, decorWidth, layoutHeight, accentPaint);
+                    int clipSave = local.canvas().save();
+                    try {
+                        local.canvas().clipPath(surface, ClipMode.INTERSECT, true);
+                        local.draw().rect(decorX, 0f, decorWidth, layoutHeight, accentPaint);
+                    } finally {
+                        local.canvas().restoreToCount(clipSave);
+                    }
                 }
                 for (int index = 0; index < entries.size(); index++) {
                     RenderEntry rendered = entries.get(index);
@@ -274,6 +281,9 @@ public final class ActiveList extends BasicModule {
                                       float originX, float originY, float scale,
                                       boolean rightAnchored) {
         try (PathBuilder path = new PathBuilder()) {
+            entries = entries.stream()
+                    .filter(entry -> entry.height() > ROW_HEIGHT * .2f)
+                    .toList();
             if (entries.isEmpty()) return path.build();
             RenderEntry first = entries.getFirst();
             RenderEntry last = entries.getLast();
@@ -281,7 +291,7 @@ public final class ActiveList extends BasicModule {
             float bottom = originY + (last.y() + last.height()) * scale;
             float right = originX + totalWidth * scale;
             float firstX = animatedLeft(entries, 0, totalWidth, originX, scale);
-            float outerRadius = Math.min(CORNER_RADIUS * scale, totalHeight * scale * .5f);
+            float outerRadius = Math.min(CORNER_RADIUS * scale, (bottom - top) * .5f);
             float firstRadius = outerRadius;
             path.moveTo(orientedX(firstX + firstRadius, originX, right, rightAnchored), top);
             path.lineTo(orientedX(right, originX, right, rightAnchored), top);

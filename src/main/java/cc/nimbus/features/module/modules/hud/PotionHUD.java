@@ -4,6 +4,8 @@ import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.render.EventRender2D;
 import cc.nimbus.features.hud.Draggable;
+import cc.nimbus.features.hud.HudAnchor;
+import cc.nimbus.features.hud.HudRect;
 import cc.nimbus.features.hud.HudSize;
 import cc.nimbus.features.hud.HudViewport;
 import cc.nimbus.features.module.api.BasicModule;
@@ -13,6 +15,7 @@ import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import io.github.humbleui.skija.Image;
+import io.github.humbleui.skija.Paint;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -21,7 +24,13 @@ import net.minecraft.world.effect.MobEffectInstance;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @ModuleInfo(
         name = "PotionHUD",
@@ -38,8 +47,13 @@ public final class PotionHUD extends BasicModule {
     private static final float CONTENT_PADDING = 5f;
     private static final float TEXT_GAP = 5f;
     private static final float TIME_GAP = 4f;
+    private static final float SLIDE_MARGIN = 24f;
+    private static final String TIME_SLOT = "(99:59)";
 
     private HudSize layoutSize = new HudSize(2f, 2f);
+    private final Map<String, EffectLine> displayedLines = new LinkedHashMap<>();
+    private final Map<String, Float> lineAnimations = new HashMap<>();
+    private long lastFrameNanos;
 
     private final Draggable drag = new Draggable("PotionHUD", 0.98, 0.38) {
         @Override
@@ -52,7 +66,7 @@ public final class PotionHUD extends BasicModule {
     private void onRender2D(EventRender2D event) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.level == null) {
-            layoutSize = new HudSize(2f, 2f);
+            resetAnimationState();
             return;
         }
         if (minecraft.screen != null && !(minecraft.screen instanceof ChatScreen)) return;
@@ -61,70 +75,148 @@ public final class PotionHUD extends BasicModule {
         for (MobEffectInstance effect : minecraft.player.getActiveEffects()) {
             if (effect.isInfiniteDuration() || effect.getDuration() > 0) effects.add(effect);
         }
-        effects.sort(Comparator.comparingInt(PotionHUD::displayLength));
-        if (effects.isEmpty()) {
-            layoutSize = new HudSize(2f, 2f);
-            return;
-        }
-
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         HudViewport viewport = Core.INSTANCE.getHudManager().viewport(skija.width(), skija.height());
-        List<EffectLine> lines = effects.stream()
+        effects.sort(Comparator.comparingInt(PotionHUD::displayLength)
+                .thenComparing(PotionHUD::effectKey));
+        List<EffectLine> activeLines = effects.stream()
                 .map(effect -> new EffectLine(
+                        effectKey(effect),
                         displayName(effect),
                         duration(effect),
                         0xFF000000 | effect.getEffect().value().getColor(),
                         icon(effect)))
                 .toList();
+
+        float delta = frameDelta();
+        float animationSpeed = 1f - (float) Math.exp(-14f * delta);
+        Set<String> activeKeys = new HashSet<>();
+        for (EffectLine line : activeLines) {
+            activeKeys.add(line.key());
+            displayedLines.put(line.key(), line);
+            lineAnimations.put(line.key(), animate(
+                    lineAnimations.getOrDefault(line.key(), 0f), 1f, animationSpeed));
+        }
+        Iterator<Map.Entry<String, EffectLine>> iterator = displayedLines.entrySet().iterator();
+        while (iterator.hasNext()) {
+            String key = iterator.next().getKey();
+            if (activeKeys.contains(key)) continue;
+            float progress = animate(lineAnimations.getOrDefault(key, 1f), 0f, animationSpeed);
+            lineAnimations.put(key, progress);
+            if (progress <= .002f) {
+                iterator.remove();
+                lineAnimations.remove(key);
+            }
+        }
+
+        List<EffectLine> lines = new ArrayList<>(activeLines);
+        for (EffectLine line : displayedLines.values()) {
+            if (!activeKeys.contains(line.key())) lines.add(line);
+        }
+        lines.sort(Comparator.comparingInt(PotionHUD::lineDisplayLength)
+                .thenComparing(EffectLine::key));
+        if (lines.isEmpty()) {
+            layoutSize = new HudSize(2f, 2f);
+            return;
+        }
+
         float layoutWidth = measureWidth(skija, lines);
-        float layoutHeight = Math.max(ROW_HEIGHT, lines.size() * ROW_HEIGHT);
+        List<AnimatedLine> snapshot = lines.stream()
+                .map(line -> new AnimatedLine(line,
+                        lineAnimations.getOrDefault(line.key(), 1f)))
+                .toList();
+        float layoutHeight = Math.max(2f, lines.size() * ROW_HEIGHT);
         layoutSize = new HudSize(layoutWidth, layoutHeight);
-        boolean rightAligned = drag.getAnchor().isRight();
+        HudAnchor anchor = drag.getAnchor();
+        HudRect bounds = drag.getRect(viewport);
+        float renderScale = drag.getRenderScale(viewport);
+        float slideDistance = anchor.isRight()
+                ? (viewport.width() - bounds.x()) / renderScale + SLIDE_MARGIN
+                : bounds.right() / renderScale + SLIDE_MARGIN;
         skija.hud().submit(frame -> drag.render(frame, viewport,
-                local -> draw(local, lines, layoutWidth, rightAligned)));
+                local -> draw(local, snapshot, layoutWidth, anchor.isRight(), slideDistance)));
     }
 
     @Override
     protected void onDisable() {
-        layoutSize = new HudSize(2f, 2f);
+        resetAnimationState();
     }
 
-    private static void draw(SkijaFrame frame, List<EffectLine> lines,
-                             float layoutWidth, boolean rightAligned) {
-        float availableWidth = layoutWidth - CONTENT_PADDING * 2f;
+    private void resetAnimationState() {
+        layoutSize = new HudSize(2f, 2f);
+        displayedLines.clear();
+        lineAnimations.clear();
+        lastFrameNanos = 0L;
+    }
+
+    private static void draw(SkijaFrame frame, List<AnimatedLine> lines,
+                             float layoutWidth, boolean rightAligned, float slideDistance) {
+        float availableWidth = Math.max(1f, layoutWidth - CONTENT_PADDING * 2f);
+        float timeSlotWidth = frame.text().width(TIME_FONT, 12.5f, TIME_SLOT);
         float y = 0f;
-        for (EffectLine line : lines) {
-            String time = "(" + line.time() + ")";
-            float timeWidth = frame.text().width(TIME_FONT, 12.5f, time);
-            float nameWidth = Math.max(1f,
-                    availableWidth - ICON_SIZE - TEXT_GAP - TIME_GAP - timeWidth);
-            String visibleName = ellipsize(frame, line.name(), FONT, 13f, nameWidth);
-            float rowWidth = ICON_SIZE + TEXT_GAP
-                    + frame.text().width(FONT, 13f, visibleName)
-                    + TIME_GAP + timeWidth;
-            float rowX = rightAligned ? layoutWidth - CONTENT_PADDING - rowWidth : CONTENT_PADDING;
-            float iconX = rowX;
-            float nameX = iconX + ICON_SIZE + TEXT_GAP;
-            Image icon = frame.images().resource(line.icon());
-            if (icon != null && !icon.isClosed()) {
-                frame.draw().image(icon, iconX, y + (ROW_HEIGHT - ICON_SIZE) * .5f, ICON_SIZE, ICON_SIZE);
+        try (Paint imagePaint = new Paint().setAntiAlias(true)) {
+            for (AnimatedLine animated : lines) {
+                EffectLine line = animated.line();
+                float progress = smooth(animated.progress());
+                float rowCenterY = y + ROW_HEIGHT * .5f;
+                String time = "(" + line.time() + ")";
+                float nameColumnWidth = Math.max(1f,
+                        availableWidth - ICON_SIZE - TEXT_GAP - TIME_GAP - timeSlotWidth);
+                String visibleName = ellipsize(frame, line.name(), FONT, 13f, nameColumnWidth);
+                float slide = (rightAligned ? 1f : -1f) * (1f - progress) * slideDistance;
+                float nameWidth = frame.text().width(FONT, 13f, visibleName);
+                float timeWidth = frame.text().width(TIME_FONT, 12.5f, time);
+                float rowWidth = ICON_SIZE + TEXT_GAP + nameWidth + TIME_GAP + timeWidth;
+                float iconX = (rightAligned ? layoutWidth - rowWidth : CONTENT_PADDING) + slide;
+                float nameX = iconX + ICON_SIZE + TEXT_GAP;
+                float timeX = nameX + nameWidth + TIME_GAP;
+                Image icon = frame.images().resource(line.icon());
+                if (icon != null && !icon.isClosed()) {
+                    imagePaint.setAlpha(Math.round(255f * progress));
+                    frame.draw().image(icon, iconX, rowCenterY - ICON_SIZE * .5f,
+                            ICON_SIZE, ICON_SIZE, imagePaint);
+                }
+                float nameY = rowCenterY - frame.text().visualCenterY(FONT, 13f, visibleName);
+                float timeY = rowCenterY - frame.text().visualCenterY(TIME_FONT, 12.5f, time);
+                frame.text().drawWithShadow(FONT, 13f, visibleName, nameX, nameY,
+                        multiplyAlpha(line.color(), progress));
+                frame.text().drawWithShadow(TIME_FONT, 12.5f, time, timeX, timeY,
+                        multiplyAlpha(0xFFE1E4E7, progress));
+                y += ROW_HEIGHT;
             }
-            float nameY = y + ROW_HEIGHT * .5f - frame.text().visualCenterY(FONT, 13f, visibleName);
-            float timeX = nameX + frame.text().width(FONT, 13f, visibleName) + TIME_GAP;
-            float timeY = y + ROW_HEIGHT * .5f - frame.text().visualCenterY(TIME_FONT, 12.5f, time);
-            frame.text().drawWithShadow(FONT, 13f, visibleName, nameX, nameY, line.color());
-            frame.text().drawWithShadow(TIME_FONT, 12.5f, time, timeX, timeY, 0xFFE1E4E7);
-            y += ROW_HEIGHT;
         }
+    }
+
+    private float frameDelta() {
+        long now = System.nanoTime();
+        float delta = lastFrameNanos == 0L ? 1f / 60f
+                : Math.min(.05f, (now - lastFrameNanos) / 1_000_000_000f);
+        lastFrameNanos = now;
+        return delta;
+    }
+
+    private static float animate(float value, float target, float speed) {
+        float result = value + (target - value) * Math.clamp(speed, 0f, 1f);
+        return Math.abs(result - target) < .002f ? target : result;
+    }
+
+    private static float smooth(float value) {
+        float clamped = Math.clamp(value, 0f, 1f);
+        return clamped * clamped * (3f - 2f * clamped);
+    }
+
+    private static int multiplyAlpha(int color, float opacity) {
+        int alpha = Math.round((color >>> 24) * Math.clamp(opacity, 0f, 1f));
+        return color & 0x00FFFFFF | alpha << 24;
     }
 
     private static float measureWidth(SkijaRenderer skija, List<EffectLine> lines) {
         float width = 2f;
         for (EffectLine line : lines) {
-            String time = "(" + line.time() + ")";
+            float timeSlotWidth = skija.text().width(TIME_FONT, 12.5f, TIME_SLOT);
             float rowWidth = CONTENT_PADDING * 2f + ICON_SIZE + TEXT_GAP
                     + skija.text().width(FONT, 13f, line.name())
-                    + TIME_GAP + skija.text().width(TIME_FONT, 12.5f, time);
+                    + TIME_GAP + timeSlotWidth;
             width = Math.max(width, Math.min(MAX_WIDTH, rowWidth));
         }
         return width;
@@ -151,8 +243,17 @@ public final class PotionHUD extends BasicModule {
         return effect.getAmplifier() > 0 ? name + " " + (effect.getAmplifier() + 1) : name;
     }
 
+    private static String effectKey(MobEffectInstance effect) {
+        Identifier key = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
+        return key == null ? displayName(effect) : key.toString();
+    }
+
     private static int displayLength(MobEffectInstance effect) {
         return displayName(effect).codePointCount(0, displayName(effect).length());
+    }
+
+    private static int lineDisplayLength(EffectLine line) {
+        return line.name().codePointCount(0, line.name().length());
     }
 
     private static String duration(MobEffectInstance effect) {
@@ -163,6 +264,9 @@ public final class PotionHUD extends BasicModule {
         return minutes + ":" + (remainder < 10 ? "0" : "") + remainder;
     }
 
-    private record EffectLine(String name, String time, int color, Identifier icon) {
+    private record EffectLine(String key, String name, String time, int color, Identifier icon) {
+    }
+
+    private record AnimatedLine(EffectLine line, float progress) {
     }
 }
