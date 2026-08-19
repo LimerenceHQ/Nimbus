@@ -3,7 +3,6 @@ package cc.nimbus.features.module.modules.movement;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
-import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.event.impl.player.EventPreUpdate;
@@ -15,7 +14,7 @@ import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.combat.Velocity;
 import cc.nimbus.features.rotation.*;
-import cc.nimbus.managers.ClientManger;
+import cc.nimbus.managers.GameStateManager;
 import cc.nimbus.utils.entity.player.MovementUtils;
 import net.minecraft.util.Mth;
 
@@ -32,7 +31,7 @@ public class Speed extends BasicModule {
 
     public void onDisable(){
         airTickCounter = 0;
-        ClientManger.timerSpeed = 1F;
+        GameStateManager.timerSpeed = 1F;
     }
 
     @EventTarget
@@ -75,21 +74,21 @@ public class Speed extends BasicModule {
             handleVelocity = antiKb.handleVelocity;
         }
         if (!active || handleVelocity) {
-            ClientManger.timerSpeed = 1F;
+            GameStateManager.timerSpeed = 1F;
             this.airTickCounter = 0;
             return;
         }
 
         float[] currentTimers = mode.is("Run") ? RUN : SCA;
         if (mc.player.onGround()) {
-            ClientManger.timerSpeed = currentTimers[0];
+            GameStateManager.timerSpeed = currentTimers[0];
             airTickCounter = 0;
         } else {
             airTickCounter++;
             if (airTickCounter >= 1 && airTickCounter <= 9) {
-                ClientManger.timerSpeed = currentTimers[airTickCounter];
+                GameStateManager.timerSpeed = currentTimers[airTickCounter];
             } else {
-                ClientManger.timerSpeed = 1;
+                GameStateManager.timerSpeed = 1;
             }
         }
     }

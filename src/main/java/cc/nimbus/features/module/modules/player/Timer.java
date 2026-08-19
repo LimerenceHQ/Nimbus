@@ -10,7 +10,7 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
-import cc.nimbus.managers.ClientManger;
+import cc.nimbus.managers.GameStateManager;
 import cc.nimbus.utils.entity.player.MovementUtils;
 import org.lwjgl.glfw.GLFW;
 
@@ -26,13 +26,13 @@ public class Timer extends BasicModule {
     @Override
     protected void onEnable() {
         balance = 0.0F;
-        ClientManger.timerSpeed = 1F;
+        GameStateManager.timerSpeed = 1F;
     }
 
     @Override
     protected void onDisable() {
         balance = 0.0F;
-        ClientManger.timerSpeed = 1F;
+        GameStateManager.timerSpeed = 1F;
     }
 
     @EventTarget
@@ -42,7 +42,7 @@ public class Timer extends BasicModule {
         }
 
         if (mode.is("Always")) {
-            ClientManger.timerSpeed = timerSpeed.getValue().floatValue();
+            GameStateManager.timerSpeed = timerSpeed.getValue().floatValue();
             return;
         }
 
@@ -56,19 +56,19 @@ public class Timer extends BasicModule {
             float timer = timerSpeed.getValue().floatValue();
             float consume = timer - 1.0F;
             if (consume <= 0.0F) {
-                ClientManger.timerSpeed = 1F;
+                GameStateManager.timerSpeed = 1F;
             } else if (balance >= consume) {
-                ClientManger.timerSpeed = timer;
+                GameStateManager.timerSpeed = timer;
                 balance -= consume;
             } else {
-                ClientManger.timerSpeed = 1F;
+                GameStateManager.timerSpeed = 1F;
             }
         } else if (!hasTarget && balance < ticks.getValue().floatValue()) {
             float timer = (!isMoving && onGround) ? 0.8F : 0.96F;
-            ClientManger.timerSpeed = timer;
+            GameStateManager.timerSpeed = timer;
             balance += (1.0F - timer);
         } else {
-            ClientManger.timerSpeed = 1F;
+            GameStateManager.timerSpeed = 1F;
         }
 
         balance = Math.clamp(balance, 0.0F, ticks.getValue().floatValue());
@@ -77,7 +77,7 @@ public class Timer extends BasicModule {
     @EventTarget
     public void onWorld(EventWorldLoad event) {
         balance = 0.0F;
-        ClientManger.timerSpeed = 1F;
+        GameStateManager.timerSpeed = 1F;
     }
 
     private boolean isReleaseButtonDown() {

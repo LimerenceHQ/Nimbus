@@ -2,8 +2,6 @@ package cc.nimbus.managers;
 
 import cc.nimbus.core.interfaces.InstanceManager;
 import cc.nimbus.event.EventBus;
-import cc.nimbus.event.component.EventTarget;
-import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.prediction.PredictiveAction;
@@ -18,7 +16,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Objects;
 
-public class ClientManger implements InstanceManager {
+public class GameStateManager implements InstanceManager {
     private static final Minecraft mc = Minecraft.getInstance();
     public static float timerSpeed = 1.0f;
     public static int onGroundTicks = 0, offGroundTicks = 0, skipTicks = 0;
@@ -28,7 +26,7 @@ public class ClientManger implements InstanceManager {
         return timerSpeed;
     }
 
-    public ClientManger(Minecraft minecraft) {
+    public GameStateManager(Minecraft minecraft) {
         Objects.requireNonNull(minecraft, "minecraft");
     }
 
@@ -40,24 +38,6 @@ public class ClientManger implements InstanceManager {
     @Override
     public synchronized void shutdown() {
         EventBus.unregister(this);
-    }
-
-
-    @EventTarget
-    private void onTick(EventTick event) {
-        if (mc.player != null && event.isPre()) {
-
-            if (mc.player.onGround()) {
-                onGroundTicks++;
-                offGroundTicks = 0;
-            } else {
-                onGroundTicks = 0;
-                offGroundTicks++;
-            }
-        } else {
-            onGroundTicks = 0;
-            offGroundTicks = 0;
-        }
     }
 
     public static void sendSequencedPacket(PredictiveAction packetCreator) {

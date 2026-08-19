@@ -3,17 +3,7 @@ package cc.nimbus.core;
 import cc.nimbus.core.interfaces.InstanceManager;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.features.client.ClientLanguage;
-import cc.nimbus.managers.AccountManager;
-import cc.nimbus.managers.CommandManager;
-import cc.nimbus.managers.ConfigManager;
-import cc.nimbus.managers.HudManager;
-import cc.nimbus.managers.I18nManager;
-import cc.nimbus.managers.ModuleManager;
-import cc.nimbus.managers.MusicManager;
-import cc.nimbus.managers.PacketManager;
-import cc.nimbus.managers.RenderManager;
-import cc.nimbus.managers.RotationManager;
-import cc.nimbus.managers.TargetManager;
+import cc.nimbus.managers.*;
 import net.minecraft.client.Minecraft;
 
 import java.nio.file.Path;
@@ -35,6 +25,7 @@ public enum Core {
     private I18nManager i18nManager;
     private RotationManager rotationManager;
     private TargetManager targetManager;
+    private GameStateManager gameStateManager;
     private boolean initialized;
 
     public synchronized void init(Path fabricConfigDirectory) {
@@ -47,12 +38,13 @@ public enum Core {
         ModuleManager modules = new ModuleManager();
         TargetManager targets = new TargetManager(Minecraft.getInstance(), modules);
         ConfigManager configs = new ConfigManager(nimbusDirectory, modules);
+        GameStateManager state = new GameStateManager(Minecraft.getInstance());
         I18nManager i18n = new I18nManager(() -> ClientLanguage.fromValue(configs.clientSettings().language.getValue()));
         HudManager hud = new HudManager(modules, renders, configs.clientSettings());
         AccountManager accounts = new AccountManager(nimbusDirectory.resolve("accounts"));
         MusicManager music = new MusicManager(nimbusDirectory.resolve("music"));
         CommandManager commands = new CommandManager();
-        List<InstanceManager> started = new ArrayList<>(11);
+        List<InstanceManager> started = new ArrayList<>(12);
 
         EventBus.clear();
         try {
@@ -63,6 +55,7 @@ public enum Core {
             start(targets, started);
             start(hud, started);
             start(configs, started);
+            start(state, started);
             start(i18n, started);
             start(accounts, started);
             start(music, started);
@@ -79,6 +72,7 @@ public enum Core {
         targetManager = targets;
         renderManager = renders;
         hudManager = hud;
+        gameStateManager = state;
         configManager = configs;
         i18nManager = i18n;
         accountManager = accounts;
@@ -98,6 +92,7 @@ public enum Core {
                 targetManager,
                 hudManager,
                 configManager,
+                gameStateManager,
                 i18nManager,
                 accountManager,
                 musicManager,
@@ -114,6 +109,7 @@ public enum Core {
             renderManager = null;
             hudManager = null;
             configManager = null;
+            gameStateManager = null;
             i18nManager = null;
             accountManager = null;
             musicManager = null;

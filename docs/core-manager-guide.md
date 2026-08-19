@@ -374,6 +374,9 @@ nimbus.module.array_list.setting.show_suffix
 nimbus.client.setting.blur.option.gaussian
 ```
 
+多个动态 Setting 共用同一组选项时，可在加入 Module 前通过
+`bindOptionTranslationScope(...)` 绑定共享选项作用域，避免为每个动态 Setting 重复维护相同翻译。
+
 配置仍保存 `Show suffix` 和 `Gaussian`，切换语言不会改变配置身份或业务判断。
 
 新增 Setting 类型时，至少检查：

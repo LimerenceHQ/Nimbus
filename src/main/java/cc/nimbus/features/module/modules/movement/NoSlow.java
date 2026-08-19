@@ -15,10 +15,9 @@ import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.player.GhostHand;
-import cc.nimbus.managers.ClientManger;
+import cc.nimbus.managers.GameStateManager;
 import cc.nimbus.utils.client.TimerUtils;
 import cc.nimbus.utils.network.PacketUtils;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
@@ -39,7 +38,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.PotionItem;
 import net.minecraft.world.phys.BlockHitResult;
 
-import java.nio.charset.CoderResult;
 import java.util.concurrent.LinkedBlockingDeque;
 
 @ModuleInfo(name = "NoSlow", category = ModuleCategory.Move, description = "Removes movement slowdown from items, honey, cobwebs and soul sand")
@@ -215,7 +213,7 @@ public class NoSlow extends BasicModule {
                 InteractionHand hand = isHoldingConsumable(mc.player.getMainHandItem())
                         ? InteractionHand.OFF_HAND
                         : InteractionHand.MAIN_HAND;
-                ClientManger.useItem(mc.player, mc.level, hand);
+                GameStateManager.useItem(mc.player, mc.level, hand);
                 pendingUseItem = false;
             }
             return;

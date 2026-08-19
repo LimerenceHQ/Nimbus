@@ -6,7 +6,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.rotation.RotationRaycast;
-import cc.nimbus.managers.ClientManger;
+import cc.nimbus.managers.GameStateManager;
 import cc.nimbus.mixin.accessor.client.DeltaTrackerTimerAccessor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -39,7 +39,7 @@ public class GhostHand extends BasicModule {
 
         BlockHitResult hitResult = raycastForChest();
         if (hitResult != null) {
-            ClientManger.sendSequencedPacket(id -> new ServerboundUseItemOnPacket(InteractionHand.MAIN_HAND, hitResult, id));
+            GameStateManager.sendSequencedPacket(id -> new ServerboundUseItemOnPacket(InteractionHand.MAIN_HAND, hitResult, id));
             event.cancelEvent();
         }
     }

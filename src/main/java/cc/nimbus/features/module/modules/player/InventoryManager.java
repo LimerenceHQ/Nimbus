@@ -50,6 +50,8 @@ import java.util.function.ToDoubleFunction;
 
 @ModuleInfo(name = "InventoryManager", description = "Sorts, equips and cleans the player inventory.", category = ModuleCategory.Player)
 public final class InventoryManager extends BasicModule {
+    private static final String SORT_TYPE_TRANSLATION_SCOPE =
+            "nimbus.module.inventory_manager.setting.sort_type";
     private static final String[] SORT_TYPES = {
             "None", "Sword", "Bow", "Crossbow", "Pickaxe", "Axe", "Shovel", "Shears",
             "Food", "Block", "Water Bucket", "Lava Bucket", "Golden Apple", "Pearl", "Potion",
@@ -98,9 +100,11 @@ public final class InventoryManager extends BasicModule {
                     DEFAULT_SLOT_TYPES[i],
                     sortInventory::getValue
             );
+            slotTypes[i].bindOptionTranslationScope(SORT_TYPE_TRANSLATION_SCOPE);
             addSetting(slotTypes[i]);
         }
         slotTypes[9] = new ModeSetting("Offhand", new Modes(SORT_TYPES), "None", sortInventory::getValue);
+        slotTypes[9].bindOptionTranslationScope(SORT_TYPE_TRANSLATION_SCOPE);
         addSetting(slotTypes[9]);
     }
 

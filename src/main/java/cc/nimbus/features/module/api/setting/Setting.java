@@ -10,6 +10,7 @@ public class Setting<V> {
     private V value;
     private final Supplier<Boolean> visibility;
     private String translationKey;
+    private String optionTranslationScope;
     private Runnable changeListener = () -> {};
 
     public Setting(String name, V value, Supplier<Boolean> visibility) {
@@ -77,7 +78,17 @@ public class Setting<V> {
         return translationKey == null ? null : translationKey + "." + I18nKeys.part(child);
     }
 
+    public final void bindOptionTranslationScope(String scope) {
+        String next = Objects.requireNonNull(scope, "scope");
+        if (optionTranslationScope != null && !optionTranslationScope.equals(next)) {
+            throw new IllegalStateException("Setting '" + name
+                    + "' option translations are already bound to " + optionTranslationScope);
+        }
+        optionTranslationScope = next;
+    }
+
     public final String getOptionTranslationKey(String option) {
-        return translationKey == null ? null : translationKey + ".option." + I18nKeys.part(option);
+        String scope = optionTranslationScope == null ? translationKey : optionTranslationScope;
+        return scope == null ? null : scope + ".option." + I18nKeys.part(option);
     }
 }

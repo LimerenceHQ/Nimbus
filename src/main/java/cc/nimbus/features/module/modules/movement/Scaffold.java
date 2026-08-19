@@ -17,7 +17,7 @@ import cc.nimbus.features.module.modules.movement.scaffold.FallingPlayer;
 import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceInfo;
 import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceSearch;
 import cc.nimbus.features.rotation.*;
-import cc.nimbus.managers.ClientManger;
+import cc.nimbus.managers.GameStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -27,7 +27,6 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.StandingAndWallBlockItem;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.AirBlock;
 import net.minecraft.world.level.block.BannerBlock;
@@ -59,7 +58,6 @@ import net.minecraft.world.level.block.TintedGlassBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.WallBlock;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Objects;
@@ -214,8 +212,8 @@ public final class Scaffold extends BasicModule {
             return;
         }
 
-        if (mode.is("Telly") && ClientManger.offGroundTicks <= 3
-                && (!minecraft.player.onGround() || ClientManger.onGroundTicks >= jumpDelayMin.getValue().intValue())) {
+        if (mode.is("Telly") && GameStateManager.offGroundTicks <= 3
+                && (!minecraft.player.onGround() || GameStateManager.onGroundTicks >= jumpDelayMin.getValue().intValue())) {
             return;
         }
 
@@ -237,7 +235,7 @@ public final class Scaffold extends BasicModule {
         int min = Math.min(jumpDelayMin.getValue().intValue(), jumpDelayMax.getValue().intValue());
         int max = Math.max(jumpDelayMin.getValue().intValue(), jumpDelayMax.getValue().intValue());
         int jumpDelay = min == max ? min : min + minecraft.player.getRandom().nextInt(max - min + 1);
-        event.setJump(jumpDelay == 0 || ClientManger.onGroundTicks >= jumpDelay);
+        event.setJump(jumpDelay == 0 || GameStateManager.onGroundTicks >= jumpDelay);
     }
 
     @EventTarget
@@ -327,7 +325,7 @@ public final class Scaffold extends BasicModule {
 
         if (canRotate && (player.getDeltaMovement().y > 0.0 || player.getY() > yLevel + 1.0)) {
             float deltaYaw = Mth.wrapDegrees(applied.yaw() - lastHypixelRotation.yaw());
-            int speed = slow.getValue() ? (ClientManger.offGroundTicks <= 1 ? 60 : 30) : (ClientManger.offGroundTicks <= 1 ? 130 : 90);
+            int speed = slow.getValue() ? (GameStateManager.offGroundTicks <= 1 ? 60 : 30) : (GameStateManager.offGroundTicks <= 1 ? 130 : 90);
             if (!currentPlace.blockPos().equals(Objects.requireNonNull(RotationRaycast.rayCastBlock(lastHypixelRotation, 4.5)))
                     && Math.abs(deltaYaw) > speed) {
                 applied = new Rotation(updateRotation(lastHypixelRotation.yaw(),
@@ -342,7 +340,7 @@ public final class Scaffold extends BasicModule {
                 || minecraft.options.keyLeft.isDown() != minecraft.options.keyRight.isDown();
         if (player.onGround() && movingKeys && level.getBlockState(player.blockPosition().above()).isAir()
                 && (stage > 0 || !keepY.getValue() && minecraft.options.keyJump.isDown())
-                && ClientManger.onGroundTicks >= jumpDelayMin.getValue().intValue()) {
+                && GameStateManager.onGroundTicks >= jumpDelayMin.getValue().intValue()) {
             float yaw = player.getYRot() - movementYawOffset()
                     + (isDiagonal(player) ? (yawNormal ? 157.0f : -157.0f) : (side ? 157.0f : -157.0f));
             applied = new Rotation(yaw, 80.0f);
@@ -386,7 +384,7 @@ public final class Scaffold extends BasicModule {
         if (placeDelayMode.is("Check Tick")) {
             int required = minecraft.options.keyJump.isDown() && !keepY.getValue()
                     ? upTellyTick.getValue().intValue() : tick.getValue().intValue();
-            return ClientManger.offGroundTicks < required;
+            return GameStateManager.offGroundTicks < required;
         }
         return false;
     }
