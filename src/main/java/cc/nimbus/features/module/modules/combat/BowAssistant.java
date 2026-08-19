@@ -586,7 +586,7 @@ public final class BowAssistant extends BasicModule {
     private void clearAim() {
         aimAction = null;
         target = null;
-        Core.INSTANCE.getRotationManager().cancel(this);
+        if (Core.INSTANCE.isInitialized()) Core.INSTANCE.getRotationManager().cancel(this);
     }
 
     private void reset() {

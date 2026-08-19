@@ -124,7 +124,7 @@ public class RotationUtils implements IMinecraft {
         Rotation bestRot = null;
         double minDiff = Double.MAX_VALUE;
 
-        Vec3 eyePos = RotationRaycast.eyePos;
+        Vec3 eyePos = player.getEyePosition();
 
         for (AABB box : boxes) {
             AABB worldBox = box.move(pos);

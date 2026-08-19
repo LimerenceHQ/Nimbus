@@ -16,7 +16,7 @@ import net.minecraft.world.phys.HitResult;
 
 @ModuleInfo(name = "FastPlace", description = "Reduces the client block placement delay.", category = ModuleCategory.Player)
 public final class FastPlace extends BasicModule {
-    public final NumberSetting delay = new NumberSetting("Delay", 0, 0, 3, 1);
+    public final NumberSetting delay = new NumberSetting("Delay", 0, 0, 3, 0.1);
     public final BooleanSetting noBed = new BooleanSetting("No Bed", true);
     public final BooleanSetting disableOnWeb = new BooleanSetting("Disable On Web", true);
     private final Minecraft minecraft = Minecraft.getInstance();

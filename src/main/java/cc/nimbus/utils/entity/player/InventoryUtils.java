@@ -7,9 +7,11 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.util.StringUtil;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.*;
+import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
@@ -34,6 +36,12 @@ public final class InventoryUtils {
     private static final Minecraft MINECRAFT = Minecraft.getInstance();
 
     private InventoryUtils() {
+    }
+
+    public static boolean hasValidProfileComponent(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return true;
+        ResolvableProfile profile = stack.get(DataComponents.PROFILE);
+        return profile == null || profile.name().map(StringUtil::isValidPlayerName).orElse(true);
     }
 
     public static ItemStack getBestWeapon() {

@@ -728,7 +728,7 @@ public final class ProjectileAura extends BasicModule {
         target = null;
         rotationReadyTicks = 0;
         resetPredictionStability();
-        Core.INSTANCE.getRotationManager().cancel(this);
+        if (Core.INSTANCE.isInitialized()) Core.INSTANCE.getRotationManager().cancel(this);
     }
 
     private Rotation currentRotation() {

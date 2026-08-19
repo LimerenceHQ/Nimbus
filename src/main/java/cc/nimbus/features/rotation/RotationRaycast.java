@@ -28,8 +28,6 @@ import java.util.function.Predicate;
 
 
 public class RotationRaycast implements IMinecraft {
-    public static Vec3 eyePos = null;
-
     public static Vec3 getRotationVector(float pitch, float yaw) {
         float f = pitch * ((float) Math.PI / 180.0F);
         float g = -yaw * ((float) Math.PI / 180.0F);
@@ -190,8 +188,9 @@ public class RotationRaycast implements IMinecraft {
     }
 
     public static BlockHitResult getFacedContainerBlock(float yaw, float pitch) {
+        if (mc.player == null) return null;
         final double reachDistance = mc.player.blockInteractionRange();
-        Vec3 startPos = eyePos;;
+        Vec3 startPos = mc.player.getEyePosition();
         Vec3 direction = getRotationVector(pitch, yaw);
         Vec3 endPos = startPos.add(direction.scale(reachDistance));
         double EPSILON = 1.0E-7;
@@ -251,10 +250,11 @@ public class RotationRaycast implements IMinecraft {
     }
 
     public static BlockHitResult getFacedBlock(float yaw, float pitch) {
+        if (mc.player == null) return null;
         final double reachDistance = mc.player.blockInteractionRange();
         final double reachDistanceSq = reachDistance * reachDistance;
 
-        Vec3 startPos = eyePos;
+        Vec3 startPos = mc.player.getEyePosition();
         Vec3 direction = getRotationVector(pitch, yaw);
         Vec3 endPos = startPos.add(direction.scale(reachDistance));
         double EPSILON = 1.0E-7;
