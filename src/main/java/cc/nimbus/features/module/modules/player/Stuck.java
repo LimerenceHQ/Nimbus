@@ -41,7 +41,6 @@ public final class Stuck extends BasicModule {
     public void release(InteractionHand hand) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player != null && minecraft.player.getItemInHand(hand).is(Items.ENDER_PEARL)) {
-            // Allow the use packet through, but keep Stuck active until the server applies the teleport.
             pearlAwaitingTeleport = true;
             pearlTicksSinceThrow = 0;
         }
@@ -56,7 +55,6 @@ public final class Stuck extends BasicModule {
         releasing = false;
         pearlAwaitingTeleport = false;
         pearlTicksSinceThrow = 0;
-       // if (Minecraft.getInstance().player != null) Disabler.setStuck();
     }
 
     @Override
@@ -98,7 +96,6 @@ public final class Stuck extends BasicModule {
             releasing = false;
             movementPacketsWithoutPosition = 0;
             ticksWithoutPosition = 0;
-           // Disabler.setStuck();
         }
         if (pearlAwaitingTeleport && ++pearlTicksSinceThrow >= PEARL_TELEPORT_TIMEOUT_TICKS) {
             pearlAwaitingTeleport = false;
