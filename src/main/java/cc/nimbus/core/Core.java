@@ -10,6 +10,7 @@ import cc.nimbus.managers.HudManager;
 import cc.nimbus.managers.I18nManager;
 import cc.nimbus.managers.ModuleManager;
 import cc.nimbus.managers.MusicManager;
+import cc.nimbus.managers.PacketManager;
 import cc.nimbus.managers.RenderManager;
 import cc.nimbus.managers.RotationManager;
 import cc.nimbus.managers.TargetManager;
@@ -30,6 +31,7 @@ public enum Core {
     private RenderManager renderManager;
     private HudManager hudManager;
     private MusicManager musicManager;
+    private PacketManager packetManager;
     private I18nManager i18nManager;
     private RotationManager rotationManager;
     private TargetManager targetManager;
@@ -41,6 +43,7 @@ public enum Core {
         Path nimbusDirectory = Objects.requireNonNull(fabricConfigDirectory, "fabricConfigDirectory").resolve("nimbus");
         RenderManager renders = new RenderManager();
         RotationManager rotations = new RotationManager(Minecraft.getInstance());
+        PacketManager packets = new PacketManager(Minecraft.getInstance());
         ModuleManager modules = new ModuleManager();
         TargetManager targets = new TargetManager(Minecraft.getInstance(), modules);
         ConfigManager configs = new ConfigManager(nimbusDirectory, modules);
@@ -55,6 +58,7 @@ public enum Core {
         try {
             start(renders, started);
             start(rotations, started);
+            start(packets, started);
             start(modules, started);
             start(targets, started);
             start(hud, started);
@@ -71,6 +75,7 @@ public enum Core {
 
         moduleManager = modules;
         rotationManager = rotations;
+        packetManager = packets;
         targetManager = targets;
         renderManager = renders;
         hudManager = hud;
@@ -88,6 +93,7 @@ public enum Core {
         RuntimeException failure = shutdownReverse(List.of(
                 renderManager,
                 rotationManager,
+                packetManager,
                 moduleManager,
                 targetManager,
                 hudManager,
@@ -103,6 +109,7 @@ public enum Core {
             EventBus.clear();
             moduleManager = null;
             rotationManager = null;
+            packetManager = null;
             targetManager = null;
             renderManager = null;
             hudManager = null;
@@ -141,6 +148,10 @@ public enum Core {
 
     public RotationManager getRotationManager() {
         return requireInitialized(rotationManager, "RotationManager");
+    }
+
+    public PacketManager getPacketManager() {
+        return requireInitialized(packetManager, "PacketManager");
     }
 
     public TargetManager getTargetManager() {

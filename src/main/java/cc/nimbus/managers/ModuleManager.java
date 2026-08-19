@@ -47,6 +47,7 @@ public final class ModuleManager implements InstanceManager {
                     new AutoTrap(),
                     new ProjectileAura(),
                     new BowAssistant(),
+                    new Velocity(),
                     new Disabler(),
                     new ClickGui(),
                     new ActiveList(),

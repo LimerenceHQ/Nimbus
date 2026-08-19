@@ -2,18 +2,27 @@ package cc.nimbus.mixin.network;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
-import cc.nimbus.event.impl.network.EventPacketReceive;
 import cc.nimbus.event.impl.network.EventPacketSend;
+import cc.nimbus.network.InboundPacketEventPacket;
+import cc.nimbus.network.PacketEventGuard;
 import cc.nimbus.utils.network.access.ConnectionPacketAccess;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.Connection;
+import net.minecraft.network.PacketListener;
+import net.minecraft.network.PacketProcessor;
+import net.minecraft.network.protocol.PacketUtils;
 import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.configuration.ClientboundFinishConfigurationPacket;
+import net.minecraft.network.protocol.login.ClientboundLoginCompressionPacket;
+import net.minecraft.network.protocol.login.ClientboundLoginFinishedPacket;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Connection.class)
@@ -52,24 +61,40 @@ public abstract class ConnectionMixin implements ConnectionPacketAccess {
         }
     }
 
-    @Inject(method = "channelRead0(Lio/netty/channel/ChannelHandlerContext;Lnet/minecraft/network/protocol/Packet;)V",
-            at = @At("HEAD"), cancellable = true)
-    private void nimbus$packetReceive(ChannelHandlerContext context, Packet<?> packet, CallbackInfo ci) throws Exception {
-        if (nimbus$receivingReplacement.get()) return;
-        EventPacketReceive event = EventBus.call(new EventPacketReceive(packet));
-        if (event.isCancel() || event.getPacket() == null) {
-            ci.cancel();
+    @Redirect(method = "channelRead0(Lio/netty/channel/ChannelHandlerContext;Lnet/minecraft/network/protocol/Packet;)V",
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/network/Connection;genericsFtw(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;)V"))
+    private static void nimbus$dispatchInbound(Packet<?> packet, PacketListener listener) {
+        if (nimbus$isProtocolControlPacket(packet) || PacketEventGuard.isSuppressed()
+                || !Core.INSTANCE.isInitialized()) {
+            nimbus$handlePacket(packet, listener);
             return;
         }
-        if (event.getPacket() != packet) {
-            nimbus$receivingReplacement.set(true);
-            try {
-                channelRead0(context, event.getPacket());
-            } finally {
-                nimbus$receivingReplacement.set(false);
-            }
-            ci.cancel();
-        }
+
+        PacketProcessor processor = Minecraft.getInstance().packetProcessor();
+        Packet<?> eventPacket = new InboundPacketEventPacket<>(packet);
+        nimbus$ensurePacketThread(eventPacket, listener, processor);
+    }
+
+    @Unique
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void nimbus$handlePacket(Packet<?> packet, PacketListener listener) {
+        ((Packet) packet).handle(listener);
+    }
+
+    @Unique
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void nimbus$ensurePacketThread(Packet<?> packet, PacketListener listener,
+                                                    PacketProcessor processor) {
+        PacketUtils.ensureRunningOnSameThread((Packet) packet, listener, processor);
+        if (processor.isSameThread()) ((Packet) packet).handle(listener);
+    }
+
+    @Unique
+    private static boolean nimbus$isProtocolControlPacket(Packet<?> packet) {
+        return packet instanceof ClientboundLoginCompressionPacket
+                || packet instanceof ClientboundLoginFinishedPacket
+                || packet instanceof ClientboundFinishConfigurationPacket;
     }
 
     @Override
@@ -85,11 +110,13 @@ public abstract class ConnectionMixin implements ConnectionPacketAccess {
     @Override
     public void nimbus$receivePacketNoEvent(Packet<?> packet) {
         nimbus$receivingReplacement.set(true);
+        PacketEventGuard.suppress();
         try {
             channelRead0(null, packet);
         } catch (Exception error) {
             throw new IllegalStateException("Failed to process packet without events", error);
         } finally {
+            PacketEventGuard.restore();
             nimbus$receivingReplacement.set(false);
         }
     }

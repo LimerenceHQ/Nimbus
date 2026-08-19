@@ -12,6 +12,7 @@
     "entity.LivingEntityMixin",
     "input.KeyboardInputMixin",
     "network.ConnectionMixin",
+    "network.PacketUtilsMixin",
     "player.AbstractClientPlayerMixin",
     "player.LocalPlayerMixin",
     "player.MultiPlayerGameModeMixin",

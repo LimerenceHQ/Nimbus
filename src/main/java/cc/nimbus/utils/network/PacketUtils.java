@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.common.ClientboundDisconnectPacket;
+import net.minecraft.network.protocol.configuration.ClientboundFinishConfigurationPacket;
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
@@ -21,6 +22,8 @@ import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
+import net.minecraft.network.protocol.login.ClientboundLoginCompressionPacket;
+import net.minecraft.network.protocol.login.ClientboundLoginFinishedPacket;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -46,6 +49,9 @@ public final class PacketUtils {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return true;
         if (packet instanceof ClientboundServerDataPacket
+                || packet instanceof ClientboundLoginCompressionPacket
+                || packet instanceof ClientboundLoginFinishedPacket
+                || packet instanceof ClientboundFinishConfigurationPacket
                 || packet instanceof ClientboundPlayerInfoUpdatePacket
                 || packet instanceof ClientboundDisconnectPacket
                 || packet instanceof ClientboundLevelChunkWithLightPacket
