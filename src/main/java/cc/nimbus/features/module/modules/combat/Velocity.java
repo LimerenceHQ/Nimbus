@@ -8,7 +8,6 @@ import cc.nimbus.event.impl.game.EventRotation;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.event.impl.network.EventPacketReceive;
-import cc.nimbus.event.impl.network.EventPacketSend;
 import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
@@ -19,41 +18,28 @@ import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.rotation.MovementFix;
 import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
 import cc.nimbus.features.rotation.RotationPriority;
 import cc.nimbus.features.rotation.RotationRaycast;
 import cc.nimbus.features.rotation.RotationRequest;
 import cc.nimbus.features.rotation.SmoothMode;
-import cc.nimbus.managers.GameStateManager;
-import cc.nimbus.managers.PacketDirection;
-import cc.nimbus.mixin.accessor.network.ServerboundInteractPacketAccessor;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import cc.nimbus.utils.entity.rotation.RotationUtils;
-import it.unimi.dsi.fastutil.ints.IntList;
+import cc.nimbus.utils.network.PacketUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientboundMoveEntityPacket;
-import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
-import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
-import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
-import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
-import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
-import net.minecraft.network.protocol.game.ServerboundInteractPacket;
-import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.network.protocol.game.*;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.Relative;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.level.GameType;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.LinkedBlockingDeque;
 
 @ModuleInfo(
         name = "Velocity",
@@ -75,9 +61,6 @@ public final class Velocity extends BasicModule {
 
     public final MultiSelectSetting releaseTiming = new MultiSelectSetting(
             "Release Timing", new String[]{"Until Landing", "Until Sprint"},
-            () -> mode.is("Legit") && legitModules.isSelected("Delay"));
-    public final ModeSetting releaseMode = new ModeSetting(
-            "Release Mode", new String[]{"Release All", "EntityData Delay"}, "Release All",
             () -> mode.is("Legit") && legitModules.isSelected("Delay"));
     public final NumberSetting maxLimitedTick = new NumberSetting(
             "Max Limited Tick", 20, 0, 40, 1,
@@ -109,6 +92,7 @@ public final class Velocity extends BasicModule {
     private boolean needHandleRotation;
     private RotationData finalRotation = new RotationData(new Rotation(0, 0), 0);
     private boolean handleJumpReset;
+    final LinkedBlockingDeque<Packet<ClientGamePacketListener>> inBound = new LinkedBlockingDeque<>();
     /** Last server-authoritative position for entities whose movement is shown immediately. */
     private final Map<Integer, Vec3> serverPositions = new HashMap<>();
 
@@ -175,17 +159,6 @@ public final class Velocity extends BasicModule {
             return;
         }
 
-        if (releaseMode.is("EntityData Delay")) {
-            boolean stoppedAtSprintEntityData = releaseUntilSprintEntityData();
-            startVelocityHandling();
-
-            if (stoppedAtSprintEntityData) {
-                holdingSprintEntityData = true;
-                return;
-            }
-            resetDelay();
-            return;
-        }
         releaseInbound();
         startVelocityHandling();
         resetDelay();
@@ -201,6 +174,12 @@ public final class Velocity extends BasicModule {
             ticksSinceVelocity = -1;
             needHandleRotation = false;
             return;
+        }
+        if (delayState == DelayState.BUFFERING) {
+            if (!PacketUtils.isEssential(packet)) {
+                inBound.add((Packet<ClientGamePacketListener>) event.getPacket());
+                event.cancelEvent();
+            }
         }
 
         if (mode.is("Vanilla")) {
@@ -228,10 +207,7 @@ public final class Velocity extends BasicModule {
                 }
             }
         }
-    }
 
-    @EventTarget
-    private void onPacketReceive(EventPacketReceive event) {
         if (event.getPacket() instanceof ClientboundPlayerPositionPacket) {
             if (delayState == DelayState.BUFFERING) {
                 releaseInbound();
@@ -239,18 +215,17 @@ public final class Velocity extends BasicModule {
             resetDelay();
         }
 
-        if (!(event.getPacket() instanceof ClientboundSetEntityMotionPacket packet)) {
+        if (!(event.getPacket() instanceof ClientboundSetEntityMotionPacket motionPacket)) {
             return;
         }
 
-        if (delayState != DelayState.IDLE || cantSprint() || !isValidVelocityPacket(packet)) {
+        if (delayState != DelayState.IDLE || cantSprint() || !isValidVelocityPacket(motionPacket)) {
             return;
         }
 
         bufferTicks = 0;
         delayState = DelayState.BUFFERING;
         holdingSprintEntityData = false;
-        Core.INSTANCE.getPacketManager().freeze(PacketDirection.INBOUND);
     }
 
 
@@ -401,35 +376,23 @@ public final class Velocity extends BasicModule {
         }
     }
 
-    private boolean releaseUntilSprintEntityData() {
-        while (Core.INSTANCE.getPacketManager().queueSize(PacketDirection.INBOUND) > 0) {
-            Packet<?> packet = Core.INSTANCE.getPacketManager().peek(PacketDirection.INBOUND);
-            if (isSprintEntityData(packet)) return true;
-            packet = Core.INSTANCE.getPacketManager().take(PacketDirection.INBOUND);
-            if (packet != null) cc.nimbus.utils.network.PacketUtils.receivePacketNoEvent(packet);
-        }
-        Core.INSTANCE.getPacketManager().dispatch(PacketDirection.INBOUND);
-        return false;
-    }
-
-    private boolean isSprintEntityData(Packet<?> packet) {
-        if (mc.player == null || !(packet instanceof ClientboundSetEntityDataPacket data)
-                || data.id() != mc.player.getId()) return false;
-        for (SynchedEntityData.DataValue<?> value : data.packedItems()) {
-            if (value.id() == ENTITY_FLAGS_INDEX && value.value() instanceof Byte flags) {
-                return (flags & (1 << SPRINTING_FLAG)) == 0;
-            }
-        }
-        return false;
-    }
 
     private void releaseInbound() {
-        Core.INSTANCE.getPacketManager().dispatch(PacketDirection.INBOUND);
+        while (!this.inBound.isEmpty()) {
+            try {
+                Packet<ClientGamePacketListener> packet = this.inBound.poll();
+                if (packet != null && mc.getConnection() != null) {
+                    packet.handle(mc.getConnection());
+                }
+            } catch (Exception var3) {
+                var3.printStackTrace();
+            }
+        }
     }
 
     private void resetState(boolean releasePackets) {
         if (releasePackets && Core.INSTANCE.isInitialized()
-                && Core.INSTANCE.getPacketManager().isFrozen(PacketDirection.INBOUND)) {
+                && !inBound.isEmpty()) {
             releaseInbound();
         }
         if (Core.INSTANCE.isInitialized()) Core.INSTANCE.getRotationManager().cancel(this);
