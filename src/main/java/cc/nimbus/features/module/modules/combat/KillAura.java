@@ -18,6 +18,7 @@ import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
+import cc.nimbus.features.module.modules.movement.Scaffold;
 import cc.nimbus.features.rotation.MovementFix;
 import cc.nimbus.features.rotation.Rotation;
 import cc.nimbus.features.rotation.RotationMath;
@@ -68,6 +69,7 @@ public final class KillAura extends BasicModule {
     public final ModeSetting movementFix = new ModeSetting(
             "Movement Fix", new String[]{"None", "Strict", "Silent"}, "None");
     public final BooleanSetting stopAttackWhileUsingItem = new BooleanSetting("Stop Attack While Using Item", false);
+    public final BooleanSetting stopWhileScaffolding = new BooleanSetting("Stop While Scaffolding", true);
     public final ModeSetting keepSprint = new ModeSetting(
             "Keep Sprint", new String[]{"Off", "Vanilla", "Legit"}, "Off");
     public final BooleanSetting skipFirstAttack = new BooleanSetting(
@@ -149,7 +151,7 @@ public final class KillAura extends BasicModule {
             return;
         }
 
-        if (isEatingOrDrinking()) {
+        if (shouldYieldToScaffold() || isEatingOrDrinking()) {
             resetState(true);
             return;
         }
@@ -185,7 +187,7 @@ public final class KillAura extends BasicModule {
 
     private void attackTick() {
         if (mc.player == null) return;
-        if (isEatingOrDrinking()) {
+        if (shouldYieldToScaffold() || isEatingOrDrinking()) {
             resetState(true);
             return;
         }
@@ -338,6 +340,12 @@ public final class KillAura extends BasicModule {
     private boolean isFoodOrDrink(ItemStack stack) {
         ItemUseAnimation animation = stack.getUseAnimation();
         return animation == ItemUseAnimation.EAT || animation == ItemUseAnimation.DRINK;
+    }
+
+    private boolean shouldYieldToScaffold() {
+        if (!stopWhileScaffolding.getValue() || !Core.INSTANCE.isInitialized()) return false;
+        Scaffold scaffold = Core.INSTANCE.getModuleManager().getModule(Scaffold.class);
+        return scaffold != null && scaffold.isEnabled();
     }
 
     private void resetState(boolean releaseRotation) {

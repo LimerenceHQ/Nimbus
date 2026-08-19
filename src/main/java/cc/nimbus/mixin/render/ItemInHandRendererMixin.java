@@ -57,6 +57,7 @@ public abstract class ItemInHandRendererMixin {
         }
         if (module == null || hand != InteractionHand.MAIN_HAND || stack.isEmpty()
                 || !stack.is(ItemTags.SWORDS) || player.isScoping()
+                || (!auraBlocking && module.shouldIgnoreUse(player))
                 || (!Minecraft.getInstance().options.keyUse.isDown() && !auraBlocking)) return;
 
         HumanoidArm arm = player.getMainArm();
