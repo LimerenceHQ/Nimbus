@@ -24,6 +24,10 @@ public class ClientManger implements InstanceManager {
     public static int onGroundTicks = 0, offGroundTicks = 0, skipTicks = 0;
     public static Vec3 eyePos = null;
 
+    public static float getTimerSpeed() {
+        return timerSpeed;
+    }
+
     public ClientManger(Minecraft minecraft) {
         Objects.requireNonNull(minecraft, "minecraft");
     }

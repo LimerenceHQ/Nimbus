@@ -6,6 +6,7 @@
   "client": [
     "client.CommandSuggestionsMixin",
     "client.KeyboardHandlerMixin",
+    "client.DeltaTrackerTimerMixin",
     "client.MinecraftMixin",
     "client.MouseHandlerMixin",
     "entity.EntityMixin",

@@ -43,6 +43,7 @@ public final class ModuleManager implements InstanceManager {
         try {
             registerModules(
                     new KillAura(),
+                    new AntiCrystal(),
                     new AntiFireball(),
                     new AutoTrap(),
                     new ProjectileAura(),
@@ -59,11 +60,13 @@ public final class ModuleManager implements InstanceManager {
                     new Watermark(),
                     new Sprint(),
                     new Scaffold(),
+                    new Speed(),
                     new FastWeb(),
                     new NoFall(),
                     new NoSlow(),
                     new Target(),
                     new Teams(),
+                    new Timer(),
                     new AntiBot(),
                     new Stuck(),
                     new MidPearl(),

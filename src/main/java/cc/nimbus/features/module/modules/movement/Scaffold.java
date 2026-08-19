@@ -17,6 +17,7 @@ import cc.nimbus.features.module.modules.movement.scaffold.FallingPlayer;
 import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceInfo;
 import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceSearch;
 import cc.nimbus.features.rotation.*;
+import cc.nimbus.managers.ClientManger;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -128,8 +129,6 @@ public final class Scaffold extends BasicModule {
     private int yLevel;
     private int rotateCount;
     private int oldSlot = -1;
-    private int onGroundTicks;
-    private int offGroundTicks;
     private boolean canRotate;
     private boolean canPlaceNow;
     private boolean reachable = true;
@@ -183,7 +182,8 @@ public final class Scaffold extends BasicModule {
 
         stopGoldenAppleUse(minecraft);
         setSuffix(mode.getValue());
-        updateGroundTicks(minecraft.player);
+        float normalized = (Mth.wrapDegrees(mc.player.getYRot() - movementYawOffset()) % 360.0f + 360.0f) % 360.0f;
+        yawNormal = normalized % 90.0f < 45.0f;
         updateSneak(minecraft.player, minecraft.level);
         selectBlock(minecraft.player);
         preparePlacement(minecraft.player, minecraft.level);
@@ -214,8 +214,8 @@ public final class Scaffold extends BasicModule {
             return;
         }
 
-        if (mode.is("Telly") && offGroundTicks <= 3
-                && (!minecraft.player.onGround() || onGroundTicks >= jumpDelayMin.getValue().intValue())) {
+        if (mode.is("Telly") && ClientManger.offGroundTicks <= 3
+                && (!minecraft.player.onGround() || ClientManger.onGroundTicks >= jumpDelayMin.getValue().intValue())) {
             return;
         }
 
@@ -237,7 +237,7 @@ public final class Scaffold extends BasicModule {
         int min = Math.min(jumpDelayMin.getValue().intValue(), jumpDelayMax.getValue().intValue());
         int max = Math.max(jumpDelayMin.getValue().intValue(), jumpDelayMax.getValue().intValue());
         int jumpDelay = min == max ? min : min + minecraft.player.getRandom().nextInt(max - min + 1);
-        event.setJump(jumpDelay == 0 || onGroundTicks >= jumpDelay);
+        event.setJump(jumpDelay == 0 || ClientManger.onGroundTicks >= jumpDelay);
     }
 
     @EventTarget
@@ -327,7 +327,7 @@ public final class Scaffold extends BasicModule {
 
         if (canRotate && (player.getDeltaMovement().y > 0.0 || player.getY() > yLevel + 1.0)) {
             float deltaYaw = Mth.wrapDegrees(applied.yaw() - lastHypixelRotation.yaw());
-            int speed = slow.getValue() ? (offGroundTicks <= 1 ? 60 : 30) : (offGroundTicks <= 1 ? 130 : 90);
+            int speed = slow.getValue() ? (ClientManger.offGroundTicks <= 1 ? 60 : 30) : (ClientManger.offGroundTicks <= 1 ? 130 : 90);
             if (!currentPlace.blockPos().equals(Objects.requireNonNull(RotationRaycast.rayCastBlock(lastHypixelRotation, 4.5)))
                     && Math.abs(deltaYaw) > speed) {
                 applied = new Rotation(updateRotation(lastHypixelRotation.yaw(),
@@ -342,7 +342,7 @@ public final class Scaffold extends BasicModule {
                 || minecraft.options.keyLeft.isDown() != minecraft.options.keyRight.isDown();
         if (player.onGround() && movingKeys && level.getBlockState(player.blockPosition().above()).isAir()
                 && (stage > 0 || !keepY.getValue() && minecraft.options.keyJump.isDown())
-                && onGroundTicks >= jumpDelayMin.getValue().intValue()) {
+                && ClientManger.onGroundTicks >= jumpDelayMin.getValue().intValue()) {
             float yaw = player.getYRot() - movementYawOffset()
                     + (isDiagonal(player) ? (yawNormal ? 157.0f : -157.0f) : (side ? 157.0f : -157.0f));
             applied = new Rotation(yaw, 80.0f);
@@ -386,7 +386,7 @@ public final class Scaffold extends BasicModule {
         if (placeDelayMode.is("Check Tick")) {
             int required = minecraft.options.keyJump.isDown() && !keepY.getValue()
                     ? upTellyTick.getValue().intValue() : tick.getValue().intValue();
-            return offGroundTicks < required;
+            return ClientManger.offGroundTicks < required;
         }
         return false;
     }
@@ -416,18 +416,6 @@ public final class Scaffold extends BasicModule {
             Minecraft.getInstance().options.keyShift.setDown(false);
         }
         forcedSneak = false;
-    }
-
-    private void updateGroundTicks(Player player) {
-        if (player.onGround()) {
-            onGroundTicks++;
-            offGroundTicks = 0;
-            float normalized = (Mth.wrapDegrees(player.getYRot() - movementYawOffset()) % 360.0f + 360.0f) % 360.0f;
-            yawNormal = normalized % 90.0f < 45.0f;
-        } else {
-            onGroundTicks = 0;
-            offGroundTicks++;
-        }
     }
 
     private int getPlaceY(Player player) {
@@ -590,8 +578,6 @@ public final class Scaffold extends BasicModule {
         yLevel = 0;
         rotateCount = 0;
         oldSlot = -1;
-        onGroundTicks = 0;
-        offGroundTicks = 0;
         canRotate = false;
         canPlaceNow = false;
         reachable = true;
