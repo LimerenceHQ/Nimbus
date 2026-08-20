@@ -7,7 +7,6 @@ import cc.nimbus.event.impl.input.EventKeyPress;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 
-import cc.nimbus.features.module.api.setting.impl.submodule.Mode;
 import cc.nimbus.features.module.modules.combat.*;
 import cc.nimbus.features.module.modules.exploit.*;
 import cc.nimbus.features.module.modules.hud.*;
@@ -56,9 +55,10 @@ public final class ModuleManager implements InstanceManager {
                     new MusicLyrics(),
                     new MusicSpectrum(),
                     new MusicToast(),
+                    new ArmorHUD(),
                     new TargetHUD(),
                     new PotionHUD(),
-                    new Watermark(),
+                    new WaterMark(),
                     new Sprint(),
                     new Scaffold(),
                     new Speed(),

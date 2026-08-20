@@ -27,7 +27,7 @@ import io.github.humbleui.types.RRect;
         category = ModuleCategory.HUD,
         enableOnStartUp = true
 )
-public final class Watermark extends BasicModule {
+public final class WaterMark extends BasicModule {
     private static final String FONT = NimbusFonts.DISPLAY;
     private static final float FONT_SIZE = 16f;
     private static final float HEIGHT = 34f;

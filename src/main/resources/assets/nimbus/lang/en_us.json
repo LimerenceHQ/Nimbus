@@ -248,6 +248,8 @@
   "nimbus.module.watermark.setting.accent": "Accent",
   "nimbus.module.music_toast.name": "Music Toast",
   "nimbus.module.music_toast.description": "Shows the native Minecraft toast when the Nimbus Music track changes.",
+  "nimbus.module.armor_hud.name": "Armor HUD",
+  "nimbus.module.armor_hud.description": "Shows the armor worn by the local player.",
   "nimbus.module.target_hud.name": "Target HUD",
   "nimbus.module.target_hud.description": "Shows the current combat target's face, name and health.",
   "nimbus.module.potion_hud.name": "Potion HUD",
