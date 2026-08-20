@@ -13,6 +13,7 @@ import cc.nimbus.utils.client.IMinecraft;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.phys.Vec3;
 
 public class Legit extends Mode<Velocity> implements IMinecraft {
     public Legit() {
@@ -76,7 +77,20 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
     }
 
     public boolean isValidVelocityPacket(ClientboundSetEntityMotionPacket packet) {
-        return mc.player != null && packet.getId() == mc.player.getId();
+        if (mc.player == null || packet.getId() != mc.player.getId()) {
+            return false;
+        }
+
+        Vec3 movement = packet.getMovement();
+        boolean falling = movement.y <= 0.0;
+        double strength = Math.hypot(movement.x, movement.z);
+        boolean lowStrength = strength < 0.1;
+
+        return !falling
+                && !lowStrength
+                && !mc.player.onClimbable()
+                && !mc.player.isInWater()
+                && !mc.player.isInLava();
     }
 
     public boolean cantSprint() {
