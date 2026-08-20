@@ -4,10 +4,13 @@ import cc.nimbus.features.module.api.setting.Setting;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.features.module.api.setting.impl.FoldSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
+import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.TextSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.Mode;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
+import cc.nimbus.features.module.api.setting.impl.submodule.ComponentValue;
 import cc.nimbus.ui.clickgui.ClickGuiIcons;
 import cc.nimbus.ui.clickgui.input.FocusManager;
 import cc.nimbus.ui.clickgui.input.MultilineTextInput;
@@ -152,11 +155,14 @@ public final class SettingControls {
             case NUMBER_VALUE -> beginEditing(setting);
             case MODE -> openOptions = openOptions == setting ? null : setting;
             case MODE_OPTION -> {
-                ((ModeSetting) setting).setValue(hit.option());
+                if (setting instanceof ModeValue mode) mode.update(hit.option());
+                else ((ModeSetting) setting).setValue(hit.option());
                 openOptions = null;
             }
             case MULTI -> openOptions = openOptions == setting ? null : setting;
             case MULTI_OPTION -> ((MultiSelectSetting) setting).toggle(hit.option());
+            case COMPONENT -> openOptions = openOptions == setting ? null : setting;
+            case COMPONENT_OPTION -> ((ComponentValue) setting).toggle(hit.option());
             case COLOR -> {
                 ColorSetting color = (ColorSetting) setting;
                 if (openColor != null && openColor != color) openColor.setExpanded(false);
@@ -312,8 +318,10 @@ public final class SettingControls {
         if (setting instanceof BooleanSetting value) renderBoolean(context, value, row);
         else if (setting instanceof FoldSetting value) renderFold(context, value, row);
         else if (setting instanceof NumberSetting value) renderNumber(context, value, bounds);
-        else if (setting instanceof ModeSetting value) renderMode(context, value, bounds);
+        else if (setting instanceof ModeValue value) renderMode(context, value, bounds);
+        else if (setting instanceof ModeSetting value) renderLegacyMode(context, value, bounds);
         else if (setting instanceof MultiSelectSetting value) renderMulti(context, value, bounds);
+        else if (setting instanceof ComponentValue value) renderComponent(context, value, bounds);
         else if (setting instanceof ColorSetting value) renderColor(context, value, bounds);
         else if (setting instanceof TextSetting value && value.isMultiline()) renderMultilineText(context, value, bounds);
         else if (setting instanceof TextSetting value) renderText(context, value, bounds, value.isSecure());
@@ -417,11 +425,11 @@ public final class SettingControls {
         addHit(new Hit(setting, HitKind.NUMBER_VALUE, valueBounds, null));
     }
 
-    private void renderMode(UiContext context, ModeSetting setting, UiRect bounds) {
+    private void renderMode(UiContext context, ModeValue setting, UiRect bounds) {
         UiRect value = new UiRect(bounds.x() + bounds.width() * 0.44f, bounds.y(),
                 bounds.width() * 0.56f - 29f, ROW_HEIGHT);
         scrollingText(context, valueMarqueeStates, setting,
-                translatedOption(context, setting, setting.getValue()), value,
+                translatedOption(context, setting, setting.getValueName()), value,
                 10.5f, ClickGuiTheme.MUTED, true);
         float disclosure = disclosureAnimations.getOrDefault(setting, openOptions == setting ? 1f : 0f);
         disclosureIcon(context, bounds, disclosure);
@@ -433,7 +441,8 @@ public final class SettingControls {
                         Math.max(1f, bounds.height() - ROW_HEIGHT)), Math.round(255f * disclosure));
         try {
             float y = bounds.y() + ROW_HEIGHT;
-            for (String option : setting.getModes()) {
+            for (Mode<?> mode : setting.getModes()) {
+                String option = mode.getName();
                 UiRect optionBounds = new UiRect(bounds.x() + 5f, y, bounds.width() - 10f, OPTION_HEIGHT);
                 boolean selected = setting.is(option);
                 float selectedProgress = optionProgress(context, setting, option, selected);
@@ -484,6 +493,75 @@ public final class SettingControls {
                 if (openOptions == setting && disclosure >= .98f) {
                     addHit(new Hit(setting, HitKind.MULTI_OPTION, optionBounds, option));
                 }
+                y += OPTION_HEIGHT;
+            }
+        } finally {
+            context.frame().canvas().restoreToCount(layer);
+            context.restore(clip);
+        }
+    }
+
+    private void renderLegacyMode(UiContext context, ModeSetting setting, UiRect bounds) {
+        UiRect value = new UiRect(bounds.x() + bounds.width() * .44f, bounds.y(),
+                bounds.width() * .56f - 29f, ROW_HEIGHT);
+        scrollingText(context, valueMarqueeStates, setting,
+                translatedOption(context, setting, setting.getValue()), value,
+                10.5f, ClickGuiTheme.MUTED, true);
+        float disclosure = disclosureAnimations.getOrDefault(setting, openOptions == setting ? 1f : 0f);
+        disclosureIcon(context, bounds, disclosure);
+        addHit(new Hit(setting, HitKind.MODE, new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT), null));
+        if (disclosure <= .001f) return;
+        int clip = context.clip(bounds, 0f);
+        int layer = context.frame().canvas().saveLayerAlpha(Rect.makeXYWH(bounds.x(), bounds.y() + ROW_HEIGHT,
+                bounds.width(), Math.max(1f, bounds.height() - ROW_HEIGHT)), Math.round(255f * disclosure));
+        try {
+            float y = bounds.y() + ROW_HEIGHT;
+            for (String option : setting.getModes()) {
+                UiRect optionBounds = new UiRect(bounds.x() + 5f, y, bounds.width() - 10f, OPTION_HEIGHT);
+                float selectedProgress = optionProgress(context, setting, option, setting.is(option));
+                context.textIn(translatedOption(context, setting, option),
+                        new UiRect(optionBounds.x() + 9f, optionBounds.y(), optionBounds.width() - 36f, optionBounds.height()),
+                        10.5f, mix(ClickGuiTheme.MUTED, ClickGuiTheme.TEXT, selectedProgress));
+                iconAlpha(context, ClickGuiIcons.CHECK, optionBounds.x() + optionBounds.width() - 23f,
+                        optionBounds.y() + 5f, 16f, context.accentIn(optionBounds, 0xC0), selectedProgress);
+                if (openOptions == setting && disclosure >= .98f) addHit(new Hit(setting, HitKind.MODE_OPTION, optionBounds, option));
+                y += OPTION_HEIGHT;
+            }
+        } finally {
+            context.frame().canvas().restoreToCount(layer);
+            context.restore(clip);
+        }
+    }
+
+    private void renderComponent(UiContext context, ComponentValue setting, UiRect bounds) {
+        UiRect value = new UiRect(bounds.x() + bounds.width() * .44f, bounds.y(),
+                bounds.width() * .56f - 29f, ROW_HEIGHT);
+        String summary = setting.getValue().isEmpty() ? context.translate("nimbus.ui.none", "None")
+                : setting.getValue().size() == 1 ? translatedOption(context, setting, setting.getValue().iterator().next())
+                : context.translate("nimbus.ui.selected_count", "%s selected", setting.getValue().size());
+        scrollingText(context, valueMarqueeStates, setting, summary, value, 10.5f, ClickGuiTheme.MUTED, true);
+        float disclosure = disclosureAnimations.getOrDefault(setting, openOptions == setting ? 1f : 0f);
+        disclosureIcon(context, bounds, disclosure);
+        addHit(new Hit(setting, HitKind.COMPONENT, new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT), null));
+        if (disclosure <= .001f) return;
+        int clip = context.clip(bounds, 0f);
+        int layer = context.frame().canvas().saveLayerAlpha(Rect.makeXYWH(bounds.x(), bounds.y() + ROW_HEIGHT,
+                bounds.width(), Math.max(1f, bounds.height() - ROW_HEIGHT)), Math.round(255f * disclosure));
+        try {
+            float y = bounds.y() + ROW_HEIGHT;
+            for (Mode<?> mode : setting.getModes()) {
+                String option = mode.getName();
+                boolean selected = setting.isEnabled(mode);
+                UiRect optionBounds = new UiRect(bounds.x() + 5f, y, bounds.width() - 10f, OPTION_HEIGHT);
+                float selectedProgress = optionProgress(context, setting, option, selected);
+                context.frame().draw().roundedRect(optionBounds.x() + 7f, optionBounds.y() + 6f, 14f, 14f, 3f,
+                        mix(0x20FFFFFF, context.accentIn(optionBounds, 0x78), selectedProgress));
+                iconAlpha(context, ClickGuiIcons.CHECK, optionBounds.x() + 8f, optionBounds.y() + 7f, 12f,
+                        ClickGuiTheme.TEXT, selectedProgress);
+                context.textIn(translatedOption(context, setting, option),
+                        new UiRect(optionBounds.x() + 28f, optionBounds.y(), optionBounds.width() - 35f, optionBounds.height()),
+                        10.5f, mix(ClickGuiTheme.MUTED, ClickGuiTheme.TEXT, selectedProgress));
+                if (openOptions == setting && disclosure >= .98f) addHit(new Hit(setting, HitKind.COMPONENT_OPTION, optionBounds, option));
                 y += OPTION_HEIGHT;
             }
         } finally {
@@ -618,13 +696,21 @@ public final class SettingControls {
     }
 
     private float settingHeight(Setting<?> setting, float width) {
-        if (setting instanceof ModeSetting mode) {
+        if (setting instanceof ModeValue mode) {
             float progress = disclosure(setting, openOptions == setting);
-            return ROW_HEIGHT + (mode.getModes().length * OPTION_HEIGHT + 2f) * progress;
+            return ROW_HEIGHT + (mode.getModes().size() * OPTION_HEIGHT + 2f) * progress;
         }
         if (setting instanceof MultiSelectSetting multi) {
             float progress = disclosure(setting, openOptions == setting);
             return ROW_HEIGHT + (multi.getModes().length * OPTION_HEIGHT + 2f) * progress;
+        }
+        if (setting instanceof ModeSetting mode) {
+            float progress = disclosure(setting, openOptions == setting);
+            return ROW_HEIGHT + (mode.getModes().length * OPTION_HEIGHT + 2f) * progress;
+        }
+        if (setting instanceof ComponentValue component) {
+            float progress = disclosure(setting, openOptions == setting);
+            return ROW_HEIGHT + (component.getModes().size() * OPTION_HEIGHT + 2f) * progress;
         }
         if (setting instanceof ColorSetting color) {
             float pickerHeight = color.isRainbowSupported() ? COLOR_AREA_HEIGHT : COLOR_PICKER_HEIGHT;
@@ -634,7 +720,8 @@ public final class SettingControls {
         if (setting instanceof TextSetting text && text.isMultiline()) return MULTILINE_TEXT_HEIGHT;
         if (setting instanceof TextSetting) return width < STACKED_TEXT_THRESHOLD ? STACKED_TEXT_HEIGHT : ROW_HEIGHT;
         if (!(setting instanceof BooleanSetting || setting instanceof FoldSetting || setting instanceof NumberSetting
-                || setting instanceof ModeSetting || setting instanceof MultiSelectSetting
+                || setting instanceof ModeValue || setting instanceof ModeSetting
+                || setting instanceof MultiSelectSetting || setting instanceof ComponentValue
                 || setting instanceof ColorSetting || setting instanceof TextSetting)) {
             return 54f;
         }
@@ -829,8 +916,10 @@ public final class SettingControls {
             case NumberSetting ignored -> width - 70f;
             case BooleanSetting ignored -> width - 50f;
             case FoldSetting ignored -> width - 38f;
+            case ModeValue ignored -> width * .44f - 12f;
             case ModeSetting ignored -> width * .44f - 12f;
             case MultiSelectSetting ignored -> width * .44f - 12f;
+            case ComponentValue ignored -> width * .44f - 12f;
             case ColorSetting ignored -> width - 41f;
             case TextSetting ignored -> width * .46f - 12f;
             default -> width - 16f;
@@ -899,6 +988,8 @@ public final class SettingControls {
         MODE_OPTION,
         MULTI,
         MULTI_OPTION,
+        COMPONENT,
+        COMPONENT_OPTION,
         COLOR,
         COLOR_SB,
         COLOR_HUE,

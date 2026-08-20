@@ -1,6 +1,7 @@
 package cc.nimbus.mixin.network;
 
 import cc.nimbus.network.InboundPacketEventPacket;
+import cc.nimbus.network.PacketEventGuard;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.PacketProcessor;
 import net.minecraft.network.protocol.Packet;
@@ -17,11 +18,14 @@ public abstract class PacketUtilsMixin {
             at = @At("HEAD"), cancellable = true)
     private static <T extends PacketListener> void nimbus$ensureRunningOnSameThread(
             Packet<T> packet, T listener, PacketProcessor processor, CallbackInfo ci) {
-        if (!(packet instanceof InboundPacketEventPacket<?> eventPacket)) return;
-
-        ci.cancel();
+        if (PacketEventGuard.isSuppressed()) {
+            ci.cancel();
+            return;
+        }
+        if (packet instanceof InboundPacketEventPacket<?>) return;
         if (!processor.isSameThread()) {
-            nimbus$schedule(processor, listener, eventPacket);
+            ci.cancel();
+            nimbus$schedule(processor, listener, new InboundPacketEventPacket<>(packet));
             throw RunningOnDifferentThreadException.RUNNING_ON_DIFFERENT_THREAD;
         }
     }

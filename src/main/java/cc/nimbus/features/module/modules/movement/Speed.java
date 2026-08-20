@@ -10,9 +10,10 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.combat.Velocity;
+import cc.nimbus.features.module.modules.combat.velocitys.Legit;
 import cc.nimbus.features.rotation.*;
 import cc.nimbus.managers.GameStateManager;
 import cc.nimbus.utils.entity.player.MovementUtils;
@@ -23,7 +24,7 @@ public class Speed extends BasicModule {
     private static final float[] RUN = new float[]{0.89f, 0.9f, 0.9f, 0.9f, 0.86f, 0.92f, 0.92f, 1.5f, 1.53f, 1.5f};
     private static final float[] SCA = new float[]{0.85f, 0.85f, 0.84f, 0.84f, 0.83f, 1.0f, 1.0f, 1.62f, 1.64f, 1.64f};
 
-    private final ModeSetting mode = new ModeSetting("Mode", new String[]{"Run", "Sca"}, "Sca");
+    private final ModeValue mode = new ModeValue("Mode", new String[]{"Run", "Sca"}, "Sca");
     private final BooleanSetting onlyWhenSpace = new BooleanSetting("OnlyWhenSpace", true);
     private final BooleanSetting handleVelocityCheck = new BooleanSetting("HandleVelocity", true);
 
@@ -71,7 +72,8 @@ public class Speed extends BasicModule {
         boolean active = (!onlyWhenSpace.getValue() || mc.options.keyJump.isDown()) && MovementUtils.isMoving();
         boolean handleVelocity = false;
         if (this.handleVelocityCheck.getValue() && antiKb.isEnabled()) {
-            handleVelocity = antiKb.handleVelocity;
+            Legit legit = antiKb.getSubModule(Legit.class);
+            handleVelocity = legit.handleVelocity;
         }
         if (!active || handleVelocity) {
             GameStateManager.timerSpeed = 1F;

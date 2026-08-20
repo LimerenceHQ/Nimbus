@@ -7,7 +7,7 @@ import cc.nimbus.event.impl.input.EventMouseButton;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
@@ -21,7 +21,7 @@ import org.lwjgl.glfw.GLFW;
         category = ModuleCategory.Player
 )
 public final class MidPearl extends BasicModule {
-    public final ModeSetting keyMode = new ModeSetting(
+    public final ModeValue keyMode = new ModeValue(
             "Key Mode", new String[]{"Middle", "Mouse3", "Mouse4"}, "Middle");
 
     private final Minecraft minecraft = Minecraft.getInstance();

@@ -3,7 +3,7 @@ package cc.nimbus.features.client;
 import cc.nimbus.features.module.api.setting.Setting;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.TextSetting;
 import cc.nimbus.utils.render.skija.api.PostProcessOptions;
@@ -31,16 +31,16 @@ public final class ClientSettings {
             "Client Name", "Nimbus", "Client name", false, false,
             "Name used by Nimbus-styled HUD elements.", 32
     );
-    public final ModeSetting language = new ModeSetting(
+    public final ModeValue language = new ModeValue(
             "Language", ClientLanguage.valuesForSetting(), ClientLanguage.FOLLOW_GAME.value()
     );
-    public final ModeSetting style = new ModeSetting(
+    public final ModeValue style = new ModeValue(
             "Style", new String[]{NIMBUS_STYLE, CUSTOM_STYLE}, NIMBUS_STYLE
     );
-    public final ModeSetting themePreset = new ModeSetting(
+    public final ModeValue themePreset = new ModeValue(
             "Theme Preset", presetNames(), "Nimbus"
     );
-    public final ModeSetting colorMode = new ModeSetting(
+    public final ModeValue colorMode = new ModeValue(
             "Color Mode", new String[]{"Static", "Fade", "Dynamic", "Astolfo", "Rainbow"}, "Static"
     );
     public final ColorSetting accent = new ColorSetting(
@@ -62,7 +62,7 @@ public final class ClientSettings {
             "Astolfo Offset", 5, 0, 20, 1, () -> colorMode.is("Astolfo")
     );
     public final NumberSetting hudScale = new NumberSetting("HUD Scale", 1, 0.5, 2, 0.05);
-    public final ModeSetting hudRefresh = new ModeSetting(
+    public final ModeValue hudRefresh = new ModeValue(
             "HUD Refresh", new String[]{"Limited", "V-Sync"}, "Limited"
     );
     public final NumberSetting hudRefreshLimit = new NumberSetting(
@@ -80,7 +80,7 @@ public final class ClientSettings {
             "Texture Opacity", 0.2, 0, 1, 0.05,
             () -> postProcessing.getValue() && texture.getValue()
     );
-    public final ModeSetting blurMode = new ModeSetting(
+    public final ModeValue blurMode = new ModeValue(
             "Blur", new String[]{"Off", "Gaussian", "Kawase"}, "Gaussian",
             postProcessing::getValue
     );
@@ -100,7 +100,7 @@ public final class ClientSettings {
             "Up Sample", 3, 1, 5, 0.5,
             () -> postProcessing.getValue() && blurMode.is("Kawase")
     );
-    public final ModeSetting blurRefresh = new ModeSetting(
+    public final ModeValue blurRefresh = new ModeValue(
             "Blur Refresh", refreshModes(), "V-Sync",
             () -> postProcessing.getValue() && !blurMode.is("Off")
     );
@@ -119,7 +119,7 @@ public final class ClientSettings {
             "Shadow Opacity", 0.2, 0, 1, 0.05,
             () -> postProcessing.getValue() && shadow.getValue()
     );
-    public final ModeSetting shadowRefresh = new ModeSetting(
+    public final ModeValue shadowRefresh = new ModeValue(
             "Shadow Refresh", refreshModes(), "V-Sync",
             () -> postProcessing.getValue() && shadow.getValue()
     );

@@ -9,7 +9,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.player.FireGuard;
 import cc.nimbus.features.rotation.MovementFix;
@@ -74,9 +74,9 @@ public final class AutoTrap extends BasicModule {
             "Web Count", 2.0, 1.0, 2.0, 1.0, webs::getValue);
     public final NumberSetting delay = new NumberSetting("Delay", 4.0, 0.0, 20.0, 1.0);
     public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180.0, 0.0, 180.0, 1.0);
-    public final ModeSetting swingMode = new ModeSetting(
+    public final ModeValue swingMode = new ModeValue(
             "Swing Mode", new String[]{"Off", "Normal", "Silent"}, "Normal");
-    public final ModeSetting movementFix = new ModeSetting(
+    public final ModeValue movementFix = new ModeValue(
             "Movement Fix", new String[]{"None", "Strict", "Silent"}, "Silent");
     public final BooleanSetting avoidSelf = new BooleanSetting("Avoid Self", true);
 

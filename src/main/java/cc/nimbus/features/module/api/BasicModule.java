@@ -3,19 +3,17 @@ package cc.nimbus.features.module.api;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.features.hud.Draggable;
 import cc.nimbus.features.module.api.setting.Setting;
+import cc.nimbus.features.module.api.setting.impl.submodule.Mode;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
+import cc.nimbus.features.module.api.setting.impl.submodule.ComponentValue;
+import cc.nimbus.utils.client.IMinecraft;
 import cc.nimbus.utils.i18n.I18nKeys;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
-public abstract class BasicModule extends ToggleElement {
+public abstract class BasicModule extends ToggleElement implements IMinecraft {
     private final ModuleInfo info;
     private final String name;
     private final String displayName;
@@ -28,6 +26,7 @@ public abstract class BasicModule extends ToggleElement {
     private boolean hidden;
     private Runnable changeListener = () -> {};
     private Runnable keyChangeListener = () -> {};
+    private final Map<Class<?>, Mode<?>> modeClassMap = new HashMap<>();
 
     public boolean changeKey;
 
@@ -66,14 +65,27 @@ public abstract class BasicModule extends ToggleElement {
 
     private void enable() {
         boolean hookStarted = false;
+        boolean modesStarted = false;
         try {
+            Members current = members();
             EventBus.register(this);
             hookStarted = true;
+            current.settings().stream()
+                    .filter(ModeValue.class::isInstance)
+                    .map(ModeValue.class::cast)
+                    .filter(ModeValue::isRoot)
+                    .forEach(ModeValue::onModuleEnabled);
+            current.settings().stream()
+                    .filter(ComponentValue.class::isInstance)
+                    .map(ComponentValue.class::cast)
+                    .forEach(ComponentValue::onModuleEnabled);
+            modesStarted = true;
             onEnable();
             if (enabled) changed();
         } catch (Throwable failure) {
             boolean needsHookCleanup = hookStarted && enabled;
             enabled = false;
+            if (modesStarted) failure = cleanup(failure, this::disableModes);
             failure = cleanup(failure, () -> EventBus.unregister(this));
             if (needsHookCleanup) failure = cleanup(failure, this::onDisable);
             failure = cleanup(failure, this::changed);
@@ -83,10 +95,23 @@ public abstract class BasicModule extends ToggleElement {
 
     private void disable() {
         Throwable failure = null;
+        failure = cleanup(failure, this::disableModes);
         failure = cleanup(failure, () -> EventBus.unregister(this));
         failure = cleanup(failure, this::onDisable);
         failure = cleanup(failure, this::changed);
         if (failure != null) rethrow(failure);
+    }
+
+    private void disableModes() {
+        members().settings().stream()
+                .filter(ModeValue.class::isInstance)
+                .map(ModeValue.class::cast)
+                .filter(ModeValue::isRoot)
+                .forEach(ModeValue::onModuleDisabled);
+        members().settings().stream()
+                .filter(ComponentValue.class::isInstance)
+                .map(ComponentValue.class::cast)
+                .forEach(ComponentValue::onModuleDisabled);
     }
 
     private static Throwable cleanup(Throwable failure, Runnable action) {
@@ -111,6 +136,10 @@ public abstract class BasicModule extends ToggleElement {
 
     @Override
     protected void onDisable() {
+    }
+
+    public void registerMode(Mode<?> mode) {
+        modeClassMap.put(mode.getClass(), mode);
     }
 
     public final void bindStateListeners(Runnable changeListener, Runnable keyChangeListener) {
@@ -233,6 +262,12 @@ public abstract class BasicModule extends ToggleElement {
                     if (value instanceof Setting<?> setting && settings.add(setting)) {
                         setting.bindTranslationScope(translationScope());
                         setting.setChangeListener(this::changed);
+                        if (setting instanceof ModeValue modeValue) {
+                            modeValue.initializeSubModules(this);
+                        }
+                        if (setting instanceof ComponentValue componentValue) {
+                            componentValue.initializeSubModules(this);
+                        }
                     } else if (value instanceof Draggable draggable && draggables.add(draggable)) {
                         String key = draggable.getName().toLowerCase(Locale.ROOT);
                         if (!draggableNames.add(key)) {
@@ -246,13 +281,25 @@ public abstract class BasicModule extends ToggleElement {
                 }
             }
         }
-        for (Setting<?> setting : additionalSettings) {
+        // ModeValue/ComponentValue expand their child settings through addSetting().
+        // Process by index so nested expansion is included in this same Members snapshot.
+        for (int index = 0; index < additionalSettings.size(); index++) {
+            Setting<?> setting = additionalSettings.get(index);
             if (settings.add(setting)) {
                 setting.bindTranslationScope(translationScope());
                 setting.setChangeListener(this::changed);
+                if (setting instanceof ModeValue modeValue) {
+                    modeValue.initializeSubModules(this);
+                }
+                if (setting instanceof ComponentValue componentValue) {
+                    componentValue.initializeSubModules(this);
+                }
             }
         }
         return new Members(List.copyOf(settings), List.copyOf(draggables));
+    }
+    public <T extends Mode<?>> T getSubModule(Class<T> modeClass) {
+        return (T) modeClassMap.get(modeClass);
     }
 
     private String translationScope() {

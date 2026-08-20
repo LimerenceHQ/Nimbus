@@ -9,6 +9,8 @@ import cc.nimbus.features.hud.Draggable;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.setting.Setting;
 import cc.nimbus.features.module.api.setting.impl.*;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
+import cc.nimbus.features.module.api.setting.impl.submodule.ComponentValue;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -340,6 +342,9 @@ public final class ConfigManager implements InstanceManager {
 
     private JsonElement writeSetting(Setting<?> setting) {
         Object value = setting.getValue();
+        if (setting instanceof ModeValue mode) {
+            return GSON.toJsonTree(mode.getValueName());
+        }
         if (setting instanceof ColorSetting color) {
             JsonObject object = new JsonObject();
             object.addProperty("value", color.getValue());
@@ -403,7 +408,13 @@ public final class ConfigManager implements InstanceManager {
             try {
                 if (setting instanceof BooleanSetting target) target.setValue(value.getAsBoolean());
                 else if (setting instanceof NumberSetting target) target.setValue(value.getAsDouble());
+                else if (setting instanceof ModeValue target) target.update(value.getAsString());
                 else if (setting instanceof ModeSetting target) target.setValue(value.getAsString());
+                else if (setting instanceof ComponentValue target && value.isJsonArray()) {
+                    Set<String> selected = new LinkedHashSet<>();
+                    value.getAsJsonArray().forEach(item -> selected.add(item.getAsString()));
+                    target.setValue(selected);
+                }
                 else if (setting instanceof ColorSetting target) readColor(target, value);
                 else if (setting instanceof FoldSetting target) target.setValue(value.getAsBoolean());
                 else if (setting instanceof TextSetting target) target.setValue(value.getAsString());

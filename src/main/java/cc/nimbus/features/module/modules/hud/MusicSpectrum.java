@@ -8,7 +8,7 @@ import cc.nimbus.features.music.playback.PlaybackPhase;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.managers.MusicManager;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import io.github.humbleui.skija.Paint;
@@ -33,7 +33,7 @@ public final class MusicSpectrum extends BasicModule {
     private static final float RESPONSE = .7f;
     private static final float OPACITY = .72f;
 
-    public final ModeSetting style = new ModeSetting(
+    public final ModeValue style = new ModeValue(
             "Style", new String[]{"Bars", "Line"}, "Line"
     );
 

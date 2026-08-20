@@ -11,7 +11,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.music.lyrics.CurrentLyricsState;
 import cc.nimbus.features.music.lyrics.LyricLine;
 import cc.nimbus.features.music.lyrics.LyricVisuals;
@@ -42,18 +42,18 @@ public final class MusicLyrics extends BasicModule {
     private static final float TRANSLATION_GAP = 2f;
     private static final int TRANSITION_MILLIS = 240;
 
-    public final ModeSetting display = new ModeSetting(
+    public final ModeValue display = new ModeValue(
             "Display", new String[]{"Single", "Multiple"}, "Single"
     );
-    public final ModeSetting lineAnimation = new ModeSetting(
+    public final ModeValue lineAnimation = new ModeValue(
             "Line Animation", new String[]{"Rise", "Fade", "Slide", "Scale"}, "Rise",
             () -> display.is("Single")
     );
-    public final ModeSetting wordAnimation = new ModeSetting(
+    public final ModeValue wordAnimation = new ModeValue(
             "Word Animation", new String[]{"Fill", "Word", "Wave"}, "Fill",
             () -> display.is("Single")
     );
-    public final ModeSetting alignment = new ModeSetting(
+    public final ModeValue alignment = new ModeValue(
             "Alignment", new String[]{"Left", "Center", "Right"}, "Center"
     );
     public final BooleanSetting translation = new BooleanSetting("Translation", true);

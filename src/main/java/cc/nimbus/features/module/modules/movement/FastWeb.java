@@ -7,14 +7,15 @@ import cc.nimbus.event.impl.player.EventSlowMovement;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.modules.combat.Velocity;
+import cc.nimbus.features.module.modules.combat.velocitys.Legit;
 import cc.nimbus.utils.entity.player.MovementUtils;
 import net.minecraft.world.level.block.Blocks;
 
 @ModuleInfo(name = "FastWeb", category = ModuleCategory.Move,description = "Reduce the slowdown you take in cobwebs")
 public class FastWeb extends BasicModule {
-    private final ModeSetting antiCheat = new ModeSetting("AntiCheat",new String[]{"Vanilla","Grim"},"Vanilla");
+    private final ModeValue antiCheat = new ModeValue("AntiCheat",new String[]{"Vanilla","Grim"},"Vanilla");
 
     private boolean jumping = false;
     private boolean sneaking = false;
@@ -24,7 +25,7 @@ public class FastWeb extends BasicModule {
     public void onSlowMovement(EventSlowMovement event) {
         if (mc.player == null) return;
         if (event.getState().getBlock() == Blocks.COBWEB) {
-            Velocity legit = Core.INSTANCE.getModuleManager().getModule(Velocity.class);
+            Legit legit = Core.INSTANCE.getModuleManager().getModule(Velocity.class).getSubModule(Legit.class);
             legit.handleVelocity = false;
             switch (antiCheat.getValue()) {
                 case "Vanilla":

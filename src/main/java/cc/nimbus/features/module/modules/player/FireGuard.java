@@ -11,7 +11,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.combat.AutoTrap;
@@ -67,8 +67,8 @@ public final class FireGuard extends BasicModule {
     public final BooleanSetting flameClear = new BooleanSetting("Flame Clear", true);
     public final BooleanSetting waterRescue = new BooleanSetting("Water Rescue", true);
     public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180.0, 0.0, 180.0, 1.0);
-    public final ModeSetting movementFix = new ModeSetting("Movement Fix", new String[]{"None", "Strict", "Silent"}, "Silent");
-    public final ModeSetting swingMode = new ModeSetting("Swing Mode", new String[]{"Off", "Normal", "Silent"}, "Normal");
+    public final ModeValue movementFix = new ModeValue("Movement Fix", new String[]{"None", "Strict", "Silent"}, "Silent");
+    public final ModeValue swingMode = new ModeValue("Swing Mode", new String[]{"Off", "Normal", "Silent"}, "Normal");
 
     private Stage stage = Stage.IDLE;
     private PlaceAction lavaAction;

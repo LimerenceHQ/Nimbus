@@ -12,7 +12,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.TextSetting;
 import cc.nimbus.utils.render.Render2DUtils;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
@@ -40,7 +40,7 @@ public final class Watermark extends BasicModule {
     private static final int BACKGROUND_COLOR = 0x66171A1E;
     private static final int TEXT_COLOR = 0xFFF4F7F8;
 
-    public final ModeSetting mode = new ModeSetting("Mode", new String[]{"Logo", "Logo + Text"}, "Logo + Text");
+    public final ModeValue mode = new ModeValue("Mode", new String[]{"Logo", "Logo + Text"}, "Logo + Text");
     public final TextSetting text = new TextSetting("Text", "Nimbus", null, false, false, null, 32, () -> Core.INSTANCE.isInitialized() && Core.INSTANCE.getConfigManager().clientSettings().customStyle() && ! mode.is("Logo"));
     public final ColorSetting accent = new ColorSetting("Accent", 0xFF52C7B8, () -> Core.INSTANCE.isInitialized() && Core.INSTANCE.getConfigManager().clientSettings().customStyle());
     private final Draggable drag = new Draggable("Watermark", 0.02, 0.02) {

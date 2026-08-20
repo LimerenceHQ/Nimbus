@@ -3,7 +3,7 @@ package cc.nimbus.features.module.modules.player;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -14,7 +14,7 @@ import net.minecraft.world.item.ItemStack;
         category = ModuleCategory.Player
 )
 public final class Teams extends BasicModule {
-    public final ModeSetting mode = new ModeSetting(
+    public final ModeValue mode = new ModeValue(
             "Mode", new String[]{"Color", "Scoreboard", "Armor"}, "Color");
 
     public boolean isSameTeam(Player self, Player target) {

@@ -11,7 +11,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.utils.render.Render2DUtils;
 import cc.nimbus.utils.render.Render3DUtils;
@@ -32,7 +32,7 @@ import java.util.Map;
 @ModuleInfo(name = "ESP", description = "Highlights other players.", category = ModuleCategory.Render)
 public final class ESP extends BasicModule {
     public final BooleanSetting box = new BooleanSetting("Box", true);
-    public final ModeSetting boxMode = new ModeSetting(
+    public final ModeValue boxMode = new ModeValue(
             "Box Mode", new String[]{"Box", "Corner A", "Corner B", "Split"}, "Box", box::getValue
     );
     public final BooleanSetting boxFill = new BooleanSetting("Box Fill", false, box::getValue);

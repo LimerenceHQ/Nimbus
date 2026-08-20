@@ -6,7 +6,7 @@ import cc.nimbus.event.impl.player.EventUpdate;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.modes.Modes;
 import cc.nimbus.features.rotation.*;
@@ -30,7 +30,7 @@ public class AntiCrystal extends BasicModule {
     private final NumberSetting range = new NumberSetting("Range", 4.5, 0, 6, 0.01);
     private final NumberSetting throughRange = new NumberSetting("ThroughWallRange", 2, 0, 6, 0.01);
 
-    private final ModeSetting rotationMode = new ModeSetting("Rotation Mode", new Modes("Instant", "Smooth"));
+    private final ModeValue rotationMode = new ModeValue("Rotation Mode", new Modes("Instant", "Smooth"));
     private final NumberSetting rotateSpeed = new NumberSetting("Rotate Speed", 180, 1, 180, 1, () -> rotationMode.is("Smooth"));
 
     private final List<EndCrystal> crystalTargets = new ArrayList<>();

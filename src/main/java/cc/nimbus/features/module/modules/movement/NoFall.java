@@ -9,7 +9,7 @@ import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.rotation.MovementFix;
 import cc.nimbus.features.rotation.Rotation;
@@ -54,8 +54,8 @@ public final class NoFall extends BasicModule {
             Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST
     };
 
-    public final ModeSetting mode = new ModeSetting("Mode", new String[]{"MLG"}, "MLG");
-    public final ModeSetting distanceMode = new ModeSetting("Fall Distance Mode", new String[]{"Safe Distance", "Custom"}, "Safe Distance");
+    public final ModeValue mode = new ModeValue("Mode", new String[]{"MLG"}, "MLG");
+    public final ModeValue distanceMode = new ModeValue("Fall Distance Mode", new String[]{"Safe Distance", "Custom"}, "Safe Distance");
     public final NumberSetting fallDistance = new NumberSetting("Fall Distance", 3.0, 0.0, 10.0, 0.1, () -> distanceMode.is("Custom"));
 
     private boolean interactRequired = false;

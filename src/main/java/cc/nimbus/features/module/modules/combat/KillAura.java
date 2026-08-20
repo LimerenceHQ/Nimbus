@@ -15,7 +15,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.movement.Scaffold;
@@ -55,10 +55,10 @@ import java.util.function.Predicate;
 )
 public final class KillAura extends BasicModule {
     public final NumberSetting cps = new NumberSetting("CPS", 10, 1, 20, 1);
-    public final ModeSetting switchMode = new ModeSetting("Switch Mode", new String[]{"Single", "Switch"}, "Single");
-    public final ModeSetting priority = new ModeSetting(
+    public final ModeValue switchMode = new ModeValue("Switch Mode", new String[]{"Single", "Switch"}, "Single");
+    public final ModeValue priority = new ModeValue(
             "Priority", new String[]{"Health", "Distance"}, "Health", () -> switchMode.is("Single"));
-    public final ModeSetting swingMode = new ModeSetting("Swing Mode", new String[]{"Off", "Normal", "Silent"}, "Normal");
+    public final ModeValue swingMode = new ModeValue("Swing Mode", new String[]{"Off", "Normal", "Silent"}, "Normal");
     public final NumberSetting searchRange = new NumberSetting("Search Range", 6, 0, 8, 0.01);
     public final NumberSetting rotationRange = new NumberSetting("Rotation Range", 4, 0, 7, 0.01);
     public final NumberSetting attackRange = new NumberSetting("Attack Range", 3, 0, 6, 0.01);
@@ -66,18 +66,18 @@ public final class KillAura extends BasicModule {
     public final NumberSetting throughWallsRange = new NumberSetting(
             "Through Walls Range", 0, 0, 6, 0.01, throughWalls::getValue);
     public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180, 0, 180, 1);
-    public final ModeSetting movementFix = new ModeSetting(
+    public final ModeValue movementFix = new ModeValue(
             "Movement Fix", new String[]{"None", "Strict", "Silent"}, "None");
     public final BooleanSetting stopAttackWhileUsingItem = new BooleanSetting("Stop Attack While Using Item", false);
     public final BooleanSetting stopWhileScaffolding = new BooleanSetting("Stop While Scaffolding", true);
     public final BooleanSetting disableOnWorldChange = new BooleanSetting("Disable On World Change", true);
-    public final ModeSetting keepSprint = new ModeSetting(
+    public final ModeValue keepSprint = new ModeValue(
             "Keep Sprint", new String[]{"Off", "Vanilla", "Legit"}, "Off");
     public final BooleanSetting skipFirstAttack = new BooleanSetting(
             "Skip First Attack", false, () -> keepSprint.is("Legit"));
     public final MultiSelectSetting particles = new MultiSelectSetting(
             "Particles", new String[]{"Critical", "Sharpness"});
-    public final ModeSetting autoBlock = new ModeSetting(
+    public final ModeValue autoBlock = new ModeValue(
             "AutoBlock", new String[]{"Off", "Fake"}, "Off");
 
     public LivingEntity attackTarget;

@@ -9,7 +9,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.rotation.MovementFix;
 import cc.nimbus.features.rotation.Rotation;
@@ -40,12 +40,12 @@ import java.util.List;
 public final class AntiFireball extends BasicModule {
     private final Minecraft minecraft = Minecraft.getInstance();
 
-    public final ModeSetting swingMode = new ModeSetting(
+    public final ModeValue swingMode = new ModeValue(
             "Swing Mode", new String[]{"Off", "Normal", "Silent"}, "Normal");
     public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180.0, 0.0, 180.0, 1.0);
     public final NumberSetting rotationRange = new NumberSetting("Rotation Range", 9.0, 0.0, 20.0, 0.01);
     public final NumberSetting attackRange = new NumberSetting("Attack Range", 6.5, 0.0, 20.0, 0.01);
-    public final ModeSetting movementFix = new ModeSetting(
+    public final ModeValue movementFix = new ModeValue(
             "Movement Fix", new String[]{"None", "Strict", "Silent"}, "None");
     public final BooleanSetting reduceVelocity = new BooleanSetting(
             "Reduce Velocity (Grim false detection)", false);

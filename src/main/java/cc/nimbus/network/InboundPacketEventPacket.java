@@ -1,7 +1,7 @@
 package cc.nimbus.network;
 
-import cc.nimbus.event.EventBus;
-import cc.nimbus.event.impl.network.EventPacketReceive;
+import cc.nimbus.core.Core;
+import cc.nimbus.managers.PacketManager;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketType;
@@ -20,9 +20,10 @@ public final class InboundPacketEventPacket<T extends PacketListener> implements
 
     @Override
     public void handle(T listener) {
-        EventPacketReceive event = EventBus.call(new EventPacketReceive(packet));
-        if (event.isCancel() || event.getPacket() == null) return;
-        handlePacket(event.getPacket(), listener);
+        PacketManager packetManager = Core.INSTANCE.getPacketManager();
+        if (!packetManager.inboundsHook(packet)) return;
+        Packet<?> selected = packetManager.consumeInboundHookPacket();
+        if (selected != null) handlePacket(selected, listener);
     }
 
     @Override

@@ -4,7 +4,7 @@ import cc.nimbus.core.interfaces.InstanceManager;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.game.EventTick;
-import cc.nimbus.event.impl.network.EventPacketSend;
+import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.prediction.PredictiveAction;
@@ -60,7 +60,8 @@ public class GameStateManager implements InstanceManager {
     }
 
     @EventTarget
-    public void onPacket(EventPacketSend event) {
+    public void onPacket(PacketEvent event) {
+        if (!event.isSend()) return;
         if (mc.level == null) {
             return;
         }

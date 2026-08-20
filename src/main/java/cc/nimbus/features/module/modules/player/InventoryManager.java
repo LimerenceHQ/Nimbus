@@ -5,13 +5,13 @@ import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
-import cc.nimbus.event.impl.network.EventPacketSend;
+import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.modes.Modes;
 import cc.nimbus.features.module.modules.combat.KillAura;
@@ -67,9 +67,9 @@ public final class InventoryManager extends BasicModule {
             EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
 
-    public final ModeSetting clickMode = new ModeSetting("Click Mode", new String[]{"Normal", "Packet"}, "Normal");
+    public final ModeValue clickMode = new ModeValue("Click Mode", new String[]{"Normal", "Packet"}, "Normal");
     public final BooleanSetting sortInventory = new BooleanSetting("Sort Inventory", false);
-    public final ModeSetting[] slotTypes = new ModeSetting[10];
+    public final ModeValue[] slotTypes = new ModeValue[10];
     public final NumberSetting sortDelay = new NumberSetting("Sort Delay", 0, 0, 500, 1, sortInventory::getValue);
     public final BooleanSetting throwUseless = new BooleanSetting("Throw Useless Items", false);
     public final NumberSetting throwDelay = new NumberSetting("Throw Delay", 0, 0, 500, 1, throwUseless::getValue);
@@ -100,7 +100,7 @@ public final class InventoryManager extends BasicModule {
 
     public InventoryManager() {
         for (int i = 0; i < 9; i++) {
-            slotTypes[i] = new ModeSetting(
+            slotTypes[i] = new ModeValue(
                     "Slot " + (i + 1),
                     new Modes(SORT_TYPES),
                     DEFAULT_SLOT_TYPES[i],
@@ -109,7 +109,7 @@ public final class InventoryManager extends BasicModule {
             slotTypes[i].bindOptionTranslationScope(SORT_TYPE_TRANSLATION_SCOPE);
             addSetting(slotTypes[i]);
         }
-        slotTypes[9] = new ModeSetting("Offhand", new Modes(SORT_TYPES), "None", sortInventory::getValue);
+        slotTypes[9] = new ModeValue("Offhand", new Modes(SORT_TYPES), "None", sortInventory::getValue);
         slotTypes[9].bindOptionTranslationScope(SORT_TYPE_TRANSLATION_SCOPE);
         addSetting(slotTypes[9]);
     }
@@ -157,7 +157,8 @@ public final class InventoryManager extends BasicModule {
     }
 
     @EventTarget(priority = Priority.Highest)
-    private void onPacketSend(EventPacketSend event) {
+    private void onPacketSend(PacketEvent event) {
+        if (!event.isSend()) return;
         if (!packetClick || !(event.getPacket() instanceof ServerboundContainerClickPacket packet)) return;
         event.cancelEvent();
         PacketUtils.sendPacketNoEvent(packet);

@@ -9,7 +9,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.rotation.MovementFix;
 import cc.nimbus.features.rotation.Rotation;
@@ -60,7 +60,7 @@ public final class BowAssistant extends BasicModule {
     public final BooleanSetting predict = new BooleanSetting("Predict", true, bowAimbot::getValue);
     public final NumberSetting minAimPower = new NumberSetting("Min Aim Power", 0.20, 0.0, 1.0, 0.01, bowAimbot::getValue);
     public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180.0, 0.0, 180.0, 1.0, bowAimbot::getValue);
-    public final ModeSetting movementFix = new ModeSetting("Movement Fix", new String[]{"None", "Strict", "Silent"}, "Silent", bowAimbot::getValue);
+    public final ModeValue movementFix = new ModeValue("Movement Fix", new String[]{"None", "Strict", "Silent"}, "Silent", bowAimbot::getValue);
 
     private AimAction aimAction;
     private LivingEntity target;

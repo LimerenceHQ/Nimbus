@@ -3,7 +3,7 @@ package cc.nimbus.features.module.modules.player;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
-import cc.nimbus.event.impl.network.EventPacketReceive;
+import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
@@ -77,7 +77,8 @@ public final class AntiBot extends BasicModule {
     }
 
     @EventTarget
-    private void onPacket(EventPacketReceive event) {
+    private void onPacket(PacketEvent event) {
+        if (!event.isReceive()) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null) return;
 

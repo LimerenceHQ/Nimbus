@@ -9,7 +9,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.rotation.MovementFix;
 import cc.nimbus.features.rotation.Rotation;
@@ -55,8 +55,8 @@ public final class ProjectileAura extends BasicModule {
     private static final float[] PITCH_OFFSETS = new float[]{-6.0F, -4.0F, -2.0F, -1.0F, 0.0F, 1.0F, 2.0F, 4.0F, 6.0F};
     private static final float[] REFINEMENT_OFFSETS = new float[]{-0.8F, 0.0F, 0.8F};
 
-    public final ModeSetting switchMode = new ModeSetting("Switch Mode", new String[]{"Single", "Switch"}, "Single");
-    public final ModeSetting priority = new ModeSetting("Priority", new String[]{"Health", "Distance"}, "Health", () -> switchMode.is("Single"));
+    public final ModeValue switchMode = new ModeValue("Switch Mode", new String[]{"Single", "Switch"}, "Single");
+    public final ModeValue priority = new ModeValue("Priority", new String[]{"Health", "Distance"}, "Health", () -> switchMode.is("Single"));
     public final BooleanSetting predict = new BooleanSetting("Predict", true);
     public final BooleanSetting snowball = new BooleanSetting("Snowball", true);
     public final BooleanSetting egg = new BooleanSetting("Egg", true);
@@ -64,8 +64,8 @@ public final class ProjectileAura extends BasicModule {
     public final NumberSetting maxRange = new NumberSetting("Max Range", 15.0, 0.0, 20.0, 0.01);
     public final NumberSetting delay = new NumberSetting("Delay", 350.0, 0.0, 3000.0, 50.0);
     public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180.0, 0.0, 180.0, 1.0);
-    public final ModeSetting movementFix = new ModeSetting("Movement Fix", new String[]{"None", "Strict", "Silent"}, "Silent");
-    public final ModeSetting swingMode = new ModeSetting("Swing Mode", new String[]{"Off", "Normal", "Silent"}, "Normal");
+    public final ModeValue movementFix = new ModeValue("Movement Fix", new String[]{"None", "Strict", "Silent"}, "Silent");
+    public final ModeValue swingMode = new ModeValue("Swing Mode", new String[]{"Off", "Normal", "Silent"}, "Normal");
 
     private long lastThrowTime;
     private ThrowAction throwAction;

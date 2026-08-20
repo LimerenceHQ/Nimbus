@@ -1,6 +1,5 @@
 package cc.nimbus.utils.network;
 
-import cc.nimbus.utils.network.access.ConnectionPacketAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
@@ -34,14 +33,14 @@ public final class PacketUtils {
     public static void sendPacketNoEvent(Packet<?> packet) {
         Connection connection = connection();
         if (connection != null && packet != null) {
-            ((ConnectionPacketAccess) connection).nimbus$sendPacketNoEvent(packet);
+            ConnectionUtils.sendPacketNoEvent(connection, packet);
         }
     }
 
     public static void receivePacketNoEvent(Packet<?> packet) {
         Connection connection = connection();
         if (connection != null && packet != null) {
-            ((ConnectionPacketAccess) connection).nimbus$receivePacketNoEvent(packet);
+            ConnectionUtils.receivePacketNoEvent(connection,packet);
         }
     }
 

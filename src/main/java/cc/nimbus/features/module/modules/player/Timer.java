@@ -7,7 +7,7 @@ import cc.nimbus.event.impl.player.EventUpdate;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.managers.GameStateManager;
@@ -16,10 +16,10 @@ import org.lwjgl.glfw.GLFW;
 
 @ModuleInfo(name = "Timer", description = "Speeds up your game ticks.", category = ModuleCategory.Player)
 public class Timer extends BasicModule {
-    private final ModeSetting mode = new ModeSetting("Mode", new String[]{"Always", "SlowBalance"}, "Always");
+    private final ModeValue mode = new ModeValue("Mode", new String[]{"Always", "SlowBalance"}, "Always");
     private final NumberSetting timerSpeed = new NumberSetting("Timer Speed", 2.0, 0.1, 10.0, 0.1);
     private final NumberSetting ticks = new NumberSetting("Max Balance", 8.0, 1.0, 20.0, 1.0,() -> mode.is("SlowBalance"));
-    private final ModeSetting keyMode = new ModeSetting("Key Mode", new String[]{"Middle", "Mouse3", "Mouse4"}, "Middle",() -> mode.is("SlowBalance"));
+    private final ModeValue keyMode = new ModeValue("Key Mode", new String[]{"Middle", "Mouse3", "Mouse4"}, "Middle",() -> mode.is("SlowBalance"));
 
     private float balance = 0.0F;
 

@@ -3,12 +3,15 @@ package cc.nimbus.features.module.api.setting;
 import cc.nimbus.utils.i18n.I18nKeys;
 
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Supplier;
 
 public class Setting<V> {
     private final String name;
     private V value;
     private final Supplier<Boolean> visibility;
+    private final List<Supplier<Boolean>> visibilityConditions = new ArrayList<>();
     private String translationKey;
     private String optionTranslationScope;
     private Runnable changeListener = () -> {};
@@ -20,7 +23,15 @@ public class Setting<V> {
     }
 
     public boolean isHidden() {
-        return !visibility.get();
+        if (!visibility.get()) return true;
+        for (Supplier<Boolean> condition : visibilityConditions) {
+            if (!condition.get()) return true;
+        }
+        return false;
+    }
+
+    public final void addVisibilityCondition(Supplier<Boolean> condition) {
+        if (condition != null) visibilityConditions.add(condition);
     }
 
     public V getValue() {

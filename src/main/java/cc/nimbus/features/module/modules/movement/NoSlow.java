@@ -4,14 +4,13 @@ import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.game.EventClick;
 import cc.nimbus.event.impl.game.EventTick;
-import cc.nimbus.event.impl.network.EventPacketReceive;
-import cc.nimbus.event.impl.network.EventPacketSend;
+import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.event.impl.player.EventMotion;
 import cc.nimbus.event.impl.player.EventSlowDown;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.player.GhostHand;
@@ -45,7 +44,7 @@ public class NoSlow extends BasicModule {
     private static final BlockPos SWAP_POS = BlockPos.ZERO;
     private static final Direction SWAP_DIRECTION = Direction.DOWN;
 
-    private final ModeSetting mode = new ModeSetting("Mode", new String[]{"Normal", "GrimFull"}, "Normal");
+    private final ModeValue mode = new ModeValue("Mode", new String[]{"Normal", "GrimFull"}, "Normal");
     private final NumberSetting releaseTick = new NumberSetting("Release Ticks", 32.0, 0.0, 150.0, 1.0,() -> mode.is("GrimFull"));
     private final LinkedBlockingDeque<Packet<ClientGamePacketListener>> inBound = new LinkedBlockingDeque<>();
     private final TimerUtils timer = new TimerUtils();
@@ -116,7 +115,8 @@ public class NoSlow extends BasicModule {
         }
     }
     @EventTarget
-    public void onPacketReceive(EventPacketReceive event) {
+    public void onPacketReceive(PacketEvent event) {
+        if (!event.isReceive()) return;
         if (mc.player == null || mc.level == null || mc.getConnection() == null || !mode.is("GrimFull")) {
             return;
         }
@@ -147,7 +147,8 @@ public class NoSlow extends BasicModule {
 
     }
     @EventTarget
-    public void onPacketSend(EventPacketSend event) {
+    public void onPacketSend(PacketEvent event) {
+        if (!event.isSend()) return;
         if (mc.player == null || mc.level == null || mc.getConnection() == null || !mode.is("GrimFull")) {
             return;
         }

@@ -6,14 +6,12 @@ import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
-import cc.nimbus.event.impl.network.EventPacketReceive;
-import cc.nimbus.event.impl.network.EventPacketSend;
+import cc.nimbus.event.impl.network.PacketEvent;
+import cc.nimbus.utils.network.ConcurrentPacketQueue;
 import cc.nimbus.utils.network.PacketUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.Packet;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -22,11 +20,13 @@ public final class PacketManager implements InstanceManager {
     public static final int DEFAULT_CAPACITY = 131_072;
 
     private final Minecraft minecraft;
-    private final PacketQueue inbound;
-    private final PacketQueue outbound;
+    private final ConcurrentPacketQueue inbound;
+    private final ConcurrentPacketQueue outbound;
     private volatile boolean inboundFrozen;
     private volatile boolean outboundFrozen;
-    private volatile int internalTimer;
+    private int internalTimer;
+    private boolean capturedThisCycle;
+    private final ThreadLocal<Packet<?>> inboundHookPacket = new ThreadLocal<>();
 
     public PacketManager(Minecraft minecraft) {
         this(minecraft, DEFAULT_CAPACITY);
@@ -35,8 +35,8 @@ public final class PacketManager implements InstanceManager {
     public PacketManager(Minecraft minecraft, int capacity) {
         this.minecraft = Objects.requireNonNull(minecraft, "minecraft");
         if (capacity < 2) throw new IllegalArgumentException("capacity must be at least 2");
-        this.inbound = new PacketQueue(capacity);
-        this.outbound = new PacketQueue(capacity);
+        this.inbound = new ConcurrentPacketQueue(capacity);
+        this.outbound = new ConcurrentPacketQueue(capacity);
     }
 
     @Override
@@ -52,7 +52,7 @@ public final class PacketManager implements InstanceManager {
     }
 
     public void freeze(PacketDirection direction) {
-        switch (Objects.requireNonNull(direction, "direction")) {
+        switch (direction) {
             case INBOUND -> inboundFrozen = true;
             case OUTBOUND -> outboundFrozen = true;
             case BOTH -> {
@@ -63,20 +63,24 @@ public final class PacketManager implements InstanceManager {
     }
 
     public void dispatch(PacketDirection direction) {
-        switch (Objects.requireNonNull(direction, "direction")) {
+        switch (direction) {
             case INBOUND -> {
+                List<Packet<?>> packets = inbound.drain();
                 inboundFrozen = false;
-                replay(inbound, PacketUtils::receivePacketNoEvent);
+                packets.forEach(PacketUtils::receivePacketNoEvent);
             }
             case OUTBOUND -> {
+                List<Packet<?>> packets = outbound.drain();
                 outboundFrozen = false;
-                replay(outbound, PacketUtils::sendPacketNoEvent);
+                packets.forEach(this::send);
             }
             case BOTH -> {
-                outboundFrozen = false;
+                List<Packet<?>> out = outbound.drain();
+                List<Packet<?>> in = inbound.drain();
                 inboundFrozen = false;
-                replay(outbound, PacketUtils::sendPacketNoEvent);
-                replay(inbound, PacketUtils::receivePacketNoEvent);
+                outboundFrozen = false;
+                out.forEach(this::send);
+                in.forEach(PacketUtils::receivePacketNoEvent);
             }
         }
     }
@@ -87,14 +91,17 @@ public final class PacketManager implements InstanceManager {
 
     public void poll(PacketDirection direction, boolean flush, int count) {
         int limit = flush ? Integer.MAX_VALUE : count;
-        if (limit <= 0) return;
+        if (limit <= 0) {
+            return;
+        }
 
-        switch (Objects.requireNonNull(direction, "direction")) {
-            case INBOUND -> inbound.drain(Math.min(limit, inbound.size()), PacketUtils::receivePacketNoEvent);
-            case OUTBOUND -> outbound.drain(Math.min(limit, outbound.size()), PacketUtils::sendPacketNoEvent);
+        Consumer<Packet<?>> inHandler = PacketUtils::receivePacketNoEvent;
+        switch (direction) {
+            case INBOUND -> inbound.drainN(limit, inHandler);
+            case OUTBOUND -> outbound.drainN(limit, this::send);
             case BOTH -> {
-                inbound.drain(Math.min(limit, inbound.size()), PacketUtils::receivePacketNoEvent);
-                outbound.drain(Math.min(limit, outbound.size()), PacketUtils::sendPacketNoEvent);
+                inbound.drainN(limit, inHandler);
+                outbound.drainN(limit, this::send);
             }
         }
     }
@@ -116,6 +123,9 @@ public final class PacketManager implements InstanceManager {
     }
 
     public Packet<?> peek(PacketDirection direction) {
+        if (direction == PacketDirection.BOTH) {
+            throw new IllegalArgumentException("peek does not support BOTH");
+        }
         return queue(direction).peek();
     }
 
@@ -135,20 +145,133 @@ public final class PacketManager implements InstanceManager {
         internalTimer = 0;
     }
 
-    @EventTarget(priority = Priority.Lowest)
-    private void onPacketReceive(EventPacketReceive event) {
-        if (!inboundFrozen || event.getPacket() == null || PacketUtils.isEssential(event.getPacket())) return;
-        if (enqueueOrFlush(inbound, event.getPacket(), PacketUtils::receivePacketNoEvent)) {
-            event.cancelEvent();
+    public PacketEvent process(Packet<?> packet, PacketEvent.PacketState state) {
+        PacketEvent event = EventBus.call(new PacketEvent(packet, state));
+        if (!event.isCancel()) {
+            capture(event);
+        }
+        return event;
+    }
+
+    public boolean inboundsHook(Packet<?> packet) {
+        try {
+            capturedThisCycle = false;
+            inboundHookPacket.remove();
+            PacketEvent event = new PacketEvent(packet, PacketEvent.PacketState.RECEIVE);
+            EventBus.call(event);
+            if (capturedThisCycle || event.isCancel()) {
+                return false;
+            }
+            Packet<?> current = event.getPacket();
+            if (current == null) return false;
+            if (inboundFrozen && !PacketUtils.isEssential(current)) {
+                if (!inbound.enqueue(current, internalTimer)) {
+                    System.err.println("Packet queue is full, this shouldn't happen!");
+                    dispatch(PacketDirection.INBOUND);
+                    inboundHookPacket.set(current);
+                    return true;
+                }
+                return false;
+            }
+            inboundHookPacket.set(current);
+            return true;
+        } catch (Exception exception) {
+            System.err.println("[CentralPacketPipeline] inboundsHook exception on: " + packet.getClass().getSimpleName());
+            exception.printStackTrace();
+            inboundHookPacket.set(packet);
+            return true;
         }
     }
 
-    @EventTarget(priority = Priority.Lowest)
-    private void onPacketSend(EventPacketSend event) {
-        if (!outboundFrozen || event.getPacket() == null || PacketUtils.isEssential(event.getPacket())) return;
-        if (enqueueOrFlush(outbound, event.getPacket(), PacketUtils::sendPacketNoEvent)) {
-            event.cancelEvent();
+    /** Returns and clears a replacement selected by the most recent inbound hook. */
+    public Packet<?> consumeInboundHookPacket() {
+        Packet<?> packet = inboundHookPacket.get();
+        inboundHookPacket.remove();
+        return packet;
+    }
+
+    public boolean outboundsHook(Packet<?> packet) {
+        try {
+            Packet<?> current = packet;
+            Packet<?> original = packet;
+
+            int limit = 16;
+            for (int i = 0; i < limit; i++) {
+                capturedThisCycle = false;
+                PacketEvent event = new PacketEvent(current, PacketEvent.PacketState.SEND);
+                EventBus.call(event);
+                if (capturedThisCycle || event.isCancel()) {
+                    return false;
+                }
+
+                Packet<?> next = event.getPacket();
+                if (next == current) {
+                    break;
+                }
+                current = next;
+            }
+
+            if (current != original) {
+                if (outboundFrozen && !PacketUtils.isEssential(current)) {
+                    if (!outbound.enqueue(current, internalTimer)) {
+                        System.err.println("Packet queue is full, this shouldn't happen!");
+                        dispatch(PacketDirection.OUTBOUND);
+                        send(current);
+                        return false;
+                    }
+                    return false;
+                }
+                send(current);
+                return false;
+            }
+
+            if (outboundFrozen && !PacketUtils.isEssential(original)) {
+                if (!outbound.enqueue(original, internalTimer)) {
+                    System.err.println("Packet queue is full, this shouldn't happen!");
+                    dispatch(PacketDirection.OUTBOUND);
+                    return true;
+                }
+                return false;
+            }
+            return true;
+        } catch (Exception exception) {
+            System.err.println("[CentralPacketPipeline] outboundsHook exception on: " + packet.getClass().getSimpleName());
+            exception.printStackTrace();
+            return true;
         }
+    }
+
+    public void capture(PacketEvent event) {
+        if (capturedThisCycle) {
+            throw new IllegalStateException("Already captured");
+        }
+        if (event.isCancel()) {
+            throw new IllegalStateException("Trying to capture a cancelled packet");
+        }
+
+        PacketDirection direction = event.getPacketState() == PacketEvent.PacketState.RECEIVE
+                ? PacketDirection.INBOUND : PacketDirection.OUTBOUND;
+
+        if (direction == PacketDirection.INBOUND && !inboundFrozen) {
+            throw new IllegalStateException("Capture INBOUNDS without freeze");
+        }
+        if (direction == PacketDirection.OUTBOUND && !outboundFrozen) {
+            throw new IllegalStateException("Capture OUTBOUNDS without freeze");
+        }
+
+        if (!queue(direction).enqueue(event.getPacket(), internalTimer)) {
+            System.err.println("Packet queue is full, this shouldn't happen!");
+            dispatch(direction);
+            if (direction == PacketDirection.INBOUND) {
+                PacketUtils.receivePacketNoEvent(event.getPacket());
+            } else {
+                send(event.getPacket());
+            }
+            return;
+        }
+
+        capturedThisCycle = true;
+        event.setCancel(true);
     }
 
     @EventTarget(priority = Priority.Lowest)
@@ -161,74 +284,11 @@ public final class PacketManager implements InstanceManager {
         cleanup();
     }
 
-    private boolean enqueueOrFlush(PacketQueue queue, Packet<?> packet, Consumer<Packet<?>> fallback) {
-        if (packet == null) return false;
-        if (queue.offer(packet, internalTimer)) return true;
-        queue.drain(Integer.MAX_VALUE, fallback);
-        fallback.accept(packet);
-        return false;
+    private ConcurrentPacketQueue queue(PacketDirection direction) {
+        return direction == PacketDirection.INBOUND ? inbound : outbound;
     }
 
-    private void replay(PacketQueue queue, Consumer<Packet<?>> handler) {
-        queue.drain(Integer.MAX_VALUE, handler);
-    }
-
-    private PacketQueue queue(PacketDirection direction) {
-        return switch (Objects.requireNonNull(direction, "direction")) {
-            case INBOUND -> inbound;
-            case OUTBOUND -> outbound;
-            case BOTH -> throw new IllegalArgumentException("BOTH is not valid for a single queue");
-        };
-    }
-
-    private static final class PacketQueue {
-        private final int capacity;
-        private final ArrayDeque<Entry> packets;
-
-        private PacketQueue(int capacity) {
-            this.capacity = capacity;
-            this.packets = new ArrayDeque<>(capacity);
-        }
-
-        private synchronized boolean offer(Packet<?> packet, int tick) {
-            if (packets.size() >= capacity) return false;
-            packets.addLast(new Entry(packet, tick));
-            return true;
-        }
-
-        private synchronized Packet<?> take() {
-            Entry entry = packets.pollFirst();
-            return entry == null ? null : entry.packet();
-        }
-
-        private synchronized Packet<?> peek() {
-            Entry entry = packets.peekFirst();
-            return entry == null ? null : entry.packet();
-        }
-
-        private synchronized int peekTick() {
-            Entry entry = packets.peekFirst();
-            return entry == null ? -1 : entry.tick();
-        }
-
-        private synchronized int size() {
-            return packets.size();
-        }
-
-        private void drain(int limit, Consumer<Packet<?>> handler) {
-            List<Packet<?>> drained = new ArrayList<>();
-            synchronized (this) {
-                int amount = Math.min(Math.max(limit, 0), packets.size());
-                for (int index = 0; index < amount; index++) drained.add(packets.removeFirst().packet());
-            }
-            drained.forEach(handler);
-        }
-
-        private synchronized void clear() {
-            packets.clear();
-        }
-
-        private record Entry(Packet<?> packet, int tick) {
-        }
+    private void send(Packet<?> packet) {
+        PacketUtils.sendPacketNoEvent(packet);
     }
 }

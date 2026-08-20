@@ -11,7 +11,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.ModeSetting;
+import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.movement.scaffold.FallingPlayer;
 import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceInfo;
@@ -71,13 +71,13 @@ import java.util.Set;
 public final class Scaffold extends BasicModule {
     private static final Set<Block> BLACKLISTED_BLOCKS = Set.of(Blocks.TNT);
 
-    public final ModeSetting searchMode = new ModeSetting(
+    public final ModeValue searchMode = new ModeValue(
             "Search Mode", new String[]{"Normal", "Hypixel"}, "Normal");
-    public final ModeSetting mode = new ModeSetting(
+    public final ModeValue mode = new ModeValue(
             "Mode", new String[]{"Normal", "Telly"}, "Normal");
-    public final ModeSetting rotatePoint = new ModeSetting(
+    public final ModeValue rotatePoint = new ModeValue(
             "Rotate Point", new String[]{"Normal", "Corner", "Nearest"}, "Normal");
-    public final ModeSetting rotationMode = new ModeSetting(
+    public final ModeValue rotationMode = new ModeValue(
             "Rotation Mode", new String[]{"Instant", "Smooth", "Hypixel"}, "Instant");
     public final NumberSetting rotateSpeed = new NumberSetting(
             "Rotate Speed", 180.0, 1.0, 180.0, 1.0, () -> rotationMode.is("Smooth"));
@@ -89,7 +89,7 @@ public final class Scaffold extends BasicModule {
             "Max Jump Delay", 2.0, 0.0, 3.0, 1.0, () -> mode.is("Telly"));
     public final NumberSetting jumpDelayMin = new NumberSetting(
             "Min Jump Delay", 1.0, 0.0, 3.0, 1.0, () -> mode.is("Telly"));
-    public final ModeSetting raycast = new ModeSetting(
+    public final ModeValue raycast = new ModeValue(
             "Raycast", new String[]{"Normal", "Medium", "Off"}, "Normal");
     public final NumberSetting placeDelayMin = new NumberSetting(
             "Min Place Delay", 0.0, 0.0, 200.0, 1.0);
@@ -98,7 +98,7 @@ public final class Scaffold extends BasicModule {
     public final BooleanSetting autoStuck = new BooleanSetting("Auto Stuck", true);
     public final BooleanSetting slow = new BooleanSetting(
             "Slow Hypixel Rotation", false, () -> rotationMode.is("Hypixel"));
-    public final ModeSetting placeDelayMode = new ModeSetting(
+    public final ModeValue placeDelayMode = new ModeValue(
             "Placeable Mode", new String[]{"Check Height", "Check Tick", "Off"}, "Check Height",
             () -> mode.is("Telly") && !rotationMode.is("Hypixel"));
     public final NumberSetting height = new NumberSetting(

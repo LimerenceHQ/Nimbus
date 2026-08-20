@@ -4,8 +4,7 @@ import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
-import cc.nimbus.event.impl.network.EventPacketReceive;
-import cc.nimbus.event.impl.network.EventPacketSend;
+import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.event.impl.player.EventMotion;
 import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.event.impl.player.EventTravel;
@@ -115,7 +114,8 @@ public final class Stuck extends BasicModule {
     }
 
     @EventTarget(priority = Priority.Highest)
-    private void onPacketSend(EventPacketSend event) {
+    private void onPacketSend(PacketEvent event) {
+        if (!event.isSend()) return;
         if (event.getPacket() instanceof ServerboundUseItemPacket useItem) {
             release(useItem.getHand());
             return;
@@ -132,7 +132,8 @@ public final class Stuck extends BasicModule {
     }
 
     @EventTarget
-    private void onPacketReceive(EventPacketReceive event) {
+    private void onPacketReceive(PacketEvent event) {
+        if (!event.isReceive()) return;
         if (event.getPacket() instanceof ClientboundPlayerPositionPacket) {
             Minecraft.getInstance().execute(() -> {
                 if (isEnabled()) setEnabled(false);
