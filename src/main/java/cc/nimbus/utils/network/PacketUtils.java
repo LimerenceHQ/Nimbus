@@ -44,6 +44,17 @@ public final class PacketUtils {
         }
     }
 
+    /**
+     * Protocol transition packets must stay on Netty's connection thread.
+     * Scheduling these through the client packet processor can mutate the
+     * compression/codec pipeline after its handler context has changed.
+     */
+    public static boolean isProtocolControl(Packet<?> packet) {
+        return packet instanceof ClientboundLoginCompressionPacket
+                || packet instanceof ClientboundLoginFinishedPacket
+                || packet instanceof ClientboundFinishConfigurationPacket;
+    }
+
     public static boolean isEssential(Packet<?> packet) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return true;

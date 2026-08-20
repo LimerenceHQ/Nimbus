@@ -8,8 +8,10 @@ import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.features.module.api.setting.impl.submodule.Mode;
 import cc.nimbus.features.module.modules.combat.velocitys.Legit;
-import cc.nimbus.features.rotation.*;
 import cc.nimbus.managers.GameStateManager;
+import cc.nimbus.managers.rotation.MovementFix;
+import cc.nimbus.managers.rotation.Rotation;
+import cc.nimbus.managers.rotation.SmoothMode;
 import cc.nimbus.utils.client.IMinecraft;
 import cc.nimbus.utils.entity.rotation.RotationUtils;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
@@ -32,7 +34,6 @@ public class JumpReset extends Mode<Legit> implements IMinecraft {
         if (mc.player == null || event.getPacketState() != PacketEvent.PacketState.RECEIVE) {
             return;
         }
-
         if (event.getPacket() instanceof ClientboundSetEntityMotionPacket packet && getParent().isValidVelocityPacket(packet)) {
             double velocityX = packet.getMovement().x / 8000.0;
             double velocityZ = packet.getMovement().z / 8000.0;
@@ -45,12 +46,9 @@ public class JumpReset extends Mode<Legit> implements IMinecraft {
     @EventTarget
     public void onRotation(EventRotation event) {
         if (mc.player == null || mc.getConnection() == null || mc.gameMode == null) return;
-
         if (getParent().needHandleRotation) {
             if (mc.player.onGround() && Math.abs(finalRotation.difference) <= 45F) {
-                Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
-                        finalRotation.rotation(), RotationPriority.VERY_HIGH, MovementFix.SILENT,
-                        true, SmoothMode.ADVANCED, 180.0f, 0, 0));
+                Core.INSTANCE.getRotationManager().setRotations(finalRotation.rotation, MovementFix.SILENT, false, SmoothMode.ADVANCED, 180F, 0, 0, cc.nimbus.managers.rotation.Priority.VERY_HIGH);
             }
             getParent().needHandleRotation = false;
         }
@@ -79,13 +77,13 @@ public class JumpReset extends Mode<Legit> implements IMinecraft {
         if (mc.player == null) return null;
 
         float targetYaw = rotation.yaw();
-        Rotation oppositeRotation = new Rotation(targetYaw,Core.INSTANCE.getRotationManager().getCurrentRotation().pitch());
+        Rotation oppositeRotation = new Rotation(targetYaw,Core.INSTANCE.getRotationManager().getEffectiveRotation().pitch());
         return new RotationData(oppositeRotation,0);
     }
 
     public float[] computeMovementForward(Rotation targetRotation, float rotationDifference) {
         float deltaYaw = Mth.wrapDegrees(
-                targetRotation.yaw() - Core.INSTANCE.getRotationManager().getCurrentRotation().yaw()
+                targetRotation.yaw() - Core.INSTANCE.getRotationManager().getEffectiveRotation().yaw()
         );
 
         if (rotationDifference > 22.5f) {

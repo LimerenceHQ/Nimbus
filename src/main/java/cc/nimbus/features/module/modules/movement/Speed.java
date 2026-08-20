@@ -14,8 +14,11 @@ import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.combat.Velocity;
 import cc.nimbus.features.module.modules.combat.velocitys.Legit;
-import cc.nimbus.features.rotation.*;
 import cc.nimbus.managers.GameStateManager;
+import cc.nimbus.managers.rotation.MovementFix;
+import cc.nimbus.managers.rotation.Priority;
+import cc.nimbus.managers.rotation.Rotation;
+import cc.nimbus.managers.rotation.SmoothMode;
 import cc.nimbus.utils.entity.player.MovementUtils;
 import net.minecraft.util.Mth;
 
@@ -44,25 +47,25 @@ public class Speed extends BasicModule {
     @EventTarget
     public void onTick(EventTick event){
         if (!event.isPre()) return;
-        RotationPriority priority = RotationPriority.VERY_LOW;
+        Priority priority = Priority.VERY_LOW;
         boolean active = ((mc.options.keyJump.isDown() || !onlyWhenSpace.getValue()) && MovementUtils.isMoving()) && !Core.INSTANCE.getModuleManager().getModule(Scaffold.class).isEnabled();
 
         if (Core.INSTANCE.getModuleManager().getModule(KillAura.class).attackTarget != null){
-            priority = mc.player.onGround() ? RotationPriority.VERY_HIGH : RotationPriority.VERY_LOW;
+            priority = mc.player.onGround() ? Priority.VERY_HIGH : Priority.VERY_LOW;
         }
 
         if (active) {
             Rotation rotation = new Rotation(getPlayerYaw() + (mc.player.onGround() ? 0 : -45), Core.INSTANCE.getRotationManager().getServerRotation().pitch()).normalized();
-            Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
+            Core.INSTANCE.getRotationManager().setRotations(
                     rotation,
-                    priority,
                     MovementFix.SILENT,
                     false,
                     SmoothMode.ADVANCED,
                     180F,
                     0,
-                    2
-            ));
+                    2,
+                    priority
+            );
         }
     }
 

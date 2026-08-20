@@ -1,4 +1,4 @@
-package cc.nimbus.features.rotation;
+package cc.nimbus.managers.rotation;
 
 import net.minecraft.util.Mth;
 

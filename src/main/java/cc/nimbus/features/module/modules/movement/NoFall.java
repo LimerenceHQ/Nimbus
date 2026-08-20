@@ -11,12 +11,7 @@ import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
-import cc.nimbus.features.rotation.MovementFix;
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
-import cc.nimbus.features.rotation.RotationPriority;
-import cc.nimbus.features.rotation.RotationRequest;
-import cc.nimbus.features.rotation.SmoothMode;
+import cc.nimbus.managers.rotation.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -109,7 +104,6 @@ public final class NoFall extends BasicModule {
         restoreSlot();
         clearPendingAction();
         clearLadderPlan();
-        cancelRotation();
     }
 
     @EventTarget
@@ -259,7 +253,7 @@ public final class NoFall extends BasicModule {
         pendingRotation = rotation;
         pendingHit = hit;
         interactRequired = true;
-        submitRotation(rotation, 1, MovementFix.SILENT, RotationPriority.HIGH);
+        submitRotation(rotation, 1, MovementFix.SILENT, Priority.HIGH);
     }
 
     private void performPendingAction() {
@@ -873,17 +867,13 @@ public final class NoFall extends BasicModule {
     }
 
     private void submitRotation(Rotation rotation, int keepTicks, MovementFix movementFix) {
-        submitRotation(rotation, keepTicks, movementFix, RotationPriority.HIGH);
+        submitRotation(rotation, keepTicks, movementFix, Priority.HIGH);
     }
 
     private void submitRotation(Rotation rotation, int keepTicks, MovementFix movementFix,
-                                RotationPriority priority) {
-        Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
-                rotation, priority, movementFix, true, SmoothMode.ADVANCED,
-                180.0f, keepTicks, 0));
-    }
-
-    private void cancelRotation() {
-        if (Core.INSTANCE.isInitialized()) Core.INSTANCE.getRotationManager().cancel(this);
+                                Priority priority) {
+        Core.INSTANCE.getRotationManager().setRotations(
+                rotation, movementFix, true, SmoothMode.ADVANCED,
+                180.0f, keepTicks, 0, priority);
     }
 }

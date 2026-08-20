@@ -16,12 +16,10 @@ import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.combat.AutoTrap;
 import cc.nimbus.features.module.modules.movement.Scaffold;
-import cc.nimbus.features.rotation.MovementFix;
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
-import cc.nimbus.features.rotation.RotationPriority;
-import cc.nimbus.features.rotation.RotationRequest;
-import cc.nimbus.features.rotation.SmoothMode;
+import cc.nimbus.managers.rotation.MovementFix;
+import cc.nimbus.managers.rotation.Rotation;
+import cc.nimbus.managers.rotation.RotationMath;
+import cc.nimbus.managers.rotation.SmoothMode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -802,17 +800,16 @@ public final class FireGuard extends BasicModule {
             case "Silent" -> MovementFix.SILENT;
             default -> MovementFix.NONE;
         };
-        Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
+        Core.INSTANCE.getRotationManager().setRotations(
                 rotation,
-                RotationPriority.MEDIUM,
                 moveFix,
                 false,
                 SmoothMode.ADVANCED,
                 rotationSpeed.getValue().floatValue(),
                 0,
                 0,
-                false
-        ));
+                cc.nimbus.managers.rotation.Priority.MEDIUM
+        );
     }
 
     private void swing() {
@@ -863,7 +860,6 @@ public final class FireGuard extends BasicModule {
         fireAction = null;
         waterAction = null;
         pickupAction = null;
-        if (Core.INSTANCE.isInitialized()) Core.INSTANCE.getRotationManager().cancel(this);
     }
 
     private int findHotbarSlot(Item item) {

@@ -10,6 +10,7 @@ import cc.nimbus.features.module.modules.combat.velocitys.legitVelocity.Delay;
 import cc.nimbus.features.module.modules.combat.velocitys.legitVelocity.JumpReset;
 import cc.nimbus.features.module.modules.combat.velocitys.legitVelocity.Reduce;
 import cc.nimbus.utils.client.IMinecraft;
+import cc.nimbus.utils.client.MessageUtils;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.world.effect.MobEffects;
@@ -70,23 +71,7 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
     }
 
     public boolean isValidVelocityPacket(ClientboundSetEntityMotionPacket packet) {
-        if (mc.player == null || packet.getId() != mc.player.getId()) {
-            return false;
-        }
-
-        double velocityX = packet.getMovement().x / 8000.0;
-        double velocityY = packet.getMovement().y / 8000.0;
-        double velocityZ = packet.getMovement().z / 8000.0;
-
-        boolean falling = velocityY <= 0.0;
-        double strength = new Vec3(velocityX, 0, velocityZ).length();
-        boolean lowStrength = strength < 0.1;
-
-        return !falling
-                && !lowStrength
-                && !mc.player.onClimbable()
-                && !mc.player.isInWater()
-                && !mc.player.isInLava();
+        return mc.player != null && packet.getId() == mc.player.getId();
     }
 
     public boolean cantSprint() {

@@ -3,13 +3,11 @@ package cc.nimbus.features.module.modules.combat;
 import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.component.EventTarget;
-import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventClick;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.event.impl.player.EventAttack;
 import cc.nimbus.event.impl.player.EventMotion;
-import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.event.impl.player.EventUpdate;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
@@ -19,17 +17,10 @@ import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.movement.Scaffold;
-import cc.nimbus.features.rotation.MovementFix;
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
-import cc.nimbus.features.rotation.RotationPriority;
-import cc.nimbus.features.rotation.RotationRaycast;
-import cc.nimbus.features.rotation.RotationRequest;
-import cc.nimbus.features.rotation.SmoothMode;
+import cc.nimbus.managers.rotation.*;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import cc.nimbus.managers.RotationManager;
 import cc.nimbus.managers.TargetManager;
-import cc.nimbus.utils.entity.rotation.RotationUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.network.protocol.game.ServerboundSwingPacket;
@@ -37,16 +28,13 @@ import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUseAnimation;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.*;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Predicate;
 
 @ModuleInfo(
         name = "KillAura",
@@ -161,7 +149,6 @@ public final class KillAura extends BasicModule {
         updateTargets();
         if (attackTarget == null) {
             firstAttack = false;
-            Core.INSTANCE.getRotationManager().cancel(this);
             stopBlocking();
             return;
         }
@@ -169,21 +156,12 @@ public final class KillAura extends BasicModule {
 
         RotationMath.AimPoint point = aimPoint(attackTarget);
         if (!point.exists() || point.distance() > rotationRange.getValue().doubleValue()) {
-            Core.INSTANCE.getRotationManager().cancel(this);
             stopBlocking();
             return;
         }
         requestedRotation = RotationMath.toRotation(minecraft.player.getEyePosition(), point.point());
-        Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
-                requestedRotation,
-                RotationPriority.MEDIUM,
-                selectedMovementFix(),
-                true,
-                SmoothMode.ADVANCED,
-                rotationSpeed.getValue().floatValue(),
-                0,
-                2
-        ));
+        Core.INSTANCE.getRotationManager().setRotations(requestedRotation,selectedMovementFix(),true, SmoothMode.ADVANCED,rotationSpeed.getValue().floatValue(),0,0, Priority.MEDIUM);
+
         if (autoBlock.is("Fake")) renderBlocking = holdingSword();
     }
 
@@ -351,7 +329,6 @@ public final class KillAura extends BasicModule {
     }
 
     private void resetState(boolean releaseRotation) {
-        if (releaseRotation && Core.INSTANCE.isInitialized()) Core.INSTANCE.getRotationManager().cancel(this);
         stopBlocking();
         attackTarget = null;
         searchedTargets = List.of();

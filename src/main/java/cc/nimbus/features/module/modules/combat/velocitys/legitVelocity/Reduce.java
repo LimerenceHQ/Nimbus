@@ -11,9 +11,10 @@ import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.Mode;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.modules.combat.velocitys.Legit;
-import cc.nimbus.features.rotation.RotationRaycast;
+import cc.nimbus.managers.rotation.RotationRaycast;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import cc.nimbus.utils.client.IMinecraft;
+import cc.nimbus.utils.client.MessageUtils;
 import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
@@ -51,6 +52,7 @@ public class Reduce extends Mode<Legit> implements IMinecraft {
                     mc.player.setSprinting(false);
                 }
                 mc.player.swing(InteractionHand.MAIN_HAND);
+                MessageUtils.addMessage("Attack");
             }
         }
     }
@@ -64,12 +66,12 @@ public class Reduce extends Mode<Legit> implements IMinecraft {
 
     private Player getRayCastPlayer() {
         EntityHitResult hitResult = RotationRaycast.rayCastEntity(
-                Core.INSTANCE.getRotationManager().getCurrentRotation(), attackRange.getValue().doubleValue(), false);
+                Core.INSTANCE.getRotationManager().getEffectiveRotation(), attackRange.getValue().doubleValue(), false);
 
         if (!(hitResult != null && hitResult.getType() == HitResult.Type.ENTITY)
                 && throughRange.getValue().doubleValue() > 0) {
             hitResult = RotationRaycast.rayCastEntity(
-                    Core.INSTANCE.getRotationManager().getCurrentRotation(), throughRange.getValue().doubleValue(), false);
+                    Core.INSTANCE.getRotationManager().getEffectiveRotation(), throughRange.getValue().doubleValue(), false);
         }
 
         if (hitResult != null && hitResult.getType() == HitResult.Type.ENTITY

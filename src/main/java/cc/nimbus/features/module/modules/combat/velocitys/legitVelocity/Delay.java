@@ -14,6 +14,7 @@ import cc.nimbus.features.module.modules.combat.velocitys.Legit;
 import cc.nimbus.managers.GameStateManager;
 import cc.nimbus.managers.PacketDirection;
 import cc.nimbus.utils.client.IMinecraft;
+import cc.nimbus.utils.client.MessageUtils;
 import cc.nimbus.utils.network.PacketUtils;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;

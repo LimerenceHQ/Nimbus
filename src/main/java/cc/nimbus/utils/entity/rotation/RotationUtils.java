@@ -1,8 +1,8 @@
 package cc.nimbus.utils.entity.rotation;
 
 import cc.nimbus.core.Core;
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationRaycast;
+import cc.nimbus.managers.rotation.Rotation;
+import cc.nimbus.managers.rotation.RotationRaycast;
 import cc.nimbus.utils.client.IMinecraft;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;

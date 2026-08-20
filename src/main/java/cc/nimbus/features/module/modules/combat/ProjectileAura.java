@@ -11,12 +11,7 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
-import cc.nimbus.features.rotation.MovementFix;
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
-import cc.nimbus.features.rotation.RotationPriority;
-import cc.nimbus.features.rotation.RotationRequest;
-import cc.nimbus.features.rotation.SmoothMode;
+import cc.nimbus.managers.rotation.*;
 import cc.nimbus.utils.entity.ProjectilePhysicsUtils;
 import cc.nimbus.utils.entity.SimulatedPlayer;
 import net.minecraft.client.Minecraft;
@@ -608,16 +603,16 @@ public final class ProjectileAura extends BasicModule {
             default -> MovementFix.NONE;
         };
 
-        Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
+        Core.INSTANCE.getRotationManager().setRotations(
                 rotation,
-                RotationPriority.MEDIUM,
                 moveFix,
                 false,
                 SmoothMode.ADVANCED,
                 rotationSpeed.getValue().floatValue(),
                 0,
-                0
-        ));
+                0,
+                Priority.MEDIUM
+        );
     }
 
     private void swing() {
@@ -728,7 +723,6 @@ public final class ProjectileAura extends BasicModule {
         target = null;
         rotationReadyTicks = 0;
         resetPredictionStability();
-        if (Core.INSTANCE.isInitialized()) Core.INSTANCE.getRotationManager().cancel(this);
     }
 
     private Rotation currentRotation() {

@@ -157,6 +157,14 @@ public final class PacketManager implements InstanceManager {
         try {
             capturedThisCycle = false;
             inboundHookPacket.remove();
+
+            // These packets change the connection protocol/pipeline and are
+            // never delayed or exposed to module packet listeners.
+            if (PacketUtils.isProtocolControl(packet)) {
+                inboundHookPacket.set(packet);
+                return true;
+            }
+
             PacketEvent event = new PacketEvent(packet, PacketEvent.PacketState.RECEIVE);
             EventBus.call(event);
             if (capturedThisCycle || event.isCancel()) {

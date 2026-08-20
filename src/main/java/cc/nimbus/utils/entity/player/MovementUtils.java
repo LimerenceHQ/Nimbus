@@ -20,7 +20,7 @@ public class MovementUtils implements IMinecraft {
     public static double getDirection() {
         if (mc.player == null) return 0;
 
-        float rotationYaw = Core.INSTANCE.getRotationManager().getCurrentRotation().yaw();
+        float rotationYaw = Core.INSTANCE.getRotationManager().getEffectiveRotation().yaw();
         Input input = mc.player.input.keyPresses;
         float forwardImpulse = axis(input.forward(), input.backward());
         float leftImpulse = axis(input.left(), input.right());

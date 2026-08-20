@@ -11,13 +11,7 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
-import cc.nimbus.features.rotation.MovementFix;
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
-import cc.nimbus.features.rotation.RotationPriority;
-import cc.nimbus.features.rotation.RotationRaycast;
-import cc.nimbus.features.rotation.RotationRequest;
-import cc.nimbus.features.rotation.SmoothMode;
+import cc.nimbus.managers.rotation.*;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.game.ServerboundInteractPacket;
@@ -84,22 +78,12 @@ public final class AntiFireball extends BasicModule {
                 .orElse(null);
 
         if (closest == null) {
-            Core.INSTANCE.getRotationManager().cancel(this);
             return;
         }
 
         Rotation rotation = RotationMath.toRotation(
                 minecraft.player.getEyePosition(), closest.getBoundingBox().getCenter());
-        Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
-                rotation,
-                RotationPriority.MEDIUM,
-                selectedMovementFix(),
-                false,
-                SmoothMode.ADVANCED,
-                rotationSpeed.getValue().floatValue(),
-                0,
-                2
-        ));
+        Core.INSTANCE.getRotationManager().setRotations(rotation,selectedMovementFix(),false, SmoothMode.ADVANCED,rotationSpeed.getValue().floatValue(),0,2, Priority.MEDIUM);
     }
 
     @EventTarget
@@ -151,6 +135,5 @@ public final class AntiFireball extends BasicModule {
     private void reset() {
         trackedFireballs.clear();
         closest = null;
-        if (Core.INSTANCE.isInitialized()) Core.INSTANCE.getRotationManager().cancel(this);
     }
 }

@@ -2,7 +2,7 @@ package cc.nimbus.mixin.render;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.features.module.modules.render.Nametag;
-import cc.nimbus.features.rotation.Rotation;
+import cc.nimbus.managers.rotation.Rotation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.player.AvatarRenderer;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;

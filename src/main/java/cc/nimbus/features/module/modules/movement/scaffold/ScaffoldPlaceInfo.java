@@ -1,7 +1,7 @@
 package cc.nimbus.features.module.modules.movement.scaffold;
 
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
+import cc.nimbus.managers.rotation.Rotation;
+import cc.nimbus.managers.rotation.RotationMath;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

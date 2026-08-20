@@ -1,8 +1,8 @@
 package cc.nimbus.utils.entity;
 
 import cc.nimbus.core.Core;
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
+import cc.nimbus.managers.rotation.Rotation;
+import cc.nimbus.managers.rotation.RotationMath;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;

@@ -12,12 +12,7 @@ import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.player.FireGuard;
-import cc.nimbus.features.rotation.MovementFix;
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
-import cc.nimbus.features.rotation.RotationPriority;
-import cc.nimbus.features.rotation.RotationRequest;
-import cc.nimbus.features.rotation.SmoothMode;
+import cc.nimbus.managers.rotation.*;
 import cc.nimbus.utils.entity.SimulatedPlayer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -150,12 +145,12 @@ public final class AutoTrap extends BasicModule {
             }
             minecraft.player.getInventory().setSelectedSlot(bucketSlot);
             stage = Stage.LAVA_PICKUP;
-            applyRotation(pickupAction.rotation(), RotationPriority.HIGH);
+            applyRotation(pickupAction.rotation(), Priority.HIGH);
             return;
         }
 
         if (stage == Stage.LAVA_PICKUP && pickupAction != null) {
-            applyRotation(pickupAction.rotation(), RotationPriority.HIGH);
+            applyRotation(pickupAction.rotation(), Priority.HIGH);
             return;
         }
 
@@ -750,20 +745,20 @@ public final class AutoTrap extends BasicModule {
     }
 
     private void applyRotation(Rotation rotation) {
-        applyRotation(rotation, RotationPriority.MEDIUM);
+        applyRotation(rotation, Priority.MEDIUM);
     }
 
-    private void applyRotation(Rotation rotation, RotationPriority priority) {
-        Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
+    private void applyRotation(Rotation rotation, Priority priority) {
+        Core.INSTANCE.getRotationManager().setRotations(
                 rotation,
-                priority,
                 selectedMovementFix(),
                 false,
                 SmoothMode.ADVANCED,
                 rotationSpeed.getValue().floatValue(),
                 0,
-                2
-        ));
+                2,
+                priority
+        );
     }
 
     private MovementFix selectedMovementFix() {
@@ -821,7 +816,6 @@ public final class AutoTrap extends BasicModule {
         previewWebPlan.clear();
         lavaTicks = 0;
         igniteTicks = 0;
-        if (Core.INSTANCE.isInitialized()) Core.INSTANCE.getRotationManager().cancel(this);
     }
 
     private boolean isWithinTargetRange(LavaAction action) {

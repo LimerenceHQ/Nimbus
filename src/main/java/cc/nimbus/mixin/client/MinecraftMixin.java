@@ -1,6 +1,6 @@
 package cc.nimbus.mixin.client;
 
-import cc.nimbus.event.impl.game.EventRotation;
+import cc.nimbus.event.impl.game.*;
 import cc.nimbus.event.impl.player.EventItemUse;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -13,9 +13,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import cc.nimbus.Nimbus;
 import cc.nimbus.event.EventBus;
-import cc.nimbus.event.impl.game.EventClick;
-import cc.nimbus.event.impl.game.EventTick;
-import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.features.module.modules.combat.BowAssistant;
 import cc.nimbus.features.module.modules.combat.AutoTrap;
 import cc.nimbus.features.module.modules.combat.KillAura;
@@ -36,6 +33,10 @@ public class MinecraftMixin {
     }
     @Inject(method = "tick", at = @At("TAIL")) private void nimbus$postTick(CallbackInfo ci) {
         EventBus.call(new EventTick(EventTick.Phase.POST));
+    }
+    @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;handleKeybinds()V", shift = At.Shift.BEFORE))
+    public void hookRotationApplied(CallbackInfo ci) {
+        EventBus.call(new RotationAppliedEvent());
     }
     @Inject(method = "setLevel", at = @At("TAIL"))
     private void nimbus$worldLoad(ClientLevel level, CallbackInfo ci) {

@@ -1,108 +1,249 @@
 package cc.nimbus.managers;
 
+import cc.nimbus.core.Core;
 import cc.nimbus.core.interfaces.InstanceManager;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.component.EventTarget;
-import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventTick;
-import cc.nimbus.event.impl.game.EventWorldLoad;
-import cc.nimbus.event.impl.player.EventJump;
-import cc.nimbus.event.impl.player.EventMotion;
-import cc.nimbus.event.impl.player.EventMoveInput;
-import cc.nimbus.event.impl.player.EventRayTrace;
-import cc.nimbus.event.impl.player.EventRotationApplied;
-import cc.nimbus.event.impl.player.EventStrafe;
-import cc.nimbus.features.rotation.MovementFix;
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
-import cc.nimbus.features.rotation.RotationRequest;
+import cc.nimbus.event.impl.network.PacketEvent;
+import cc.nimbus.event.impl.player.*;
+import cc.nimbus.managers.rotation.*;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.util.Mth;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.Level;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
-public final class RotationManager implements InstanceManager {
-    private final Minecraft minecraft;
-    private final List<PendingRequest> pending = new ArrayList<>();
-    private ActiveRequest active;
-    private Rotation currentRotation;
-    private Rotation targetRotation;
-    private Rotation lastRotation;
-    private Rotation animationRotation;
-    private Rotation lastAnimationRotation;
-    private Rotation serverRotation = new Rotation(0.0f, 0.0f);
-    private Level level;
-    private long sequence;
-    private boolean restoring;
-    private int restoreTicks = 2;
-    private MovementFix restoreMovementFix = MovementFix.NONE;
+public class RotationManager implements InstanceManager {
+
+    private final Minecraft mc;
+    private Rotation serverRotation = Rotation.ZERO;
+    private final List<Request> pendings = new ArrayList<>();
+    private final Set<Class<?>> loggedMovePacketTypes = new HashSet<>();
+    public Request request;
+    private Rotation cachedTarget;
+    private boolean dirty = true;
+
+    private MovementFix strictMovementFix;
 
     public RotationManager(Minecraft minecraft) {
-        this.minecraft = Objects.requireNonNull(minecraft, "minecraft");
+        this.mc = Objects.requireNonNull(minecraft, "minecraft");
     }
 
     @Override
     public synchronized void init() {
-        clearState();
+        reset();
         EventBus.register(this);
     }
 
     @Override
     public synchronized void shutdown() {
         EventBus.unregister(this);
-        clearState();
+        reset();
     }
 
-    public synchronized void submit(Object owner, RotationRequest request) {
-        pending.add(new PendingRequest(Objects.requireNonNull(owner, "owner"),
-                Objects.requireNonNull(request, "request"), ++sequence));
+    public void setRotations(Rotation rotation, MovementFix movementFix, boolean smooth, SmoothMode smoothMode, float rotationSpeed, int keepLength, int revTicks, Priority priority) {
+        enqueue(new Request(rotation, priority, movementFix, smooth, smoothMode, rotationSpeed, keepLength, revTicks));
     }
 
-    public synchronized void cancel(Object owner) {
-        if (owner == null) return;
-        pending.removeIf(request -> request.owner() == owner);
-        if (active != null && active.owner() == owner) beginRestore();
+    public void setRotations(Rotation rotation) {
+        setRotations(rotation, MovementFix.NONE);
     }
 
-    public synchronized void clearRequests() {
-        pending.clear();
-        beginRestore();
+    public void setRotations(Rotation rotation, MovementFix movementFix) {
+        setRotations(rotation, movementFix, false, SmoothMode.LINEAR, 180.0f, 1, 0, Priority.MEDIUM);
     }
 
-    public synchronized boolean isActive() {
-        return currentRotation != null;
+    public void setRotations(Rotation rotation, int keepLength, MovementFix movementFix) {
+        setRotations(rotation, movementFix, true, SmoothMode.ADVANCED, 180.0f, keepLength, 0, Priority.MEDIUM);
     }
 
-    public synchronized MovementFix getMovementFix() {
-        return active == null ? (restoring ? restoreMovementFix : MovementFix.NONE) : active.request().movementFix();
+    public void setRotations(Rotation rotation, int keepLength, MovementFix movementFix, Priority priority) {
+        setRotations(rotation, movementFix, false, SmoothMode.ADVANCED, 180.0f, keepLength, 0, priority);
     }
 
-    public synchronized Rotation getEffectiveRotation() {
-        if (currentRotation != null) return currentRotation;
-        if (minecraft.player != null) return new Rotation(minecraft.player.getYRot(), minecraft.player.getXRot());
-        return serverRotation;
+    public void setRotations(Rotation rotation, int keepLength, MovementFix movementFix, float rotationSpeed) {
+        setRotations(rotation, movementFix, false, SmoothMode.ADVANCED, rotationSpeed, keepLength, 0, Priority.MEDIUM);
     }
 
-    public synchronized Rotation getCurrentRotation() {
-        return currentRotation;
+    public void enqueue(Request request) {
+        pendings.add(request);
+        dirty = true;
     }
 
-    public synchronized Rotation getTargetRotation() {
-        return targetRotation;
+    public void reset() {
+        if (mc.player == null) {
+            request = null;
+            cachedTarget = null;
+            return;
+        }
+
+        if (Math.abs(Mth.wrapDegrees(serverRotation.yaw() - mc.player.getYRot())) < 1
+                && Math.abs(serverRotation.pitch() - mc.player.getXRot()) < 1) {
+            mc.player.setYRot(serverRotation.yaw() + Mth.wrapDegrees(mc.player.getYRot() - serverRotation.yaw()));
+            cachedTarget = null;
+            request = null;
+            return;
+        }
+
+        request = new Request(
+                new Rotation(mc.player.getYRot(), mc.player.getXRot()).normalized(),
+                Priority.of(Integer.MIN_VALUE),
+                MovementFix.SILENT,
+                false,
+                SmoothMode.LINEAR,
+                180f,
+                0,
+                0
+        );
+        cachedTarget = request.getRotation();
     }
 
-    public synchronized Rotation getLastRotation() {
-        return lastRotation;
+    public Rotation getTargetRotation() {
+        if (!dirty) {
+            return cachedTarget;
+        }
+        if (pendings.isEmpty()) {
+            dirty = false;
+            return cachedTarget;
+        }
+
+        Request winner = resolve(pendings);
+        if (request != null && !request.isExpired() && winner.getPriority().isLowerThan(request.getPriority())) {
+            dirty = false;
+            return cachedTarget;
+        }
+
+        cachedTarget = winner.isSmooth()
+                ? winner.getSmoothMode().apply(serverRotation, winner.getRotation(), winner.getRotationSpeed())
+                : winner.getRotation();
+        dirty = false;
+        return cachedTarget;
     }
 
-    public synchronized Rotation getServerRotation() {
-        return serverRotation;
+    private MovementFix getActiveMovementFix() {
+        if (request == null) {
+            return MovementFix.SILENT;
+        }
+        return strictMovementFix != null ? strictMovementFix : request.getMovementFix();
     }
+
+    @EventTarget(priority = cc.nimbus.event.component.Priority.Highest)
+    public void onTick(EventTick event) {
+        if (request != null && event.isPre()) {
+            request.decrement();
+            if (request.isExpired()) {
+                reset();
+                dirty = true;
+            }
+        }
+    }
+
+    @EventTarget(priority = cc.nimbus.event.component.Priority.Lowest)
+    public void onUpdate(EventUpdate event) {
+        if (event.isPost()) return;
+
+        applyPendings();
+        GameStateManager.eyePos = mc.player.getEyePosition();;
+    }
+
+    @EventTarget(priority = cc.nimbus.event.component.Priority.Lowest)
+    public void onMotion(EventPreUpdate event) {
+        lastAnimationRotation = animationRotation;
+
+        applyPendings();
+    }
+
+    private void applyPendings() {
+        if (pendings.isEmpty()) {
+            return;
+        }
+
+        Request winner = resolve(pendings);
+        if (request == null || request.isExpired() || !winner.getPriority().isLowerThan(request.getPriority())) {
+            request = winner;
+            pendings.clear();
+            apply(winner);
+            dirty = true;
+            return;
+        }
+        pendings.clear();
+        strictMovementFix = null;
+    }
+
+    @EventTarget(priority = cc.nimbus.event.component.Priority.Low)
+    public void onMovementInput(EventMoveInput event) {
+        Rotation target = getTargetRotation();
+        if (target == null || mc.player == null || getActiveMovementFix() != MovementFix.SILENT) {
+            return;
+        }
+
+        float forward = event.getForward();
+        float strafe = event.getStrafe();
+        if (forward == 0.0F && strafe == 0.0F) {
+            return;
+        }
+
+        float factor = Math.max(Math.abs(forward), Math.abs(strafe));
+        double realYaw = mc.player.getYRot() - Math.toDegrees(Math.atan2(strafe, forward));
+        double diff = Mth.wrapDegrees(realYaw - target.yaw());
+        int section = (int) Math.round(diff / 45.0);
+        double ang = Math.toRadians(section * 45.0);
+        event.setForward((float) Math.round(Math.cos(ang)) * factor);
+        event.setStrafe((float) Math.round(-Math.sin(ang)) * factor);
+    }
+
+    @EventTarget(priority = cc.nimbus.event.component.Priority.Lowest)
+    public void onStrafe(EventStrafe event) {
+        Rotation target = getTargetRotation();
+        if (target != null && getActiveMovementFix() != MovementFix.NONE) {
+            event.setYaw(target.yaw());
+        }
+    }
+
+    @EventTarget(priority = cc.nimbus.event.component.Priority.Lowest)
+    public void onLook(EventRayTrace event) {
+        Rotation target = getTargetRotation();
+        if (target != null && getActiveMovementFix() != MovementFix.NONE) {
+            event.setYaw(target.yaw());
+            event.setPitch(target.pitch());
+        }
+    }
+
+    @EventTarget(priority = cc.nimbus.event.component.Priority.Lowest)
+    public void onJump(EventJump event) {
+        Rotation target = getTargetRotation();
+        if (target != null && getActiveMovementFix() != MovementFix.NONE) {
+            event.setYaw(target.yaw());
+        }
+    }
+
+    @EventTarget(priority = cc.nimbus.event.component.Priority.Lowest)
+    public void onPacket(PacketEvent event) {
+        Packet<?> packet = event.getPacket();
+        if (!(packet instanceof ServerboundMovePlayerPacket movePacket)) {
+            return;
+        }
+        if (movePacket.hasRotation()) {
+            animationRotation = serverRotation;
+            serverRotation = new Rotation(movePacket.getYRot(0), movePacket.getXRot(0));
+        }
+    }
+
+    @EventTarget(priority = cc.nimbus.event.component.Priority.Low)
+    public void onMotionEvent(EventMotion event) {
+        Rotation target = getTargetRotation();
+        if (target != null) {
+            animationRotation = target;
+            event.setYaw(target.yaw());
+            event.setPitch(target.pitch());
+        }
+    }
+
+
+    public static Rotation animationRotation;
+    public static Rotation lastAnimationRotation;
 
     public synchronized Rotation getAnimationRotation(float partialTick) {
         if (animationRotation == null) return null;
@@ -113,190 +254,29 @@ public final class RotationManager implements InstanceManager {
         );
     }
 
-    public void withEffectiveRotation(Player player, Runnable action) {
-        Rotation rotation = getEffectiveRotation();
-        float yaw = player.getYRot();
-        float pitch = player.getXRot();
-        player.setYRot(rotation.yaw());
-        player.setXRot(rotation.pitch());
-        try {
-            action.run();
-        } finally {
-            player.setYRot(yaw);
-            player.setXRot(pitch);
-        }
+    private void apply(Request request) {
+        cachedTarget = request.isSmooth()
+                ? request.getSmoothMode().apply(serverRotation, request.getRotation(), request.getRotationSpeed()).normalized()
+                : request.getRotation().normalized();
     }
 
-    @EventTarget(priority = Priority.Lowest)
-    private synchronized void onTick(EventTick event) {
-        if (event.getPhase() != EventTick.Phase.PRE) return;
-        if (minecraft.level == null || minecraft.player == null || !minecraft.player.isAlive()) {
-            clearState();
-            return;
-        }
-        if (level != minecraft.level) {
-            clearState();
-            level = minecraft.level;
-            Rotation playerRotation = new Rotation(minecraft.player.getYRot(), minecraft.player.getXRot()).clamped();
-            serverRotation = playerRotation;
-        }
-
-        PendingRequest winner = resolvePending();
-        if (winner != null && (active == null
-                || winner.request().priority().level() >= active.request().priority().level())) {
-            active = new ActiveRequest(winner.owner(), winner.request(), winner.request().keepTicks());
-            restoring = false;
-        } else if (active != null) {
-            active = active.decremented();
-            if (active.ticksRemaining() < 0) beginRestore();
-        }
-
-        Rotation real = new Rotation(minecraft.player.getYRot(), minecraft.player.getXRot()).clamped();
-        if (currentRotation == null) currentRotation = serverRotation;
-        lastRotation = currentRotation;
-        lastAnimationRotation = animationRotation == null ? currentRotation : animationRotation;
-
-        if (active != null) {
-            targetRotation = active.request().rotation();
-            currentRotation = apply(currentRotation, targetRotation, active.request());
-        } else if (restoring) {
-            targetRotation = real;
-            float speed = restoreSpeed(currentRotation, real);
-            currentRotation = RotationMath.sensitivityPatch(
-                    SmoothModeForRestore.apply(currentRotation, real, speed), currentRotation);
-            if (currentRotation.distanceTo(real) < 0.75) {
-                currentRotation = null;
-                targetRotation = null;
-                lastRotation = null;
-                restoring = false;
-            }
-        } else {
-            currentRotation = null;
-            targetRotation = null;
-            lastRotation = null;
-        }
-        animationRotation = currentRotation == null ? real : currentRotation;
-    }
-
-    @EventTarget(priority = Priority.Highest)
-    private synchronized void onMotion(EventMotion event) {
-        if (!event.isPre() || currentRotation == null) return;
-        event.setRotation(currentRotation.yaw(), currentRotation.pitch());
-    }
-
-    @EventTarget(priority = Priority.Low)
-    private synchronized void onMoveInput(EventMoveInput event) {
-        if (currentRotation == null || getMovementFix() != MovementFix.SILENT || minecraft.player == null) return;
-        float forward = event.getForward();
-        float strafe = event.getStrafe();
-        if (forward == 0.0f && strafe == 0.0f) return;
-        float factor = Math.max(Math.abs(forward), Math.abs(strafe));
-        double realYaw = minecraft.player.getYRot() - Math.toDegrees(Math.atan2(strafe, forward));
-        int section = (int) Math.round(Mth.wrapDegrees(realYaw - currentRotation.yaw()) / 45.0);
-        double angle = Math.toRadians(section * 45.0);
-        event.setForward((float) Math.round(Math.cos(angle)) * factor);
-        event.setStrafe((float) Math.round(-Math.sin(angle)) * factor);
-    }
-
-    @EventTarget(priority = Priority.Lowest)
-    private synchronized void onStrafe(EventStrafe event) {
-        if (currentRotation != null && getMovementFix() != MovementFix.NONE) event.setYaw(currentRotation.yaw());
-    }
-
-    @EventTarget(priority = Priority.Lowest)
-    private synchronized void onJump(EventJump event) {
-        if (currentRotation != null && getMovementFix() != MovementFix.NONE) event.setYaw(currentRotation.yaw());
-    }
-
-    @EventTarget(priority = Priority.Lowest)
-    private synchronized void onLook(EventRotationApplied event) {
-        if (currentRotation != null && getMovementFix() != MovementFix.NONE) {
-            event.setYaw(currentRotation.yaw());
-            event.setPitch(currentRotation.pitch());
-        }
-    }
-
-    @EventTarget(priority = Priority.Lowest)
-    private synchronized void onRayTrace(EventRayTrace event) {
-        if (currentRotation != null) {
-            event.setYaw(currentRotation.yaw());
-            event.setPitch(currentRotation.pitch());
-        }
-    }
-
-    public synchronized void recordSentPacket(net.minecraft.network.protocol.Packet<?> sentPacket) {
-        if (!(sentPacket instanceof ServerboundMovePlayerPacket packet) || !packet.hasRotation()) return;
-        serverRotation = new Rotation(packet.getYRot(serverRotation.yaw()), packet.getXRot(serverRotation.pitch())).clamped();
-    }
-
-    @EventTarget
-    private synchronized void onWorldLoad(EventWorldLoad event) {
-        clearState();
-    }
-
-    private Rotation apply(Rotation current, Rotation target, RotationRequest request) {
-        Rotation next = request.smooth()
-                ? request.smoothMode().apply(current, target, request.speed())
-                : target;
-        return request.sensitivityPatch()
-                ? RotationMath.sensitivityPatch(next.clamped(), current)
-                : next.clamped();
-    }
-
-    private float restoreSpeed(Rotation current, Rotation target) {
-        return (float) Math.max(1.0, current.distanceTo(target) / Math.max(1, restoreTicks));
-    }
-
-    private PendingRequest resolvePending() {
-        PendingRequest best = null;
-        for (PendingRequest request : pending) {
-            if (best == null
-                    || request.request().priority().level() > best.request().priority().level()
-                    || request.request().priority() == best.request().priority() && request.sequence() > best.sequence()) {
+    private Request resolve(List<Request> requests) {
+        Request best = null;
+        for (Request request : requests) {
+            if (best == null || !request.getPriority().isLowerThan(best.getPriority())) {
                 best = request;
             }
         }
-        pending.clear();
         return best;
     }
 
-    private void beginRestore() {
-        pending.clear();
-        if (active != null) {
-            restoreTicks = active.request().returnTicks();
-            restoreMovementFix = active.request().movementFix();
-        }
-        if (currentRotation != null) restoring = true;
-        active = null;
+    public Rotation getEffectiveRotation() {
+        if (mc.player == null) return new Rotation(0,0);
+
+        return Core.INSTANCE.getRotationManager().getTargetRotation() != null ? Core.INSTANCE.getRotationManager().getTargetRotation() : new Rotation(mc.player.getYRot(),mc.player.getXRot());
     }
 
-    private void clearState() {
-        pending.clear();
-        active = null;
-        currentRotation = null;
-        targetRotation = null;
-        lastRotation = null;
-        animationRotation = null;
-        lastAnimationRotation = null;
-        serverRotation = new Rotation(0.0f, 0.0f);
-        restoring = false;
-        restoreTicks = 2;
-        restoreMovementFix = MovementFix.NONE;
-        level = null;
-    }
-
-    private record PendingRequest(Object owner, RotationRequest request, long sequence) {
-    }
-
-    private record ActiveRequest(Object owner, RotationRequest request, int ticksRemaining) {
-        private ActiveRequest decremented() {
-            return new ActiveRequest(owner, request, ticksRemaining - 1);
-        }
-    }
-
-    private static final class SmoothModeForRestore {
-        private static Rotation apply(Rotation current, Rotation target, float speed) {
-            return cc.nimbus.features.rotation.SmoothMode.ADVANCED.apply(current, target, speed);
-        }
+    public Rotation getServerRotation() {
+        return serverRotation;
     }
 }

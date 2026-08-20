@@ -16,8 +16,8 @@ import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.movement.scaffold.FallingPlayer;
 import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceInfo;
 import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceSearch;
-import cc.nimbus.features.rotation.*;
 import cc.nimbus.managers.GameStateManager;
+import cc.nimbus.managers.rotation.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -149,7 +149,6 @@ public final class Scaffold extends BasicModule {
     @Override
     protected void onDisable() {
         Minecraft minecraft = Minecraft.getInstance();
-        cancelRotation();
         if (minecraft.player != null && oldSlot >= 0 && oldSlot < 9) {
             minecraft.player.getInventory().setSelectedSlot(oldSlot);
         }
@@ -159,7 +158,6 @@ public final class Scaffold extends BasicModule {
 
     @EventTarget
     private void onWorldLoad(EventWorldLoad event) {
-        cancelRotation();
         releaseSneak();
         resetRuntime();
     }
@@ -169,7 +167,6 @@ public final class Scaffold extends BasicModule {
         if (event.getPhase() != EventTick.Phase.PRE) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.level == null || minecraft.gameMode == null) {
-            cancelRotation();
             releaseSneak();
             return;
         }
@@ -354,16 +351,16 @@ public final class Scaffold extends BasicModule {
 
     private void submitRotation(Player player, Rotation rotation) {
         boolean smooth = rotationMode.is("Smooth");
-        Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
+        Core.INSTANCE.getRotationManager().setRotations(
                 rotation,
-                RotationPriority.MEDIUM,
                 silentRotate.getValue() ? MovementFix.SILENT : MovementFix.NONE,
                 smooth,
                 smooth ? SmoothMode.ADVANCED : SmoothMode.LINEAR,
                 rotateSpeed.getValue().floatValue(),
                 0,
-                0
-        ));
+                0,
+                Priority.MEDIUM
+        );
 
         if (!silentRotate.getValue()) {
             player.setYRot(rotation.yaw());
@@ -557,11 +554,6 @@ public final class Scaffold extends BasicModule {
         currentHit = null;
         targetRotation = null;
         canPlaceNow = false;
-        cancelRotation();
-    }
-
-    private void cancelRotation() {
-        if (Core.INSTANCE.isInitialized()) Core.INSTANCE.getRotationManager().cancel(this);
     }
 
     private void resetRuntime() {

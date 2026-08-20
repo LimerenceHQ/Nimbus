@@ -9,7 +9,7 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.modes.Modes;
-import cc.nimbus.features.rotation.*;
+import cc.nimbus.managers.rotation.*;
 import cc.nimbus.utils.entity.rotation.RotationUtils;
 import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.world.InteractionHand;
@@ -95,16 +95,7 @@ public class AntiCrystal extends BasicModule {
         if (currentTarget != null) {
             Vec3 crystalPos = currentTarget.position().add(0, 0.5, 0);
             Rotation targetRot = RotationUtils.toRotation(crystalPos, false);
-            Core.INSTANCE.getRotationManager().submit(this, new RotationRequest(
-                    targetRot,
-                    RotationPriority.MEDIUM,
-                    MovementFix.SILENT,
-                    rotationMode.is("Smooth"),
-                    SmoothMode.ADVANCED,
-                    rotateSpeed.getValue().floatValue(),
-                    0,
-                    0
-            ));
+            Core.INSTANCE.getRotationManager().setRotations(targetRot, MovementFix.SILENT,rotationMode.is("Smooth"), SmoothMode.ADVANCED,rotateSpeed.getValue().floatValue(), 0, 0, Priority.MEDIUM);
         }
 
         // 击打水晶

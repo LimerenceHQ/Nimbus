@@ -23,7 +23,17 @@ public final class InboundPacketEventPacket<T extends PacketListener> implements
         PacketManager packetManager = Core.INSTANCE.getPacketManager();
         if (!packetManager.inboundsHook(packet)) return;
         Packet<?> selected = packetManager.consumeInboundHookPacket();
-        if (selected != null) handlePacket(selected, listener);
+        if (selected == null) return;
+
+        // The event has already been dispatched and cancellation/replacement
+        // has been resolved. Prevent the original packet's listener method
+        // from scheduling another wrapper while it is replayed.
+        PacketEventGuard.suppress();
+        try {
+            handlePacket(selected, listener);
+        } finally {
+            PacketEventGuard.restore();
+        }
     }
 
     @Override

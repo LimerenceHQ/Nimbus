@@ -1,4 +1,4 @@
-package cc.nimbus.features.rotation;
+package cc.nimbus.managers.rotation;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.utils.client.IMinecraft;
