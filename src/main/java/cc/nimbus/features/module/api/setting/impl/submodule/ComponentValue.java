@@ -88,6 +88,9 @@ public final class ComponentValue extends Setting<Set<String>> {
     @SuppressWarnings("unchecked")
     public void initializeSubModules(BasicModule module, Object parent) {
         if (initialized) return;
+        if (!(parent instanceof BasicModule) && !(parent instanceof Mode<?>)) {
+            throw new IllegalArgumentException("ComponentValue parent must be a module or mode");
+        }
         initialized = true;
         this.parent = parent;
         for (Mode<?> mode : modes) {
@@ -104,10 +107,22 @@ public final class ComponentValue extends Setting<Set<String>> {
     }
 
     public void onModuleEnabled() {
-        for (Mode<?> mode : modes) if (isEnabled(mode) && !mode.isActive()) mode.register();
+        if (isRoot()) onParentEnabled();
     }
 
     public void onModuleDisabled() {
+        if (isRoot()) onParentDisabled();
+    }
+
+    public boolean isRoot() {
+        return parent instanceof BasicModule;
+    }
+
+    void onParentEnabled() {
+        for (Mode<?> mode : modes) if (isEnabled(mode) && !mode.isActive()) mode.register();
+    }
+
+    void onParentDisabled() {
         for (Mode<?> mode : modes) if (mode.isActive()) mode.unregister();
     }
 

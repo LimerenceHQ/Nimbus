@@ -16,6 +16,7 @@ public abstract class Mode<P> {
     private final String name;
     private final List<Setting<?>> settings = new ArrayList<>();
     private final List<ModeValue> nestedModeValues = new ArrayList<>();
+    private final List<ComponentValue> nestedComponentValues = new ArrayList<>();
     private P parent;
     private boolean active;
     private boolean reflected;
@@ -68,6 +69,11 @@ public abstract class Mode<P> {
         return Collections.unmodifiableList(nestedModeValues);
     }
 
+    final List<ComponentValue> getNestedComponentValues() {
+        reflectProperties();
+        return Collections.unmodifiableList(nestedComponentValues);
+    }
+
     public final void reflectProperties() {
         if (reflected) return;
         reflected = true;
@@ -88,6 +94,7 @@ public abstract class Mode<P> {
                     if (value instanceof Setting<?> setting && discovered.add(setting)) {
                         settings.add(setting);
                         if (setting instanceof ModeValue nested) nestedModeValues.add(nested);
+                        if (setting instanceof ComponentValue nested) nestedComponentValues.add(nested);
                     }
                 } catch (IllegalAccessException error) {
                     throw new IllegalStateException("Cannot read mode field " + field, error);
@@ -101,12 +108,14 @@ public abstract class Mode<P> {
         active = true;
         if (needsEventRegistration()) EventBus.register(this);
         for (ModeValue nested : getNestedModeValues()) nested.onParentEnabled();
+        for (ComponentValue nested : getNestedComponentValues()) nested.onParentEnabled();
         onEnable();
     }
 
     public final void unregister() {
         if (!active) return;
         for (ModeValue nested : getNestedModeValues()) nested.onParentDisabled();
+        for (ComponentValue nested : getNestedComponentValues()) nested.onParentDisabled();
         if (needsEventRegistration()) EventBus.unregister(this);
         try {
             onDisable();

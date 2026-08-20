@@ -78,6 +78,7 @@ public abstract class BasicModule extends ToggleElement implements IMinecraft {
             current.settings().stream()
                     .filter(ComponentValue.class::isInstance)
                     .map(ComponentValue.class::cast)
+                    .filter(ComponentValue::isRoot)
                     .forEach(ComponentValue::onModuleEnabled);
             modesStarted = true;
             onEnable();
@@ -111,6 +112,7 @@ public abstract class BasicModule extends ToggleElement implements IMinecraft {
         members().settings().stream()
                 .filter(ComponentValue.class::isInstance)
                 .map(ComponentValue.class::cast)
+                .filter(ComponentValue::isRoot)
                 .forEach(ComponentValue::onModuleDisabled);
     }
 
