@@ -17,7 +17,7 @@ import cc.nimbus.features.module.modules.movement.scaffold.FallingPlayer;
 import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceInfo;
 import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceSearch;
 import cc.nimbus.managers.GameStateManager;
-import cc.nimbus.managers.rotation.*;
+import cc.nimbus.features.rotation.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;

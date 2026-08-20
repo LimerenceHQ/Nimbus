@@ -1,4 +1,4 @@
-package cc.nimbus.features.module.modules.combat.velocitys.legitVelocity;
+package cc.nimbus.features.module.modules.combat.velocity.legitVelocity;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
@@ -10,11 +10,10 @@ import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.Mode;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
-import cc.nimbus.features.module.modules.combat.velocitys.Legit;
+import cc.nimbus.features.module.modules.combat.velocity.Legit;
 import cc.nimbus.managers.GameStateManager;
-import cc.nimbus.managers.PacketDirection;
+import cc.nimbus.features.packet.PacketDirection;
 import cc.nimbus.utils.client.IMinecraft;
-import cc.nimbus.utils.client.MessageUtils;
 import cc.nimbus.utils.network.PacketUtils;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;

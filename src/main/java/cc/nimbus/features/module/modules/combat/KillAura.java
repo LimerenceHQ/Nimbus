@@ -17,7 +17,7 @@ import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.movement.Scaffold;
-import cc.nimbus.managers.rotation.*;
+import cc.nimbus.features.rotation.*;
 import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
 import cc.nimbus.managers.RotationManager;
 import cc.nimbus.managers.TargetManager;

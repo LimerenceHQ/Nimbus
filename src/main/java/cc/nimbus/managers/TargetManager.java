@@ -9,7 +9,7 @@ import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.features.module.modules.player.AntiBot;
 import cc.nimbus.features.module.modules.player.Target;
 import cc.nimbus.features.module.modules.player.Teams;
-import cc.nimbus.managers.rotation.RotationMath;
+import cc.nimbus.features.rotation.RotationMath;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;

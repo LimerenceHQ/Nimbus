@@ -1,4 +1,4 @@
-package cc.nimbus.managers;
+package cc.nimbus.features.packet;
 
 public enum PacketDirection {
     INBOUND,

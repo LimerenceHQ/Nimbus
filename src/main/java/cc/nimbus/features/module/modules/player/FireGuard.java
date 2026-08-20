@@ -16,10 +16,10 @@ import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.combat.AutoTrap;
 import cc.nimbus.features.module.modules.movement.Scaffold;
-import cc.nimbus.managers.rotation.MovementFix;
-import cc.nimbus.managers.rotation.Rotation;
-import cc.nimbus.managers.rotation.RotationMath;
-import cc.nimbus.managers.rotation.SmoothMode;
+import cc.nimbus.features.rotation.MovementFix;
+import cc.nimbus.features.rotation.Rotation;
+import cc.nimbus.features.rotation.RotationMath;
+import cc.nimbus.features.rotation.SmoothMode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -808,7 +808,7 @@ public final class FireGuard extends BasicModule {
                 rotationSpeed.getValue().floatValue(),
                 0,
                 0,
-                cc.nimbus.managers.rotation.Priority.MEDIUM
+                cc.nimbus.features.rotation.Priority.MEDIUM
         );
     }
 

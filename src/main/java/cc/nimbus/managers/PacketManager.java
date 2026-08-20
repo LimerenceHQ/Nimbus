@@ -7,6 +7,7 @@ import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.event.impl.network.PacketEvent;
+import cc.nimbus.features.packet.PacketDirection;
 import cc.nimbus.utils.network.ConcurrentPacketQueue;
 import cc.nimbus.utils.network.PacketUtils;
 import net.minecraft.client.Minecraft;

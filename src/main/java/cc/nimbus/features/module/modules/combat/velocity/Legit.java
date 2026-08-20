@@ -1,4 +1,4 @@
-package cc.nimbus.features.module.modules.combat.velocitys;
+package cc.nimbus.features.module.modules.combat.velocity;
 
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.game.EventTick;
@@ -6,15 +6,13 @@ import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.features.module.api.setting.impl.submodule.ComponentValue;
 import cc.nimbus.features.module.api.setting.impl.submodule.Mode;
 import cc.nimbus.features.module.modules.combat.Velocity;
-import cc.nimbus.features.module.modules.combat.velocitys.legitVelocity.Delay;
-import cc.nimbus.features.module.modules.combat.velocitys.legitVelocity.JumpReset;
-import cc.nimbus.features.module.modules.combat.velocitys.legitVelocity.Reduce;
+import cc.nimbus.features.module.modules.combat.velocity.legitVelocity.Delay;
+import cc.nimbus.features.module.modules.combat.velocity.legitVelocity.JumpReset;
+import cc.nimbus.features.module.modules.combat.velocity.legitVelocity.Reduce;
 import cc.nimbus.utils.client.IMinecraft;
-import cc.nimbus.utils.client.MessageUtils;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.phys.Vec3;
 
 public class Legit extends Mode<Velocity> implements IMinecraft {
     public Legit() {

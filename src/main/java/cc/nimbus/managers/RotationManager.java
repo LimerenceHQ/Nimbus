@@ -7,7 +7,7 @@ import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.event.impl.player.*;
-import cc.nimbus.managers.rotation.*;
+import cc.nimbus.features.rotation.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;

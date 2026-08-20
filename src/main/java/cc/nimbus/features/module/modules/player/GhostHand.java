@@ -5,7 +5,7 @@ import cc.nimbus.event.impl.player.EventItemUse;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.managers.rotation.RotationRaycast;
+import cc.nimbus.features.rotation.RotationRaycast;
 import cc.nimbus.managers.GameStateManager;
 import cc.nimbus.mixin.accessor.client.DeltaTrackerTimerAccessor;
 import net.minecraft.core.BlockPos;

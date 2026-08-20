@@ -1,4 +1,4 @@
-package cc.nimbus.features.module.modules.combat.velocitys.legitVelocity;
+package cc.nimbus.features.module.modules.combat.velocity.legitVelocity;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
@@ -7,11 +7,11 @@ import cc.nimbus.event.impl.game.EventRotation;
 import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.features.module.api.setting.impl.submodule.Mode;
-import cc.nimbus.features.module.modules.combat.velocitys.Legit;
+import cc.nimbus.features.module.modules.combat.velocity.Legit;
 import cc.nimbus.managers.GameStateManager;
-import cc.nimbus.managers.rotation.MovementFix;
-import cc.nimbus.managers.rotation.Rotation;
-import cc.nimbus.managers.rotation.SmoothMode;
+import cc.nimbus.features.rotation.MovementFix;
+import cc.nimbus.features.rotation.Rotation;
+import cc.nimbus.features.rotation.SmoothMode;
 import cc.nimbus.utils.client.IMinecraft;
 import cc.nimbus.utils.entity.rotation.RotationUtils;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
@@ -48,7 +48,7 @@ public class JumpReset extends Mode<Legit> implements IMinecraft {
         if (mc.player == null || mc.getConnection() == null || mc.gameMode == null) return;
         if (getParent().needHandleRotation) {
             if (mc.player.onGround() && Math.abs(finalRotation.difference) <= 45F) {
-                Core.INSTANCE.getRotationManager().setRotations(finalRotation.rotation, MovementFix.SILENT, false, SmoothMode.ADVANCED, 180F, 0, 0, cc.nimbus.managers.rotation.Priority.VERY_HIGH);
+                Core.INSTANCE.getRotationManager().setRotations(finalRotation.rotation, MovementFix.SILENT, false, SmoothMode.ADVANCED, 180F, 0, 0, cc.nimbus.features.rotation.Priority.VERY_HIGH);
             }
             getParent().needHandleRotation = false;
         }

@@ -11,7 +11,7 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
-import cc.nimbus.managers.rotation.*;
+import cc.nimbus.features.rotation.*;
 import cc.nimbus.utils.entity.ProjectilePhysicsUtils;
 import cc.nimbus.utils.entity.SimulatedPlayer;
 import net.minecraft.client.Minecraft;

@@ -1,4 +1,4 @@
-package cc.nimbus.features.module.modules.combat.velocitys;
+package cc.nimbus.features.module.modules.combat.velocity;
 
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.network.PacketEvent;

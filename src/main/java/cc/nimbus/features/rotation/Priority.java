@@ -1,4 +1,4 @@
-package cc.nimbus.managers.rotation;
+package cc.nimbus.features.rotation;
 
 public enum Priority implements IPriority {
     VERY_LOW(0),

@@ -1,4 +1,4 @@
-package cc.nimbus.managers.rotation;
+package cc.nimbus.features.rotation;
 
 public interface IPriority {
     int getLevel();

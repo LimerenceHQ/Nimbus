@@ -13,12 +13,12 @@ import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.combat.Velocity;
-import cc.nimbus.features.module.modules.combat.velocitys.Legit;
+import cc.nimbus.features.module.modules.combat.velocity.Legit;
 import cc.nimbus.managers.GameStateManager;
-import cc.nimbus.managers.rotation.MovementFix;
-import cc.nimbus.managers.rotation.Priority;
-import cc.nimbus.managers.rotation.Rotation;
-import cc.nimbus.managers.rotation.SmoothMode;
+import cc.nimbus.features.rotation.MovementFix;
+import cc.nimbus.features.rotation.Priority;
+import cc.nimbus.features.rotation.Rotation;
+import cc.nimbus.features.rotation.SmoothMode;
 import cc.nimbus.utils.entity.player.MovementUtils;
 import net.minecraft.util.Mth;
 

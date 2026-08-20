@@ -5,7 +5,7 @@ import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.player.EventAttack;
 import cc.nimbus.features.module.modules.player.Stuck;
 import cc.nimbus.features.module.modules.movement.Scaffold;
-import cc.nimbus.managers.rotation.Rotation;
+import cc.nimbus.features.rotation.Rotation;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.world.InteractionHand;

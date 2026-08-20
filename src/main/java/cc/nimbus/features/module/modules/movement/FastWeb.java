@@ -9,7 +9,7 @@ import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.modules.combat.Velocity;
-import cc.nimbus.features.module.modules.combat.velocitys.Legit;
+import cc.nimbus.features.module.modules.combat.velocity.Legit;
 import cc.nimbus.utils.entity.player.MovementUtils;
 import net.minecraft.world.level.block.Blocks;
 

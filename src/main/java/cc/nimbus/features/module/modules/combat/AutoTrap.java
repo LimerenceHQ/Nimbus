@@ -12,7 +12,7 @@ import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.player.FireGuard;
-import cc.nimbus.managers.rotation.*;
+import cc.nimbus.features.rotation.*;
 import cc.nimbus.utils.entity.SimulatedPlayer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
