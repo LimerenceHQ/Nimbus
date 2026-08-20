@@ -86,6 +86,18 @@ public final class PacketManager implements InstanceManager {
         }
     }
 
+
+    public void dispatchInboundBatch(int maxPackets) {
+        if (maxPackets <= 0) {
+            return;
+        }
+
+        inbound.drainN(maxPackets, PacketUtils::receivePacketNoEvent);
+        if (inbound.size() == 0) {
+            inboundFrozen = false;
+        }
+    }
+
     public void dispatchAll() {
         dispatch(PacketDirection.BOTH);
     }

@@ -49,6 +49,10 @@ public class Delay extends Mode<Legit> implements IMinecraft {
 
     @EventTarget
     public void onTick(EventTick event) {
+        if (!event.isPre()) {
+            return;
+        }
+
         if (mc.player == null) {
             return;
         }

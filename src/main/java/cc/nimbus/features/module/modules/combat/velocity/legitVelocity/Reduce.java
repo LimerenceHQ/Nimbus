@@ -34,6 +34,10 @@ public class Reduce extends Mode<Legit> implements IMinecraft {
 
     @EventTarget(priority = Priority.High)
     public void onTick(EventTick event) {
+        if (!event.isPre()) {
+            return;
+        }
+
         if (mode.is("Custom")) {
             getParent().attackCount = count.getValue().intValue();
         }

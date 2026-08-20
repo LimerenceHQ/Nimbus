@@ -30,6 +30,10 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
 
     @EventTarget
     public void onTick(EventTick event) {
+        if (!event.isPre()) {
+            return;
+        }
+
         if (ticksSinceVelocity >= 0) {
             ticksSinceVelocity++;
             if (ticksSinceVelocity >= 10) {
@@ -49,7 +53,10 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
         if (event.getPacketState() == PacketEvent.PacketState.RECEIVE) {
             if (event.getPacket() instanceof ClientboundSetEntityMotionPacket packet) {
                 if (isValidVelocityPacket(packet)) {
-                    attackCount = computeReduceTicks((int) packet.getMovement().x, (int) packet.getMovement().z);
+                    attackCount = computeReduceTicks(
+                            packet.getMovement().x * 8000.0,
+                            packet.getMovement().z * 8000.0
+                    );
 
                     if (!modules.isEnabled("Delay") || cantSprint()) {
                         handleVelocity = true;
@@ -81,7 +88,7 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
                 || (!mc.player.isPassenger() && mc.player.getFoodData().getFoodLevel() <= 6 && !mc.player.getAbilities().mayfly);
     }
 
-    private int computeReduceTicks(int motionX, int motionZ) {
+    private int computeReduceTicks(double motionX, double motionZ) {
         double kb = Math.hypot(motionX, motionZ);
         double y = 0.000408163 * kb + 0.7142857;
 
