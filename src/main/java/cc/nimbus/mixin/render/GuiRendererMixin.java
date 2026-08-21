@@ -26,8 +26,8 @@ public abstract class GuiRendererMixin {
     @Unique private long nimbus$nextHudUpdateNanos;
     @Unique private int nimbus$hudRefreshRate;
     @Unique private ClientLevel nimbus$scene;
-
-    @Inject(method = "render", at = @At("HEAD"))
+    
+    @Inject(method = "render", at = @At("TAIL"))
     private void nimbus$render(GuiGraphics graphics, DeltaTracker delta, CallbackInfo ci) {
         Minecraft minecraft = Minecraft.getInstance();
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
