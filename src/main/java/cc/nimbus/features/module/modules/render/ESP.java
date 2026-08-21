@@ -175,7 +175,7 @@ public final class ESP extends BasicModule {
 
         PoseStack stack = new PoseStack();
         stack.translate(x, y, z);
-        stack.mulPose(Axis.YN.rotationDegrees(bodyYaw));
+        stack.mulPose(Axis.YP.rotationDegrees(180f - bodyYaw));
         stack.scale(player.getScale(), player.getScale(), player.getScale());
         if (crouching) stack.translate(0f, 0f, -0.235f);
 
@@ -193,7 +193,7 @@ public final class ESP extends BasicModule {
                 0f, -0.5f, 0f, pose.leftArm, color);
 
         stack.pushPose();
-        stack.mulPose(Axis.YP.rotationDegrees(bodyYaw - headYaw));
+        stack.mulPose(Axis.YP.rotationDegrees(headYaw - bodyYaw));
         stack.translate(0f, yOffset + 0.55f, 0f);
         stack.mulPose(Axis.XP.rotation(pose.head.x));
         appendSegment(segments, stack, 0f, 0f, 0f, 0f, 0.3f, 0f, color);
