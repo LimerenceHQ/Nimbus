@@ -19,6 +19,7 @@ public abstract class KeyboardInputMixin extends ClientInput {
         float originalStrafe = axis(keyPresses.left(), keyPresses.right());
         EventMoveInput event = EventBus.call(new EventMoveInput(
                 originalForward, originalStrafe, keyPresses.jump(), keyPresses.sprint(), keyPresses.shift()));
+        EventBus.call(event);
         float forward = event.isCancel() ? 0.0f : event.getForward();
         float strafe = event.isCancel() ? 0.0f : event.getStrafe();
         keyPresses = new Input(
