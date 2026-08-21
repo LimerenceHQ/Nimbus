@@ -1,6 +1,7 @@
 package cc.nimbus.utils.network;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.LevelLoadingScreen;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.common.ClientboundDisconnectPacket;
@@ -22,6 +23,7 @@ import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.network.protocol.login.ClientboundLoginCompressionPacket;
+import net.minecraft.network.protocol.login.ClientboundHelloPacket;
 import net.minecraft.network.protocol.login.ClientboundLoginFinishedPacket;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -58,8 +60,10 @@ public final class PacketUtils {
     public static boolean isEssential(Packet<?> packet) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return true;
+        if (minecraft.screen instanceof LevelLoadingScreen) return true;
         if (packet instanceof ClientboundServerDataPacket
                 || packet instanceof ClientboundLoginCompressionPacket
+                || packet instanceof ClientboundHelloPacket
                 || packet instanceof ClientboundLoginFinishedPacket
                 || packet instanceof ClientboundFinishConfigurationPacket
                 || packet instanceof ClientboundPlayerInfoUpdatePacket

@@ -39,7 +39,7 @@ public class RotationRaycast implements IMinecraft {
         return new Vec3(i * j, -k, h * j);
     }
     public static BlockPos rayCastBlock(double reach) {
-        return rayCastBlock(new Rotation(Core.INSTANCE.getRotationManager().getTargetRotation().yaw(),Core.INSTANCE.getRotationManager().getTargetRotation().pitch()), reach);
+        return rayCastBlock(new Rotation(Core.INSTANCE.getRotationManager().getEffectiveRotation().yaw(),Core.INSTANCE.getRotationManager().getEffectiveRotation().pitch()), reach);
     }
     public static BlockPos rayCastBlock(Rotation rotation, double reach) {
 

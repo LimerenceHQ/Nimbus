@@ -3,6 +3,7 @@ package cc.nimbus.mixin.player;
 import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.EventType;
+import cc.nimbus.event.impl.game.EventTickUpdate;
 import cc.nimbus.event.impl.player.EventMotion;
 import cc.nimbus.event.impl.player.EventPreUpdate;
 import cc.nimbus.event.impl.player.EventSlowDown;
@@ -127,6 +128,11 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
 
     @Shadow
     protected abstract void sendRidingJump();
+
+    @Inject(method = "tick", at = @At("HEAD"))
+    public void injectUpdateEvent(CallbackInfo ci) {
+        EventBus.call(new EventTickUpdate());
+    }
 
     @Inject(method = "modifyInput", at = @At("HEAD"), cancellable = true)
     private void nimbus$modifyInput(Vec2 vec2, CallbackInfoReturnable<Vec2> cir) {
@@ -321,6 +327,18 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
 
     }
 
+    @Inject(
+            method = "sendPosition",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/player/LocalPlayer;sendIsSprintingIfNeeded()V",
+                    shift = At.Shift.AFTER
+            )
+    )
+    private void nimbus$preUpdateAfterSprintSync(CallbackInfo ci) {
+        EventBus.call(new EventPreUpdate());
+    }
+
 
     @Inject(method = "sendPosition", at = @At("HEAD"), cancellable = true)
     private void nimbus$preMotion(CallbackInfo ci) {
@@ -353,7 +371,6 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
         player.setXRot(nimbus$motion.getPitch());
         player.setOnGround(nimbus$motion.isGround());
         nimbus$motionActive = true;
-        EventBus.call(new EventPreUpdate());
     }
 
     @Inject(method = "sendPosition", at = @At("RETURN"))

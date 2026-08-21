@@ -2,7 +2,6 @@ package cc.nimbus.mixin.network;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.managers.PacketManager;
-import cc.nimbus.network.PacketEventGuard;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import net.minecraft.network.Connection;
@@ -23,7 +22,6 @@ public abstract class ConnectionMixin {
 
     @Inject(method = "sendPacket", at = @At("HEAD"), cancellable = true)
     private void nimbus$packetSend(Packet<?> packet, ChannelFutureListener listener, boolean flush, CallbackInfo ci) {
-        if (PacketEventGuard.isSuppressed()) return;
         if (!Core.INSTANCE.isInitialized()) return;
         PacketManager packetManager = Core.INSTANCE.getPacketManager();
         if (!packetManager.outboundsHook(packet)) {

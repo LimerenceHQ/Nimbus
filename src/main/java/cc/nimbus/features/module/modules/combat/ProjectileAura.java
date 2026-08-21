@@ -744,7 +744,7 @@ public final class ProjectileAura extends BasicModule {
 
     private boolean isKillAuraWorking() {
         KillAura killAura = Core.INSTANCE.getModuleManager().getModule(KillAura.class);
-        return killAura != null && killAura.isEnabled() && killAura.getAttackTarget() != null;
+        return killAura != null && killAura.isEnabled() && killAura.attackTarget != null;
     }
 
     private record ThrowAction(LivingEntity target, int slot, Rotation rotation, double score, double distance, AABB predictedBox, ProjectilePhysicsUtils.ProjectileProfile profile) {

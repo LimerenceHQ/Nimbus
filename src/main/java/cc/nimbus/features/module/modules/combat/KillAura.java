@@ -4,109 +4,125 @@ import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.game.EventClick;
-import cc.nimbus.event.impl.game.EventTick;
-import cc.nimbus.event.impl.game.EventWorldLoad;
+import cc.nimbus.event.impl.game.EventRotation;
 import cc.nimbus.event.impl.player.EventAttack;
-import cc.nimbus.event.impl.player.EventMotion;
 import cc.nimbus.event.impl.player.EventUpdate;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
+import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
-import cc.nimbus.features.module.modules.movement.Scaffold;
+import cc.nimbus.features.module.modules.player.AutoTool;
 import cc.nimbus.features.rotation.*;
-import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
-import cc.nimbus.managers.RotationManager;
 import cc.nimbus.managers.TargetManager;
-import net.minecraft.client.Minecraft;
+import cc.nimbus.mixin.accessor.player.MultiPlayerGameModeAccessor;
+import cc.nimbus.utils.entity.rotation.RotationUtils;
 import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.network.protocol.game.ServerboundSwingPacket;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.level.GameType;
-import net.minecraft.world.phys.*;
-
+import net.minecraft.world.phys.HitResult;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
-@ModuleInfo(
-        name = "KillAura",
-        description = "Attacks valid targets using server-side rotations.",
-        category = ModuleCategory.Combat
-)
-public final class KillAura extends BasicModule {
-    public final NumberSetting cps = new NumberSetting("CPS", 10, 1, 20, 1);
-    public final ModeValue switchMode = new ModeValue("Switch Mode", new String[]{"Single", "Switch"}, "Single");
-    public final ModeValue priority = new ModeValue(
-            "Priority", new String[]{"Health", "Distance"}, "Health", () -> switchMode.is("Single"));
-    public final ModeValue swingMode = new ModeValue("Swing Mode", new String[]{"Off", "Normal", "Silent"}, "Normal");
-    public final NumberSetting searchRange = new NumberSetting("Search Range", 6, 0, 8, 0.01);
-    public final NumberSetting rotationRange = new NumberSetting("Rotation Range", 4, 0, 7, 0.01);
-    public final NumberSetting attackRange = new NumberSetting("Attack Range", 3, 0, 6, 0.01);
-    public final BooleanSetting throughWalls = new BooleanSetting("Through Walls", false);
-    public final NumberSetting throughWallsRange = new NumberSetting(
-            "Through Walls Range", 0, 0, 6, 0.01, throughWalls::getValue);
-    public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180, 0, 180, 1);
-    public final ModeValue movementFix = new ModeValue(
-            "Movement Fix", new String[]{"None", "Strict", "Silent"}, "None");
-    public final BooleanSetting stopAttackWhileUsingItem = new BooleanSetting("Stop Attack While Using Item", false);
-    public final BooleanSetting stopWhileScaffolding = new BooleanSetting("Stop While Scaffolding", true);
-    public final BooleanSetting disableOnWorldChange = new BooleanSetting("Disable On World Change", true);
-    public final ModeValue keepSprint = new ModeValue(
-            "Keep Sprint", new String[]{"Off", "Vanilla", "Legit"}, "Off");
-    public final BooleanSetting skipFirstAttack = new BooleanSetting(
-            "Skip First Attack", false, () -> keepSprint.is("Legit"));
-    public final MultiSelectSetting particles = new MultiSelectSetting(
-            "Particles", new String[]{"Critical", "Sharpness"});
-    public final ModeValue autoBlock = new ModeValue(
-            "AutoBlock", new String[]{"Off", "Fake"}, "Off");
+@ModuleInfo(name = "KillAura",category = ModuleCategory.Combat, description = "Automatically attack selected enemies")
+public class KillAura extends BasicModule {
+    private final NumberSetting cps = new NumberSetting("CPS",10,1,20,1);
+    private final ModeSetting switchMode = new ModeSetting("Switch Mode",new String[]{"Single","Switch"},"Single");
+    private final ModeSetting priority = new ModeSetting("Priority",new String[]{"Health","Distance"},"Health",() -> switchMode.is("Single"));
+    private final ModeSetting swingMode = new ModeSetting("Swing Mode",new String[]{"Off","Normal","Silent"},"Normal");
+    private final NumberSetting searchRange = new NumberSetting("Search Range",6,0,8,0.01);
+    private final BooleanSetting throughWall = new BooleanSetting("Through Walls",false);
+    private final NumberSetting throughWallRange = new NumberSetting("Through Walls Range",0,0,6,0.01,throughWall::getValue);
+    private final NumberSetting rotationRange = new NumberSetting("Rotation Range",4,0,7,0.01);
+    private final NumberSetting attackRange = new NumberSetting("Attack Range",3,0,6,0.01);
+    private final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed",180,0,180,1);
+    private final BooleanSetting stopAttack = new BooleanSetting("StopAttack When UsingItem",false);
+    private final ModeSetting movementFix = new ModeSetting("Movement Fix",new String[]{"None","Strict","Silent"},"None");
+    private final ModeSetting keepSprint = new ModeSetting("Keep Sprint",new String[]{"Off","Vanilla","Legit"},"Off");
+    private final BooleanSetting skipFirstAttack = new BooleanSetting("Skip First Attack",false,() -> keepSprint.is("Legit"));
+    public final MultiSelectSetting particleOption = new MultiSelectSetting(
+            "Particle Option", new String[]{"Sharpness", "Critical"});
 
-    public LivingEntity attackTarget;
-    private List<LivingEntity> searchedTargets = List.of();
-    private List<LivingEntity> targets = List.of();
-    private Rotation requestedRotation;
-    private double attackAccumulator;
-    private boolean firstAttack;
-    private boolean renderBlocking;
-    private boolean shouldStopSprint;
+    private boolean firstAttack = false;
+    private double attackAccumulator = 0.0;
+    private boolean shouldStopSprint = false;
+    public LivingEntity attackTarget = null;
+    public List<LivingEntity> targets = new ArrayList<>();
+    public List<LivingEntity> searchedTargets = new ArrayList<>();
+    private Rotation rotation = new Rotation(0,0);
 
     @Override
     protected void onEnable() {
-        resetState(false);
+        firstAttack = false;
+        targets = new ArrayList<>();
+        searchedTargets = new ArrayList<>();
+        attackTarget = null;
+        attackAccumulator = 0.0;
+        shouldStopSprint = false;
     }
 
     @Override
     protected void onDisable() {
-        resetState(true);
+        firstAttack = false;
+        targets = new ArrayList<>();
+        searchedTargets = new ArrayList<>();
+        attackTarget = null;
+        attackAccumulator = 0.0;
+        shouldStopSprint = false;
     }
 
     @EventTarget
-    private void onWorldLoad(EventWorldLoad event) {
-        resetState(true);
-        if (disableOnWorldChange.getValue() && isEnabled()) setEnabled(false);
+    public void onRotation(EventRotation event) {
+        updateTargets();
+
+        if (mc.player == null || attackTarget == null || targets.isEmpty() || searchedTargets.isEmpty()) return;
+
+        MovementFix moveFix = switch (movementFix.getValue()) {
+            case "Strict" -> MovementFix.STRICT;
+            case "Silent" -> MovementFix.SILENT;
+            default -> MovementFix.NONE;
+        };
+
+        rotation = RotationUtils.toRotation(RotationUtils.getInteractiveEntityData(mc.player,attackTarget,throughWall.getValue() ? throughWallRange.getValue().doubleValue() : 0.0).point());
+        Core.INSTANCE.getRotationManager().setRotations(rotation,moveFix,true, SmoothMode.ADVANCED,rotationSpeed.getValue().floatValue(),0,0, Priority.MEDIUM);
     }
 
     @EventTarget
-    private void onTick(EventTick event) {
-        if (event.getPhase() == EventTick.Phase.PRE) prepareTick();
-    }
+    public void onClick(EventClick event) {
+        if (mc.player == null) return;
 
-    @EventTarget
-    private void onClick(EventClick event) {
-        attackTick();
-    }
+        double delay = 1000.0 / cps.getValue().intValue();
 
-    @EventTarget
-    private void onMotion(EventMotion event) {
-        if (!event.isPre()) return;
-        renderBlocking = autoBlock.is("Fake") && attackTarget != null && holdingSword();
+        attackAccumulator += 50.0;
+        if (attackAccumulator > delay * 2) {
+            attackAccumulator = delay * 2;
+        }
+
+        if (attackTarget == null) {
+            firstAttack = false;
+            return;
+        }
+
+        if (!rayCast(attackTarget)) return;
+        boolean cantKeepSprint = !firstAttack && skipFirstAttack.getValue();
+
+        if (attackAccumulator >= delay) {
+            if (keepSprint.is("Legit")) {
+                if (mc.player.isSprinting() && !cantKeepSprint) {
+                    shouldStopSprint = true;
+                }
+            }
+            if ((!stopAttack.getValue() || !mc.player.isUsingItem()) && (!shouldStopSprint || cantKeepSprint)) {
+                handleAttack();
+                attackAccumulator -= delay;
+            }
+        }
     }
 
     @EventTarget
@@ -122,218 +138,100 @@ public final class KillAura extends BasicModule {
         }
     }
 
-    public boolean isRenderBlocking() {
-        return isEnabled() && renderBlocking && holdingSword();
-    }
+    private void handleAttack() {
+        if (mc.player == null || mc.getConnection() == null || mc.gameMode == null) return;
 
-    public LivingEntity getAttackTarget() {
-        return attackTarget;
-    }
-
-    public List<LivingEntity> getTargets() {
-        return targets;
-    }
-
-    private void prepareTick() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.level == null || !minecraft.player.isAlive()) {
-            resetState(true);
-            return;
+        EventBus.call(new EventAttack(attackTarget));
+        ((MultiPlayerGameModeAccessor)mc.gameMode).nimbus$ensureHasSentCarriedItem();
+        mc.getConnection().send(ServerboundInteractPacket.createAttackPacket(attackTarget, mc.player.isShiftKeyDown()));
+        if (mc.gameMode.getPlayerMode() != GameType.SPECTATOR && !keepSprint.is("Vanilla")) {
+            Core.INSTANCE.getModuleManager().getModule(AutoTool.class).equipBestWeapon();
+            mc.player.attack(attackTarget);
+            mc.player.resetAttackStrengthTicker();
+        }
+        if (swingMode.is("Normal")) {
+            mc.player.swing(InteractionHand.MAIN_HAND);
+        } else if (swingMode.is("Silent")) {
+            mc.getConnection().send(new ServerboundSwingPacket(InteractionHand.MAIN_HAND));
         }
 
-        if (shouldYieldToScaffold() || isEatingOrDrinking()) {
-            resetState(true);
-            return;
-        }
-
-        updateTargets();
-        if (attackTarget == null) {
-            firstAttack = false;
-            stopBlocking();
-            return;
-        }
-        if (autoBlock.is("Off")) stopBlocking();
-
-        RotationMath.AimPoint point = aimPoint(attackTarget);
-        if (!point.exists() || point.distance() > rotationRange.getValue().doubleValue()) {
-            stopBlocking();
-            return;
-        }
-        requestedRotation = RotationMath.toRotation(minecraft.player.getEyePosition(), point.point());
-        Core.INSTANCE.getRotationManager().setRotations(requestedRotation,selectedMovementFix(),true, SmoothMode.ADVANCED,rotationSpeed.getValue().floatValue(),0,0, Priority.MEDIUM);
-
-        if (autoBlock.is("Fake")) renderBlocking = holdingSword();
-    }
-
-    private void attackTick() {
-        if (mc.player == null) return;
-        if (shouldYieldToScaffold() || isEatingOrDrinking()) {
-            resetState(true);
-            return;
-        }
-        double delay = 1000.0 / cps.getValue().doubleValue();
-        attackAccumulator = Math.min(attackAccumulator + 50.0, delay * 2.0);
-        if (mc.level == null || mc.gameMode == null
-                || mc.getConnection() == null || attackTarget == null) return;
-        if (stopAttackWhileUsingItem.getValue() && mc.player.isUsingItem()) return;
-
-        LivingEntity rayCastTarget = resolveRayCastTarget();
-        if (rayCastTarget == null) return;
-        attackTarget = rayCastTarget;
-
-        boolean skipSprintStop = skipFirstAttack.getValue() && !firstAttack;
-        if (attackAccumulator >= delay) {
-            if (keepSprint.is("Legit")) {
-                if (mc.player.isSprinting() && !skipSprintStop) {
-                    shouldStopSprint = true;
-                }
-            }
-            if (!shouldStopSprint || skipSprintStop) {
-                performAttack(rayCastTarget);
-                attackAccumulator -= delay;
-            }
-        }
-    }
-
-    private void performAttack(LivingEntity target) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.gameMode == null || minecraft.getConnection() == null) return;
-
-        if (keepSprint.is("Vanilla")) {
-            EventAttack pre = EventBus.call(new EventAttack(target, EventAttack.Stage.PRE));
-            if (pre.isCancel() || pre.getEntity() == null) return;
-            Entity actualTarget = pre.getEntity();
-            ((MultiPlayerGameModeAccessor) minecraft.gameMode).nimbus$ensureHasSentCarriedItem();
-            minecraft.getConnection().send(ServerboundInteractPacket.createAttackPacket(
-                    actualTarget, minecraft.player.isShiftKeyDown()));
-            EventBus.call(new EventAttack(actualTarget, EventAttack.Stage.POST));
-        } else {
-            minecraft.gameMode.attack(minecraft.player, target);
-        }
-
-        if (minecraft.gameMode.getPlayerMode() != GameType.SPECTATOR) {
-            if (swingMode.is("Normal")) minecraft.player.swing(InteractionHand.MAIN_HAND);
-            else if (swingMode.is("Silent")) {
-                minecraft.getConnection().send(new ServerboundSwingPacket(InteractionHand.MAIN_HAND));
-            }
-            if (particles.isSelected("Critical")) minecraft.player.crit(target);
-            if (particles.isSelected("Sharpness")) minecraft.player.magicCrit(target);
-        }
-    }
-
-    private LivingEntity resolveRayCastTarget() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || attackTarget == null) return null;
-        RotationManager rotations = Core.INSTANCE.getRotationManager();
-        RotationMath.AimPoint point = aimPoint(attackTarget);
-        boolean through = throughWalls.getValue() && point.exists()
-                && point.distance() <= throughWallsRange.getValue().doubleValue();
-        HitResult hit = RotationRaycast.raycast(
-                minecraft.player,
-                rotations.getEffectiveRotation(),
-                attackRange.getValue().doubleValue(),
-                through,
-                Entity::isPickable
-        );
-        if (!(hit instanceof EntityHitResult entityHit)
-                || !(entityHit.getEntity() instanceof LivingEntity living)) return null;
-        TargetManager targetManager = Core.INSTANCE.getTargetManager();
-        if (!targetManager.isTarget(living)) return null;
-        RotationMath.AimPoint hitPoint = aimPoint(living);
-        return hitPoint.exists() && hitPoint.distance() <= attackRange.getValue().doubleValue() ? living : null;
+        if (!firstAttack)
+            firstAttack = true;
+        if (particleOption.isSelected("Critical"))
+            mc.player.crit(attackTarget);
+        if (particleOption.isSelected("Sharpness"))
+            mc.player.magicCrit(attackTarget);
     }
 
     private void updateTargets() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) return;
-        searchedTargets = Core.INSTANCE.getTargetManager().getTargets(searchRange.getValue().doubleValue());
+        if (mc.player == null || mc.level == null) return;
+
+        searchedTargets = new ArrayList<>(Core.INSTANCE.getTargetManager().getTargets(searchRange.getValue().doubleValue()));
+
         if (searchedTargets.isEmpty()) {
-            targets = List.of();
+            targets = new ArrayList<>();
             attackTarget = null;
             return;
         }
 
-        List<LivingEntity> rotationTargets = searchedTargets.stream()
-                .filter(entity -> {
-                    RotationMath.AimPoint point = aimPoint(entity);
-                    return point.exists() && point.distance() <= rotationRange.getValue().doubleValue();
-                }).toList();
-        List<LivingEntity> attackTargets = rotationTargets.stream()
-                .filter(entity -> aimPoint(entity).distance() <= attackRange.getValue().doubleValue())
-                .toList();
-        targets = attackTargets.isEmpty() ? rotationTargets : attackTargets;
-        if (targets.isEmpty()) {
-            attackTarget = null;
-            return;
+        List<LivingEntity> inRotationRangeTargets = searchedTargets.stream()
+                .filter(entity -> RotationUtils.getInteractiveEntityData(mc.player,entity,throughWall.getValue() ? throughWallRange.getValue().doubleValue() : 0.0).distance() <= rotationRange.getValue().doubleValue())
+                .collect(Collectors.toList());
+
+        List<LivingEntity> inAttackRangeTargets = searchedTargets.stream()
+                .filter(entity -> RotationUtils.getInteractiveEntityData(mc.player,entity,throughWall.getValue() ? throughWallRange.getValue().doubleValue() : 0.0).distance() <= attackRange.getValue().doubleValue())
+                .collect(Collectors.toList());
+
+        targets = new ArrayList<>(!inAttackRangeTargets.isEmpty() ? inAttackRangeTargets : inRotationRangeTargets);
+
+        if (switchMode.is("Single")) {
+            attackTarget = targets.stream()
+                    .min(Comparator.comparingDouble(this::getPriorityValue))
+                    .orElse(null);
+        } else if (switchMode.is("Switch")) {
+            attackTarget = targets.stream()
+                    .min(Comparator.comparingDouble(this::ultimateTarget))
+                    .orElse(null);
         }
-        attackTarget = targets.stream().min(Comparator.comparingDouble(
-                switchMode.is("Switch") ? this::switchScore : this::priorityScore)).orElse(null);
     }
 
-    private double priorityScore(LivingEntity entity) {
-        return priority.is("Distance") ? aimPoint(entity).distance() : entity.getHealth();
+    private double ultimateTarget(LivingEntity entity) {
+        if (rotation == null) return 1000.0d;
+        if (!RotationRaycast.canHit(entity,attackRange.getValue().doubleValue(),throughWall.getValue() ? throughWallRange.getValue().doubleValue() : 0) || mc.player == null) {
+            return 1000.0;
+        } else {
+            double distance = RotationUtils.getDistanceToEntityBox(mc.player,entity);
+            double hurtTime = (entity).hurtTime * 6;
+            return hurtTime + distance;
+        }
     }
 
-    private double switchScore(LivingEntity entity) {
-        double distance = aimPoint(entity).distance();
-        return entity.hurtTime * 6.0 + distance;
-    }
+    private double getPriorityValue(LivingEntity entity) {
+        if (mc.player == null) return -1;
 
-    private RotationMath.AimPoint aimPoint(LivingEntity entity) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) return new RotationMath.AimPoint(null, Double.POSITIVE_INFINITY, false);
-        return RotationMath.interactivePoint(
-                minecraft.player,
-                entity,
-                throughWalls.getValue() ? throughWallsRange.getValue().doubleValue() : 0.0
-        );
-    }
-
-    private MovementFix selectedMovementFix() {
-        return switch (movementFix.getValue()) {
-            case "Strict" -> MovementFix.STRICT;
-            case "Silent" -> MovementFix.SILENT;
-            default -> MovementFix.NONE;
+        return switch (priority.getValue()) {
+            case "Health" -> entity.getHealth();
+            case "Distance" -> RotationUtils.getDistanceToEntityBox(mc.player,entity);
+            default -> -1;
         };
     }
 
-    private void stopBlocking() {
-        renderBlocking = false;
-    }
+    private boolean rayCast(LivingEntity target) {
+        if (mc.player == null) return false;
 
-    private boolean holdingSword() {
-        Minecraft minecraft = Minecraft.getInstance();
-        return minecraft.player != null && minecraft.player.getMainHandItem().is(ItemTags.SWORDS);
-    }
+        var rot = Core.INSTANCE.getRotationManager().getTargetRotation();
+        double r = attackRange.getValue().doubleValue();
+        boolean through = RotationUtils.getInteractiveEntityData(mc.player,target,throughWallRange.getValue().doubleValue()).distance() <= throughWallRange.getValue().doubleValue();
 
-    private boolean isEatingOrDrinking() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) return false;
-        if (minecraft.player.isUsingItem()) {
-            return isFoodOrDrink(minecraft.player.getUseItem());
+        var hit = RotationRaycast.rayCastEntity(rot, r, through);
+        if (hit == null || hit.getType() != HitResult.Type.ENTITY) return false;
+        if (!(hit.getEntity() instanceof LivingEntity living)) return false;
+
+        if (living != target) {
+            if (Core.INSTANCE.getTargetManager().isTarget(living)) {
+                attackTarget = living;
+            } else return false;
         }
-        if (minecraft.options == null || !minecraft.options.keyUse.isDown()) return false;
-        return isFoodOrDrink(minecraft.player.getMainHandItem())
-                || isFoodOrDrink(minecraft.player.getOffhandItem());
-    }
-
-    private boolean isFoodOrDrink(ItemStack stack) {
-        ItemUseAnimation animation = stack.getUseAnimation();
-        return animation == ItemUseAnimation.EAT || animation == ItemUseAnimation.DRINK;
-    }
-
-    private boolean shouldYieldToScaffold() {
-        if (!stopWhileScaffolding.getValue() || !Core.INSTANCE.isInitialized()) return false;
-        Scaffold scaffold = Core.INSTANCE.getModuleManager().getModule(Scaffold.class);
-        return scaffold != null && scaffold.isEnabled();
-    }
-
-    private void resetState(boolean releaseRotation) {
-        stopBlocking();
-        attackTarget = null;
-        searchedTargets = List.of();
-        targets = List.of();
-        requestedRotation = null;
-        attackAccumulator = 0.0;
+        return true;
     }
 }

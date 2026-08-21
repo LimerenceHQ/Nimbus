@@ -38,6 +38,13 @@ public final class InventoryUtils {
     private InventoryUtils() {
     }
 
+    public static boolean isItemValid(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return false;
+        }
+        return !notUsefulItem(stack);
+    }
+
     public static boolean hasValidProfileComponent(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return true;
         ResolvableProfile profile = stack.get(DataComponents.PROFILE);

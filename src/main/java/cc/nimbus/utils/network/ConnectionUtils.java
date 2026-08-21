@@ -1,6 +1,5 @@
 package cc.nimbus.utils.network;
 
-import cc.nimbus.network.PacketEventGuard;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import net.minecraft.network.Connection;
@@ -14,7 +13,7 @@ import java.lang.reflect.Method;
 public final class ConnectionUtils {
     private static final Field CHANNEL = findField(Connection.class, "channel", Channel.class);
     private static final Field SENT_PACKETS = findField(Connection.class, "sentPackets", int.class);
-    private static final Method DO_SEND_PACKET = findDoSendPacket();
+    private static final Method DO_SEND_PACKET = findMethod(Connection.class, "doSendPacket", "m_243087_");
 
     private ConnectionUtils() {
     }
@@ -24,13 +23,11 @@ public final class ConnectionUtils {
         Channel channel = channel(connection);
         incrementSentPackets(connection);
         Runnable send = () -> {
-            PacketEventGuard.suppress();
+            //PacketEventGuard.suppress();
             try {
-                // This is Connection.sendPacket's 1.21.11 body without entering
-                // the public send hook: doSendPacket(packet, listener, flush).
                 invokeDoSendPacket(connection, packet, null, true);
             } finally {
-                PacketEventGuard.restore();
+               // PacketEventGuard.restore();
             }
         };
         if (channel.eventLoop().inEventLoop()) send.run();
@@ -42,11 +39,11 @@ public final class ConnectionUtils {
         if (connection == null || packet == null || !connection.isConnected()) return;
         PacketListener listener = connection.getPacketListener();
         if (listener == null) return;
-        PacketEventGuard.suppress();
+    //    PacketEventGuard.suppress();
         try {
             ((Packet) packet).handle(listener);
         } finally {
-            PacketEventGuard.restore();
+      //      PacketEventGuard.restore();
         }
     }
 
@@ -87,18 +84,22 @@ public final class ConnectionUtils {
         }
         throw new IllegalStateException("Unable to resolve field " + owner.getName() + "." + name);
     }
-
-    private static Method findDoSendPacket() {
-        for (Method method : Connection.class.getDeclaredMethods()) {
-            Class<?>[] parameters = method.getParameterTypes();
-            if (parameters.length == 3
-                    && Packet.class.isAssignableFrom(parameters[0])
-                    && ChannelFutureListener.class.isAssignableFrom(parameters[1])
-                    && parameters[2] == boolean.class) {
+    private static Method findMethod(Class<?> owner, String name, String... altNames) {
+        for (Method method : owner.getDeclaredMethods()) {
+            if (method.getName().equals(name)) {
                 method.setAccessible(true);
                 return method;
             }
         }
-        throw new IllegalStateException("Unable to resolve Connection.doSendPacket(Packet, Listener, boolean)");
+        for (String alt : altNames) {
+            for (Method method : owner.getDeclaredMethods()) {
+                if (method.getName().equals(alt)) {
+                    method.setAccessible(true);
+                    return method;
+                }
+            }
+        }
+        throw new IllegalStateException("Failed to resolve method on " + owner.getName());
     }
+
 }

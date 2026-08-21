@@ -264,7 +264,7 @@ public final class FireGuard extends BasicModule {
                 && !minecraft.player.isInWater()
                 && !minecraft.player.isCreative()
                 && !minecraft.player.isUsingItem()
-                && (killAura == null || killAura.getAttackTarget() == null)
+                && (killAura == null || killAura.attackTarget == null)
                 && predictLandingSupport() != null
                 && findHotbarSlot(Items.WATER_BUCKET) != -1;
     }

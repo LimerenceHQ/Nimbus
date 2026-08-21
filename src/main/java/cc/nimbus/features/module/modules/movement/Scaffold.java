@@ -7,353 +7,432 @@ import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.event.impl.player.EventTravel;
+import cc.nimbus.event.impl.player.EventUpdate;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
+import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.movement.scaffold.FallingPlayer;
-import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceInfo;
-import cc.nimbus.features.module.modules.movement.scaffold.ScaffoldPlaceSearch;
-import cc.nimbus.managers.GameStateManager;
+import cc.nimbus.features.module.modules.movement.scaffold.PlaceInfo;
+import cc.nimbus.features.module.modules.movement.scaffold.PlaceUtils;
 import cc.nimbus.features.rotation.*;
-import net.minecraft.client.Minecraft;
+import cc.nimbus.managers.GameStateManager;
+import cc.nimbus.utils.client.TimerUtils;
+import cc.nimbus.utils.entity.player.InventoryUtils;
+import cc.nimbus.utils.entity.player.MovementUtils;
+import cc.nimbus.utils.entity.rotation.RotationUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.StandingAndWallBlockItem;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.AirBlock;
-import net.minecraft.world.level.block.BannerBlock;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BushBlock;
-import net.minecraft.world.level.block.ButtonBlock;
-import net.minecraft.world.level.block.CarpetBlock;
-import net.minecraft.world.level.block.ComposterBlock;
-import net.minecraft.world.level.block.ConcretePowderBlock;
 import net.minecraft.world.level.block.CropBlock;
-import net.minecraft.world.level.block.DoorBlock;
-import net.minecraft.world.level.block.FenceBlock;
-import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.FlowerBlock;
 import net.minecraft.world.level.block.FungusBlock;
-import net.minecraft.world.level.block.JukeboxBlock;
-import net.minecraft.world.level.block.LeavesBlock;
-import net.minecraft.world.level.block.MushroomBlock;
-import net.minecraft.world.level.block.NoteBlock;
-import net.minecraft.world.level.block.PressurePlateBlock;
-import net.minecraft.world.level.block.SaplingBlock;
-import net.minecraft.world.level.block.SignBlock;
 import net.minecraft.world.level.block.SlabBlock;
-import net.minecraft.world.level.block.StainedGlassBlock;
-import net.minecraft.world.level.block.StainedGlassPaneBlock;
-import net.minecraft.world.level.block.StairBlock;
-import net.minecraft.world.level.block.TintedGlassBlock;
-import net.minecraft.world.level.block.TrapDoorBlock;
-import net.minecraft.world.level.block.WallBlock;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-
-import java.util.Objects;
+import org.lwjgl.glfw.GLFW;
+import java.util.HashSet;
 import java.util.Set;
 
-@ModuleInfo(
-        name = "Scaffold",
-        description = "Automatically places blocks beneath you while moving.",
-        category = ModuleCategory.Move
-)
-public final class Scaffold extends BasicModule {
-    private static final Set<Block> BLACKLISTED_BLOCKS = Set.of(Blocks.TNT);
+@ModuleInfo(name = "Scaffold", category = ModuleCategory.Move, description = "Automatically places blocks beneath you while moving")
+public class Scaffold extends BasicModule {
+    public static final Set<Block> blacklistedBlocks = new HashSet<>();
+    private final ModeSetting searchMode = new ModeSetting("Search Mode", new String[]{"Normal", "Hypixel"}, "Normal");
+    private final ModeSetting mode = new ModeSetting("Mode", new String[]{"Normal", "Telly"}, "Normal");
+    private final ModeSetting rotatePoint = new ModeSetting("Rotate Point", new String[]{"Normal", "Corner", "Nearest"}, "Normal");
+    private final ModeSetting rotationMode = new ModeSetting("Rotation Mode", new String[]{"Instant", "Smooth", "Hypixel"}, "Instant");
+    private final NumberSetting rotateSpeed = new NumberSetting("Rotate Speed", 180.0, 1.0, 180.0, 1.0,() -> rotationMode.is("Smooth"));
+    private final BooleanSetting silentRotate = new BooleanSetting("Silent rotate", false);
+    private final BooleanSetting autoSwitch = new BooleanSetting("Auto Switch", true);
+    private final BooleanSetting autoSneak = new BooleanSetting("Auto Sneak", false);
+    private final BooleanSetting keepY = new BooleanSetting("Keep Y", false);
+    private final NumberSetting jumpDelayMax = new NumberSetting("Max Jump Delay", 2.0, 0.0, 3.0, 1.0,() -> mode.is("Telly"));
+    private final NumberSetting jumpDelayMin = new NumberSetting("Min Jump Delay", 1.0, 0.0, 3.0, 1.0,() -> mode.is("Telly"));
+    private final ModeSetting raycast = new ModeSetting("Raycast", new String[]{"Normal", "Medium", "Off"}, "Normal");
+    private final NumberSetting placeDelayMin = new NumberSetting("Min Place Delay", 0.0, 0.0, 200.0, 1.0);
+    private final NumberSetting placeDelayMax = new NumberSetting("Max Place Delay", 0.0, 0.0, 200.0, 1.0);
+    private final BooleanSetting autoStuck = new BooleanSetting("AutoStuck", true);
+    private final BooleanSetting noFoV = new BooleanSetting("NoFoV", true);
+    private final BooleanSetting slow = new BooleanSetting("Slow", false);
+    private final ModeSetting placeDelayMode = new ModeSetting("Placeable Mode", new String[]{"Check Height", "Check Tick", "Off"}, "Check Height",() -> mode.is("Telly") && !rotationMode.is("Hypixel"));
+    private final NumberSetting height = new NumberSetting("Height", 0.5, 0.0, 1.25, 0.05,() -> mode.is("Telly") && placeDelayMode.is("Check Height") && !rotationMode.is("Hypixel"));
+    private final NumberSetting upTellyHeight = new NumberSetting("UpTelly Height", 0.2, 0.0, 1.25, 0.05,() -> mode.is("Telly") && placeDelayMode.is("Check Height") && !rotationMode.is("Hypixel") && !keepY.getValue());
+    private final NumberSetting tick = new NumberSetting("Tick", 3.0, 0.0, 5.0, 1.0,() -> mode.is("Telly") && placeDelayMode.is("Check Tick") && !rotationMode.is("Hypixel"));
+    private final NumberSetting upTellyTick = new NumberSetting("UpTelly Tick", 1.0, 0.0, 5.0, 1.0,() -> mode.is("Telly") && placeDelayMode.is("Check Tick") && !rotationMode.is("Hypixel") && !keepY.getValue());
 
-    public final ModeValue searchMode = new ModeValue(
-            "Search Mode", new String[]{"Normal", "Hypixel"}, "Normal");
-    public final ModeValue mode = new ModeValue(
-            "Mode", new String[]{"Normal", "Telly"}, "Normal");
-    public final ModeValue rotatePoint = new ModeValue(
-            "Rotate Point", new String[]{"Normal", "Corner", "Nearest"}, "Normal");
-    public final ModeValue rotationMode = new ModeValue(
-            "Rotation Mode", new String[]{"Instant", "Smooth", "Hypixel"}, "Instant");
-    public final NumberSetting rotateSpeed = new NumberSetting(
-            "Rotate Speed", 180.0, 1.0, 180.0, 1.0, () -> rotationMode.is("Smooth"));
-    public final BooleanSetting silentRotate = new BooleanSetting("Silent Rotate", false);
-    public final BooleanSetting autoSwitch = new BooleanSetting("Auto Switch", true);
-    public final BooleanSetting autoSneak = new BooleanSetting("Auto Sneak", false);
-    public final BooleanSetting keepY = new BooleanSetting("Keep Y", false);
-    public final NumberSetting jumpDelayMax = new NumberSetting(
-            "Max Jump Delay", 2.0, 0.0, 3.0, 1.0, () -> mode.is("Telly"));
-    public final NumberSetting jumpDelayMin = new NumberSetting(
-            "Min Jump Delay", 1.0, 0.0, 3.0, 1.0, () -> mode.is("Telly"));
-    public final ModeValue raycast = new ModeValue(
-            "Raycast", new String[]{"Normal", "Medium", "Off"}, "Normal");
-    public final NumberSetting placeDelayMin = new NumberSetting(
-            "Min Place Delay", 0.0, 0.0, 200.0, 1.0);
-    public final NumberSetting placeDelayMax = new NumberSetting(
-            "Max Place Delay", 0.0, 0.0, 200.0, 1.0);
-    public final BooleanSetting autoStuck = new BooleanSetting("Auto Stuck", true);
-    public final BooleanSetting slow = new BooleanSetting(
-            "Slow Hypixel Rotation", false, () -> rotationMode.is("Hypixel"));
-    public final ModeValue placeDelayMode = new ModeValue(
-            "Placeable Mode", new String[]{"Check Height", "Check Tick", "Off"}, "Check Height",
-            () -> mode.is("Telly") && !rotationMode.is("Hypixel"));
-    public final NumberSetting height = new NumberSetting(
-            "Height", 0.5, 0.0, 1.25, 0.05,
-            () -> mode.is("Telly") && placeDelayMode.is("Check Height") && !rotationMode.is("Hypixel"));
-    public final NumberSetting upTellyHeight = new NumberSetting(
-            "Up Telly Height", 0.2, 0.0, 1.25, 0.05,
-            () -> mode.is("Telly") && placeDelayMode.is("Check Height")
-                    && !rotationMode.is("Hypixel") && !keepY.getValue());
-    public final NumberSetting tick = new NumberSetting(
-            "Tick", 3.0, 0.0, 5.0, 1.0,
-            () -> mode.is("Telly") && placeDelayMode.is("Check Tick") && !rotationMode.is("Hypixel"));
-    public final NumberSetting upTellyTick = new NumberSetting(
-            "Up Telly Tick", 1.0, 0.0, 5.0, 1.0,
-            () -> mode.is("Telly") && placeDelayMode.is("Check Tick")
-                    && !rotationMode.is("Hypixel") && !keepY.getValue());
-
-    private ScaffoldPlaceInfo currentPlace;
-    private ScaffoldPlaceInfo lastPlace;
-    private ScaffoldPlaceInfo.RotationHit currentHit;
+    private PlaceInfo currentPlace;
+    private PlaceInfo lastPlaceInfo;
     private Rotation targetRotation;
     private Rotation lastHypixelRotation;
-    private int rotationTick;
-    private int stage;
-    private int baseY;
+    private PlaceInfo.RotationHit currentHit;
+    private int rotationTick = 0;
+    private int stage = 0;
+    private boolean canRotate = false;
+    private int baseY = 0;
+    private int rotateCount = 0;
+    private int counter = 0;
+    private int oldSlot;
     private int yLevel;
-    private int rotateCount;
-    private int oldSlot = -1;
-    private boolean canRotate;
-    private boolean canPlaceNow;
     private boolean reachable = true;
+    private boolean noti = false;
     private boolean yawNormal;
-    private boolean forcedSneak;
-    private int placementAttemptTick = Integer.MIN_VALUE;
-    private long lastPlaceTime;
+    public TimerUtils timerUtils = new TimerUtils();
 
-    @Override
-    protected void onEnable() {
-        resetRuntime();
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player != null) {
-            oldSlot = minecraft.player.getInventory().getSelectedSlot();
-            baseY = yLevel = Mth.floor(minecraft.player.getY() - 1.0);
-            stopGoldenAppleUse(minecraft);
-        }
+    private final TimerUtils placeTimer = new TimerUtils();
+
+    static {
+        blacklistedBlocks.add(Blocks.TNT);
     }
 
     @Override
-    protected void onDisable() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player != null && oldSlot >= 0 && oldSlot < 9) {
-            minecraft.player.getInventory().setSelectedSlot(oldSlot);
+    public void onEnable() {
+        currentPlace = null;
+        lastPlaceInfo = null;
+        currentHit = null;
+        targetRotation = null;
+        lastHypixelRotation = null;
+        rotationTick = 3;
+        stage = 0;
+        canRotate = false;
+        reachable = true;
+        rotateCount = 0;
+        counter = 0;
+        placeTimer.reset();
+        if (mc.player != null) {
+            oldSlot = mc.player.getInventory().getSelectedSlot();
+            baseY = yLevel = (int) Math.floor(mc.player.getY() - 1.0D);
         }
-        releaseSneak();
-        resetRuntime();
+    }
+
+    @Override
+    public void onDisable() {
+        currentPlace = null;
+        lastPlaceInfo = null;
+        currentHit = null;
+        targetRotation = null;
+        lastHypixelRotation = null;
+        rotationTick = 0;
+        stage = 0;
+        canRotate = false;
+        reachable = true;
+        rotateCount = 0;
+        counter = 0;
+        if (mc.player != null) {
+            mc.player.getInventory().setSelectedSlot(oldSlot);
+        }
+        mc.options.keyShift.setDown(false);
+        timerUtils.reset();
     }
 
     @EventTarget
-    private void onWorldLoad(EventWorldLoad event) {
-        releaseSneak();
-        resetRuntime();
+    public void onWorld(EventWorldLoad event) {
+        currentPlace = null;
+        lastPlaceInfo = null;
+        currentHit = null;
+        targetRotation = null;
+        lastHypixelRotation = null;
+        rotationTick = 0;
+        stage = 0;
+        canRotate = false;
+        reachable = true;
+        rotateCount = 0;
+        counter = 0;
     }
 
     @EventTarget
-    private void onTick(EventTick event) {
-        if (event.getPhase() != EventTick.Phase.PRE) return;
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.level == null || minecraft.gameMode == null) {
-            releaseSneak();
+    public void onUpdate(EventUpdate event) {
+        if (!event.isPre() || mc.player == null || mc.level == null) {
             return;
         }
-        if (oldSlot < 0) {
-            oldSlot = minecraft.player.getInventory().getSelectedSlot();
-            baseY = yLevel = Mth.floor(minecraft.player.getY() - 1.0);
-        }
-
-        stopGoldenAppleUse(minecraft);
-        setSuffix(mode.getValue());
-        float normalized = (Mth.wrapDegrees(mc.player.getYRot() - movementYawOffset()) % 360.0f + 360.0f) % 360.0f;
-        yawNormal = normalized % 90.0f < 45.0f;
-        updateSneak(minecraft.player, minecraft.level);
-        selectBlock(minecraft.player);
-        preparePlacement(minecraft.player, minecraft.level);
-    }
-
-    @EventTarget
-    private void onClick(EventClick event) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.level == null || minecraft.gameMode == null
-                || currentPlace == null || currentHit == null || currentHit.hitVec() == null || !canPlaceNow) {
-            return;
-        }
-        if (!isValidStack(minecraft.player.getMainHandItem())) return;
-        if (!ScaffoldPlaceSearch.canPlaceAt(BlockPos.containing(
-                minecraft.player.getX(), yLevel, minecraft.player.getZ()))) return;
-        if (!placeDelayElapsed(minecraft.player)) return;
-
-        Rotation rayRotation = Core.INSTANCE.getRotationManager().getEffectiveRotation();
-        if (!raycast.is("Off")) {
-            Rotation checkRotation = raycast.is("Medium") && targetRotation != null ? targetRotation : rayRotation;
-            BlockPos hitBlock = RotationRaycast.rayCastBlock(checkRotation, 4.5);
-            if (!currentPlace.blockPos().equals(hitBlock)
-                    && minecraft.level.noCollision(minecraft.player,
-                    minecraft.player.getBoundingBox().inflate(0.1, 0.0, 0.1))) {
-                return;
-            }
-        } else if (rotationMode.is("Hypixel") && rotationTick >= 1) {
-            return;
-        }
-
-        if (mode.is("Telly") && GameStateManager.offGroundTicks <= 3
-                && (!minecraft.player.onGround() || GameStateManager.onGroundTicks >= jumpDelayMin.getValue().intValue())) {
+        if (!autoSneak.getValue()) {
             return;
         }
 
-        BlockHitResult hit = new BlockHitResult(
-                currentHit.hitVec(), currentPlace.direction(), currentPlace.blockPos(), false);
-        placementAttemptTick = minecraft.player.tickCount;
-        if (minecraft.gameMode.useItemOn(minecraft.player, InteractionHand.MAIN_HAND, hit).consumesAction()) {
-            minecraft.player.swing(InteractionHand.MAIN_HAND);
-            lastPlaceTime = System.currentTimeMillis();
-        }
-    }
+        Player player = mc.player;
+        BlockPos below = player.blockPosition().below();
+        boolean isAirBelow = mc.level.getBlockState(below).isAir();
 
-    @EventTarget
-    private void onMoveInput(EventMoveInput event) {
-        if (!mode.is("Telly") || event.getForward() == 0.0f && event.getStrafe() == 0.0f) return;
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.level == null) return;
-
-        int min = Math.min(jumpDelayMin.getValue().intValue(), jumpDelayMax.getValue().intValue());
-        int max = Math.max(jumpDelayMin.getValue().intValue(), jumpDelayMax.getValue().intValue());
-        int jumpDelay = min == max ? min : min + minecraft.player.getRandom().nextInt(max - min + 1);
-        event.setJump(jumpDelay == 0 || GameStateManager.onGroundTicks >= jumpDelay);
-    }
-
-    @EventTarget
-    private void onTravel(EventTravel event) {
-        if (reachable || rotateCount <= 0) return;
-        event.cancelEvent();
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player != null && minecraft.player.getAbilities().mayfly && minecraft.options.keyJump.isDown()) {
-            Vec3 velocity = minecraft.player.getDeltaMovement();
-            minecraft.player.setDeltaMovement(velocity.x, 0.42, velocity.z);
-        }
-    }
-
-    private void preparePlacement(Player player, Level level) {
-        if (mode.is("Telly") && rotationMode.is("Hypixel")) {
-            if (rotationTick > 0) rotationTick--;
+        if (isAirBelow) {
             if (player.onGround()) {
-                if (stage > 0) stage--;
-                else if (stage < 0) stage++;
-                if (stage == 0 && !keepY.getValue() && !Minecraft.getInstance().options.keyJump.isDown()) stage = 1;
+                mc.options.keyShift.setDown(true);
+            }
+        } else if (player.onGround()) {
+            mc.options.keyShift.setDown(false);
+        }
+    }
+
+    @EventTarget
+    public void onClick(EventClick event) {
+        setSuffix(mode.getValue());
+        if (mc.player == null || mc.level == null || mc.gameMode == null) {
+            return;
+        }
+
+        Player player = mc.player;
+        Level world = mc.level;
+        float ny = Mth.wrapDegrees(mc.player.getYRot() - getHarCodedYaw());
+        if (mc.player.onGround() && GameStateManager.onGroundTicks <= 1) {
+            float normalizedYaw = (ny % 360.0F + 360.0F) % 360.0F;
+            float quad = normalizedYaw % 90.0F;
+            yawNormal = quad < 45.0F;
+        }
+
+        if (mode.is("Telly") && rotationMode.is("Hypixel")) {
+            if (rotationTick > 0) {
+                rotationTick--;
+            }
+            if (player.onGround()) {
+                if (stage > 0) {
+                    stage--;
+                }
+                if (stage < 0) {
+                    stage++;
+                }
+                if (stage == 0 && !keepY.getValue() && !mc.options.keyJump.isDown()) {
+                    stage = 1;
+                }
                 canRotate = false;
             }
         }
 
-        yLevel = getPlaceY(player);
-        if (shouldDelayTellyPlacement(player)) {
-            clearPlacement();
-            return;
+        yLevel = getPlaceY();
+
+        if (mode.is("Telly") && !rotationMode.is("Hypixel")) {
+            if (placeDelayMode.is("Check Height")) {
+                double threshold = 1.0D + (mc.options.keyJump.isDown() && !keepY.getValue() ? upTellyHeight.getValue().doubleValue() : height.getValue().doubleValue());
+                if (fallDist() == 0.0F && mc.player.getY() < yLevel + threshold && mc.player.hurtTime == 0) {
+                    return;
+                }
+            } else if (placeDelayMode.is("Check Tick")) {
+                int required = mc.options.keyJump.isDown() && !keepY.getValue() ? upTellyTick.getValue().intValue() : tick.getValue().intValue();
+                if (GameStateManager.offGroundTicks < required) {
+                    return;
+                }
+            }
         }
 
-        ScaffoldPlaceSearch.SearchMode search = searchMode.is("Hypixel")
-                ? ScaffoldPlaceSearch.SearchMode.HYPIXEL : ScaffoldPlaceSearch.SearchMode.NORMAL;
-        currentPlace = ScaffoldPlaceSearch.find(
-                BlockPos.containing(player.getX(), yLevel, player.getZ()), search);
-        if (mode.is("Normal") && currentPlace == null) currentPlace = lastPlace;
+        BlockPos basePos = BlockPos.containing(player.getX(), yLevel, player.getZ());
+        PlaceUtils.SearchMode search = searchMode.is("Hypixel") ? PlaceUtils.SearchMode.Hypixel : PlaceUtils.SearchMode.Normal;
+        currentPlace = PlaceUtils.getPlaceInfo(basePos, search);
+        if (mode.is("Normal") && currentPlace == null && lastPlaceInfo != null) {
+            currentPlace = lastPlaceInfo;
+        }
+
         if (currentPlace == null) {
-            clearPlacement();
+            currentHit = null;
             return;
         }
 
-        lastPlace = currentPlace;
-        currentHit = currentPlace.rotationAndHit(selectedRotatePoint(), referenceRotation(player));
+        lastPlaceInfo = currentPlace;
+        currentHit = currentPlace.getRotationAndHitVec(getRotatePoint(), getReferenceRotation());
         if (currentHit == null) {
-            clearPlacement();
             return;
         }
 
-        Rotation applied = currentHit.rotation();
-        canPlaceNow = true;
+        Rotation appliedRot = currentHit.rotation();
+        Vec3 hitVec = currentHit.hitVec();
+        boolean canPlaceNow;
+
         if (rotationMode.is("Hypixel")) {
-            applied = applyHypixelRotation(player, level, applied);
+            if (lastHypixelRotation == null) {
+                lastHypixelRotation = getReferenceRotation();
+            }
+
+            if (canRotate && (player.getDeltaMovement().y > 0.0D || player.getY() > yLevel + 1.0D)) {
+                float deltaYaw = Mth.wrapDegrees(appliedRot.yaw() - lastHypixelRotation.yaw());
+                int speed = slow.getValue()
+                        ? (GameStateManager.offGroundTicks <= 1 ? 60 : 30)
+                        : (GameStateManager.offGroundTicks <= 1 ? 150 : 90);
+                BlockPos raycastBlock = RotationRaycast.rayCastBlock(4.5D);
+                if (!currentPlace.getBlockPos().equals(raycastBlock)) {
+                    if (Math.abs(deltaYaw) > speed) {
+                        appliedRot.setYaw(updateRotation(lastHypixelRotation.yaw(), lastHypixelRotation.yaw() + deltaYaw, speed));
+                        rotationTick = 0;
+                    }
+                }
+            }
+
+            boolean sb = Mth.wrapDegrees(lastHypixelRotation.yaw() - mc.player.getYRot() - getHarCodedYaw()) > 0.0F;
+            if (player.onGround()
+                    && (mc.options.keyUp.isDown() != mc.options.keyDown.isDown() || mc.options.keyLeft.isDown() != mc.options.keyRight.isDown())
+                    && isAirAbove(player, world)) {
+                if (stage > 0 || (!keepY.getValue() && mc.options.keyJump.isDown())) {
+                    if (GameStateManager.onGroundTicks >= jumpDelayMin.getValue().intValue()) {
+                        float yaw = mc.player.getYRot() - getHarCodedYaw()
+                                + (isDiagonal() ? (yawNormal ? 157.0F : -157.0F) : (sb ? 157.0F : -157.0F));
+                        appliedRot = new Rotation(yaw, 80.0F);
+                        rotationTick = 0;
+                        lastHypixelRotation = appliedRot;
+                        canRotate = true;
+                    }
+                }
+            }
+
+            lastHypixelRotation = appliedRot;
             canPlaceNow = !raycast.is("Off") || rotationTick < 1;
+        } else {
+            canPlaceNow = true;
         }
 
-        if (canPlaceNow && autoStuck.getValue() && currentPlace.blockPos().getY() + 1 < player.getY()) {
-            Rotation faceRotation = RotationMath.toRotation(player.getEyePosition(), currentPlace.faceCenter());
-            if ((int) player.getEyePosition().distanceTo(Vec3.atCenterOf(currentPlace.blockPos())) < 7
-                    && horizontalSpeed(player) > 0.4 && player.tickCount % 20 <= 10) {
+        if (raycast.is("Off") && rotationTick >= 1) {
+            return;
+        }
+
+        if (canPlaceNow && autoStuck.getValue() && currentPlace.getBlockPos().getY() + 1 < mc.player.getY()) {
+            Rotation faceRotation = RotationUtils.getRotationBlock(currentPlace.getBlockPos(), currentPlace.getDirection());
+            if ((int) mc.player.getEyePosition().distanceTo(Vec3.atCenterOf(currentPlace.getBlockPos())) < 7
+                    && getSpeed() > 0.4D
+                    && mc.player.tickCount % 20 <= 10) {
                 reachable = false;
-                applied = faceRotation;
-                if (rotateCount == 0) rotateCount = 10;
+                appliedRot = faceRotation;
+                if (rotateCount == 0) {
+                    rotateCount = 10;
+                }
                 rotateCount--;
             } else {
-                if (player.getDeltaMovement().y < -0.05
-                        && currentPlace.blockPos().getY() > new FallingPlayer(player).calculateY(2)) {
-                    reachable = false;
-                    applied = faceRotation;
+                if (mc.player.getDeltaMovement().y < -0.05D) {
+                    FallingPlayer fallingPlayer = new FallingPlayer(mc.player);
+                    fallingPlayer.calculate(2);
+                    if (currentPlace.getBlockPos().getY() > fallingPlayer.y) {
+                        reachable = false;
+                        appliedRot = faceRotation;
+                    }
                 }
-                if (player.fallDistance <= 1.9f) reachable = true;
+
+                if (fallDist() <= 1.9F) {
+                    reachable = true;
+                }
+
                 if (!reachable) {
-                    if (rotateCount == 0) rotateCount = 19;
+                    if (rotateCount == 0) {
+                        rotateCount = 19;
+                    }
                     rotateCount--;
                 }
             }
-        } else if (!autoStuck.getValue()) {
-            reachable = true;
-            rotateCount = 0;
         }
 
-        targetRotation = applied.normalized();
-        submitRotation(player, targetRotation);
-    }
+        targetRotation = appliedRot.normalized();
+        applyRotation(targetRotation);
 
-    private Rotation applyHypixelRotation(Player player, Level level, Rotation rotation) {
-        if (lastHypixelRotation == null) lastHypixelRotation = referenceRotation(player);
-        Rotation applied = rotation;
+        if (hitVec == null) {
+            return;
+        }
 
-        if (canRotate && (player.getDeltaMovement().y > 0.0 || player.getY() > yLevel + 1.0)) {
-            float deltaYaw = Mth.wrapDegrees(applied.yaw() - lastHypixelRotation.yaw());
-            int speed = slow.getValue() ? (GameStateManager.offGroundTicks <= 1 ? 60 : 30) : (GameStateManager.offGroundTicks <= 1 ? 130 : 90);
-            if (!currentPlace.blockPos().equals(Objects.requireNonNull(RotationRaycast.rayCastBlock(lastHypixelRotation, 4.5)))
-                    && Math.abs(deltaYaw) > speed) {
-                applied = new Rotation(updateRotation(lastHypixelRotation.yaw(),
-                        lastHypixelRotation.yaw() + deltaYaw, speed), applied.pitch());
-                rotationTick = 0;
+        if (!canPlaceNow || !PlaceUtils.canPlaceAt(BlockPos.containing(mc.player.getX(), yLevel, mc.player.getZ()))) {
+            return;
+        }
+
+        int placeDelay = nextPlaceDelay();
+        if (placeDelay != 0 && !placeTimer.hasTimeElapsed(placeDelay)) {
+            return;
+        }
+
+        BlockHitResult hitResult = new BlockHitResult(hitVec, currentPlace.getDirection(), currentPlace.getBlockPos(), false);
+        switch (raycast.getValue()) {
+            case "Normal" -> {
+                if (!currentPlace.getBlockPos().equals(RotationRaycast.rayCastBlock(4.5))) {
+                    if (mc.level.noCollision(mc.player, mc.player.getBoundingBox().inflate(0.1D, 0.0D, 0.1D))) {
+                        return;
+                    }
+                }
+            }
+            case "Medium" -> {
+                if (!currentPlace.getBlockPos().equals(RotationRaycast.rayCastBlock(targetRotation != null ? targetRotation : getReferenceRotation(), 4.5D))) {
+                    if (mc.level.noCollision(mc.player, mc.player.getBoundingBox().inflate(0.1D, 0.0D, 0.1D))) {
+                        return;
+                    }
+                }
             }
         }
 
-        boolean side = Mth.wrapDegrees(lastHypixelRotation.yaw() - player.getYRot() - movementYawOffset()) > 0.0f;
-        Minecraft minecraft = Minecraft.getInstance();
-        boolean movingKeys = minecraft.options.keyUp.isDown() != minecraft.options.keyDown.isDown()
-                || minecraft.options.keyLeft.isDown() != minecraft.options.keyRight.isDown();
-        if (player.onGround() && movingKeys && level.getBlockState(player.blockPosition().above()).isAir()
-                && (stage > 0 || !keepY.getValue() && minecraft.options.keyJump.isDown())
-                && GameStateManager.onGroundTicks >= jumpDelayMin.getValue().intValue()) {
-            float yaw = player.getYRot() - movementYawOffset()
-                    + (isDiagonal(player) ? (yawNormal ? 157.0f : -157.0f) : (side ? 157.0f : -157.0f));
-            applied = new Rotation(yaw, 80.0f);
-            rotationTick = 0;
-            canRotate = true;
+        if (!mode.is("Telly") || GameStateManager.offGroundTicks > 3 || mc.player.onGround() && GameStateManager.onGroundTicks < jumpDelayMin.getValue().intValue()) {
+            if (mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hitResult) == InteractionResult.SUCCESS) {
+                mc.player.swing(InteractionHand.MAIN_HAND);
+                placeTimer.reset();
+            }
         }
-
-        lastHypixelRotation = applied;
-        return applied;
     }
 
-    private void submitRotation(Player player, Rotation rotation) {
+    @EventTarget
+    public void onTravel(EventTravel event) {
+        if (!reachable && rotateCount > 0) {
+            event.cancelEvent();
+            if (mc.player != null && mc.player.getAbilities().mayfly && mc.options.keyJump.isDown()) {
+                Vec3 velocity = mc.player.getDeltaMovement();
+                mc.player.setDeltaMovement(velocity.x, 0.42D, velocity.z);
+            }
+        } else {
+            noti = false;
+        }
+    }
+
+    @EventTarget
+    public void onTick(EventTick event) {
+        if (mc.player == null || mc.level == null || !event.isPre()) {
+            return;
+        }
+
+        if (mode.is("Telly") && MovementUtils.isMoving()) {
+            if (rotationMode.is("Hypixel") && isNotAxisAligned(mc.player) && mc.options.keyJump.isDown() && !keepY.getValue()) {
+                counter++;
+            }
+        }
+
+        if (!autoSwitch.getValue()) {
+            return;
+        }
+
+        int slotId = -1;
+        for (int i = 0; i < 9; ++i) {
+            ItemStack stack = mc.player.getInventory().getItem(i);
+            if (stack.getItem() instanceof BlockItem && isValidStack(stack)) {
+                slotId = i;
+                break;
+            }
+        }
+        if (slotId != -1 && mc.player.getInventory().getSelectedSlot() != slotId) {
+            mc.player.getInventory().setSelectedSlot(slotId);
+        }
+    }
+
+    @EventTarget
+    public void onMoveInput(EventMoveInput event) {
+        if (mc.player == null || mc.level == null) {
+            return;
+        }
+
+        if (mode.is("Telly") && MovementUtils.isMoving()) {
+            int min = jumpDelayMin.getValue().intValue();
+            int max = jumpDelayMax.getValue().intValue();
+            if (max < min) {
+                int temp = min;
+                min = max;
+                max = temp;
+            }
+            int jumpDelay = min == max ? min : (min + mc.player.getRandom().nextInt(max - min + 1));
+            event.setJump(jumpDelay == 0 || GameStateManager.onGroundTicks >= jumpDelay);
+        } else {
+            counter = 0;
+        }
+    }
+
+    private void applyRotation(Rotation rotation) {
+        MovementFix movementFix = silentRotate.getValue() ? MovementFix.SILENT : MovementFix.NONE;
         boolean smooth = rotationMode.is("Smooth");
         Core.INSTANCE.getRotationManager().setRotations(
                 rotation,
-                silentRotate.getValue() ? MovementFix.SILENT : MovementFix.NONE,
+                movementFix,
                 smooth,
                 smooth ? SmoothMode.ADVANCED : SmoothMode.LINEAR,
                 rotateSpeed.getValue().floatValue(),
@@ -363,217 +442,176 @@ public final class Scaffold extends BasicModule {
         );
 
         if (!silentRotate.getValue()) {
-            player.setYRot(rotation.yaw());
-            player.setXRot(rotation.pitch());
-            player.setYHeadRot(rotation.yaw());
-            player.setYBodyRot(rotation.yaw());
+            Rotation visibleRotation = Core.INSTANCE.getRotationManager().getTargetRotation() != null
+                    ? Core.INSTANCE.getRotationManager().getTargetRotation()
+                    : rotation;
+            mc.player.setYRot(visibleRotation.yaw());
+            mc.player.setXRot(visibleRotation.pitch());
+            mc.player.setYHeadRot(visibleRotation.yaw());
+            mc.player.setYBodyRot(visibleRotation.yaw());
         }
     }
 
-    private boolean shouldDelayTellyPlacement(Player player) {
-        if (!mode.is("Telly") || rotationMode.is("Hypixel")) return false;
-        Minecraft minecraft = Minecraft.getInstance();
-        if (placeDelayMode.is("Check Height")) {
-            double threshold = 1.0 + (minecraft.options.keyJump.isDown() && !keepY.getValue()
-                    ? upTellyHeight.getValue().doubleValue() : height.getValue().doubleValue());
-            return player.fallDistance == 0.0f && player.getY() < yLevel + threshold && player.hurtTime == 0;
+    private Rotation getReferenceRotation() {
+        Rotation rotation = Core.INSTANCE.getRotationManager().getServerRotation();
+        if (rotation != null) {
+            return rotation;
         }
-        if (placeDelayMode.is("Check Tick")) {
-            int required = minecraft.options.keyJump.isDown() && !keepY.getValue()
-                    ? upTellyTick.getValue().intValue() : tick.getValue().intValue();
-            return GameStateManager.offGroundTicks < required;
-        }
-        return false;
+        return getPlayerRotation();
     }
 
-    private void selectBlock(Player player) {
-        if (!autoSwitch.getValue()) return;
-        for (int slot = 0; slot < 9; slot++) {
-            if (isValidStack(player.getInventory().getItem(slot))) {
-                if (player.getInventory().getSelectedSlot() != slot) player.getInventory().setSelectedSlot(slot);
-                return;
-            }
-        }
+    private Rotation getPlayerRotation() {
+        return mc.player == null ? Rotation.ZERO : new Rotation(mc.player.getYRot(), mc.player.getXRot());
     }
 
-    private void updateSneak(Player player, Level level) {
-        if (!autoSneak.getValue()) {
-            releaseSneak();
-            return;
-        }
-        boolean shouldSneak = player.onGround() && level.getBlockState(player.blockPosition().below()).isAir();
-        Minecraft.getInstance().options.keyShift.setDown(shouldSneak);
-        forcedSneak = shouldSneak;
-    }
-
-    private void releaseSneak() {
-        if (forcedSneak && Minecraft.getInstance().options != null) {
-            Minecraft.getInstance().options.keyShift.setDown(false);
-        }
-        forcedSneak = false;
-    }
-
-    private int getPlaceY(Player player) {
-        if (Minecraft.getInstance().options.keyJump.isDown() && !keepY.getValue()) {
-            return baseY = Mth.floor(player.getY() - 1.0);
-        }
-        if (baseY > player.getY() - 1.0 || player.onGround()) baseY = Mth.floor(player.getY() - 1.0);
-        return baseY;
-    }
-
-    private boolean placeDelayElapsed(Player player) {
-        int min = Math.min(placeDelayMin.getValue().intValue(), placeDelayMax.getValue().intValue());
-        int max = Math.max(placeDelayMin.getValue().intValue(), placeDelayMax.getValue().intValue());
-        int delay = min == max ? min : min + player.getRandom().nextInt(max - min + 1);
-        return delay == 0 || System.currentTimeMillis() - lastPlaceTime >= delay;
-    }
-
-    private Rotation referenceRotation(Player player) {
-        Rotation server = Core.INSTANCE.getRotationManager().getServerRotation();
-        return server == null ? new Rotation(player.getYRot(), player.getXRot()) : server;
-    }
-
-    private ScaffoldPlaceInfo.RotatePoint selectedRotatePoint() {
+    private PlaceInfo.RotatePoint getRotatePoint() {
         return switch (rotatePoint.getValue()) {
-            case "Corner" -> ScaffoldPlaceInfo.RotatePoint.CORNER;
-            case "Nearest" -> ScaffoldPlaceInfo.RotatePoint.NEAREST;
-            default -> ScaffoldPlaceInfo.RotatePoint.NORMAL;
+            case "Corner" -> PlaceInfo.RotatePoint.Corner;
+            case "Nearest" -> PlaceInfo.RotatePoint.Nearest;
+            default -> PlaceInfo.RotatePoint.Normal;
         };
     }
 
-    private static boolean isDiagonal(Player player) {
-        return Math.abs(player.getDeltaMovement().x) > 0.07 && Math.abs(player.getDeltaMovement().z) > 0.07;
+    private boolean isDiagonal() {
+        return mc.player != null
+                && Math.abs(mc.player.getDeltaMovement().x) > 0.07D
+                && Math.abs(mc.player.getDeltaMovement().z) > 0.07D;
     }
 
-    private static double horizontalSpeed(Player player) {
-        Vec3 velocity = player.getDeltaMovement();
-        return Math.hypot(velocity.x, velocity.z);
-    }
 
-    private static float updateRotation(float current, float target, float maxDelta) {
-        return current + Mth.clamp(Mth.wrapDegrees(target - current), -maxDelta, maxDelta);
-    }
 
-    private static float movementYawOffset() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen != null) return 180.0f;
-        boolean forward = minecraft.options.keyUp.isDown();
-        boolean backward = minecraft.options.keyDown.isDown();
-        boolean left = minecraft.options.keyLeft.isDown();
-        boolean right = minecraft.options.keyRight.isDown();
-        boolean bothSide = left && right;
-        float yaw = 0.0f;
+    public static float getHarCodedYaw() {
+        if (mc.screen != null) {
+            return 180.0F;
+        }
 
-        if (forward) {
-            yaw -= 180.0f;
-            if (!bothSide) {
-                if (left) yaw += 45.0f;
-                if (right) yaw -= 45.0f;
+        float simpleYaw = 0.0F;
+        long window = mc.getWindow().handle();
+        boolean w = GLFW.glfwGetKey(window, mc.options.keyUp.getDefaultKey().getValue()) == GLFW.GLFW_PRESS;
+        boolean s = GLFW.glfwGetKey(window, mc.options.keyDown.getDefaultKey().getValue()) == GLFW.GLFW_PRESS;
+        boolean a = GLFW.glfwGetKey(window, mc.options.keyLeft.getDefaultKey().getValue()) == GLFW.GLFW_PRESS;
+        boolean d = GLFW.glfwGetKey(window, mc.options.keyRight.getDefaultKey().getValue()) == GLFW.GLFW_PRESS;
+
+        boolean dupe = a & d;
+
+        if (w) {
+            simpleYaw -= 180.0F;
+            if (!dupe) {
+                if (a) simpleYaw += 45.0F;
+                if (d) simpleYaw -= 45.0F;
             }
-        } else if (!backward) {
-            yaw -= 180.0f;
-            if (!bothSide) {
-                if (left) yaw += 90.0f;
-                if (right) yaw -= 90.0f;
+        } else if (!s) {
+            simpleYaw -= 180.0F;
+            if (!dupe) {
+                if (a) simpleYaw += 90.0F;
+                if (d) simpleYaw -= 90.0F;
             }
-        } else if (!bothSide) {
-            if (left) yaw -= 45.0f;
-            if (right) yaw += 45.0f;
+        } else {
+            if (!dupe) {
+                if (a) simpleYaw -= 45.0F;
+                if (d) simpleYaw += 45.0F;
+            }
+        }
+        return simpleYaw;
+    }
+
+    private boolean isNotAxisAligned(Player player) {
+        float yaw = Mth.wrapDegrees(player.getYRot());
+        float nearestAxis = Math.round(yaw / 90.0F) * 90.0F;
+        return Math.abs(Mth.wrapDegrees(yaw - nearestAxis)) > 20.0F;
+    }
+
+    private boolean isAirAbove(Player player, Level world) {
+        BlockPos above = player.blockPosition().above();
+        return world.getBlockState(above).isAir();
+    }
+
+    private float fallDist() {
+        return mc.player == null ? 0.0F : (float) mc.player.fallDistance;
+    }
+
+    private double getSpeed() {
+        if (mc.player == null) {
+            return 0.0D;
+        }
+        Vec3 velocity = mc.player.getDeltaMovement();
+        return Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+    }
+
+    public static float clampYaw(float yaw, float maxYaw) {
+        maxYaw = Mth.clamp(maxYaw, 0.0F, 180.0F);
+        if (yaw > maxYaw) {
+            yaw = maxYaw;
+        } else if (yaw < -maxYaw) {
+            yaw = -maxYaw;
         }
         return yaw;
     }
 
+    private int getPlaceY() {
+        if (mc.player == null) {
+            return 0;
+        }
+
+        if (mc.options.keyJump.isDown() && !keepY.getValue()) {
+            return baseY = (int) Math.floor(mc.player.getY() - 1.0D);
+        } else {
+            return (baseY > mc.player.getY() - 1.0D || mc.player.onGround())
+                    ? (baseY = (int) Math.floor(mc.player.getY() - 1.0D))
+                    : baseY;
+        }
+    }
+
+    private int nextPlaceDelay() {
+        if (mc.player == null) {
+            return 0;
+        }
+
+        int min = Math.min(placeDelayMin.getValue().intValue(), placeDelayMax.getValue().intValue());
+        int max = Math.max(placeDelayMin.getValue().intValue(), placeDelayMax.getValue().intValue());
+        return min == max ? min : min + mc.player.getRandom().nextInt(max - min + 1);
+    }
+
+    private float updateRotation(float current, float calc, float maxDelta) {
+        float delta = Mth.wrapDegrees(calc - current);
+        if (delta > maxDelta) {
+            delta = maxDelta;
+        }
+        if (delta < -maxDelta) {
+            delta = -maxDelta;
+        }
+        return current + delta;
+    }
+
     public static boolean isValidStack(ItemStack stack) {
-        if (stack == null || stack.isEmpty() || stack.getCount() <= 0
-                || !(stack.getItem() instanceof BlockItem blockItem)
-                || stack.getItem() instanceof StandingAndWallBlockItem) {
+        if (stack != null && stack.getItem() instanceof BlockItem && stack.getCount() > 0) {
+            if (!InventoryUtils.isItemValid(stack)) {
+                return false;
+            } else {
+                String string = stack.getHoverName().getString();
+                if (!string.contains("Click") && !string.contains("点击")) {
+                    {
+                        Block block = ((BlockItem) stack.getItem()).getBlock();
+                        if (block instanceof FlowerBlock) {
+                            return false;
+                        } else if (block instanceof BushBlock) {
+                            return false;
+                        } else if (block instanceof FungusBlock) {
+                            return false;
+                        } else if (block instanceof CropBlock) {
+                            return false;
+                        } else if (block instanceof SlabBlock) {
+                            return false;
+                        } else {
+                            return !blacklistedBlocks.contains(block);
+                        }
+                    }
+                } else {
+                    return false;
+                }
+            }
+        } else {
             return false;
         }
-        String name = stack.getHoverName().getString();
-        if (name.contains("Click") || name.contains("\u70b9\u51fb")) return false;
-
-        Block block = blockItem.getBlock();
-        if (BLACKLISTED_BLOCKS.contains(block)
-                || block instanceof AirBlock
-                || block instanceof StairBlock
-                || block instanceof SlabBlock
-                || block instanceof FenceBlock
-                || block instanceof FenceGateBlock
-                || block instanceof DoorBlock
-                || block instanceof TrapDoorBlock
-                || block instanceof PressurePlateBlock
-                || block instanceof ButtonBlock
-                || block instanceof WallBlock
-                || block instanceof CarpetBlock
-                || block instanceof ConcretePowderBlock
-                || block instanceof TintedGlassBlock
-                || block instanceof StainedGlassBlock
-                || block instanceof StainedGlassPaneBlock
-                || block instanceof BannerBlock
-                || block instanceof LeavesBlock
-                || block instanceof SaplingBlock
-                || block instanceof MushroomBlock
-                || block instanceof FlowerBlock
-                || block instanceof BushBlock
-                || block instanceof FungusBlock
-                || block instanceof CropBlock
-                || block instanceof ComposterBlock
-                || block instanceof NoteBlock
-                || block instanceof JukeboxBlock
-                || block instanceof SignBlock) {
-            return false;
-        }
-        return block != Blocks.IRON_BARS
-                && block != Blocks.IRON_CHAIN
-                && block != Blocks.GLASS_PANE
-                && block != Blocks.DIRT_PATH
-                && block != Blocks.FARMLAND
-                && block != Blocks.SNOW
-                && block != Blocks.AMETHYST_CLUSTER
-                && block != Blocks.MANGROVE_ROOTS
-                && block != Blocks.SUGAR_CANE
-                && block != Blocks.CACTUS
-                && block != Blocks.LILY_PAD;
-    }
-
-    public boolean attemptedPlacementThisTick() {
-        Minecraft minecraft = Minecraft.getInstance();
-        return minecraft.player != null && placementAttemptTick == minecraft.player.tickCount;
-    }
-
-    private static void stopGoldenAppleUse(Minecraft minecraft) {
-        if (minecraft.player == null || minecraft.gameMode == null || !minecraft.player.isUsingItem()) return;
-        ItemStack stack = minecraft.player.getUseItem();
-        if (stack.is(Items.GOLDEN_APPLE) || stack.is(Items.ENCHANTED_GOLDEN_APPLE)) {
-            minecraft.gameMode.releaseUsingItem(minecraft.player);
-        }
-    }
-
-    private void clearPlacement() {
-        currentPlace = null;
-        currentHit = null;
-        targetRotation = null;
-        canPlaceNow = false;
-    }
-
-    private void resetRuntime() {
-        currentPlace = null;
-        lastPlace = null;
-        currentHit = null;
-        targetRotation = null;
-        lastHypixelRotation = null;
-        rotationTick = 3;
-        stage = 0;
-        baseY = 0;
-        yLevel = 0;
-        rotateCount = 0;
-        oldSlot = -1;
-        canRotate = false;
-        canPlaceNow = false;
-        reachable = true;
-        yawNormal = false;
-        forcedSneak = false;
-        placementAttemptTick = Integer.MIN_VALUE;
-        lastPlaceTime = 0L;
     }
 }

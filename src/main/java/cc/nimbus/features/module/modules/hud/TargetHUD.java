@@ -241,7 +241,7 @@ public final class TargetHUD extends BasicModule {
 
     private LivingEntity combatTarget() {
         KillAura aura = Core.INSTANCE.getModuleManager().getModule(KillAura.class);
-        return aura != null && aura.isEnabled() ? aura.getAttackTarget() : null;
+        return aura != null && aura.isEnabled() ? aura.attackTarget : null;
     }
 
     private float frameDelta() {

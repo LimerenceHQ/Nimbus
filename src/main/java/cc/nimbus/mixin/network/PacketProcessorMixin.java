@@ -2,7 +2,6 @@ package cc.nimbus.mixin.network;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.managers.PacketManager;
-import cc.nimbus.network.PacketEventGuard;
 import cc.nimbus.utils.network.PacketUtils;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.protocol.Packet;
@@ -20,8 +19,7 @@ public abstract class PacketProcessorMixin {
             )
     )
     private void nimbus$handleInbound(Packet<?> packet, PacketListener listener) {
-        if (PacketEventGuard.isSuppressed()
-                || !Core.INSTANCE.isInitialized()
+        if (!Core.INSTANCE.isInitialized()
                 || PacketUtils.isProtocolControl(packet)) {
             nimbus$handle(packet, listener);
             return;
@@ -29,11 +27,7 @@ public abstract class PacketProcessorMixin {
 
         PacketManager packetManager = Core.INSTANCE.getPacketManager();
         if (!packetManager.inboundsHook(packet)) return;
-
-        Packet<?> selected = packetManager.consumeInboundHookPacket();
-        if (selected != null) {
-            nimbus$handle(selected, listener);
-        }
+        nimbus$handle(packet, listener);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

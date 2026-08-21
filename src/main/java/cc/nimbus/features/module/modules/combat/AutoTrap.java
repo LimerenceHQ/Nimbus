@@ -867,7 +867,7 @@ public final class AutoTrap extends BasicModule {
 
     private boolean isKillAuraWorking() {
         KillAura killAura = Core.INSTANCE.getModuleManager().getModule(KillAura.class);
-        return killAura != null && killAura.isEnabled() && killAura.getAttackTarget() != null;
+        return killAura != null && killAura.isEnabled() && killAura.attackTarget != null;
     }
 
     private boolean isFireGuardWorking() {

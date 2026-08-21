@@ -4,6 +4,7 @@ import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventTick;
+import cc.nimbus.event.impl.game.EventTickUpdate;
 import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.event.impl.player.EventMoveInput;
@@ -16,6 +17,7 @@ import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.modes.Modes;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.movement.Scaffold;
+import cc.nimbus.features.module.modules.movement.Sprint;
 import cc.nimbus.mixin.accessor.player.LocalPlayerAccessor;
 import cc.nimbus.utils.entity.player.InventoryUtils;
 import cc.nimbus.utils.network.PacketUtils;
@@ -127,10 +129,15 @@ public final class InventoryManager extends BasicModule {
     private void onTick(EventTick event) {
         if (event.getPhase() == EventTick.Phase.POST) {
             stopSprint = false;
+            Core.INSTANCE.getModuleManager().getModule(Sprint.class).canSprint = true;
             return;
         }
         if (!canRun()) { closeSpoofedInventory(); return; }
-        if (isBusy()) { closeSpoofedInventory(); stopSprint = false; return; }
+        if (isBusy()) {
+            closeSpoofedInventory();
+            stopSprint = false;
+            Core.INSTANCE.getModuleManager().getModule(Sprint.class).canSprint = true;
+            return; }
         if (!canManageScreen()) { closeSpoofedInventory(); randomized = false; return; }
 
         rebuildSlots();
@@ -152,8 +159,18 @@ public final class InventoryManager extends BasicModule {
     @EventTarget(priority = Priority.Lowest)
     private void onMoveInput(EventMoveInput event) {
         if (!stopSprint) return;
+        Core.INSTANCE.getModuleManager().getModule(Sprint.class).canSprint = false;
         event.setSprint(false);
         stopPlayerSprint();
+    }
+
+    @EventTarget
+    public void onPreUpdate(EventTickUpdate event) {
+        if (stopSprint) {
+            Core.INSTANCE.getModuleManager().getModule(Sprint.class).canSprint = false;
+            mc.options.keySprint.setDown(false);
+            mc.player.setSprinting(false);
+        }
     }
 
     @EventTarget(priority = Priority.Highest)
@@ -195,7 +212,7 @@ public final class InventoryManager extends BasicModule {
         Scaffold scaffold = Core.INSTANCE.getModuleManager().getModule(Scaffold.class);
         KillAura aura = Core.INSTANCE.getModuleManager().getModule(KillAura.class);
         return scaffold != null && scaffold.isEnabled()
-                || aura != null && aura.getAttackTarget() != null
+                || aura != null && aura.attackTarget != null
                 || isContainerMenu(minecraft.player.containerMenu);
     }
 

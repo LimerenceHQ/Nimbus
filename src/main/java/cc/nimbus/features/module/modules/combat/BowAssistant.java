@@ -590,7 +590,7 @@ public final class BowAssistant extends BasicModule {
 
     private boolean isKillAuraWorking() {
         KillAura killAura = Core.INSTANCE.getModuleManager().getModule(KillAura.class);
-        return killAura != null && killAura.isEnabled() && killAura.getAttackTarget() != null;
+        return killAura != null && killAura.isEnabled() && killAura.attackTarget != null;
     }
 
     public LivingEntity getTarget() {

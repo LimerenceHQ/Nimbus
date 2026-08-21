@@ -4,55 +4,86 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 
-public final class FallingPlayer {
-    private double y;
+public class FallingPlayer {
+    private double x;
+    public double y;
+    private double z;
     private double motionX;
     private double motionY;
     private double motionZ;
     private final float yaw;
     private final float strafe;
     private final float forward;
-    private final float jumpMovementFactor;
+    private float jumpMovementFactor;
+    private final Minecraft mc;
+
+    FallingPlayer(double x, double y, double z, double motionX, double motionY, double motionZ, float yaw, float strafe, float forward) {
+        this.mc = Minecraft.getInstance();
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.motionX = motionX;
+        this.motionY = motionY;
+        this.motionZ = motionZ;
+        this.yaw = yaw;
+        this.strafe = strafe;
+        this.forward = forward;
+    }
 
     public FallingPlayer(Player player) {
-        y = player.getY();
-        motionX = player.getDeltaMovement().x;
-        motionY = player.getDeltaMovement().y;
-        motionZ = player.getDeltaMovement().z;
-        yaw = player.getYRot();
-        strafe = player.xxa;
-        forward = player.zza;
+        this(
+                player.getX(),
+                player.getY(),
+                player.getZ(),
+                player.getDeltaMovement().x,
+                player.getDeltaMovement().y,
+                player.getDeltaMovement().z,
+                player.getYRot(),
+                player.xxa,
+                player.zza
+        );
         float jumpFactor = player.level().getBlockState(player.blockPosition()).getBlock().getJumpFactor();
-        float onPosFactor = player.level().getBlockState(player.getOnPos()).getBlock().getJumpFactor();
-        jumpMovementFactor = 0.42f * (jumpFactor == 1.0f ? onPosFactor : jumpFactor) + player.getJumpBoostPower();
+        float onPosJumpFactor = player.level().getBlockState(player.getOnPos()).getBlock().getJumpFactor();
+        float jumpingVelocity = 0.42F * ((double) jumpFactor == 1.0D ? onPosJumpFactor : jumpFactor) + player.getJumpBoostPower();
+        this.jumpMovementFactor = jumpingVelocity;
     }
 
-    public double calculateY(int ticks) {
-        for (int i = 0; i < ticks; i++) calculateTick();
-        return y;
-    }
-
-    private void calculateTick() {
-        float strafeValue = strafe * 0.98f;
-        float forwardValue = forward * 0.98f;
+    void calculateForTick() {
+        float strafeValue = this.strafe * 0.98F;
+        float forwardValue = this.forward * 0.98F;
         float magnitude = strafeValue * strafeValue + forwardValue * forwardValue;
-        if (magnitude >= 1.0E-4f) {
-            magnitude = Math.max(1.0f, Mth.sqrt(magnitude));
-            float factor = jumpMovementFactor;
-            Player player = Minecraft.getInstance().player;
-            if (player != null && player.isSprinting()) factor *= 1.3f;
-            magnitude = factor / magnitude;
+        if (magnitude >= 1.0E-4F) {
+            magnitude = Mth.sqrt(magnitude);
+            if (magnitude < 1.0F) {
+                magnitude = 1.0F;
+            }
+
+            float fixedJumpFactor = this.jumpMovementFactor;
+            if (this.mc.player != null && this.mc.player.isSprinting()) {
+                fixedJumpFactor *= 1.3F;
+            }
+
+            magnitude = fixedJumpFactor / magnitude;
             strafeValue *= magnitude;
             forwardValue *= magnitude;
-            float sin = Mth.sin(yaw * Mth.DEG_TO_RAD);
-            float cos = Mth.cos(yaw * Mth.DEG_TO_RAD);
-            motionX += strafeValue * cos - forwardValue * sin;
-            motionZ += forwardValue * cos + strafeValue * sin;
+            float sin = Mth.sin(this.yaw * (float) Math.PI / 180.0F);
+            float cos = Mth.cos(this.yaw * (float) Math.PI / 180.0F);
+            this.motionX += strafeValue * cos - forwardValue * sin;
+            this.motionZ += forwardValue * cos + strafeValue * sin;
         }
 
-        motionY = (motionY - 0.08) * 0.98;
-        y += motionY;
-        motionX *= 0.91;
-        motionZ *= 0.91;
+        this.motionY -= 0.08;
+        this.motionY *= 0.98F;
+        this.x += this.motionX;
+        this.y += this.motionY;
+        this.z += this.motionZ;
+        this.motionX *= 0.91;
+        this.motionZ *= 0.91;
+    }
+
+    public void calculate(int ticks) {
+        for (int i = 0; i < ticks; ++i) {
+            this.calculateForTick();
+        }
     }
 }

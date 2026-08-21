@@ -3,6 +3,7 @@ package cc.nimbus.mixin.client;
 import cc.nimbus.event.impl.game.*;
 import cc.nimbus.event.impl.player.EventItemUse;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
@@ -38,9 +39,17 @@ public class MinecraftMixin {
     public void hookRotationApplied(CallbackInfo ci) {
         EventBus.call(new RotationAppliedEvent());
     }
-    @Inject(method = "setLevel", at = @At("TAIL"))
-    private void nimbus$worldLoad(ClientLevel level, CallbackInfo ci) {
-        EventBus.call(new EventWorldLoad(level));
+
+    @Inject(method = "setLevel", at = @At("HEAD"))
+    private void onSetLevel(ClientLevel level, CallbackInfo info) {
+
+        EventBus.call(new EventWorldLoad());
+    }
+
+    @Inject(method = "clearClientLevel(Lnet/minecraft/client/gui/screens/Screen;)V", at = @At("HEAD"))
+    private void onClientLevel(Screen screen, CallbackInfo info) {
+
+        EventBus.call(new EventWorldLoad());
     }
     @Inject(method = "handleKeybinds", at = @At("HEAD"))
     private void nimbus$oldHittingSwingWhileUsing(CallbackInfo ci) {
@@ -80,7 +89,7 @@ public class MinecraftMixin {
         }
         Scaffold scaffold = MixinModuleLookup.enabled(Scaffold.class);
         BowAssistant bowAssistant = MixinModuleLookup.enabled(BowAssistant.class);
-        if ((scaffold != null && scaffold.attemptedPlacementThisTick())
+        if ((scaffold != null)
                 || (bowAssistant != null && bowAssistant.autoReleasedThisTick())
                 || nimbus$auraOwnsSwordUse()) {
             ci.cancel();
@@ -90,7 +99,7 @@ public class MinecraftMixin {
     @Unique
     private static boolean nimbus$auraOwnsAttack() {
         KillAura aura = MixinModuleLookup.enabled(KillAura.class);
-        return aura != null && aura.getAttackTarget() != null;
+        return aura != null && aura.attackTarget != null;
     }
 
     @Unique

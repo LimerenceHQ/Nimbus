@@ -51,7 +51,7 @@ public abstract class ItemInHandRendererMixin {
                                          SubmitNodeCollector collector, int packedLight, CallbackInfo ci) {
         OldHitting module = MixinModuleLookup.enabled(OldHitting.class);
         KillAura aura = MixinModuleLookup.enabled(KillAura.class);
-        boolean auraBlocking = aura != null && aura.isRenderBlocking();
+        boolean auraBlocking = aura != null && aura.attackTarget != null;
         if (module == null && auraBlocking && Core.INSTANCE.isInitialized()) {
             module = Core.INSTANCE.getModuleManager().getModule(OldHitting.class);
         }

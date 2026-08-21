@@ -10,16 +10,20 @@ import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.Mode;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
+import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.combat.velocity.Legit;
 import cc.nimbus.managers.GameStateManager;
 import cc.nimbus.features.packet.PacketDirection;
 import cc.nimbus.utils.client.IMinecraft;
 import cc.nimbus.utils.network.PacketUtils;
 import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.network.syncher.SynchedEntityData;
+
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class Delay extends Mode<Legit> implements IMinecraft {
     private static final int ENTITY_FLAGS_INDEX = 0;

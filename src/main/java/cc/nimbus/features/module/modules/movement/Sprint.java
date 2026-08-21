@@ -1,42 +1,37 @@
 package cc.nimbus.features.module.modules.movement;
 
 import cc.nimbus.event.component.EventTarget;
-import cc.nimbus.event.impl.player.EventMoveInput;
+import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import net.minecraft.client.Minecraft;
+import cc.nimbus.utils.entity.player.MovementUtils;
 
 @ModuleInfo(
         name = "Sprint",
         description = "Automatically sprints while moving forward.",
         category = ModuleCategory.Move
 )
-public final class Sprint extends BasicModule {
+public class Sprint extends BasicModule {
+    public boolean canSprint = true;
+
     @Override
     protected void onEnable() {
-        setSprintKey(false);
+        canSprint = true;
+        mc.options.keySprint.setDown(false);
     }
 
     @Override
     protected void onDisable() {
-        setSprintKey(false);
+        canSprint = false;
+        mc.options.keySprint.setDown(false);
     }
 
     @EventTarget
-    private void onMoveInput(EventMoveInput event) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null || minecraft.player == null) {
-            setSprintKey(false);
-            return;
+    public void onStrafe(EventTick event) {
+        if (!event.isPre()) return;
+        if (canSprint && MovementUtils.isMoving()) {
+            mc.options.keySprint.setDown(true);
         }
-        boolean moving = event.getForward() != 0.0f || event.getStrafe() != 0.0f;
-        event.setSprint(moving);
-        setSprintKey(moving);
-    }
-
-    private static void setSprintKey(boolean down) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.options != null) minecraft.options.keySprint.setDown(down);
     }
 }

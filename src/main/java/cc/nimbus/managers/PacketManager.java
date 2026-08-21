@@ -27,7 +27,6 @@ public final class PacketManager implements InstanceManager {
     private volatile boolean outboundFrozen;
     private int internalTimer;
     private boolean capturedThisCycle;
-    private final ThreadLocal<Packet<?>> inboundHookPacket = new ThreadLocal<>();
 
     public PacketManager(Minecraft minecraft) {
         this(minecraft, DEFAULT_CAPACITY);
@@ -166,51 +165,6 @@ public final class PacketManager implements InstanceManager {
         return event;
     }
 
-    public boolean inboundsHook(Packet<?> packet) {
-        try {
-            capturedThisCycle = false;
-            inboundHookPacket.remove();
-
-            // These packets change the connection protocol/pipeline and are
-            // never delayed or exposed to module packet listeners.
-            if (PacketUtils.isProtocolControl(packet)) {
-                inboundHookPacket.set(packet);
-                return true;
-            }
-
-            PacketEvent event = new PacketEvent(packet, PacketEvent.PacketState.RECEIVE);
-            EventBus.call(event);
-            if (capturedThisCycle || event.isCancel()) {
-                return false;
-            }
-            Packet<?> current = event.getPacket();
-            if (current == null) return false;
-            if (inboundFrozen && !PacketUtils.isEssential(current)) {
-                if (!inbound.enqueue(current, internalTimer)) {
-                    System.err.println("Packet queue is full, this shouldn't happen!");
-                    dispatch(PacketDirection.INBOUND);
-                    inboundHookPacket.set(current);
-                    return true;
-                }
-                return false;
-            }
-            inboundHookPacket.set(current);
-            return true;
-        } catch (Exception exception) {
-            System.err.println("[CentralPacketPipeline] inboundsHook exception on: " + packet.getClass().getSimpleName());
-            exception.printStackTrace();
-            inboundHookPacket.set(packet);
-            return true;
-        }
-    }
-
-    /** Returns and clears a replacement selected by the most recent inbound hook. */
-    public Packet<?> consumeInboundHookPacket() {
-        Packet<?> packet = inboundHookPacket.get();
-        inboundHookPacket.remove();
-        return packet;
-    }
-
     public boolean outboundsHook(Packet<?> packet) {
         try {
             Packet<?> current = packet;
@@ -257,6 +211,31 @@ public final class PacketManager implements InstanceManager {
             return true;
         } catch (Exception exception) {
             System.err.println("[CentralPacketPipeline] outboundsHook exception on: " + packet.getClass().getSimpleName());
+            exception.printStackTrace();
+            return true;
+        }
+    }
+
+
+    public boolean inboundsHook(Packet<?> packet) {
+        try {
+            capturedThisCycle = false;
+            PacketEvent event = new PacketEvent(packet, PacketEvent.PacketState.RECEIVE);
+            EventBus.call(event);
+            if (capturedThisCycle || event.isCancel()) {
+                return false;
+            }
+            if (inboundFrozen && !PacketUtils.isEssential(packet)) {
+                if (!inbound.enqueue(packet, internalTimer)) {
+                    System.err.println("Packet queue is full, this shouldn't happen!");
+                    dispatch(PacketDirection.INBOUND);
+                    return true;
+                }
+                return false;
+            }
+            return true;
+        } catch (Exception exception) {
+            System.err.println("[CentralPacketPipeline] inboundsHook exception on: " + packet.getClass().getSimpleName());
             exception.printStackTrace();
             return true;
         }
