@@ -8,22 +8,25 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.MultiBufferSource;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
-import org.joml.Vector3f;
+import org.joml.Matrix4fStack;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
 import java.awt.Color;
 import java.util.List;
+import java.util.Map;
+import java.util.OptionalDouble;
+import java.util.concurrent.ConcurrentHashMap;
 
 @SuppressWarnings({"unused", "deprecation"})
 public final class Render3DUtils {
-    private static final Matrix4f IDENTITY = new Matrix4f();
     private static boolean savedDepthTest;
     private static boolean savedDepthMask;
     private static boolean savedBlend;
@@ -31,6 +34,7 @@ public final class Render3DUtils {
     private static int savedDepthFunc;
     private static Matrix4f pendingWorldProjection;
     private static WorldProjection worldProjection;
+    private static final Map<LineTypeKey, RenderType> LINE_TYPES = new ConcurrentHashMap<>();
 
     public enum DepthMode { NONE, NORMAL, BOTH, GREATER }
 
@@ -269,7 +273,7 @@ public final class Render3DUtils {
             for (LineSegment segment : segments) {
                 float[] start = getRelativeCoords(segment.start.x, segment.start.y, segment.start.z);
                 float[] end = getRelativeCoords(segment.end.x, segment.end.y, segment.end.z);
-                int color = faded ? withAlpha(segment.argb, 0x40) : segment.argb;
+                int color = faded ? withAlpha(segment.argb, 0x80) : segment.argb;
                 sink.line(start[0], start[1], start[2], end[0], end[1], end[2], color);
             }
         });
@@ -514,25 +518,64 @@ public final class Render3DUtils {
     }
 
     private static void drawQuads(PoseStack stack, DepthMode mode, QuadEmitter emitter) {
-        drawMesh(stack, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR, null,
-                builder -> emitter.emit(new QuadSink(builder, stack.last().pose())));
+        if (stack == null) return;
+        Matrix4f modelView = stack.last().pose();
+        drawMesh(RenderType.debugQuads(),
+                builder -> emitter.emit(new QuadSink(builder, modelView)));
     }
 
     private static void drawLines(PoseStack stack, DepthMode mode, float width, LineEmitter emitter) {
-        drawMesh(stack, VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR_NORMAL, null,
-                builder -> emitter.emit(new LineSink(builder, stack.last().pose(), width)));
+        if (stack == null) return;
+        Matrix4f modelView = stack.last().pose();
+        drawMesh(lineType(width, mode),
+                builder -> emitter.emit(new LineSink(builder, modelView, width)));
     }
 
-    private static void drawMesh(PoseStack stack, VertexFormat.Mode topology, VertexFormat format,
-                                 Object ignoredPipeline, BuilderEmitter emitter) {
+    private static void drawMesh(RenderType renderType, BuilderEmitter emitter) {
         RenderSystem.assertOnRenderThread();
         try (ByteBufferBuilder allocator = new ByteBufferBuilder(256 * 1024)) {
             MultiBufferSource.BufferSource buffers = MultiBufferSource.immediate(allocator);
-            VertexConsumer consumer = buffers.getBuffer(topology == VertexFormat.Mode.LINES
-                    ? RenderType.lines() : RenderType.debugQuads());
+            VertexConsumer consumer = buffers.getBuffer(renderType);
             emitter.emit(consumer);
-            buffers.endBatch();
+
+            Matrix4fStack globalModelView = RenderSystem.getModelViewStack();
+            globalModelView.pushMatrix();
+            globalModelView.identity();
+            try {
+                buffers.endBatch(renderType);
+            } finally {
+                globalModelView.popMatrix();
+            }
         }
+    }
+
+    private static RenderType lineType(float width, DepthMode mode) {
+        DepthMode resolved = mode == null ? DepthMode.NORMAL : mode;
+        LineTypeKey key = new LineTypeKey(Float.floatToIntBits(Math.max(0.5f, width)), resolved);
+        return LINE_TYPES.computeIfAbsent(key, value -> {
+            RenderStateShard.DepthTestStateShard depth = switch (value.mode()) {
+                case NONE -> RenderStateShard.NO_DEPTH_TEST;
+                case GREATER -> RenderStateShard.GREATER_DEPTH_TEST;
+                default -> RenderStateShard.LEQUAL_DEPTH_TEST;
+            };
+            return RenderType.create(
+                    "nimbus_lines_" + value.mode().name().toLowerCase(),
+                    DefaultVertexFormat.POSITION_COLOR_NORMAL,
+                    VertexFormat.Mode.LINES,
+                    1536,
+                    false,
+                    false,
+                    RenderType.CompositeState.builder()
+                            .setShaderState(RenderStateShard.RENDERTYPE_LINES_SHADER)
+                            .setLineState(new RenderStateShard.LineStateShard(
+                                    OptionalDouble.of(Float.intBitsToFloat(value.widthBits()))))
+                            .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
+                            .setDepthTestState(depth)
+                            .setCullState(RenderStateShard.NO_CULL)
+                            .setWriteMaskState(RenderStateShard.COLOR_WRITE)
+                            .createCompositeState(false)
+            );
+        });
     }
 
 
@@ -579,6 +622,8 @@ public final class Render3DUtils {
     private interface BuilderEmitter { void emit(VertexConsumer builder); }
     private interface QuadEmitter { void emit(QuadSink sink); }
     private interface LineEmitter { void emit(LineSink sink); }
+
+    private record LineTypeKey(int widthBits, DepthMode mode) {}
 
     private static int argb(int r,int g,int b,int a) { return (clamp(a)<<24)|(clamp(r)<<16)|(clamp(g)<<8)|clamp(b); }
     private static int clamp(int value) { return Math.max(0, Math.min(255, value)); }

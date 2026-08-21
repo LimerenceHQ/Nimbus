@@ -125,12 +125,12 @@ public final class ESP extends BasicModule {
             if (player.isSpectator() || player.isRemoved()) continue;
             SkeletonPose pose = skeletonPoses.get(player.getId());
             if (pose == null) continue;
-            int color = 0xE6000000 | (settings.accentColor(colorIndex++, now) & 0x00FFFFFF);
+            int color = 0xFF000000 | (settings.accentColor(colorIndex++, now) & 0x00FFFFFF);
             appendSkeleton(segments, player, pose, partialTick, color);
         }
         if (!segments.isEmpty()) {
             Render3DUtils.drawLineSegmentsWithDepth(
-                    event.getPoseStack(), segments, 1.5f, Render3DUtils.DepthMode.BOTH
+                    event.getPoseStack(), segments, 1.8f, Render3DUtils.DepthMode.BOTH
             );
         }
     }
