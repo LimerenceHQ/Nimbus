@@ -6,9 +6,12 @@ import cc.nimbus.event.impl.player.EventSlowMovement;
 import cc.nimbus.event.impl.player.EventStrafe;
 import cc.nimbus.features.rotation.Rotation;
 import cc.nimbus.features.rotation.RotationMath;
+import cc.nimbus.utils.mixin.FallDistanceAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,10 +23,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Entity.class)
-public abstract class EntityMixin {
+public abstract class EntityMixin implements FallDistanceAccess {
 
     @Shadow
     protected Vec3 stuckSpeedMultiplier;
+
+    @Shadow
+    protected abstract void checkFallDamage(double movementY, boolean onGround, BlockState state, BlockPos pos);
 
     @Redirect(method = "moveRelative", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/Entity;getYRot()F"))
@@ -56,6 +62,23 @@ public abstract class EntityMixin {
         EventRotationApplied event = EventBus.call(new EventRotationApplied(entity.getYRot(), entity.getXRot()));
         if (event.getYaw() != entity.getYRot() || event.getPitch() != entity.getXRot()) {
             cir.setReturnValue(RotationMath.direction(new Rotation(event.getYaw(), event.getPitch())));
+        }
+    }
+
+    @Override
+    public void nimbus$updateFallDistance() {
+        Entity entity = (Entity) (Object) this;
+        if (!(entity instanceof LocalPlayer player)) return;
+
+        if (player.onGround() || player.isPassenger()) {
+            player.fallDistance = 0.0F;
+            return;
+        }
+
+        double movementY = player.getDeltaMovement().y;
+        if (movementY < 0.0D) {
+            BlockPos pos = player.blockPosition();
+            checkFallDamage(movementY, false, player.level().getBlockState(pos), pos);
         }
     }
 }

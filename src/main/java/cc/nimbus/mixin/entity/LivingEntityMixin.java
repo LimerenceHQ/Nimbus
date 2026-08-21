@@ -20,12 +20,4 @@ public abstract class LivingEntityMixin {
         if (entity != Minecraft.getInstance().player) return entity.getYRot();
         return EventBus.call(new EventJump(entity.getYRot())).getYaw();
     }
-
-    @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
-    private void nimbus$travel(Vec3 travelVector, CallbackInfo ci) {
-        LivingEntity entity = (LivingEntity) (Object) this;
-        if (entity == Minecraft.getInstance().player && EventBus.call(new EventTravel()).isCancel()) {
-            ci.cancel();
-        }
-    }
 }

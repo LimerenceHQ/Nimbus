@@ -1,27 +1,13 @@
 package cc.nimbus.utils.network;
 
+import cc.nimbus.mixin.accessor.network.ServerboundMovePlayerPacketAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.LevelLoadingScreen;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.common.ClientboundDisconnectPacket;
 import net.minecraft.network.protocol.configuration.ClientboundFinishConfigurationPacket;
-import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
-import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
-import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
-import net.minecraft.network.protocol.game.ClientboundLoginPacket;
-import net.minecraft.network.protocol.game.ClientboundMapItemDataPacket;
-import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
-import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
-import net.minecraft.network.protocol.game.ClientboundRespawnPacket;
-import net.minecraft.network.protocol.game.ClientboundServerDataPacket;
-import net.minecraft.network.protocol.game.ClientboundSetDefaultSpawnPositionPacket;
-import net.minecraft.network.protocol.game.ClientboundSetHealthPacket;
-import net.minecraft.network.protocol.game.ClientboundSetPlayerTeamPacket;
-import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
-import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
-import net.minecraft.network.protocol.game.ClientboundSoundPacket;
-import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
+import net.minecraft.network.protocol.game.*;
 import net.minecraft.network.protocol.login.ClientboundLoginCompressionPacket;
 import net.minecraft.network.protocol.login.ClientboundHelloPacket;
 import net.minecraft.network.protocol.login.ClientboundLoginFinishedPacket;
@@ -46,15 +32,12 @@ public final class PacketUtils {
         }
     }
 
-    /**
-     * Protocol transition packets must stay on Netty's connection thread.
-     * Scheduling these through the client packet processor can mutate the
-     * compression/codec pipeline after its handler context has changed.
-     */
-    public static boolean isProtocolControl(Packet<?> packet) {
-        return packet instanceof ClientboundLoginCompressionPacket
-                || packet instanceof ClientboundLoginFinishedPacket
-                || packet instanceof ClientboundFinishConfigurationPacket;
+    public static void setPlayerMovePacketYaw(ServerboundMovePlayerPacket packet, float yaw) {
+        ((ServerboundMovePlayerPacketAccessor) packet).nimbus$setYaw(yaw);
+    }
+
+    public static void setPlayerMovePacketPitch(ServerboundMovePlayerPacket packet, float pitch) {
+        ((ServerboundMovePlayerPacketAccessor) packet).nimbus$setPitch(pitch);
     }
 
     public static boolean isEssential(Packet<?> packet) {

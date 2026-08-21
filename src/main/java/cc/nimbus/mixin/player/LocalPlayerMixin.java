@@ -453,4 +453,5 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
     public void nimbus$setPositionReminder(int ticks) {
         positionReminder = ticks;
     }
+
 }

@@ -13,7 +13,7 @@
     "entity.LivingEntityMixin",
     "input.KeyboardInputMixin",
     "network.ConnectionMixin",
-    "network.PacketProcessorMixin",
+    "network.PacketUtilsMixin",
     "player.AbstractClientPlayerMixin",
     "player.LocalPlayerMixin",
     "player.MultiPlayerGameModeMixin",
@@ -35,6 +35,7 @@
     "accessor.client.MinecraftAccessor",
     "accessor.client.DeltaTrackerTimerAccessor",
     "accessor.network.ServerboundInteractPacketAccessor",
+    "accessor.network.ServerboundMovePlayerPacketAccessor",
     "accessor.player.MultiPlayerGameModeAccessor",
     "accessor.player.LocalPlayerAccessor"
   ],

@@ -16,6 +16,7 @@ import net.minecraft.network.protocol.Packet;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 public final class PacketManager implements InstanceManager {
     public static final int DEFAULT_CAPACITY = 131_072;
@@ -25,6 +26,8 @@ public final class PacketManager implements InstanceManager {
     private final ConcurrentPacketQueue outbound;
     private volatile boolean inboundFrozen;
     private volatile boolean outboundFrozen;
+    private volatile Predicate<Packet<?>> inboundFreezeFilter;
+    private volatile Predicate<Packet<?>> outboundFreezeFilter;
     private int internalTimer;
     private boolean capturedThisCycle;
 
@@ -52,26 +55,70 @@ public final class PacketManager implements InstanceManager {
     }
 
     public void freeze(PacketDirection direction) {
+        freeze(direction, packet -> true);
+    }
+
+    /** Freezes only the supplied packet classes (and their subclasses). */
+    public void freeze(PacketDirection direction, Class<?>... packetTypes) {
+        freezePackets(direction, packetTypes);
+    }
+
+    /**
+     * Freezes only packets accepted by {@code filter}. Essential packets are
+     * still allowed through, as with the original direction-wide freeze.
+     */
+    public void freeze(PacketDirection direction, Predicate<Packet<?>> filter) {
+        Objects.requireNonNull(direction, "direction");
+        Objects.requireNonNull(filter, "filter");
         switch (direction) {
-            case INBOUND -> inboundFrozen = true;
-            case OUTBOUND -> outboundFrozen = true;
+            case INBOUND -> {
+                inboundFreezeFilter = filter;
+                inboundFrozen = true;
+            }
+            case OUTBOUND -> {
+                outboundFreezeFilter = filter;
+                outboundFrozen = true;
+            }
             case BOTH -> {
+                inboundFreezeFilter = filter;
+                outboundFreezeFilter = filter;
                 inboundFrozen = true;
                 outboundFrozen = true;
             }
         }
     }
 
+    /**
+     * Convenience overload for callers that want to freeze selected packet
+     * types without writing a predicate.
+     */
+    public void freezePackets(PacketDirection direction, Class<?>... packetTypes) {
+        Objects.requireNonNull(packetTypes, "packetTypes");
+        Class<?>[] types = packetTypes.clone();
+        for (Class<?> type : types) {
+            Objects.requireNonNull(type, "packetTypes contains null");
+        }
+        freeze(direction, packet -> {
+            for (Class<?> type : types) {
+                if (type.isInstance(packet)) return true;
+            }
+            return false;
+        });
+    }
+
+
     public void dispatch(PacketDirection direction) {
         switch (direction) {
             case INBOUND -> {
                 List<Packet<?>> packets = inbound.drain();
                 inboundFrozen = false;
+                inboundFreezeFilter = null;
                 packets.forEach(PacketUtils::receivePacketNoEvent);
             }
             case OUTBOUND -> {
                 List<Packet<?>> packets = outbound.drain();
                 outboundFrozen = false;
+                outboundFreezeFilter = null;
                 packets.forEach(this::send);
             }
             case BOTH -> {
@@ -79,6 +126,8 @@ public final class PacketManager implements InstanceManager {
                 List<Packet<?>> in = inbound.drain();
                 inboundFrozen = false;
                 outboundFrozen = false;
+                inboundFreezeFilter = null;
+                outboundFreezeFilter = null;
                 out.forEach(this::send);
                 in.forEach(PacketUtils::receivePacketNoEvent);
             }
@@ -94,6 +143,7 @@ public final class PacketManager implements InstanceManager {
         inbound.drainN(maxPackets, PacketUtils::receivePacketNoEvent);
         if (inbound.size() == 0) {
             inboundFrozen = false;
+            inboundFreezeFilter = null;
         }
     }
 
@@ -152,6 +202,8 @@ public final class PacketManager implements InstanceManager {
     public void cleanup() {
         inboundFrozen = false;
         outboundFrozen = false;
+        inboundFreezeFilter = null;
+        outboundFreezeFilter = null;
         inbound.clear();
         outbound.clear();
         internalTimer = 0;
@@ -187,7 +239,7 @@ public final class PacketManager implements InstanceManager {
             }
 
             if (current != original) {
-                if (outboundFrozen && !PacketUtils.isEssential(current)) {
+                if (shouldFreeze(PacketDirection.OUTBOUND, current)) {
                     if (!outbound.enqueue(current, internalTimer)) {
                         System.err.println("Packet queue is full, this shouldn't happen!");
                         dispatch(PacketDirection.OUTBOUND);
@@ -200,7 +252,7 @@ public final class PacketManager implements InstanceManager {
                 return false;
             }
 
-            if (outboundFrozen && !PacketUtils.isEssential(original)) {
+            if (shouldFreeze(PacketDirection.OUTBOUND, original)) {
                 if (!outbound.enqueue(original, internalTimer)) {
                     System.err.println("Packet queue is full, this shouldn't happen!");
                     dispatch(PacketDirection.OUTBOUND);
@@ -209,7 +261,7 @@ public final class PacketManager implements InstanceManager {
                 return false;
             }
             return true;
-        } catch (Exception exception) {
+        }catch (Exception exception) {
             System.err.println("[CentralPacketPipeline] outboundsHook exception on: " + packet.getClass().getSimpleName());
             exception.printStackTrace();
             return true;
@@ -225,7 +277,7 @@ public final class PacketManager implements InstanceManager {
             if (capturedThisCycle || event.isCancel()) {
                 return false;
             }
-            if (inboundFrozen && !PacketUtils.isEssential(packet)) {
+            if (shouldFreeze(PacketDirection.INBOUND, packet)) {
                 if (!inbound.enqueue(packet, internalTimer)) {
                     System.err.println("Packet queue is full, this shouldn't happen!");
                     dispatch(PacketDirection.INBOUND);
@@ -286,6 +338,14 @@ public final class PacketManager implements InstanceManager {
 
     private ConcurrentPacketQueue queue(PacketDirection direction) {
         return direction == PacketDirection.INBOUND ? inbound : outbound;
+    }
+
+    private boolean shouldFreeze(PacketDirection direction, Packet<?> packet) {
+        if (PacketUtils.isEssential(packet)) return false;
+        Predicate<Packet<?>> filter = direction == PacketDirection.INBOUND
+                ? inboundFreezeFilter
+                : outboundFreezeFilter;
+        return filter != null && filter.test(packet);
     }
 
     private void send(Packet<?> packet) {

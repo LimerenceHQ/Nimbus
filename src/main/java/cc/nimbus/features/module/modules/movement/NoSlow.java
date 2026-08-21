@@ -2,18 +2,19 @@ package cc.nimbus.features.module.modules.movement;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
-import cc.nimbus.event.impl.game.EventClick;
 import cc.nimbus.event.impl.game.EventTick;
+import cc.nimbus.event.impl.game.RotationAppliedEvent;
 import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.event.impl.player.EventMotion;
 import cc.nimbus.event.impl.player.EventSlowDown;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
+import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.player.GhostHand;
+import cc.nimbus.features.packet.PacketDirection;
 import cc.nimbus.managers.GameStateManager;
 import cc.nimbus.utils.client.TimerUtils;
 import cc.nimbus.utils.network.PacketUtils;
@@ -29,6 +30,7 @@ import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.Item;
@@ -44,9 +46,8 @@ public class NoSlow extends BasicModule {
     private static final BlockPos SWAP_POS = BlockPos.ZERO;
     private static final Direction SWAP_DIRECTION = Direction.DOWN;
 
-    private final ModeValue mode = new ModeValue("Mode", new String[]{"Normal", "GrimFull"}, "Normal");
+    private final ModeSetting mode = new ModeSetting("Mode", new String[]{"Normal", "GrimFull"}, "Normal");
     private final NumberSetting releaseTick = new NumberSetting("Release Ticks", 32.0, 0.0, 150.0, 1.0,() -> mode.is("GrimFull"));
-    private final LinkedBlockingDeque<Packet<ClientGamePacketListener>> inBound = new LinkedBlockingDeque<>();
     private final TimerUtils timer = new TimerUtils();
 
     private int useTicks = -1;
@@ -67,7 +68,7 @@ public class NoSlow extends BasicModule {
 
     @Override
     public void onDisable() {
-        flushInbound();
+        Core.INSTANCE.getPacketManager().dispatch(PacketDirection.INBOUND);
         resetState();
     }
 
@@ -116,53 +117,54 @@ public class NoSlow extends BasicModule {
     }
     @EventTarget
     public void onPacketReceive(PacketEvent event) {
-        if (!event.isReceive()) return;
         if (mc.player == null || mc.level == null || mc.getConnection() == null || !mode.is("GrimFull")) {
             return;
         }
         Packet<?> packet = event.getPacket();
 
-        if (packet instanceof ClientboundPlayerPositionPacket) {
-            flushInbound();
-            resetState();
-            return;
-        }
-
-        if (packet instanceof ClientboundContainerSetSlotPacket || packet instanceof ClientboundContainerSetContentPacket) {
-            if (isUse || !timer.hasTimeElapsed(100L)) {
-                event.cancelEvent();
+        if (event.getPacketState() == PacketEvent.PacketState.RECEIVE) {
+            if (packet instanceof ClientboundPlayerPositionPacket) {
+                Core.INSTANCE.getPacketManager().dispatch(PacketDirection.INBOUND);
+                resetState();
                 return;
             }
-        }
 
-        if (isHoldingConsumableForGrimFull()
-                && isUse
-                && (packet instanceof ClientboundPingPacket || packet instanceof ClientboundSetEntityMotionPacket)) {
-            if (useTicks == -1) {
-                useTicks = 0;
+            if (packet instanceof ClientboundContainerSetSlotPacket || packet instanceof ClientboundContainerSetContentPacket) {
+                if (isUse || !timer.hasTimeElapsed(100L)) {
+                    event.cancelEvent();
+                    return;
+                }
             }
-            event.cancelEvent();
-            inBound.add((Packet<ClientGamePacketListener>) packet);
-        }
 
+            if (isHoldingConsumableForGrimFull() && isUse
+            ) {
+                if (useTicks == -1) {
+                    useTicks = 0;
+                }
+                Core.INSTANCE.getPacketManager().freeze(PacketDirection.INBOUND,
+                        ClientboundSetEntityMotionPacket.class,
+                        ClientboundPingPacket.class
+                );
+            }
+        }
     }
     @EventTarget
     public void onPacketSend(PacketEvent event) {
-        if (!event.isSend()) return;
         if (mc.player == null || mc.level == null || mc.getConnection() == null || !mode.is("GrimFull")) {
             return;
         }
 
         Packet<?> packet = event.getPacket();
-        if (isHoldingConsumableForGrimFull()
-                && packet instanceof ServerboundPlayerActionPacket actionPacket
-                && actionPacket.getAction() == ServerboundPlayerActionPacket.Action.RELEASE_USE_ITEM
-                && (isUse || !inBound.isEmpty())) {
-            mc.options.keyUse.setDown(false);
-            event.cancelEvent();
+        if (event.getPacketState() == PacketEvent.PacketState.SEND) {
+            if (isHoldingConsumableForGrimFull()
+                    && packet instanceof ServerboundPlayerActionPacket actionPacket
+                    && actionPacket.getAction() == ServerboundPlayerActionPacket.Action.RELEASE_USE_ITEM
+                    && (isUse || Core.INSTANCE.getPacketManager().isFrozen(PacketDirection.INBOUND))) {
+                mc.options.keyUse.setDown(false);
+                event.cancelEvent();
+            }
         }
     }
-
     @EventTarget
     public void onMotion(EventMotion event) {
         if (mc.player == null || mc.level == null || mc.getConnection() == null || !mode.is("GrimFull")) {
@@ -180,17 +182,21 @@ public class NoSlow extends BasicModule {
             if (useTicks >= 0) {
                 useTicks++;
             }
+        } else if (pendingUseItem) {
+            InteractionHand hand = isHoldingConsumable(mc.player.getMainHandItem()) ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+            GameStateManager.useItem(mc.player, mc.level, hand);
+            pendingUseItem = false;
         }
     }
 
     @EventTarget
-    public void onRotationApplied(EventClick event) {
+    public void onRotationApplied(RotationAppliedEvent event) {
         if (mc.player == null || mc.getConnection() == null || !mode.is("GrimFull")) {
             return;
         }
 
-        if (useTicks >= releaseTick.getValue().doubleValue() && !inBound.isEmpty()) {
-            flushInbound();
+        if (useTicks >= releaseTick.getValue().doubleValue() && Core.INSTANCE.getPacketManager().isFrozen(PacketDirection.INBOUND)) {
+            Core.INSTANCE.getPacketManager().dispatch(PacketDirection.INBOUND);
             if (swapCount < 1 && isHoldingConsumableForGrimFull()) {
                 mc.getConnection().send(new ServerboundPlayerActionPacket(ServerboundPlayerActionPacket.Action.SWAP_ITEM_WITH_OFFHAND, SWAP_POS, SWAP_DIRECTION));
                 swapCount++;
@@ -205,18 +211,7 @@ public class NoSlow extends BasicModule {
 
     @EventTarget
     public void onTick(EventTick event) {
-        if (mc.player == null || mc.level == null || mc.getConnection() == null || !mode.is("GrimFull")) {
-            return;
-        }
-
-        if (event.isPost()) {
-            if (pendingUseItem) {
-                InteractionHand hand = isHoldingConsumable(mc.player.getMainHandItem())
-                        ? InteractionHand.OFF_HAND
-                        : InteractionHand.MAIN_HAND;
-                GameStateManager.useItem(mc.player, mc.level, hand);
-                pendingUseItem = false;
-            }
+        if (mc.player == null || mc.level == null || mc.getConnection() == null || !mode.is("GrimFull") || !event.isPre()) {
             return;
         }
 
@@ -225,12 +220,9 @@ public class NoSlow extends BasicModule {
             return;
         }
 
-        KillAura killAura =  Core.INSTANCE.getModuleManager().getModule(KillAura.class);
+        KillAura killAura = Core.INSTANCE.getModuleManager().getModule(KillAura.class);
         if (((killAura != null &&killAura.attackTarget != null) || !mc.player.isUsingItem()) && isUse) {
-            while (!inBound.isEmpty()) {
-                Packet<ClientGamePacketListener> poll = this.inBound.poll();
-                poll.handle(mc.getConnection());
-            }
+            Core.INSTANCE.getPacketManager().dispatch(PacketDirection.INBOUND);
             mc.getConnection().send(new ServerboundPlayerActionPacket(ServerboundPlayerActionPacket.Action.SWAP_ITEM_WITH_OFFHAND, SWAP_POS, SWAP_DIRECTION));
             PacketUtils.sendPacketNoEvent(new ServerboundPlayerActionPacket(ServerboundPlayerActionPacket.Action.RELEASE_USE_ITEM, SWAP_POS, SWAP_DIRECTION));
             useTicks = -1;
@@ -251,6 +243,7 @@ public class NoSlow extends BasicModule {
         }
     }
 
+    @SuppressWarnings("deprecation")
     public static boolean isHoldingConsumable(ItemStack itemStack) {
         if (itemStack == null || itemStack.isEmpty()) {
             return false;
@@ -281,14 +274,6 @@ public class NoSlow extends BasicModule {
                 || offItem instanceof BowItem || offItem instanceof CrossbowItem);
     }
 
-    private void flushInbound() {
-        while (!inBound.isEmpty() && mc.getConnection() != null) {
-            Packet<ClientGamePacketListener> packet = inBound.poll();
-            if (packet != null) {
-                packet.handle(mc.getConnection());
-            }
-        }
-    }
 
     private void resetState() {
         useTicks = -1;
@@ -300,6 +285,6 @@ public class NoSlow extends BasicModule {
         pauseTimer = 0;
         pendingNoSlow = false;
         pendingUseItem = false;
-        inBound.clear();
+        Core.INSTANCE.getPacketManager().dispatch(PacketDirection.INBOUND);
     }
 }

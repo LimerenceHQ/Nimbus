@@ -81,12 +81,8 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
             return false;
         }
 
-        double velocityX = packet.getXa() / 8000.0;
-        double velocityY = packet.getYa() / 8000.0;
-        double velocityZ = packet.getZa() / 8000.0;
-
-        boolean falling = velocityY <= 0.0;
-        double strength = new Vec3(velocityX, 0, velocityZ).length();
+        boolean falling = packet.getYa() <= 0.0;
+        double strength = Math.hypot(packet.getXa(), packet.getZa());
         boolean lowStrength = strength < 0.1;
 
         return !falling

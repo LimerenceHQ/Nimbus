@@ -19,8 +19,7 @@ public abstract class ConnectionMixin {
     @Inject(method = "sendPacket", at = @At("HEAD"), cancellable = true)
     private void nimbus$packetSend(Packet<?> packet, PacketSendListener packetSendListener, boolean bl, CallbackInfo ci) {
         if (!Core.INSTANCE.isInitialized()) return;
-        PacketManager packetManager = Core.INSTANCE.getPacketManager();
-        if (!packetManager.outboundsHook(packet)) {
+        if (!Core.INSTANCE.getPacketManager().outboundsHook(packet)) {
             ci.cancel();
         }
     }

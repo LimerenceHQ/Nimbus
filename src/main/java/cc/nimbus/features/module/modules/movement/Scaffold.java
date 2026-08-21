@@ -19,6 +19,7 @@ import cc.nimbus.features.module.modules.movement.scaffold.PlaceInfo;
 import cc.nimbus.features.module.modules.movement.scaffold.PlaceUtils;
 import cc.nimbus.features.rotation.*;
 import cc.nimbus.managers.GameStateManager;
+import cc.nimbus.utils.client.MessageUtils;
 import cc.nimbus.utils.client.TimerUtils;
 import cc.nimbus.utils.entity.player.InventoryUtils;
 import cc.nimbus.utils.entity.player.MovementUtils;
@@ -287,7 +288,6 @@ public class Scaffold extends BasicModule {
         if (raycast.is("Off") && rotationTick >= 1) {
             return;
         }
-
         if (canPlaceNow && autoStuck.getValue() && currentPlace.getBlockPos().getY() + 1 < mc.player.getY()) {
             Rotation faceRotation = RotationUtils.getRotationBlock(currentPlace.getBlockPos(), currentPlace.getDirection());
             if ((int) mc.player.getEyePosition().distanceTo(Vec3.atCenterOf(currentPlace.getBlockPos())) < 7

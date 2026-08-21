@@ -3,47 +3,54 @@ package cc.nimbus.utils.network;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import net.minecraft.network.Connection;
+import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.PacketListener;
+import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.protocol.Packet;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 /** Connection helpers used for queue replay without dispatching PacketEvent. */
 public final class ConnectionUtils {
-    private static final Field CHANNEL = findField(Connection.class, "channel", Channel.class);
-    private static final Field SENT_PACKETS = findField(Connection.class, "sentPackets", int.class);
+    private static final Field CHANNEL = findField(Connection.class, "channel", "f_129468_");
+    private static final Field PACKET_LISTENER = findField(Connection.class, "packetListener", "f_129470_");
+    private static final Field SENT_PACKETS = findField(Connection.class, "sentPackets", "f_129475_");
     private static final Method DO_SEND_PACKET = findMethod(Connection.class, "doSendPacket", "m_243087_");
 
     private ConnectionUtils() {
     }
 
+
     public static void sendPacketNoEvent(Connection connection, Packet<?> packet) {
-        if (connection == null || packet == null) return;
+        try {
+            SENT_PACKETS.setInt(connection, SENT_PACKETS.getInt(connection) + 1);
+        } catch (IllegalAccessException ignored) {
+        }
+
         Channel channel = channel(connection);
-        incrementSentPackets(connection);
-        Runnable send = () -> {
-            //PacketEventGuard.suppress();
-            try {
-                invokeDoSendPacket(connection, packet, null, true);
-            } finally {
-               // PacketEventGuard.restore();
-            }
-        };
-        if (channel.eventLoop().inEventLoop()) send.run();
-        else channel.eventLoop().execute(send);
+        if (channel.eventLoop().inEventLoop()) {
+            doSendPacket(connection, packet, null, true);
+        } else {
+            channel.eventLoop().execute(() -> doSendPacket(connection, packet, null,true));
+        }
     }
+
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static void receivePacketNoEvent(Connection connection, Packet<?> packet) {
         if (connection == null || packet == null || !connection.isConnected()) return;
         PacketListener listener = connection.getPacketListener();
         if (listener == null) return;
-    //    PacketEventGuard.suppress();
+        ((Packet) packet).handle(listener);
+    }
+    private static void doSendPacket(Connection connection, Packet<?> packet,
+                                     ChannelFutureListener listener, boolean flush) {
         try {
-            ((Packet) packet).handle(listener);
-        } finally {
-      //      PacketEventGuard.restore();
+            DO_SEND_PACKET.invoke(connection, packet, listener, flush);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalStateException("Failed to invoke doSendPacket", e);
         }
     }
 
@@ -70,6 +77,18 @@ public final class ConnectionUtils {
         } catch (ReflectiveOperationException error) {
             throw new IllegalStateException("Unable to invoke Connection.doSendPacket", error);
         }
+    }
+
+    private static Field findField(Class<?> owner, String... names) {
+        for (String name : names) {
+            try {
+                Field field = owner.getDeclaredField(name);
+                field.setAccessible(true);
+                return field;
+            } catch (NoSuchFieldException ignored) {
+            }
+        }
+        throw new IllegalStateException("Failed to resolve field on " + owner.getName());
     }
 
     private static Field findField(Class<?> owner, String name, Class<?> type) {
