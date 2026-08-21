@@ -10,25 +10,29 @@ import cc.nimbus.utils.entity.player.MovementUtils;
 @ModuleInfo(
         name = "Sprint",
         description = "Automatically sprints while moving forward.",
-        category = ModuleCategory.Move
+        category = ModuleCategory.Move,
+        enableOnStartUp = true
 )
 public class Sprint extends BasicModule {
     public boolean canSprint = true;
 
     @Override
     protected void onEnable() {
+        if (mc.options == null) return;
         canSprint = true;
         mc.options.keySprint.setDown(false);
     }
 
     @Override
     protected void onDisable() {
+        if (mc.options == null) return;
         canSprint = false;
         mc.options.keySprint.setDown(false);
     }
 
     @EventTarget
     public void onStrafe(EventTick event) {
+        if (mc.options == null) return;
         if (!event.isPre()) return;
         if (canSprint && MovementUtils.isMoving()) {
             mc.options.keySprint.setDown(true);

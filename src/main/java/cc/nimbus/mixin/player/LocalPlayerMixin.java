@@ -19,6 +19,8 @@ import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerInputPacket;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.PlayerRideableJumping;
@@ -28,6 +30,7 @@ import net.minecraft.world.entity.player.Abilities;
 import net.minecraft.world.item.component.UseEffects;
 import net.minecraft.world.level.block.Portal;
 import net.minecraft.world.phys.Vec2;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -41,19 +44,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(LocalPlayer.class)
 public abstract class LocalPlayerMixin extends AbstractClientPlayer implements LocalPlayerStateAccess {
     @Shadow private int positionReminder;
+    @Shadow private double xLast;
+    @Shadow private double yLast;
+    @Shadow private double zLast;
+    @Shadow private float yRotLast;
+    @Shadow private float xRotLast;
+    @Shadow private boolean lastOnGround;
+    @Shadow private boolean autoJumpEnabled;
     public LocalPlayerMixin(ClientLevel p_250460_, GameProfile p_249912_) {
         super(p_250460_, p_249912_);
     }
 
-    @Unique private boolean nimbus$motionActive;
-    @Unique private double nimbus$oldX;
-    @Unique private double nimbus$oldY;
-    @Unique private double nimbus$oldZ;
-    @Unique private float nimbus$oldYaw;
-    @Unique private float nimbus$oldPitch;
-    @Unique private boolean nimbus$oldGround;
-    @Unique private EventMotion nimbus$motion;
     @Unique private boolean nimbus$cancelItemSlowDown;
+    @Unique private boolean nimbus$wasShiftKeyDown;
     @Final
     public ClientPacketListener connection;
     @Shadow
@@ -62,6 +65,11 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
 
     @Shadow
     protected abstract boolean isControlledCamera();
+
+    @Shadow
+    private void sendIsSprintingIfNeeded() {
+        throw new AssertionError();
+    }
 
     @Shadow
     protected int sprintTriggerTime;
@@ -327,69 +335,127 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
 
     }
 
-    @Inject(
-            method = "sendPosition",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/client/player/LocalPlayer;sendIsSprintingIfNeeded()V",
-                    shift = At.Shift.AFTER
-            )
-    )
-    private void nimbus$preUpdateAfterSprintSync(CallbackInfo ci) {
-        EventBus.call(new EventPreUpdate());
-    }
-
-
     @Inject(method = "sendPosition", at = @At("HEAD"), cancellable = true)
-    private void nimbus$preMotion(CallbackInfo ci) {
-        LocalPlayer player = (LocalPlayer) (Object) this;
-        nimbus$oldX = player.getX();
-        nimbus$oldY = player.getY();
-        nimbus$oldZ = player.getZ();
-        nimbus$oldYaw = player.getYRot();
-        nimbus$oldPitch = player.getXRot();
-        nimbus$oldGround = player.onGround();
+    private void nimbus$onSendPosition(CallbackInfo ci) {
+        if (!Core.INSTANCE.isInitialized()) return;
 
-        nimbus$motion = EventBus.call(new EventMotion(
-                nimbus$oldX, nimbus$oldY, nimbus$oldZ,
-                nimbus$oldYaw, nimbus$oldPitch,
-                nimbus$oldYaw, nimbus$oldPitch,
-                nimbus$oldGround, EventType.PRE));
-        if (nimbus$motion.isCancel()) {
-            EventBus.call(new EventMotion(
-                    nimbus$motion.getPosX(), nimbus$motion.getPosY(), nimbus$motion.getPosZ(),
-                    nimbus$motion.getYaw(), nimbus$motion.getPitch(),
-                    nimbus$oldYaw, nimbus$oldPitch,
-                    nimbus$motion.isGround(), EventType.POST));
-            nimbus$motion = null;
+        LocalPlayer player = (LocalPlayer) (Object) this;
+        EventMotion motionEvent = new EventMotion(
+                player.getX(),
+                player.getY(),
+                player.getZ(),
+                player.getYRot(),
+                player.getXRot(),
+                player.getYRot(),
+                player.getXRot(),
+                player.onGround(),
+                EventType.PRE
+        );
+        EventBus.call(motionEvent);
+
+        if (motionEvent.isCancel()) {
             ci.cancel();
             return;
         }
 
-        player.setPos(nimbus$motion.getPosX(), nimbus$motion.getPosY(), nimbus$motion.getPosZ());
-        player.setYRot(nimbus$motion.getYaw());
-        player.setXRot(nimbus$motion.getPitch());
-        player.setOnGround(nimbus$motion.isGround());
-        nimbus$motionActive = true;
+        this.sendIsSprintingIfNeeded();
+        EventBus.call(new EventPreUpdate());
+
+        boolean shiftDown = player.isShiftKeyDown();
+        if (shiftDown != this.nimbus$wasShiftKeyDown) {
+            this.connection.send(new ServerboundPlayerInputPacket(this.input.keyPresses));
+            this.nimbus$wasShiftKeyDown = shiftDown;
+        }
+
+        if (this.isControlledCamera()) {
+            double dx = motionEvent.getPosX() - this.xLast;
+            double dy = motionEvent.getPosY() - this.yLast;
+            double dz = motionEvent.getPosZ() - this.zLast;
+            double dyaw = motionEvent.getYaw() - this.yRotLast;
+            double dpitch = motionEvent.getPitch() - this.xRotLast;
+
+            ++this.positionReminder;
+            boolean moved = Mth.lengthSquared(dx, dy, dz) > Mth.square(2.0E-4D)
+                    || this.positionReminder >= 20;
+            boolean rotated = dyaw != 0.0D || dpitch != 0.0D;
+            boolean horizontalCollision = player.horizontalCollision;
+
+            if (player.isPassenger()) {
+                Vec3 velocity = player.getDeltaMovement();
+                this.connection.send(new ServerboundMovePlayerPacket.PosRot(
+                        velocity.x,
+                        -999.0D,
+                        velocity.z,
+                        motionEvent.getYaw(),
+                        motionEvent.getPitch(),
+                        motionEvent.isGround(),
+                        horizontalCollision
+                ));
+                moved = false;
+            } else if (moved && rotated) {
+                this.connection.send(new ServerboundMovePlayerPacket.PosRot(
+                        motionEvent.getPosX(),
+                        motionEvent.getPosY(),
+                        motionEvent.getPosZ(),
+                        motionEvent.getYaw(),
+                        motionEvent.getPitch(),
+                        motionEvent.isGround(),
+                        horizontalCollision
+                ));
+            } else if (moved) {
+                this.connection.send(new ServerboundMovePlayerPacket.Pos(
+                        motionEvent.getPosX(),
+                        motionEvent.getPosY(),
+                        motionEvent.getPosZ(),
+                        motionEvent.isGround(),
+                        horizontalCollision
+                ));
+            } else if (rotated) {
+                this.connection.send(new ServerboundMovePlayerPacket.Rot(
+                        motionEvent.getYaw(),
+                        motionEvent.getPitch(),
+                        motionEvent.isGround(),
+                        horizontalCollision
+                ));
+            } else if (this.lastOnGround != motionEvent.isGround()) {
+                this.connection.send(new ServerboundMovePlayerPacket.StatusOnly(
+                        motionEvent.isGround(),
+                        horizontalCollision
+                ));
+            }
+
+            if (moved) {
+                this.xLast = motionEvent.getPosX();
+                this.yLast = motionEvent.getPosY();
+                this.zLast = motionEvent.getPosZ();
+                this.positionReminder = 0;
+            }
+
+            if (rotated) {
+                this.yRotLast = motionEvent.getYaw();
+                this.xRotLast = motionEvent.getPitch();
+            }
+
+            this.lastOnGround = motionEvent.isGround();
+            this.autoJumpEnabled = this.minecraft.options.autoJump().get();
+        }
+
+        EventMotion postEvent = new EventMotion(
+                motionEvent.getPosX(),
+                motionEvent.getPosY(),
+                motionEvent.getPosZ(),
+                motionEvent.getYaw(),
+                motionEvent.getPitch(),
+                motionEvent.getCameraYaw(),
+                motionEvent.getCameraPitch(),
+                motionEvent.isGround(),
+                EventType.POST
+        );
+        EventBus.call(postEvent);
+        ci.cancel();
     }
 
-    @Inject(method = "sendPosition", at = @At("RETURN"))
-    private void nimbus$postMotion(CallbackInfo ci) {
-        if (!nimbus$motionActive) return;
-        LocalPlayer player = (LocalPlayer) (Object) this;
-        EventMotion motion = nimbus$motion;
-        player.setPos(nimbus$oldX, nimbus$oldY, nimbus$oldZ);
-        player.setYRot(nimbus$oldYaw);
-        player.setXRot(nimbus$oldPitch);
-        player.setOnGround(nimbus$oldGround);
-        nimbus$motionActive = false;
-        nimbus$motion = null;
-        EventBus.call(new EventMotion(
-                motion.getPosX(), motion.getPosY(), motion.getPosZ(),
-                motion.getYaw(), motion.getPitch(),
-                nimbus$oldYaw, nimbus$oldPitch,
-                motion.isGround(), EventType.POST));
-    }
+
 
     @Override
     public void nimbus$setPositionReminder(int ticks) {
