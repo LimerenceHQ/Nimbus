@@ -3,6 +3,7 @@ package cc.nimbus.mixin.render;
 import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.render.EventRender2D;
+import cc.nimbus.features.music.integration.MusicToastState;
 import cc.nimbus.utils.render.skija.api.SkijaLayer;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
@@ -17,11 +18,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * 1.21.11 GUI bridge.  The game builds a GuiRenderState during screen/HUD
- * rendering and consumes it in GuiRenderer.render; Nimbus submits its layer
- * to that same state instead of creating a second GUI renderer.
- */
+
 @Mixin(GuiRenderer.class)
 public abstract class GuiRendererMixin {
     @Shadow @Final GuiRenderState renderState;
@@ -77,6 +74,8 @@ public abstract class GuiRendererMixin {
             skija.hud().discardFrame();
         }
         if (nimbus$hudHadContent) nimbus$hudLayer.extract(graphics, framebufferWidth, framebufferHeight);
+
+        if (MusicToastState.active()) minecraft.getToastManager().render(graphics);
     }
 
     @Inject(method = "close", at = @At("HEAD"))
