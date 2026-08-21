@@ -5,7 +5,6 @@ import cc.nimbus.event.impl.player.EventMoveInput;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.KeyboardInput;
 import net.minecraft.world.entity.player.Input;
-import net.minecraft.world.phys.Vec2;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -19,9 +18,13 @@ public abstract class KeyboardInputMixin extends ClientInput {
         float originalStrafe = axis(keyPresses.left(), keyPresses.right());
         EventMoveInput event = EventBus.call(new EventMoveInput(
                 originalForward, originalStrafe, keyPresses.jump(), keyPresses.sprint(), keyPresses.shift()));
-        EventBus.call(event);
         float forward = event.isCancel() ? 0.0f : event.getForward();
         float strafe = event.isCancel() ? 0.0f : event.getStrafe();
+        // In 1.21.4 ClientInput consumes these impulses directly. Updating
+        // only the key-state record would quantize the corrected silent
+        // movement back to the original direction on the next tick.
+        this.forwardImpulse = forward;
+        this.leftImpulse = strafe;
         keyPresses = new Input(
                 forward > 0.0f,
                 forward < 0.0f,
