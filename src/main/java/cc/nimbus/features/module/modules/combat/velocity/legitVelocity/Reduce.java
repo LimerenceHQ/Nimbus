@@ -56,6 +56,7 @@ public class Reduce extends Mode<Legit> implements IMinecraft {
                     mc.player.setSprinting(false);
                 }
                 mc.player.swing(InteractionHand.MAIN_HAND);
+                MessageUtils.addMessage("Attack");
             }
         }
     }
