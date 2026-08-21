@@ -537,9 +537,7 @@ public final class Render3DUtils {
             MultiBufferSource.BufferSource buffers = MultiBufferSource.immediate(allocator);
             VertexConsumer consumer = buffers.getBuffer(renderType);
             emitter.emit(consumer);
-            // Vertices are transformed with the event PoseStack above.  Keep the
-            // global RenderSystem model-view matrix neutral while the batch is
-            // submitted so the shader does not apply a second camera transform.
+
             Matrix4fStack globalModelView = RenderSystem.getModelViewStack();
             globalModelView.pushMatrix();
             globalModelView.identity();
