@@ -17,7 +17,7 @@ import cc.nimbus.utils.render.Render2DUtils;
 import cc.nimbus.utils.render.Render3DUtils;
 import cc.nimbus.utils.render.PlayerProjectionCache;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.model.player.PlayerModel;
+import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
@@ -56,7 +56,7 @@ public final class ESP extends BasicModule {
 
         Render3DUtils.WorldProjection projection = Render3DUtils.worldProjection();
         if (projection == null) return;
-        float guiScale = Math.max(1, minecraft.getWindow().getGuiScale());
+        float guiScale = (float) Math.max(1, minecraft.getWindow().getGuiScale());
         long now = System.currentTimeMillis();
         ClientSettings settings = Core.INSTANCE.getConfigManager().clientSettings();
         List<Entry> entries = new ArrayList<>();

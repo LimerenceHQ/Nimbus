@@ -35,8 +35,6 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Point;
 import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.KeyEvent;
 import cc.nimbus.ui.input.PreeditEvent;
 import org.lwjgl.glfw.GLFW;
 
@@ -2010,46 +2008,46 @@ public final class MusicTool implements ToolPage {
     }
 
     @Override
-    public boolean keyPressed(KeyEvent event) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (bindingHotkey != null) {
-            if (event.key() == GLFW.GLFW_KEY_ESCAPE) bindingHotkey = null;
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) bindingHotkey = null;
             else {
-                int key = event.key() == GLFW.GLFW_KEY_DELETE || event.key() == GLFW.GLFW_KEY_BACKSPACE ? 0 : event.key();
+                int key = keyCode == GLFW.GLFW_KEY_DELETE || keyCode == GLFW.GLFW_KEY_BACKSPACE ? 0 : keyCode;
                 manager.hotkey(bindingHotkey, key);
                 bindingHotkey = null;
             }
             return true;
         }
         if (search.focused()) {
-            if (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER) {
+            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
                 startSearch();
                 return true;
             }
-            return search.keyPressed(event);
+            return search.keyPressed(keyCode, scanCode, modifiers);
         }
-        if (country.focused()) return country.keyPressed(event);
-        if (phone.focused()) return phone.keyPressed(event);
+        if (country.focused()) return country.keyPressed(keyCode, scanCode, modifiers);
+        if (phone.focused()) return phone.keyPressed(keyCode, scanCode, modifiers);
         if (captcha.focused()) {
-            if (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER) {
+            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
                 completeSms();
                 return true;
             }
-            return captcha.keyPressed(event);
+            return captcha.keyPressed(keyCode, scanCode, modifiers);
         }
         if (session.musicRoute() == ClickGuiSession.MusicRoute.COVER_FLOW) {
-            if (event.key() == GLFW.GLFW_KEY_LEFT) {
+            if (keyCode == GLFW.GLFW_KEY_LEFT) {
                 coverFlow.select(coverFlow.selectedIndex(coverFlowItemCount()) - 1, coverFlowItemCount());
                 coverFlowFlipped = false;
                 flippedCoverFlowIndex = -1;
                 return true;
             }
-            if (event.key() == GLFW.GLFW_KEY_RIGHT) {
+            if (keyCode == GLFW.GLFW_KEY_RIGHT) {
                 coverFlow.select(coverFlow.selectedIndex(coverFlowItemCount()) + 1, coverFlowItemCount());
                 coverFlowFlipped = false;
                 flippedCoverFlowIndex = -1;
                 return true;
             }
-            if (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER) {
+            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
                 openSelectedCoverFlowItem();
                 return true;
             }
@@ -2058,8 +2056,8 @@ public final class MusicTool implements ToolPage {
     }
 
     @Override
-    public boolean charTyped(CharacterEvent event) {
-        return search.charTyped(event) || country.charTyped(event) || phone.charTyped(event) || captcha.charTyped(event);
+    public boolean charTyped(char codePoint, int modifiers) {
+        return search.charTyped(codePoint, modifiers) || country.charTyped(codePoint, modifiers) || phone.charTyped(codePoint, modifiers) || captcha.charTyped(codePoint, modifiers);
     }
 
     @Override

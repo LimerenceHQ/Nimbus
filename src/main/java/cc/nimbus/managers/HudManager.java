@@ -259,7 +259,7 @@ public final class HudManager implements InstanceManager {
     }
 
     private static boolean controlDown() {
-        long window = Minecraft.getInstance().getWindow().handle();
+        long window = Minecraft.getInstance().getWindow().getWindow();
         return GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
                 || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
     }
@@ -276,10 +276,10 @@ public final class HudManager implements InstanceManager {
     private static Point mousePosition(ScreenSpace screen) {
         Minecraft minecraft = Minecraft.getInstance();
         Window window = minecraft.getWindow();
-        float x = (float) (minecraft.mouseHandler.getScaledXPos(window)
-                * screen.width() / Math.max(1f, window.getGuiScaledWidth()));
-        float y = (float) (minecraft.mouseHandler.getScaledYPos(window)
-                * screen.height() / Math.max(1f, window.getGuiScaledHeight()));
+        float x = (float) (minecraft.mouseHandler.xpos()
+                * screen.width() / Math.max(1f, window.getWidth()));
+        float y = (float) (minecraft.mouseHandler.ypos()
+                * screen.height() / Math.max(1f, window.getHeight()));
         return new Point(x, y);
     }
 

@@ -1,7 +1,6 @@
 package cc.nimbus.utils.render.skija.internal.image;
 
 import cc.nimbus.utils.render.skija.internal.backend.SkijaBackend;
-import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.systems.RenderSystem;
 import io.github.humbleui.skija.BackendTexture;
 import io.github.humbleui.skija.ColorType;
@@ -10,7 +9,7 @@ import io.github.humbleui.skija.Image;
 import io.github.humbleui.skija.SurfaceOrigin;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
@@ -24,22 +23,22 @@ import java.util.Map;
 
 public final class ImageStore {
     private static final int MAX_IMAGES = 256;
-    private static final Map<Identifier, Image> RESOURCE_IMAGES = new LinkedHashMap<>(32, 0.75f, true);
-    private static final Map<Identifier, GlImage> GL_IMAGES = new LinkedHashMap<>(32, 0.75f, true);
+    private static final Map<ResourceLocation, Image> RESOURCE_IMAGES = new LinkedHashMap<>(32, 0.75f, true);
+    private static final Map<ResourceLocation, GlImage> GL_IMAGES = new LinkedHashMap<>(32, 0.75f, true);
     private static final Map<String, EncodedImage> ENCODED_IMAGES = new LinkedHashMap<>(32, 0.75f, true);
     private static final ArrayDeque<Image> PENDING_CLOSE = new ArrayDeque<>();
 
     private ImageStore() {
     }
 
-    public static Image getGlImage(Identifier id) {
+    public static Image getGlImage(ResourceLocation id) {
         if (id == null || SkijaBackend.INSTANCE.getContext() == null) return null;
         RenderSystem.assertOnRenderThread();
 
         GlImage cached = GL_IMAGES.get(id);
         var texture = Minecraft.getInstance().getTextureManager().getTexture(id);
-        if (texture == null || !(texture.getTexture() instanceof GlTexture glTexture)) return null;
-        int sourceTexture = glTexture.glId();
+        if (texture == null) return null;
+        int sourceTexture = texture.getId();
         if (sourceTexture <= 0 || !GL11.glIsTexture(sourceTexture)) return null;
         if (cached != null && cached.sourceTexture() == sourceTexture && !cached.image().isClosed()) {
             return cached.image();
@@ -73,7 +72,7 @@ public final class ImageStore {
         return image;
     }
 
-    public static Image getResourceImage(Identifier id) {
+    public static Image getResourceImage(ResourceLocation id) {
         if (id == null) return null;
         Image cached = RESOURCE_IMAGES.get(id);
         if (cached != null && !cached.isClosed()) return cached;
@@ -106,11 +105,11 @@ public final class ImageStore {
         return image;
     }
 
-    public static Identifier getEntityTexture(Entity entity) {
+    public static ResourceLocation getEntityTexture(Entity entity) {
         if (entity instanceof AbstractClientPlayer player) {
-            return player.getSkin().body().texturePath();
+            return player.getSkin().texture();
         }
-        return Identifier.fromNamespaceAndPath("minecraft", "textures/entity/steve.png");
+        return ResourceLocation.fromNamespaceAndPath("minecraft", "textures/entity/steve.png");
     }
 
     public static void drainPendingCloses() {
@@ -134,10 +133,10 @@ public final class ImageStore {
                 String key = ENCODED_IMAGES.keySet().iterator().next();
                 scheduleClose(ENCODED_IMAGES.remove(key).image());
             } else if (!RESOURCE_IMAGES.isEmpty()) {
-                Identifier key = RESOURCE_IMAGES.keySet().iterator().next();
+                ResourceLocation key = RESOURCE_IMAGES.keySet().iterator().next();
                 scheduleClose(RESOURCE_IMAGES.remove(key));
             } else {
-                Identifier key = GL_IMAGES.keySet().iterator().next();
+                ResourceLocation key = GL_IMAGES.keySet().iterator().next();
                 scheduleClose(GL_IMAGES.remove(key).image());
             }
         }

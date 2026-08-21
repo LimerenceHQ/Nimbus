@@ -523,7 +523,7 @@ public final class MusicManager implements InstanceManager {
     private static boolean matches(int pressed, int[] keys) {
         if (keys.length == 0 || java.util.Arrays.stream(keys).noneMatch(key -> key == pressed)) return false;
         Minecraft minecraft = Minecraft.getInstance();
-        long window = minecraft.getWindow().handle();
+        long window = minecraft.getWindow().getWindow();
         return java.util.Arrays.stream(keys).allMatch(key -> key == pressed || GLFW.glfwGetKey(window, key) == GLFW.GLFW_PRESS);
     }
     private User loadAccount() {

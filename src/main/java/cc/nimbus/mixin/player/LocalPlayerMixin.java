@@ -27,7 +27,6 @@ import net.minecraft.world.entity.PlayerRideableJumping;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Abilities;
-import net.minecraft.world.item.component.UseEffects;
 import net.minecraft.world.level.block.Portal;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
@@ -87,33 +86,22 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
     protected abstract void moveTowardsClosestSpace(double p_108705_, double p_108706_);
 
     @Shadow
-    protected abstract float itemUseSpeedMultiplier();
+    public abstract boolean isMovingSlowly();
 
     @Shadow
-    private static Vec2 modifyInputSpeedForSquareMovement(Vec2 vec2) {
-        throw new AssertionError();
-    }
+    protected abstract boolean shouldStopSprinting();
 
     @Shadow
-    protected abstract boolean isMovingSlowly();
+    protected abstract boolean hasEnoughImpulseToStartSprinting();
 
     @Shadow
-    protected abstract void  handlePortalTransitionEffect(boolean b);
+    protected abstract boolean hasEnoughFoodToStartSprinting();
 
     @Shadow
-    protected abstract Portal.Transition  getActivePortalLocalTransition();
+    public abstract Portal.Transition  getActivePortalLocalTransition();
 
     @Shadow
     protected abstract boolean canStartSprinting();
-
-    @Shadow
-    protected abstract boolean isSlowDueToUsingItem();
-
-    @Shadow
-    protected abstract boolean shouldStopSwimSprinting();
-
-    @Shadow
-    protected abstract boolean shouldStopRunSprinting();
 
     @Shadow
     private boolean wasFallFlying;
@@ -137,26 +125,12 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
     @Shadow
     protected abstract void sendRidingJump();
 
+    @Shadow
+    protected abstract void handleConfusionTransitionEffect(boolean b);
+
     @Inject(method = "tick", at = @At("HEAD"))
     public void injectUpdateEvent(CallbackInfo ci) {
         EventBus.call(new EventTickUpdate());
-    }
-
-    @Inject(method = "modifyInput", at = @At("HEAD"), cancellable = true)
-    private void nimbus$modifyInput(Vec2 vec2, CallbackInfoReturnable<Vec2> cir) {
-        if (vec2.lengthSquared() == 0.0F) {
-            cir.setReturnValue(vec2);
-            return;
-        }
-
-        Vec2 movement = vec2.scale(0.98F);
-        if (this.isUsingItem() && !this.isPassenger() && !nimbus$cancelItemSlowDown) {
-            movement = movement.scale(this.itemUseSpeedMultiplier());
-        }
-        if (this.isMovingSlowly()) {
-            movement = movement.scale((float) this.getAttributeValue(Attributes.SNEAKING_SPEED));
-        }
-        cir.setReturnValue(modifyInputSpeedForSquareMovement(movement));
     }
 
     @Inject(method = "aiStep", at = @At("HEAD"), cancellable = true)
@@ -178,19 +152,39 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
         }
 
         if (!(this.minecraft.screen instanceof LevelLoadingScreen)) {
-            this.handlePortalTransitionEffect(this.getActivePortalLocalTransition() == Portal.Transition.CONFUSION);
+            this.handleConfusionTransitionEffect(this.getActivePortalLocalTransition() == Portal.Transition.CONFUSION);
             this.processPortalCooldown();
         }
 
         boolean bl = this.input.keyPresses.jump();
         boolean bl2 = this.input.keyPresses.shift();
-        boolean bl3 = this.input.hasForwardImpulse();
+        boolean bl3 = this.hasEnoughImpulseToStartSprinting();
         Abilities abilities = this.getAbilities();
         this.crouching = !abilities.flying && !this.isSwimming() && !this.isPassenger() && this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.CROUCHING) && (this.isShiftKeyDown() || !this.isSleeping() && !this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.STANDING));
         this.input.tick();
-        EventSlowDown slowDown = EventBus.call(new EventSlowDown());
-        nimbus$cancelItemSlowDown = slowDown.isCancel();
         this.minecraft.getTutorial().onInput(this.input);
+        if (this.shouldStopSprinting()) {
+            this.setSprinting(false);
+        }
+        EventSlowDown event = new EventSlowDown();
+        EventBus.call(event);
+        if (this.isUsingItem() && !this.isPassenger() && !event.isCancel()) {
+            ClientInput var10000 = this.input;
+            var10000.leftImpulse *= 0.2F;
+            var10000 = this.input;
+            var10000.forwardImpulse *= 0.2F;
+            this.sprintTriggerTime = 0;
+        }
+
+        if (this.isMovingSlowly()) {
+            float f = (float)this.getAttributeValue(Attributes.SNEAKING_SPEED);
+            ClientInput var17 = this.input;
+            var17.leftImpulse *= f;
+            var17 = this.input;
+            var17.forwardImpulse *= f;
+        }
+
+
         boolean bl4 = false;
         if (this.autoJumpTime > 0) {
             --this.autoJumpTime;
@@ -205,61 +199,62 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
             this.moveTowardsClosestSpace(this.getX() + (double)this.getBbWidth() * 0.35, this.getZ() + (double)this.getBbWidth() * 0.35);
         }
 
-        if (bl2
-                || this.isSlowDueToUsingItem() && !this.isPassenger() && !nimbus$cancelItemSlowDown
-                || this.input.keyPresses.backward()) {
+        if (bl2) {
             this.sprintTriggerTime = 0;
         }
 
-        if (this.canStartSprinting()) {
-            if (!bl3) {
-                if (this.sprintTriggerTime > 0) {
-                    this.setSprinting(true);
-                } else {
-                    this.sprintTriggerTime = (Integer)this.minecraft.options.sprintWindow().get();
-                }
-            }
-
-            if (this.input.keyPresses.sprint()) {
+        boolean bl5 = this.canStartSprinting();
+        boolean bl6 = this.isPassenger() ? this.getVehicle().onGround() : this.onGround();
+        boolean bl7 = !bl2 && !bl3;
+        if ((bl6 || this.isUnderWater()) && bl7 && bl5) {
+            if (this.sprintTriggerTime <= 0 && !this.minecraft.options.keySprint.isDown()) {
+                this.sprintTriggerTime = 7;
+            } else {
                 this.setSprinting(true);
             }
         }
 
+        if ((!this.isInWater() || this.isUnderWater()) && bl5 && this.minecraft.options.keySprint.isDown()) {
+            this.setSprinting(true);
+        }
+
         if (this.isSprinting()) {
+            boolean bl8 = !this.input.hasForwardImpulse() || !this.hasEnoughFoodToStartSprinting();
+            boolean bl9 = bl8 || this.horizontalCollision && !this.minorHorizontalCollision || this.isInWater() && !this.isUnderWater();
             if (this.isSwimming()) {
-                if (this.shouldStopSwimSprinting()) {
+                if (!this.onGround() && !this.input.keyPresses.shift() && bl8 || !this.isInWater()) {
                     this.setSprinting(false);
                 }
-            } else if (this.shouldStopRunSprinting()) {
+            } else if (bl9) {
                 this.setSprinting(false);
             }
         }
 
-        boolean bl5 = false;
+        boolean bl8 = false;
         if (abilities.mayfly) {
-            if (this.minecraft.gameMode.isSpectator()) {
+            if (this.minecraft.gameMode.isAlwaysFlying()) {
                 if (!abilities.flying) {
                     abilities.flying = true;
-                    bl5 = true;
+                    bl8 = true;
                     this.onUpdateAbilities();
                 }
             } else if (!bl && this.input.keyPresses.jump() && !bl4) {
                 if (this.jumpTriggerTime == 0) {
                     this.jumpTriggerTime = 7;
-                } else if (!this.isSwimming() && (this.getVehicle() == null || this.jumpableVehicle() != null)) {
+                } else if (!this.isSwimming()) {
                     abilities.flying = !abilities.flying;
                     if (abilities.flying && this.onGround()) {
                         this.jumpFromGround();
                     }
 
-                    bl5 = true;
+                    bl8 = true;
                     this.onUpdateAbilities();
                     this.jumpTriggerTime = 0;
                 }
             }
         }
 
-        if (this.input.keyPresses.jump() && !bl5 && !bl && !this.onClimbable() && this.tryToStartFallFlying()) {
+        if (this.input.keyPresses.jump() && !bl8 && !bl && !this.onClimbable() && this.tryToStartFallFlying()) {
             this.connection.send(new ServerboundPlayerCommandPacket(this, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
         }
 
@@ -318,8 +313,6 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
         } else {
             this.jumpRidingScale = 0.0F;
         }
-
-
         EventUpdate postUpdate = new EventUpdate(EventType.POST);
         EventBus.call(postUpdate);
 
@@ -328,11 +321,10 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer implements L
         }
 
         super.aiStep();
-        if (this.onGround() && this.getAbilities().flying && !this.minecraft.gameMode.isSpectator()) {
-            this.getAbilities().flying = false;
+        if (this.onGround() && abilities.flying && !this.minecraft.gameMode.isAlwaysFlying()) {
+            abilities.flying = false;
             this.onUpdateAbilities();
         }
-
     }
 
     @Inject(method = "sendPosition", at = @At("HEAD"), cancellable = true)

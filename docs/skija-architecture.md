@@ -241,7 +241,7 @@ SkijaLayer layer = skija.layer("my-screen");
 
 1. 取得稳定命名的 Layer。
 2. 在 `render(GuiGraphics, ...)` 中提取 framebuffer 尺寸、鼠标坐标和 Layer 状态。
-3. 暂存待渲染帧，并由通用 `GuiRendererMixin` 分发 `GuiGraphics state submission`。
+3. 在 Minecraft 1.21.4 的 `Gui.render(GuiGraphics, DeltaTracker)` 入口提交并合成共享 HUD Layer。
 4. Screen 移除时调用 `layer.releaseTarget()`。
 
 子类只实现 `renderSkija(SkijaFrame)`，可按需覆盖 `render state is prepared by AbstractSkijaScreen`、`removedSkijaScreen()` 和 `requestedSceneCaptureRate(...)`。Mixin 只判断 `AbstractSkijaScreen`，不得再按具体 Screen 类名增加分支。
@@ -356,7 +356,7 @@ public final class ExampleScreen extends AbstractSkijaScreen {
 }
 ```
 
-继承基类后无需修改 Mixin。输入事件仍由具体 Screen 接收，并使用基类提供的 `framebufferX/Y(...)` 与渲染所用逻辑变换做逆变换。修改提取和辅助渲染顺序前必须阅读当前 Minecraft 1.21.11 映射源码与现有 Mixin。
+继承基类后无需修改 Mixin。输入事件仍由具体 Screen 接收，并使用基类提供的 `framebufferX/Y(...)` 与渲染所用逻辑变换做逆变换。修改提取和辅助渲染顺序前必须阅读当前 Minecraft 1.21.4 映射源码与现有 Mixin。
 
 ## 9. 文本
 
@@ -572,7 +572,7 @@ frame.postProcess().add(RRect.makeXYWH(x, y, width, height, radius));
 frame.postProcess().draw();
 ```
 
-模糊需要有效的场景截图。当前 `GuiRendererMixin` 会在 HUD 提交完成、确认本帧确实存在后处理区域后，
+模糊需要有效的场景截图。当前 `GuiRendererMixin` 会在 `Gui.render` 的 HUD 提交完成、确认本帧确实存在后处理区域后，
 再根据 `PostProcessOptions` 调用 `captureScene(options.blurRefreshRate())`。没有区域时不得复制整张场景；
 新增 Screen 集成时也必须同步处理该顺序和刷新率，不能在受限模糊模式下仍然每帧复制整张场景。
 
@@ -656,7 +656,7 @@ captureScene()
 - 继承 `AbstractSkijaScreen` 并使用稳定且唯一的 Layer 名称。
 - 只在 `renderSkija(...)` 使用当前 `SkijaFrame`。
 - 输入与渲染使用同一坐标变换及其逆变换。
-- 不修改 `GuiRendererMixin` 增加具体 Screen 分支。
+- 不修改 `GuiRendererMixin` 增加具体 Screen 分支；该 Mixin 只挂接通用 `Gui.render` 入口。
 - 若使用 blur，先接入 scene capture。
 
 扩展公共 API：

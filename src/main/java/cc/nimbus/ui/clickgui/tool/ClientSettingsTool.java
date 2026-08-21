@@ -11,8 +11,6 @@ import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Point;
 import io.github.humbleui.types.Rect;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.KeyEvent;
 import cc.nimbus.ui.input.PreeditEvent;
 import org.lwjgl.glfw.GLFW;
 
@@ -159,8 +157,8 @@ public final class ClientSettingsTool implements ToolPage {
 
     @Override public void mouseMoved(float x, float y, boolean leftDown) { controls.mouseMoved(x, y, leftDown); }
     @Override public void mouseReleased() { controls.mouseReleased(); }
-    @Override public boolean keyPressed(KeyEvent event) { return controls.keyPressed(event); }
-    @Override public boolean charTyped(CharacterEvent event) { return controls.charTyped(event); }
+    @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers) { return controls.keyPressed(keyCode, scanCode, modifiers); }
+    @Override public boolean charTyped(char codePoint, int modifiers) { return controls.charTyped(codePoint, modifiers); }
     @Override public boolean preeditUpdated(PreeditEvent event) { return controls.preeditUpdated(event); }
     @Override public boolean cancelTransient() { return controls.cancelTransient(); }
 

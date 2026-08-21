@@ -13,7 +13,7 @@ import io.github.humbleui.skija.PaintStrokeCap;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import java.nio.charset.StandardCharsets;
 
 public final class SkijaDraw {
@@ -97,11 +97,11 @@ public final class SkijaDraw {
         }
     }
 
-    public void resource(Identifier id, float x, float y, float width, float height) {
+    public void resource(ResourceLocation id, float x, float y, float width, float height) {
         image(ImageStore.getResourceImage(id), x, y, width, height);
     }
 
-    public void minecraftTexture(Identifier id, float x, float y, float width, float height) {
+    public void minecraftTexture(ResourceLocation id, float x, float y, float width, float height) {
         image(ImageStore.getGlImage(id), x, y, width, height);
     }
 

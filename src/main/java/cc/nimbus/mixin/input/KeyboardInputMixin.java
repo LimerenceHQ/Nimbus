@@ -21,8 +21,6 @@ public abstract class KeyboardInputMixin extends ClientInput {
                 originalForward, originalStrafe, keyPresses.jump(), keyPresses.sprint(), keyPresses.shift()));
         float forward = event.isCancel() ? 0.0f : event.getForward();
         float strafe = event.isCancel() ? 0.0f : event.getStrafe();
-        Vec2 next = new Vec2(strafe, forward);
-        moveVector = next.lengthSquared() > 1.0f ? next.normalized() : next;
         keyPresses = new Input(
                 forward > 0.0f,
                 forward < 0.0f,

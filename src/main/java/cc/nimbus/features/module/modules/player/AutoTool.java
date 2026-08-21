@@ -42,11 +42,11 @@ public final class AutoTool extends BasicModule {
             }
             return;
         }
-        if (originalSlot == -1) originalSlot = minecraft.player.getInventory().getSelectedSlot();
+        if (originalSlot == -1) originalSlot = minecraft.player.getInventory().selected;
         restoreTicks = 0;
         int selected = findBestTool(hit.getBlockPos());
         if (selected != -1) {
-            minecraft.player.getInventory().setSelectedSlot(selected);
+            minecraft.player.getInventory().selected = (selected);
         }
     }
 
@@ -56,7 +56,7 @@ public final class AutoTool extends BasicModule {
 
     public void equipBestWeapon() {
         if (minecraft.player == null) return;
-        int selected = minecraft.player.getInventory().getSelectedSlot();
+        int selected = minecraft.player.getInventory().selected;
         double score = Double.NEGATIVE_INFINITY;
         for (int i = 0; i < 9; i++) {
             ItemStack stack = minecraft.player.getInventory().getItem(i);
@@ -66,7 +66,7 @@ public final class AutoTool extends BasicModule {
             double value = weaponScore(stack);
             if (value > score) { score = value; selected = i; }
         }
-        if (score > Double.NEGATIVE_INFINITY) minecraft.player.getInventory().setSelectedSlot(selected);
+        if (score > Double.NEGATIVE_INFINITY) minecraft.player.getInventory().selected = (selected);
     }
 
     public ItemStack getSpoofStack() {
@@ -93,7 +93,7 @@ public final class AutoTool extends BasicModule {
     }
 
     private void restore() {
-        if (minecraft.player != null && originalSlot >= 0) minecraft.player.getInventory().setSelectedSlot(originalSlot);
+        if (minecraft.player != null && originalSlot >= 0) minecraft.player.getInventory().selected = (originalSlot);
     }
     private void reset() { originalSlot = -1; restoreTicks = 0; }
 }

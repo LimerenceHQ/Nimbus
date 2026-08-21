@@ -35,8 +35,8 @@ public class JumpReset extends Mode<Legit> implements IMinecraft {
             return;
         }
         if (event.getPacket() instanceof ClientboundSetEntityMotionPacket packet && getParent().isValidVelocityPacket(packet)) {
-            double velocityX = packet.getMovement().x / 8000.0;
-            double velocityZ = packet.getMovement().z / 8000.0;
+            double velocityX = packet.getXa() / 8000.0;
+            double velocityZ = packet.getZa() / 8000.0;
             Vec3 knockback = new Vec3(velocityX, 0.0, velocityZ).normalize();
             Vec3 opposite = mc.player.position().add(-knockback.x, 0.0, -knockback.z);
             finalRotation = getOppositeRotation(RotationUtils.toRotation(opposite, false));

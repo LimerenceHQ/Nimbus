@@ -123,21 +123,21 @@ public final class Render2DUtils {
 
         float center = screen((box.left() + box.right()) * 0.5f, graphics.guiWidth());
         float y = screen(box.bottom(), graphics.guiHeight());
-        int guiScale = Math.max(1, Minecraft.getInstance().getWindow().getGuiScale());
+        int guiScale = Math.max(1, (int) Math.round(Minecraft.getInstance().getWindow().getGuiScale()));
         float scale = ESP_EQUIPMENT_SIZE / 16f;
         float startX = Math.round((center - equipment.size() * ESP_EQUIPMENT_SIZE * 0.5f) * guiScale)
                 / (float) guiScale;
         float itemY = Math.round((y + ESP_EQUIPMENT_GAP) * guiScale) / (float) guiScale;
         var pose = graphics.pose();
-        pose.pushMatrix();
+        pose.pushPose();
         try {
-            pose.translate(startX, itemY);
-            pose.scale(scale, scale);
+            pose.translate(startX, itemY, 0f);
+            pose.scale(scale, scale, 1f);
             for (int index = 0; index < equipment.size(); index++) {
                 graphics.renderItem(equipment.get(index), index * 16, 0, playerId + index);
             }
         } finally {
-            pose.popMatrix();
+            pose.popPose();
         }
     }
 

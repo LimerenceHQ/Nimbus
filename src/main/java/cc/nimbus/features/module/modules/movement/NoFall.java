@@ -247,8 +247,8 @@ public final class NoFall extends BasicModule {
             return;
         }
 
-        oldSlot = minecraft.player.getInventory().getSelectedSlot();
-        minecraft.player.getInventory().setSelectedSlot(slot);
+        oldSlot = minecraft.player.getInventory().selected;
+        minecraft.player.getInventory().selected = slot;
         pendingAction = PendingAction.BLOCK_USE;
         pendingRotation = rotation;
         pendingHit = hit;
@@ -283,7 +283,7 @@ public final class NoFall extends BasicModule {
             minecraft.player.swing(InteractionHand.MAIN_HAND);
         }
 
-        boolean bucketInHand = minecraft.player.getInventory().getItem(minecraft.player.getInventory().getSelectedSlot()).is(Items.BUCKET);
+        boolean bucketInHand = minecraft.player.getInventory().getItem(minecraft.player.getInventory().selected).is(Items.BUCKET);
         PendingAction completedAction = pendingAction;
         LadderStep completedStep = ladderStep;
 
@@ -315,8 +315,8 @@ public final class NoFall extends BasicModule {
             return;
         }
 
-        oldSlot = minecraft.player.getInventory().getSelectedSlot();
-        minecraft.player.getInventory().setSelectedSlot(ladderSlot);
+        oldSlot = minecraft.player.getInventory().selected;
+        minecraft.player.getInventory().selected = (ladderSlot);
         minecraft.hitResult = ladderPlan.ladderHit();
         InteractionResult ladderResult = useBlockWithRotation(ladderPlan.ladderRotation(), ladderPlan.ladderHit());
         if (ladderResult.consumesAction()) {
@@ -367,11 +367,11 @@ public final class NoFall extends BasicModule {
         if (pos == null) {
             return;
         }
-        oldSlot = minecraft.player.getInventory().getSelectedSlot();
+        oldSlot = minecraft.player.getInventory().selected;
         Rotation r = getLookAtWaterBlock(pos);
 
         if (!minecraft.player.getMainHandItem().is(Items.BUCKET))
-            minecraft.player.getInventory().setSelectedSlot(emptyBucketSlot);
+            minecraft.player.getInventory().selected = (emptyBucketSlot);
         interactItem(r);
         shouldReceive = false;
     }
@@ -719,7 +719,7 @@ public final class NoFall extends BasicModule {
 
     private void restoreSlot() {
         if (oldSlot != -1 && minecraft.player != null) {
-            minecraft.player.getInventory().setSelectedSlot(oldSlot);
+            minecraft.player.getInventory().selected = (oldSlot);
         }
         oldSlot = -1;
     }
@@ -800,12 +800,12 @@ public final class NoFall extends BasicModule {
 
         if (best == null) return;
 
-        oldSlot = minecraft.player.getInventory().getSelectedSlot();
+        oldSlot = minecraft.player.getInventory().selected;
 
         Rotation r = getLookAtWaterBlock(best.pos());
 
         if (!minecraft.player.getMainHandItem().is(Items.WATER_BUCKET))
-            minecraft.player.getInventory().setSelectedSlot(waterBucketSlot);
+            minecraft.player.getInventory().selected = (waterBucketSlot);
         interactItem(r);
         shouldReceive = true;
     }

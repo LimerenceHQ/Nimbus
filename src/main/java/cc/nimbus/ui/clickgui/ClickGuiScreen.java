@@ -9,9 +9,6 @@ import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.MouseButtonEvent;
 import cc.nimbus.ui.input.PreeditEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
@@ -82,16 +79,15 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
     }
 
     @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+    public boolean mouseClicked(double x, double y, int button) {
         if (!acceptsInput() || lastContext == null) return true;
-        return view.mouseClicked(logicalX(framebufferX(event.x())), logicalY(framebufferY(event.y())),
-                event.button(), lastContext);
+        return view.mouseClicked(logicalX(framebufferX(x)), logicalY(framebufferY(y)), button, lastContext);
     }
 
     @Override public void mouseMoved(double x, double y) {
         if (acceptsInput()) view.mouseMoved(logicalX(framebufferX(x)), logicalY(framebufferY(y)));
     }
-    @Override public boolean mouseReleased(MouseButtonEvent event) {
+    @Override public boolean mouseReleased(double x, double y, int button) {
         if (acceptsInput()) view.mouseReleased();
         return true;
     }
@@ -101,18 +97,18 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
     }
 
     @Override
-    public boolean keyPressed(KeyEvent event) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (closingAtNanos != 0L) return true;
-        if (event.key() == GLFW.GLFW_KEY_RIGHT_SHIFT) { requestClose(); return true; }
-        if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+        if (keyCode == GLFW.GLFW_KEY_RIGHT_SHIFT) { requestClose(); return true; }
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             if (!view.cancelTransient()) requestClose();
             return true;
         }
-        return view.keyPressed(event) || super.keyPressed(event);
+        return view.keyPressed(keyCode, scanCode, modifiers) || super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    @Override public boolean charTyped(CharacterEvent event) {
-        return !acceptsInput() || view.charTyped(event) || super.charTyped(event);
+    @Override public boolean charTyped(char codePoint, int modifiers) {
+        return !acceptsInput() || view.charTyped(codePoint, modifiers) || super.charTyped(codePoint, modifiers);
     }
     public boolean preeditUpdated(PreeditEvent event) {
         return !acceptsInput() || view.preeditUpdated(event);

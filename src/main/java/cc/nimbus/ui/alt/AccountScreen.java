@@ -9,8 +9,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
@@ -63,7 +61,7 @@ public final class AccountScreen extends Screen {
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         if (minecraft.level == null) renderPanorama(graphics, partialTick);
-        else renderBlurredBackground(graphics);
+        else renderBlurredBackground();
         graphics.fill(0, 0, graphics.guiWidth(), graphics.guiHeight(), 0xCC0B1015);
     }
 
@@ -97,18 +95,18 @@ public final class AccountScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT
-                && event.x() >= width / 2 - 146 && event.x() <= width / 2 + 146
-                && event.y() >= 86 && event.y() < formTop() - 26) {
-            int index = ((int) event.y() - 86 + listScroll) / 32;
+    public boolean mouseClicked(double x, double y, int button) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
+                && x >= width / 2 - 146 && x <= width / 2 + 146
+                && y >= 86 && y < formTop() - 26) {
+            int index = ((int) y - 86 + listScroll) / 32;
             if (index >= 0 && index < accounts().getAccounts().size()) {
                 selected = accounts().getAccounts().get(index);
             }
             updateButtons();
             return true;
         }
-        return super.mouseClicked(event, doubleClick);
+        return super.mouseClicked(x, y, button);
     }
 
     @Override
@@ -121,12 +119,12 @@ public final class AccountScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyEvent event) {
-        if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             onClose();
             return true;
         }
-        return super.keyPressed(event);
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     private void addOffline() {
@@ -231,7 +229,7 @@ public final class AccountScreen extends Screen {
     public void onClose() {
         accounts().cancelMicrosoftLogin();
         save();
-        minecraft.setScreenAndShow(parent);
+        minecraft.setScreen(parent);
     }
 
     @Override

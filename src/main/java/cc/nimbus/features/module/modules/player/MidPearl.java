@@ -99,10 +99,10 @@ public final class MidPearl extends BasicModule {
         int foundSlot = findPearlSlot();
         if (foundSlot < 0) return;
 
-        originalSlot = minecraft.player.getInventory().getSelectedSlot();
+        originalSlot = minecraft.player.getInventory().selected;
         pearlSlot = foundSlot;
         holdingPearl = true;
-        minecraft.player.getInventory().setSelectedSlot(pearlSlot);
+        minecraft.player.getInventory().selected = (pearlSlot);
     }
 
     private void handleRelease() {
@@ -113,7 +113,7 @@ public final class MidPearl extends BasicModule {
 
         try {
             if (minecraft.player.getInventory().getItem(pearlSlot).is(Items.ENDER_PEARL)) {
-                minecraft.player.getInventory().setSelectedSlot(pearlSlot);
+                minecraft.player.getInventory().selected = (pearlSlot);
                 minecraft.gameMode.useItem(minecraft.player, InteractionHand.MAIN_HAND);
                 minecraft.player.swing(InteractionHand.MAIN_HAND);
             }
@@ -141,7 +141,7 @@ public final class MidPearl extends BasicModule {
 
     private void reset(boolean restoreSlot) {
         if (restoreSlot && originalSlot >= 0 && minecraft.player != null) {
-            minecraft.player.getInventory().setSelectedSlot(originalSlot);
+            minecraft.player.getInventory().selected = (originalSlot);
         }
         originalSlot = -1;
         pearlSlot = -1;

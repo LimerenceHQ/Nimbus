@@ -19,7 +19,7 @@ import io.github.humbleui.skija.Paint;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffectInstance;
 
 import java.util.ArrayList;
@@ -231,10 +231,10 @@ public final class PotionHUD extends BasicModule {
         return result + "…";
     }
 
-    private static Identifier icon(MobEffectInstance effect) {
-        Identifier key = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
-        if (key == null) key = Identifier.withDefaultNamespace("speed");
-        return Identifier.fromNamespaceAndPath(key.getNamespace(),
+    private static ResourceLocation icon(MobEffectInstance effect) {
+        ResourceLocation key = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
+        if (key == null) key = ResourceLocation.withDefaultNamespace("speed");
+        return ResourceLocation.fromNamespaceAndPath(key.getNamespace(),
                 "textures/mob_effect/" + key.getPath() + ".png");
     }
 
@@ -244,7 +244,7 @@ public final class PotionHUD extends BasicModule {
     }
 
     private static String effectKey(MobEffectInstance effect) {
-        Identifier key = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
+        ResourceLocation key = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
         return key == null ? displayName(effect) : key.toString();
     }
 
@@ -264,7 +264,7 @@ public final class PotionHUD extends BasicModule {
         return minutes + ":" + (remainder < 10 ? "0" : "") + remainder;
     }
 
-    private record EffectLine(String key, String name, String time, int color, Identifier icon) {
+    private record EffectLine(String key, String name, String time, int color, ResourceLocation icon) {
     }
 
     private record AnimatedLine(EffectLine line, float progress) {

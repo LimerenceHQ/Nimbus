@@ -3,6 +3,7 @@ package cc.nimbus.mixin.client;
 import cc.nimbus.event.impl.game.*;
 import cc.nimbus.event.impl.player.EventItemUse;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.ReceivingLevelScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.tags.ItemTags;
@@ -41,7 +42,7 @@ public class MinecraftMixin {
     }
 
     @Inject(method = "setLevel", at = @At("HEAD"))
-    private void onSetLevel(ClientLevel level, CallbackInfo info) {
+    private void onSetLevel(ClientLevel clientLevel, ReceivingLevelScreen.Reason reason, CallbackInfo ci) {
 
         EventBus.call(new EventWorldLoad());
     }

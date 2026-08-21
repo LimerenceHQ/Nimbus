@@ -6,8 +6,6 @@ import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.MultilineTextField;
 import net.minecraft.client.gui.components.Whence;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.KeyEvent;
 import cc.nimbus.ui.input.PreeditEvent;
 
 import java.util.ArrayList;
@@ -23,7 +21,7 @@ public final class MultilineTextInput {
 
     public MultilineTextInput(Font font, int maximumLength) {
         editor = new MultilineTextField(font, 480);
-        editor.setCharacterLimit(maximumLength > 0 ? maximumLength : MultilineTextField.NO_LIMIT);
+        editor.setCharacterLimit(maximumLength > 0 ? maximumLength : Integer.MAX_VALUE);
     }
 
     public String value() {
@@ -31,7 +29,7 @@ public final class MultilineTextInput {
     }
 
     public void maximumLength(int value) {
-        editor.setCharacterLimit(value > 0 ? value : MultilineTextField.NO_LIMIT);
+        editor.setCharacterLimit(value > 0 ? value : Integer.MAX_VALUE);
     }
 
     public void value(String value) {
@@ -48,13 +46,13 @@ public final class MultilineTextInput {
         return focused;
     }
 
-    public boolean keyPressed(KeyEvent event) {
-        return focused && editor.keyPressed(event);
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        return focused && editor.keyPressed(keyCode);
     }
 
-    public boolean charTyped(CharacterEvent event) {
-        if (!focused || !event.isAllowedChatCharacter()) return false;
-        editor.insertText(event.codepointAsString());
+    public boolean charTyped(char codePoint, int modifiers) {
+        if (!focused || Character.isISOControl(codePoint)) return false;
+        editor.insertText(String.valueOf(codePoint));
         return true;
     }
 

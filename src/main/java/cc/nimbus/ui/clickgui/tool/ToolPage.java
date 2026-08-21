@@ -2,8 +2,6 @@ package cc.nimbus.ui.clickgui.tool;
 
 import cc.nimbus.ui.clickgui.component.UiContext;
 import cc.nimbus.ui.clickgui.component.UiRect;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.KeyEvent;
 import cc.nimbus.ui.input.PreeditEvent;
 
 public interface ToolPage {
@@ -24,11 +22,11 @@ public interface ToolPage {
         return false;
     }
 
-    default boolean keyPressed(KeyEvent event) {
+    default boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         return false;
     }
 
-    default boolean charTyped(CharacterEvent event) {
+    default boolean charTyped(char codePoint, int modifiers) {
         return false;
     }
 

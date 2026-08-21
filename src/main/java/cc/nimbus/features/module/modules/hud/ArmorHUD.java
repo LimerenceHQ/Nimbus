@@ -66,16 +66,16 @@ public final class ArmorHUD extends BasicModule {
         float originY = bounds.y() / framebufferScale;
 
         var pose = graphics.pose();
-        pose.pushMatrix();
+        pose.pushPose();
         try {
-            pose.translate(originX, originY);
-            pose.scale(itemScale, itemScale);
+            pose.translate(originX, originY, 0f);
+            pose.scale(itemScale, itemScale, 1f);
             for (int index = 0; index < armor.size(); index++) {
                 graphics.renderItem(armor.get(index), index * (int) SLOT_SIZE + (int) PADDING,
                         (int) PADDING, minecraft.player.getId() + index);
             }
         } finally {
-            pose.popMatrix();
+            pose.popPose();
         }
     }
 

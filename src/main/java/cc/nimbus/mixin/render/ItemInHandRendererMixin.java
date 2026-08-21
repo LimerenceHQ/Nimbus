@@ -11,7 +11,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.ItemInHandRenderer;
-import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
@@ -29,7 +29,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class ItemInHandRendererMixin {
     @Shadow
     public abstract void renderItem(LivingEntity entity, ItemStack stack, ItemDisplayContext displayContext,
-                                    PoseStack poseStack, SubmitNodeCollector collector, int packedLight);
+                                    boolean leftHand, PoseStack poseStack, MultiBufferSource buffer, int packedLight);
 
     @Redirect(
             method = "tick",
@@ -48,7 +48,7 @@ public abstract class ItemInHandRendererMixin {
     private void nimbus$transformHeldItem(AbstractClientPlayer player, float partialTick, float pitch,
                                          InteractionHand hand, float swingProgress, ItemStack stack,
                                          float equippedProgress, PoseStack poseStack,
-                                         SubmitNodeCollector collector, int packedLight, CallbackInfo ci) {
+                                         MultiBufferSource buffer, int packedLight, CallbackInfo ci) {
         OldHitting module = MixinModuleLookup.enabled(OldHitting.class);
         KillAura aura = MixinModuleLookup.enabled(KillAura.class);
         boolean auraBlocking = aura != null && aura.attackTarget != null;
@@ -67,7 +67,7 @@ public abstract class ItemInHandRendererMixin {
         renderItem(player, stack, arm == HumanoidArm.RIGHT
                         ? ItemDisplayContext.FIRST_PERSON_RIGHT_HAND
                         : ItemDisplayContext.FIRST_PERSON_LEFT_HAND,
-                poseStack, collector, packedLight);
+                arm == HumanoidArm.LEFT, poseStack, buffer, packedLight);
         poseStack.popPose();
         ci.cancel();
     }
@@ -76,12 +76,12 @@ public abstract class ItemInHandRendererMixin {
             method = "renderArmWithItem",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/renderer/ItemInHandRenderer;renderItem(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemDisplayContext;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;I)V"
+                    target = "Lnet/minecraft/client/renderer/ItemInHandRenderer;renderItem(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemDisplayContext;ZLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V"
             )
     )
     private void nimbus$scaleHeldSword(ItemInHandRenderer renderer, LivingEntity entity, ItemStack stack,
-                                       ItemDisplayContext displayContext, PoseStack poseStack,
-                                       SubmitNodeCollector collector, int packedLight) {
+                                       ItemDisplayContext displayContext, boolean leftHand,
+                                       PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
         OldHitting module = MixinModuleLookup.enabled(OldHitting.class);
         boolean mainHand = entity instanceof AbstractClientPlayer player
                 && (player.getMainArm() == HumanoidArm.RIGHT
@@ -98,14 +98,14 @@ public abstract class ItemInHandRendererMixin {
             if (spoof != null) stack = spoof;
         }
         if (module == null || !mainHand || !stack.is(ItemTags.SWORDS)) {
-            renderItem(entity, stack, displayContext, poseStack, collector, packedLight);
+            renderItem(entity, stack, displayContext, leftHand, poseStack, buffer, packedLight);
             return;
         }
 
         float scale = module.scale.getValue().floatValue();
         poseStack.pushPose();
         poseStack.scale(scale, scale, scale);
-        renderItem(entity, stack, displayContext, poseStack, collector, packedLight);
+        renderItem(entity, stack, displayContext, leftHand, poseStack, buffer, packedLight);
         poseStack.popPose();
     }
 }

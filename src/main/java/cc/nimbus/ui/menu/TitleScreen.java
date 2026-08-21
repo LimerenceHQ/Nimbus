@@ -18,8 +18,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
-import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
@@ -34,7 +32,7 @@ public class TitleScreen extends AbstractSkijaScreen {
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderPanorama(graphics, partialTick);
-        renderBlurredBackground(graphics);
+        renderBlurredBackground();
     }
 
     @Override
@@ -80,7 +78,7 @@ public class TitleScreen extends AbstractSkijaScreen {
                         labels[i], center, y + 11F * scale, 0xD817201D);
             }
             frame.text().draw(NimbusFonts.BODY, 19, "Nimbus 1.0", 18, height - 28, 0x99FFFFFF);
-            String version = "Minecraft " + net.minecraft.SharedConstants.getCurrentVersion().name();
+            String version = "Minecraft " + net.minecraft.SharedConstants.getCurrentVersion().getName();
             frame.text().draw(NimbusFonts.BODY, 19, version,
                     width - frame.text().width(NimbusFonts.BODY, 19, version) - 18, height - 28,
                     0x99FFFFFF);
@@ -88,15 +86,15 @@ public class TitleScreen extends AbstractSkijaScreen {
     }
 
     @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (event.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return super.mouseClicked(event, doubleClick);
+    public boolean mouseClicked(double x, double mouseY, int button) {
+        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT) return super.mouseClicked(x, mouseY, button);
         int renderWidth = minecraft.getWindow().getWidth();
         int renderHeight = minecraft.getWindow().getHeight();
         float scale = Math.min(1F, Math.min(renderWidth / 1100F, renderHeight / 700F));
         float top = renderHeight * .5F - 145F * scale;
         float left = renderWidth * .5F - BUTTON_WIDTH * scale / 2F;
-        float clickX = framebufferX(event.x());
-        float clickY = framebufferY(event.y());
+        float clickX = framebufferX(x);
+        float clickY = framebufferY(mouseY);
         for (int i = 0; i < 4; i++) {
             float y = top + 78F * scale + i * (BUTTON_HEIGHT + BUTTON_GAP) * scale;
             if (clickX >= left && clickX <= left + BUTTON_WIDTH * scale && clickY >= y && clickY <= y + BUTTON_HEIGHT * scale) {
@@ -104,21 +102,21 @@ public class TitleScreen extends AbstractSkijaScreen {
             }
         }
         if (clickX >= renderWidth - 56 && clickY <= 56) { onClose(); return true; }
-        return super.mouseClicked(event, doubleClick);
+        return super.mouseClicked(x, mouseY, button);
     }
 
     private void activate(int index) {
         switch (index) {
-            case 0 -> minecraft.setScreenAndShow(new SelectWorldScreen(this));
-            case 1 -> minecraft.setScreenAndShow(new JoinMultiplayerScreen(this));
-            case 2 -> minecraft.setScreenAndShow(new AccountScreen(this));
-            case 3 -> minecraft.setScreenAndShow(new OptionsScreen(this, minecraft.options));
+            case 0 -> minecraft.setScreen(new SelectWorldScreen(this));
+            case 1 -> minecraft.setScreen(new JoinMultiplayerScreen(this));
+            case 2 -> minecraft.setScreen(new AccountScreen(this));
+            case 3 -> minecraft.setScreen(new OptionsScreen(this, minecraft.options));
         }
     }
 
-    @Override public boolean keyPressed(KeyEvent event) { if (event.key() == GLFW.GLFW_KEY_ESCAPE) return true; return super.keyPressed(event); }
+    @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers) { if (keyCode == GLFW.GLFW_KEY_ESCAPE) return true; return super.keyPressed(keyCode, scanCode, modifiers); }
     @Override public boolean isPauseScreen() { return false; }
-    @Override public void onClose() { minecraft.setScreenAndShow(null); }
+    @Override public void onClose() { minecraft.setScreen(null); }
 
     @Override
     public int requestedSceneCaptureRate(PostProcessOptions options) {

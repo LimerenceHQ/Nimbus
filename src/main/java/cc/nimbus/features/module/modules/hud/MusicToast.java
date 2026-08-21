@@ -33,8 +33,6 @@ public final class MusicToast extends BasicModule {
     protected void onDisable() {
         observedSongId = -1L;
         MusicToastState.clear();
-        Minecraft minecraft = Minecraft.getInstance();
-        minecraft.getToastManager().hideNowPlayingToast();
     }
 
     @EventTarget
@@ -52,11 +50,8 @@ public final class MusicToast extends BasicModule {
         observedSongId = currentId;
         if (current == null || state.phase() == PlaybackPhase.IDLE) {
             MusicToastState.clear();
-            Minecraft minecraft = Minecraft.getInstance();
-            minecraft.getToastManager().hideNowPlayingToast();
             return;
         }
         MusicToastState.set(current.name() + " · " + current.artistsText());
-        Minecraft.getInstance().getToastManager().showNowPlayingToast();
     }
 }

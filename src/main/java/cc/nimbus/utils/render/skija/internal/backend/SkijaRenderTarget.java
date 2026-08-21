@@ -1,30 +1,28 @@
 package cc.nimbus.utils.render.skija.internal.backend;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
-import com.mojang.blaze3d.opengl.GlTexture;
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.*;
 import io.github.humbleui.skija.Canvas;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL30;
 import cc.nimbus.utils.render.skija.internal.backend.gl.States;
 import cc.nimbus.utils.render.skija.internal.backend.SkijaBackend;
 
-import java.util.OptionalDouble;
 import java.util.function.Consumer;
 
 public final class SkijaRenderTarget implements AutoCloseable {
-    private final Identifier identifier;
+    private final ResourceLocation identifier;
     private Texture registeredTexture;
     private int framebuffer;
     private int depthStencilRenderbuffer;
     private int width, height;
 
-    public SkijaRenderTarget(String name) { identifier = Identifier.fromNamespaceAndPath("nimbus", "skija/" + name); }
-    public Identifier identifier() { return identifier; }
+    public SkijaRenderTarget(String name) { identifier = ResourceLocation.fromNamespaceAndPath("nimbus", "skija/" + name); }
+    public ResourceLocation identifier() { return identifier; }
 
     public void ensure(int width, int height) {
         RenderSystem.assertOnRenderThread();
@@ -43,16 +41,19 @@ public final class SkijaRenderTarget implements AutoCloseable {
         try {
             destroy();
             this.width = Math.max(1, width); this.height = Math.max(1, height);
-            var device = RenderSystem.getDevice();
-            GpuTexture texture = device.createTexture("Nimbus Skija Color", GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC, TextureFormat.RGBA8, this.width, this.height, 1, 1);
-            GpuTextureView view = device.createTextureView(texture);
-            GpuSampler sampler = device.createSampler(AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, FilterMode.NEAREST, FilterMode.NEAREST, 1, OptionalDouble.empty());
-            registeredTexture = new Texture(texture, view, sampler);
+            int textureId = GL11.glGenTextures();
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
+            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, this.width, this.height,
+                    0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (java.nio.ByteBuffer) null);
+            registeredTexture = new Texture(textureId);
             Minecraft.getInstance().getTextureManager().register(identifier, registeredTexture);
-            if (!(texture instanceof GlTexture glTexture)) { destroy(); throw new IllegalStateException("Nimbus Skija only supports Minecraft's OpenGL device"); }
             framebuffer = GL30.glGenFramebuffers();
             GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer);
-            GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL30.GL_TEXTURE_2D, glTexture.glId(), 0);
+            GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL30.GL_TEXTURE_2D, textureId, 0);
             depthStencilRenderbuffer = GL30.glGenRenderbuffers();
             GL30.glBindRenderbuffer(GL30.GL_RENDERBUFFER, depthStencilRenderbuffer);
             GL30.glRenderbufferStorage(GL30.GL_RENDERBUFFER, GL30.GL_DEPTH24_STENCIL8, this.width, this.height);
@@ -67,7 +68,6 @@ public final class SkijaRenderTarget implements AutoCloseable {
             GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, previousReadFramebuffer);
             States.pop();
             GlStateManager._activeTexture(previousActiveTexture);
-            GlStateManager._bindTexture(0);
             GlStateManager._bindTexture(previousTexture);
         }
     }

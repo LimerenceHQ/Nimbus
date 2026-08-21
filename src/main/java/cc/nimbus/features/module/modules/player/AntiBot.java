@@ -91,7 +91,7 @@ public final class AntiBot extends BasicModule {
                 UUID uuid = entry.profileId();
                 spawnTimes.put(uuid, now);
                 pendingProfiles.put(uuid, now);
-                displayNames.put(uuid, display == null ? entry.profile().name() : display.getString());
+                displayNames.put(uuid, display == null ? entry.profile().getName() : display.getString());
             }
             return;
         }
@@ -164,9 +164,9 @@ public final class AntiBot extends BasicModule {
         if (minecraft.player == null || minecraft.getConnection() == null) return List.of();
         List<PlayerInfo> entries = new ArrayList<>(minecraft.getConnection().getOnlinePlayers());
         Set<UUID> seen = new HashSet<>();
-        entries.removeIf(entry -> !seen.add(entry.getProfile().id())
-                || Objects.equals(entry.getProfile().id(), minecraft.player.getUUID()));
-        return entries.stream().map(entry -> entry.getProfile().name()).toList();
+        entries.removeIf(entry -> !seen.add(entry.getProfile().getId())
+                || Objects.equals(entry.getProfile().getId(), minecraft.player.getUUID()));
+        return entries.stream().map(entry -> entry.getProfile().getName()).toList();
     }
 
     private void clearCaches() {

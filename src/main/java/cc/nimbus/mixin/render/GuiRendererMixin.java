@@ -3,14 +3,12 @@ package cc.nimbus.mixin.render;
 import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.render.EventRender2D;
-import cc.nimbus.features.music.integration.MusicToastState;
 import cc.nimbus.utils.render.skija.api.SkijaLayer;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.render.GuiRenderer;
-import net.minecraft.client.gui.render.state.GuiRenderState;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import org.spongepowered.asm.mixin.*;
@@ -19,9 +17,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 
-@Mixin(GuiRenderer.class)
+@Mixin(Gui.class)
 public abstract class GuiRendererMixin {
-    @Shadow @Final GuiRenderState renderState;
     @Unique private SkijaLayer nimbus$hudLayer;
     @Unique private int nimbus$hudWidth;
     @Unique private int nimbus$hudHeight;
@@ -31,7 +28,7 @@ public abstract class GuiRendererMixin {
     @Unique private ClientLevel nimbus$scene;
 
     @Inject(method = "render", at = @At("HEAD"))
-    private void nimbus$render(GpuBufferSlice projection, CallbackInfo ci) {
+    private void nimbus$render(GuiGraphics graphics, DeltaTracker delta, CallbackInfo ci) {
         Minecraft minecraft = Minecraft.getInstance();
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         skija.validateSupport();
@@ -56,9 +53,6 @@ public abstract class GuiRendererMixin {
 
         var settings = Core.INSTANCE.getConfigManager().clientSettings();
         skija.configurePostProcess(settings.postProcessOptions());
-        GuiGraphics graphics = new GuiGraphics(minecraft, renderState,
-                (int) minecraft.mouseHandler.getScaledXPos(minecraft.getWindow()),
-                (int) minecraft.mouseHandler.getScaledYPos(minecraft.getWindow()));
         EventBus.call(new EventRender2D(graphics));
         boolean hasPostProcess = skija.postProcess().hasRegions();
         boolean hasContent = hasPostProcess || skija.hud().hasPendingContent();
@@ -75,17 +69,6 @@ public abstract class GuiRendererMixin {
         }
         if (nimbus$hudHadContent) nimbus$hudLayer.extract(graphics, framebufferWidth, framebufferHeight);
 
-        if (MusicToastState.active()) minecraft.getToastManager().render(graphics);
-    }
-
-    @Inject(method = "close", at = @At("HEAD"))
-    private void nimbus$close(CallbackInfo ci) {
-        if (nimbus$hudLayer != null) nimbus$hudLayer.releaseTarget();
-        nimbus$hudLayer = null;
-        nimbus$hudWidth = nimbus$hudHeight = 0;
-        nimbus$hudHadContent = false;
-        nimbus$scene = null;
-        nimbus$resetHudCadence();
     }
 
     @Unique

@@ -4,8 +4,8 @@ import cc.nimbus.utils.render.skija.internal.backend.SkijaRenderTarget;
 import cc.nimbus.utils.render.skija.internal.backend.SkijaBackend;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.resources.Identifier;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.Objects;
 
@@ -18,7 +18,7 @@ public final class SkijaLayer {
         this.target = new SkijaRenderTarget(name);
     }
 
-    public Identifier identifier() {
+    public ResourceLocation identifier() {
         return target.identifier();
     }
 
@@ -40,22 +40,22 @@ public final class SkijaLayer {
         Objects.requireNonNull(graphics, "graphics");
         ensure(width, height);
         //SCALE 取整
-        int guiScale = Math.max(1, Minecraft.getInstance().getWindow().getGuiScale());
+        int guiScale = Math.max(1, (int) Minecraft.getInstance().getWindow().getGuiScale());
         float scaleX = width / (float) guiScale / graphics.guiWidth();
         float scaleY = height / (float) guiScale / graphics.guiHeight();
         var pose = graphics.pose();
-        pose.pushMatrix();
+        pose.pushPose();
         try {
-            pose.scale(scaleX, scaleY);
+            pose.scale(scaleX, scaleY, 1.0f);
             graphics.blit(
-                    RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
+                    RenderType::guiTextured,
                     identifier(),
                     0, 0, 0F, height,
                     graphics.guiWidth(), graphics.guiHeight(),
                     width, -height, width, height
             );
         } finally {
-            pose.popMatrix();
+            pose.popPose();
         }
     }
 

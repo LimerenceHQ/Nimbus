@@ -20,8 +20,6 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Point;
 import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.KeyEvent;
 import cc.nimbus.ui.input.PreeditEvent;
 import org.lwjgl.glfw.GLFW;
 
@@ -213,23 +211,23 @@ public final class SettingControls {
         colorDragKind = null;
     }
 
-    public boolean keyPressed(KeyEvent event) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (editing == null) return false;
-        if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             cancelEditor();
             return true;
         }
-        if (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER) {
+        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
             commitEditor();
             return true;
         }
         return editing instanceof TextSetting text && text.isMultiline()
-                ? multilineEditor.keyPressed(event) : editor.keyPressed(event);
+                ? multilineEditor.keyPressed(keyCode, scanCode, modifiers) : editor.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    public boolean charTyped(CharacterEvent event) {
-        if (editing instanceof TextSetting text && text.isMultiline()) return multilineEditor.charTyped(event);
-        return editing != null && editor.charTyped(event);
+    public boolean charTyped(char codePoint, int modifiers) {
+        if (editing instanceof TextSetting text && text.isMultiline()) return multilineEditor.charTyped(codePoint, modifiers);
+        return editing != null && editor.charTyped(codePoint, modifiers);
     }
 
     public boolean preeditUpdated(PreeditEvent event) {

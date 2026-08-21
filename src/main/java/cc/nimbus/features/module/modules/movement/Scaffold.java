@@ -109,7 +109,7 @@ public class Scaffold extends BasicModule {
         counter = 0;
         placeTimer.reset();
         if (mc.player != null) {
-            oldSlot = mc.player.getInventory().getSelectedSlot();
+            oldSlot = mc.player.getInventory().selected;
             baseY = yLevel = (int) Math.floor(mc.player.getY() - 1.0D);
         }
     }
@@ -128,7 +128,7 @@ public class Scaffold extends BasicModule {
         rotateCount = 0;
         counter = 0;
         if (mc.player != null) {
-            mc.player.getInventory().setSelectedSlot(oldSlot);
+            mc.player.getInventory().selected = (oldSlot);
         }
         mc.options.keyShift.setDown(false);
         timerUtils.reset();
@@ -401,8 +401,8 @@ public class Scaffold extends BasicModule {
                 break;
             }
         }
-        if (slotId != -1 && mc.player.getInventory().getSelectedSlot() != slotId) {
-            mc.player.getInventory().setSelectedSlot(slotId);
+        if (slotId != -1 && mc.player.getInventory().selected != slotId) {
+            mc.player.getInventory().selected = (slotId);
         }
     }
 
@@ -486,7 +486,7 @@ public class Scaffold extends BasicModule {
         }
 
         float simpleYaw = 0.0F;
-        long window = mc.getWindow().handle();
+        long window = mc.getWindow().getWindow();
         boolean w = GLFW.glfwGetKey(window, mc.options.keyUp.getDefaultKey().getValue()) == GLFW.GLFW_PRESS;
         boolean s = GLFW.glfwGetKey(window, mc.options.keyDown.getDefaultKey().getValue()) == GLFW.GLFW_PRESS;
         boolean a = GLFW.glfwGetKey(window, mc.options.keyLeft.getDefaultKey().getValue()) == GLFW.GLFW_PRESS;

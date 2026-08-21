@@ -386,7 +386,8 @@ public final class AccountManager implements InstanceManager {
                         uuid,
                         accessToken,
                         Optional.empty(),
-                        Optional.empty()
+                        Optional.empty(),
+                        net.minecraft.client.User.Type.MSA
                 ));
             } catch (ReflectiveOperationException | RuntimeException error) {
                 failure.accept(new IllegalStateException("Unable to replace Minecraft user", error));

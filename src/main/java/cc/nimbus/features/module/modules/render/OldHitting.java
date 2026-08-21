@@ -24,8 +24,6 @@ public final class OldHitting extends BasicModule {
             Items.ENCHANTED_GOLDEN_APPLE,
             Items.SNOWBALL,
             Items.EGG,
-            Items.BLUE_EGG,
-            Items.BROWN_EGG,
             Items.ENDER_PEARL,
             Items.EXPERIENCE_BOTTLE,
             Items.SPLASH_POTION,

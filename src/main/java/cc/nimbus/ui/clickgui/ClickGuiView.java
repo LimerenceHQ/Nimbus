@@ -17,8 +17,6 @@ import cc.nimbus.utils.client.input.Keyboard;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Rect;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.KeyEvent;
 import cc.nimbus.ui.input.PreeditEvent;
 import org.lwjgl.glfw.GLFW;
 
@@ -556,27 +554,27 @@ public final class ClickGuiView {
         return false;
     }
 
-    public boolean keyPressed(KeyEvent event) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (binding != null) {
-            if (event.key() == GLFW.GLFW_KEY_ESCAPE) binding = null;
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) binding = null;
             else {
-                binding.setKey(event.key() == GLFW.GLFW_KEY_BACKSPACE || event.key() == GLFW.GLFW_KEY_DELETE
-                        ? 0 : event.key());
+                binding.setKey(keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE
+                        ? 0 : keyCode);
                 binding = null;
             }
             return true;
         }
         ToolPage page = tools.get(activeTool);
-        if (session.tool() != ClickGuiSession.Tool.NONE && page != null && page.keyPressed(event)) return true;
-        if (controls.keyPressed(event)) return true;
-        return searchOpen && search.keyPressed(event);
+        if (session.tool() != ClickGuiSession.Tool.NONE && page != null && page.keyPressed(keyCode, scanCode, modifiers)) return true;
+        if (controls.keyPressed(keyCode, scanCode, modifiers)) return true;
+        return searchOpen && search.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    public boolean charTyped(CharacterEvent event) {
+    public boolean charTyped(char codePoint, int modifiers) {
         ToolPage page = tools.get(activeTool);
-        if (session.tool() != ClickGuiSession.Tool.NONE && page != null && page.charTyped(event)) return true;
-        if (controls.charTyped(event)) return true;
-        return searchOpen && search.charTyped(event);
+        if (session.tool() != ClickGuiSession.Tool.NONE && page != null && page.charTyped(codePoint, modifiers)) return true;
+        if (controls.charTyped(codePoint, modifiers)) return true;
+        return searchOpen && search.charTyped(codePoint, modifiers);
     }
 
     public boolean preeditUpdated(PreeditEvent event) {

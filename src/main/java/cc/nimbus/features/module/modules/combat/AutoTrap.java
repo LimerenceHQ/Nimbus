@@ -143,7 +143,7 @@ public final class AutoTrap extends BasicModule {
                 reset(true);
                 return;
             }
-            minecraft.player.getInventory().setSelectedSlot(bucketSlot);
+            minecraft.player.getInventory().selected = bucketSlot;
             stage = Stage.LAVA_PICKUP;
             applyRotation(pickupAction.rotation(), Priority.HIGH);
             return;
@@ -178,7 +178,7 @@ public final class AutoTrap extends BasicModule {
                 reset(true);
                 return;
             }
-            minecraft.player.getInventory().setSelectedSlot(slot);
+            minecraft.player.getInventory().selected = slot;
             applyRotation(igniteAction.rotation());
             return;
         }
@@ -189,7 +189,7 @@ public final class AutoTrap extends BasicModule {
                 reset(true);
                 return;
             }
-            minecraft.player.getInventory().setSelectedSlot(slot);
+            minecraft.player.getInventory().selected = slot;
             applyRotation(lavaAction.rotation());
             return;
         }
@@ -200,7 +200,7 @@ public final class AutoTrap extends BasicModule {
                 reset(true);
                 return;
             }
-            minecraft.player.getInventory().setSelectedSlot(slot);
+            minecraft.player.getInventory().selected = slot;
             applyRotation(webAction.rotation());
             return;
         }
@@ -210,9 +210,9 @@ public final class AutoTrap extends BasicModule {
         if (lava.getValue() && findHotbarSlot(Items.LAVA_BUCKET) != -1) {
             lavaAction = isWithinTargetRange(previewLavaAction) ? previewLavaAction : findLavaAction(true);
             if (lavaAction != null) {
-                oldSlot = minecraft.player.getInventory().getSelectedSlot();
+                oldSlot = minecraft.player.getInventory().selected;
                 lavaTarget = lavaAction.target();
-                minecraft.player.getInventory().setSelectedSlot(findHotbarSlot(Items.LAVA_BUCKET));
+                minecraft.player.getInventory().selected = findHotbarSlot(Items.LAVA_BUCKET);
                 stage = Stage.LAVA_PLACE;
                 applyRotation(lavaAction.rotation());
                 return;
@@ -222,9 +222,9 @@ public final class AutoTrap extends BasicModule {
         if (flint.getValue() && findHotbarSlot(Items.FLINT_AND_STEEL) != -1) {
             igniteAction = isWithinTargetRange(previewIgniteAction) ? previewIgniteAction : findIgniteAction(true);
             if (igniteAction != null) {
-                oldSlot = minecraft.player.getInventory().getSelectedSlot();
+                oldSlot = minecraft.player.getInventory().selected;
                 igniteTarget = igniteAction.target();
-                minecraft.player.getInventory().setSelectedSlot(findHotbarSlot(Items.FLINT_AND_STEEL));
+                minecraft.player.getInventory().selected = (findHotbarSlot(Items.FLINT_AND_STEEL));
                 stage = Stage.IGNITE_PLACE;
                 applyRotation(igniteAction.rotation());
                 return;
@@ -235,11 +235,11 @@ public final class AutoTrap extends BasicModule {
             List<WebAction> plan = isWithinTargetRange(previewWebPlan)
                     ? new ArrayList<>(previewWebPlan) : findWebPlan(true);
             if (!plan.isEmpty()) {
-                oldSlot = minecraft.player.getInventory().getSelectedSlot();
+                oldSlot = minecraft.player.getInventory().selected;
                 webPlan.clear();
                 webPlan.addAll(plan);
                 webAction = webPlan.remove(0);
-                minecraft.player.getInventory().setSelectedSlot(findHotbarSlot(Items.COBWEB));
+                minecraft.player.getInventory().selected = (findHotbarSlot(Items.COBWEB));
                 stage = Stage.WEB_PLACE;
                 applyRotation(webAction.rotation());
             }
@@ -792,7 +792,7 @@ public final class AutoTrap extends BasicModule {
 
     private void restoreSlot(boolean clear) {
         if (oldSlot != -1 && minecraft.player != null) {
-            minecraft.player.getInventory().setSelectedSlot(oldSlot);
+            minecraft.player.getInventory().selected = oldSlot;
         }
         if (clear) oldSlot = -1;
     }

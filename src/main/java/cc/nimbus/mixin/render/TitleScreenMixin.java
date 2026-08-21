@@ -27,7 +27,7 @@ public abstract class TitleScreenMixin extends Screen {
                 ? Core.INSTANCE.getI18nManager().get("nimbus.menu.alt_manager", "Alt Manager")
                 : "Alt Manager");
         addRenderableWidget(Button.builder(label,
-                button -> minecraft.setScreenAndShow(new AccountScreen(this)))
+                button -> minecraft.setScreen(new AccountScreen(this)))
                 .bounds(x, y, NIMBUS_BUTTON_WIDTH, NIMBUS_BUTTON_HEIGHT)
                 .build());
     }

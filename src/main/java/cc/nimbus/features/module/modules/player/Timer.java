@@ -81,7 +81,7 @@ public class Timer extends BasicModule {
     }
 
     private boolean isReleaseButtonDown() {
-        long window = mc.getWindow().handle();
+        long window = mc.getWindow().getWindow();
         return GLFW.glfwGetMouseButton(window, getButtonCode()) == GLFW.GLFW_PRESS;
     }
 

@@ -8,8 +8,6 @@ import cc.nimbus.ui.clickgui.input.FocusManager;
 import cc.nimbus.ui.clickgui.input.TextInput;
 import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.KeyEvent;
 import cc.nimbus.ui.input.PreeditEvent;
 import org.lwjgl.glfw.GLFW;
 
@@ -161,16 +159,16 @@ public final class ConfigTool implements ToolPage {
     }
 
     @Override
-    public boolean keyPressed(KeyEvent event) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (!name.focused()) return false;
-        if (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER) {
+        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
             create();
             return true;
         }
-        return name.keyPressed(event);
+        return name.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    @Override public boolean charTyped(CharacterEvent event) { return name.charTyped(event); }
+    @Override public boolean charTyped(char codePoint, int modifiers) { return name.charTyped(codePoint, modifiers); }
     @Override public boolean preeditUpdated(PreeditEvent event) { return name.preeditUpdated(event); }
 
     @Override

@@ -55,8 +55,8 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
             if (event.getPacket() instanceof ClientboundSetEntityMotionPacket packet) {
                 if (isValidVelocityPacket(packet)) {
                     attackCount = computeReduceTicks(
-                            packet.getMovement().x * 8000.0,
-                            packet.getMovement().z * 8000.0
+                            packet.getXa() * 8000.0,
+                            packet.getZa() * 8000.0
                     );
 
                     if (!modules.isEnabled("Delay") || cantSprint()) {
@@ -81,9 +81,12 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
             return false;
         }
 
-        Vec3 movement = packet.getMovement();
-        boolean falling = movement.y <= 0.0;
-        double strength = Math.hypot(movement.x, movement.z);
+        double velocityX = packet.getXa() / 8000.0;
+        double velocityY = packet.getYa() / 8000.0;
+        double velocityZ = packet.getZa() / 8000.0;
+
+        boolean falling = velocityY <= 0.0;
+        double strength = new Vec3(velocityX, 0, velocityZ).length();
         boolean lowStrength = strength < 0.1;
 
         return !falling
@@ -96,7 +99,7 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
     public boolean cantSprint() {
         return mc.player == null
                 || mc.player.hasEffect(MobEffects.BLINDNESS)
-                || mc.player.hasEffect(MobEffects.SLOWNESS)
+                || mc.player.hasEffect(MobEffects.MOVEMENT_SLOWDOWN)
                 || mc.player.isShiftKeyDown()
                 || mc.player.isCrouching()
                 || (!mc.player.isPassenger() && mc.player.getFoodData().getFoodLevel() <= 6 && !mc.player.getAbilities().mayfly);

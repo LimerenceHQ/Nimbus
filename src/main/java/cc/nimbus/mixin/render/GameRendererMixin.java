@@ -2,7 +2,6 @@ package cc.nimbus.mixin.render;
 
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.player.EventRayTrace;
-import cc.nimbus.utils.render.Render3DUtils;
 import cc.nimbus.features.module.modules.render.FullBright;
 import cc.nimbus.features.module.modules.render.NoHurtCamera;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
@@ -11,11 +10,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
-import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -56,18 +53,6 @@ public abstract class GameRendererMixin {
         nimbus$pickEntity.yRotO = nimbus$pickOldYaw;
         nimbus$pickEntity.xRotO = nimbus$pickOldPitch;
         nimbus$pickEntity = null;
-    }
-
-    @ModifyArg(
-            method = "renderLevel",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/client/renderer/PerspectiveProjectionMatrixBuffer;getBuffer(Lorg/joml/Matrix4f;)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;"
-            )
-    )
-    private Matrix4f nimbus$captureWorldProjection(Matrix4f projection) {
-        Render3DUtils.captureWorldProjectionMatrix(projection);
-        return projection;
     }
 
     @Inject(method = "getNightVisionScale", at = @At("HEAD"), cancellable = true)

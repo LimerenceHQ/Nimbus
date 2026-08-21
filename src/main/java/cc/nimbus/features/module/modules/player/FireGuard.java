@@ -125,7 +125,7 @@ public final class FireGuard extends BasicModule {
         }
 
         if (stage == Stage.LAVA_SEAL && lavaAction != null) {
-            minecraft.player.getInventory().setSelectedSlot(findHotbarBlockSlot());
+            minecraft.player.getInventory().selected = (findHotbarBlockSlot());
             applyRotation(lavaAction.rotation());
             return;
         }
@@ -145,8 +145,8 @@ public final class FireGuard extends BasicModule {
                 BucketAction action = findWaterPlaceAction();
                 int waterSlot = findHotbarSlot(Items.WATER_BUCKET);
                 if (action != null && waterSlot != -1) {
-                    oldSlot = minecraft.player.getInventory().getSelectedSlot();
-                    minecraft.player.getInventory().setSelectedSlot(waterSlot);
+                    oldSlot = minecraft.player.getInventory().selected;
+                    minecraft.player.getInventory().selected = (waterSlot);
                     waterAction = action;
                     stage = Stage.WATER_PLACE;
                     applyRotation(action.rotation());
@@ -155,8 +155,8 @@ public final class FireGuard extends BasicModule {
             } else if (shouldPickupWater && findHotbarSlot(Items.BUCKET) != -1) {
                 pickupAction = findWaterPickupAction();
                 if (pickupAction != null) {
-                    oldSlot = minecraft.player.getInventory().getSelectedSlot();
-                    minecraft.player.getInventory().setSelectedSlot(findHotbarSlot(Items.BUCKET));
+                    oldSlot = minecraft.player.getInventory().selected;
+                    minecraft.player.getInventory().selected = (findHotbarSlot(Items.BUCKET));
                     stage = Stage.WATER_PICKUP;
                     applyRotation(pickupAction.rotation());
                     return;
@@ -167,8 +167,8 @@ public final class FireGuard extends BasicModule {
         if (lavaSeal.getValue() && notInStillLava() && findHotbarBlockSlot() != -1) {
             lavaAction = findLavaAction();
             if (lavaAction != null) {
-                oldSlot = minecraft.player.getInventory().getSelectedSlot();
-                minecraft.player.getInventory().setSelectedSlot(findHotbarBlockSlot());
+                oldSlot = minecraft.player.getInventory().selected;
+                minecraft.player.getInventory().selected = (findHotbarBlockSlot());
                 stage = Stage.LAVA_SEAL;
                 applyRotation(lavaAction.rotation());
                 return;
@@ -841,7 +841,7 @@ public final class FireGuard extends BasicModule {
 
     private void restoreSlot(boolean clear) {
         if (oldSlot != -1 && minecraft.player != null) {
-            minecraft.player.getInventory().setSelectedSlot(oldSlot);
+            minecraft.player.getInventory().selected = (oldSlot);
         }
         if (clear) {
             oldSlot = -1;

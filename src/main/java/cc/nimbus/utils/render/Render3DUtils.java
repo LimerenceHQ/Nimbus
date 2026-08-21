@@ -1,23 +1,15 @@
 package cc.nimbus.utils.render;
 
-import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.platform.DepthTestFunction;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.rendertype.TextureTransform;
-import net.minecraft.resources.Identifier;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.MultiBufferSource;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
@@ -28,9 +20,6 @@ import org.lwjgl.opengl.GL11;
 
 import java.awt.Color;
 import java.util.List;
-import java.util.Optional;
-import java.util.OptionalDouble;
-import java.util.OptionalInt;
 
 @SuppressWarnings({"unused", "deprecation"})
 public final class Render3DUtils {
@@ -345,7 +334,7 @@ public final class Render3DUtils {
 
     public static Vec3 getCameraPos() {
         var camera = Minecraft.getInstance().getEntityRenderDispatcher().camera;
-        return camera == null ? Vec3.ZERO : camera.position();
+        return camera == null ? Vec3.ZERO : camera.getPosition();
     }
 
     public static void captureWorldProjectionMatrix(Matrix4fc projection) {
@@ -525,78 +514,27 @@ public final class Render3DUtils {
     }
 
     private static void drawQuads(PoseStack stack, DepthMode mode, QuadEmitter emitter) {
-        drawMesh(stack, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR, pipeline(false, mode),
+        drawMesh(stack, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR, null,
                 builder -> emitter.emit(new QuadSink(builder, stack.last().pose())));
     }
 
     private static void drawLines(PoseStack stack, DepthMode mode, float width, LineEmitter emitter) {
-        drawMesh(stack, VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR_NORMAL_LINE_WIDTH, pipeline(true, mode),
+        drawMesh(stack, VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR_NORMAL, null,
                 builder -> emitter.emit(new LineSink(builder, stack.last().pose(), width)));
     }
 
     private static void drawMesh(PoseStack stack, VertexFormat.Mode topology, VertexFormat format,
-                                 RenderPipeline pipeline, BuilderEmitter emitter) {
+                                 Object ignoredPipeline, BuilderEmitter emitter) {
         RenderSystem.assertOnRenderThread();
         try (ByteBufferBuilder allocator = new ByteBufferBuilder(256 * 1024)) {
-            BufferBuilder builder = new BufferBuilder(allocator, topology, format);
-            emitter.emit(builder);
-            MeshData mesh = builder.build();
-            if (mesh == null) return;
-            try (mesh; GpuBuffer vertices = RenderSystem.getDevice().createBuffer(
-                    () -> "Nimbus 3D vertices", GpuBuffer.USAGE_VERTEX, mesh.vertexBuffer())) {
-                var indices = RenderSystem.getSequentialBuffer(mesh.drawState().mode());
-                GpuBuffer indexBuffer = indices.getBuffer(mesh.drawState().indexCount());
-                GpuBufferSlice transform = RenderSystem.getDynamicUniforms().writeTransform(
-                        IDENTITY, new Vector4f(1, 1, 1, 1), new Vector3f(),
-                        TextureTransform.DEFAULT_TEXTURING.getMatrix());
-                RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
-                try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-                        () -> "Nimbus 3D", target.getColorTextureView(), OptionalInt.empty(),
-                        target.getDepthTextureView(), OptionalDouble.empty())) {
-                    pass.setPipeline(pipeline);
-                    RenderSystem.bindDefaultUniforms(pass);
-                    pass.setUniform("DynamicTransforms", transform);
-                    pass.setVertexBuffer(0, vertices);
-                    pass.setIndexBuffer(indexBuffer, indices.type());
-                    pass.drawIndexed(0, 0, mesh.drawState().indexCount(), 1);
-                }
-            }
+            MultiBufferSource.BufferSource buffers = MultiBufferSource.immediate(allocator);
+            VertexConsumer consumer = buffers.getBuffer(topology == VertexFormat.Mode.LINES
+                    ? RenderType.lines() : RenderType.debugQuads());
+            emitter.emit(consumer);
+            buffers.endBatch();
         }
     }
 
-    private static RenderPipeline pipeline(boolean lines, DepthMode mode) {
-        if (lines) return switch (mode) {
-            case NORMAL -> Pipelines.LINES_NORMAL;
-            case GREATER -> Pipelines.LINES_GREATER;
-            default -> Pipelines.LINES_ALWAYS;
-        };
-        return switch (mode) {
-            case NORMAL -> Pipelines.QUADS_NORMAL;
-            case GREATER -> Pipelines.QUADS_GREATER;
-            default -> Pipelines.QUADS_ALWAYS;
-        };
-    }
-
-    private static final class Pipelines {
-        private static final RenderPipeline QUADS_ALWAYS = quad("quads_always", DepthTestFunction.NO_DEPTH_TEST);
-        private static final RenderPipeline QUADS_NORMAL = quad("quads_normal", DepthTestFunction.LEQUAL_DEPTH_TEST);
-        private static final RenderPipeline QUADS_GREATER = quad("quads_greater", DepthTestFunction.GREATER_DEPTH_TEST);
-        private static final RenderPipeline LINES_ALWAYS = line("lines_always", DepthTestFunction.NO_DEPTH_TEST);
-        private static final RenderPipeline LINES_NORMAL = line("lines_normal", DepthTestFunction.LEQUAL_DEPTH_TEST);
-        private static final RenderPipeline LINES_GREATER = line("lines_greater", DepthTestFunction.GREATER_DEPTH_TEST);
-
-        private static RenderPipeline quad(String name, DepthTestFunction compare) {
-            return RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
-                    .withLocation(Identifier.fromNamespaceAndPath("nimbus", "pipeline/" + name))
-                    .withDepthTestFunction(compare).withDepthWrite(false).withCull(false).build();
-        }
-
-        private static RenderPipeline line(String name, DepthTestFunction compare) {
-            return RenderPipeline.builder(RenderPipelines.LINES_SNIPPET)
-                    .withLocation(Identifier.fromNamespaceAndPath("nimbus", "pipeline/" + name))
-                    .withDepthTestFunction(compare).withDepthWrite(false).withCull(false).build();
-        }
-    }
 
     private static void emitBoxEdges(LineSink s, float[] b, int color) {
         float x0=b[0], y0=b[1], z0=b[2], x1=b[3], y1=b[4], z1=b[5];
@@ -618,7 +556,7 @@ public final class Render3DUtils {
         s.quad(x0,y0,z0,x0,y1,z0,x0,y1,z1,x0,y0,z1,color);
     }
 
-    private record QuadSink(BufferBuilder builder, Matrix4f matrix) {
+    private record QuadSink(VertexConsumer builder, Matrix4f matrix) {
         void vertex(float x,float y,float z,int c) { builder.addVertex(matrix,x,y,z).setColor(c); }
         void quad(float x1,float y1,float z1,float x2,float y2,float z2,float x3,float y3,float z3,float x4,float y4,float z4,int c) {
             quad(x1,y1,z1,x2,y2,z2,x3,y3,z3,x4,y4,z4,c,c,c,c);
@@ -628,17 +566,17 @@ public final class Render3DUtils {
         }
     }
 
-    private record LineSink(BufferBuilder builder, Matrix4f matrix, float width) {
+    private record LineSink(VertexConsumer builder, Matrix4f matrix, float width) {
         void line(float x1,float y1,float z1,float x2,float y2,float z2,int c) {
             float nx=x2-x1, ny=y2-y1, nz=z2-z1;
             float length=(float)Math.sqrt(nx*nx+ny*ny+nz*nz); if(length < 1e-5f) return;
             nx/=length; ny/=length; nz/=length;
-            builder.addVertex(matrix,x1,y1,z1).setColor(c).setNormal(nx,ny,nz).setLineWidth(width);
-            builder.addVertex(matrix,x2,y2,z2).setColor(c).setNormal(nx,ny,nz).setLineWidth(width);
+            builder.addVertex(matrix,x1,y1,z1).setColor(c).setNormal(nx,ny,nz);
+            builder.addVertex(matrix,x2,y2,z2).setColor(c).setNormal(nx,ny,nz);
         }
     }
 
-    private interface BuilderEmitter { void emit(BufferBuilder builder); }
+    private interface BuilderEmitter { void emit(VertexConsumer builder); }
     private interface QuadEmitter { void emit(QuadSink sink); }
     private interface LineEmitter { void emit(LineSink sink); }
 

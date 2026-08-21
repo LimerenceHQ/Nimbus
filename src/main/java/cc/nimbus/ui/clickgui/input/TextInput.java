@@ -5,8 +5,6 @@ import cc.nimbus.ui.clickgui.component.UiRect;
 import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.KeyEvent;
 import cc.nimbus.ui.input.PreeditEvent;
 import net.minecraft.network.chat.Component;
 
@@ -46,12 +44,12 @@ public final class TextInput {
         if (!value) preedit = "";
     }
 
-    public boolean keyPressed(KeyEvent event) {
-        return focused && editor.keyPressed(event);
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        return focused && editor.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    public boolean charTyped(CharacterEvent event) {
-        return focused && editor.charTyped(event);
+    public boolean charTyped(char codePoint, int modifiers) {
+        return focused && editor.charTyped(codePoint, modifiers);
     }
 
     public boolean preeditUpdated(PreeditEvent event) {

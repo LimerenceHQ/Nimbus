@@ -159,8 +159,8 @@ public final class ProjectileAura extends BasicModule {
             return;
         }
 
-        oldSlot = minecraft.player.getInventory().getSelectedSlot();
-        minecraft.player.getInventory().setSelectedSlot(throwAction.slot());
+        oldSlot = minecraft.player.getInventory().selected;
+        minecraft.player.getInventory().selected = (throwAction.slot());
         InteractionResult result = useItem(throwAction.rotation());
         if (result.consumesAction() || result == InteractionResult.SUCCESS) {
             swing();
@@ -491,7 +491,7 @@ public final class ProjectileAura extends BasicModule {
             return -1;
         }
 
-        int selected = minecraft.player.getInventory().getSelectedSlot();
+        int selected = minecraft.player.getInventory().selected;
         if (isProjectile(minecraft.player.getInventory().getItem(selected))) {
             return selected;
         }
@@ -628,7 +628,7 @@ public final class ProjectileAura extends BasicModule {
 
     private void restoreSlot() {
         if (oldSlot != -1 && minecraft.player != null) {
-            minecraft.player.getInventory().setSelectedSlot(oldSlot);
+            minecraft.player.getInventory().selected = (oldSlot);
         }
         oldSlot = -1;
     }

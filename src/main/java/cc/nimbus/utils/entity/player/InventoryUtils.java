@@ -317,7 +317,7 @@ public final class InventoryUtils {
                 || block instanceof SaplingBlock || block instanceof MushroomBlock || block instanceof FlowerBlock
                 || block instanceof BushBlock || block instanceof ComposterBlock || block instanceof NoteBlock
                 || block instanceof JukeboxBlock || block instanceof SignBlock || block == Blocks.IRON_BARS
-                || block == Blocks.IRON_CHAIN || block == Blocks.GLASS_PANE || block == Blocks.DIRT_PATH
+                || block == Blocks.IRON_BLOCK || block == Blocks.GLASS_PANE || block == Blocks.DIRT_PATH
                 || block == Blocks.FARMLAND || block == Blocks.SNOW || block == Blocks.AMETHYST_CLUSTER
                 || block == Blocks.MANGROVE_ROOTS || block == Blocks.SUGAR_CANE || block == Blocks.CACTUS
                 || block == Blocks.LILY_PAD;
