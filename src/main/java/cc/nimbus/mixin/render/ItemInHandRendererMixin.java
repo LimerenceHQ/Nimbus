@@ -63,7 +63,7 @@ public abstract class ItemInHandRendererMixin {
         if (module == null || hand != InteractionHand.MAIN_HAND || stack.isEmpty()
                 || !stack.is(ItemTags.SWORDS) || player.isScoping()
                 || (!auraBlocking && module.shouldIgnoreUse(player))
-                || (!auraBlocking && !usingMainHand && swingProgress <= 0.001f)) return;
+                || (!auraBlocking && !usingMainHand)) return;
 
         HumanoidArm arm = player.getMainArm();
         int side = arm == HumanoidArm.RIGHT ? 1 : -1;
