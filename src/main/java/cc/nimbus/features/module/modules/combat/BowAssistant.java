@@ -339,7 +339,7 @@ public final class BowAssistant extends BasicModule {
         double best = Double.MAX_VALUE;
         for (Vec3 point : sampleSelectionPoints(entity.getBoundingBox())) {
             Rotation rotation = RotationMath.toRotation(origin, point);
-            double delta = viewRotation.distanceTo(rotation);
+            double delta = viewRotation.distanceTo(rotation).length();
             if (delta < best) {
                 best = delta;
             }
@@ -424,7 +424,7 @@ public final class BowAssistant extends BasicModule {
         return solutions.stream()
                 .min(Comparator
                         .comparingDouble(AimSolution::score)
-                        .thenComparingDouble(solution -> current.distanceTo(solution.rotation())))
+                        .thenComparingDouble(solution -> current.distanceTo(solution.rotation()).length()))
                 .orElse(null);
     }
 

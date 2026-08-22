@@ -451,7 +451,7 @@ public final class AutoTrap extends BasicModule {
         Rotation current = currentRotation();
         return actions.stream()
                 .min(Comparator
-                        .comparingDouble((WebAction action) -> current.distanceTo(action.rotation()))
+                        .comparingDouble((WebAction action) -> current.distanceTo(action.rotation()).length())
                         .thenComparingDouble(action -> Vec3.atCenterOf(action.placePos())
                                 .distanceToSqr(action.target().getBoundingBox().getCenter())))
                 .orElse(null);
@@ -572,7 +572,7 @@ public final class AutoTrap extends BasicModule {
         }
         Rotation current = currentRotation();
         return hits.stream()
-                .min(Comparator.comparingDouble(hit -> current.distanceTo(hit.rotation())))
+                .min(Comparator.comparingDouble(hit -> current.distanceTo(hit.rotation()).length()))
                 .orElse(null);
     }
 
@@ -589,7 +589,7 @@ public final class AutoTrap extends BasicModule {
         }
         Rotation current = currentRotation();
         return actions.stream()
-                .min(Comparator.comparingDouble(action -> current.distanceTo(action.rotation())))
+                .min(Comparator.comparingDouble(action -> current.distanceTo(action.rotation()).length()))
                 .orElse(null);
     }
 
@@ -606,7 +606,7 @@ public final class AutoTrap extends BasicModule {
         }
         Rotation current = currentRotation();
         return actions.stream()
-                .min(Comparator.comparingDouble(action -> current.distanceTo(action.rotation())))
+                .min(Comparator.comparingDouble(action -> current.distanceTo(action.rotation()).length()))
                 .orElse(null);
     }
 

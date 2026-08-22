@@ -360,7 +360,7 @@ public final class ProjectileAura extends BasicModule {
         return solutions.stream()
                 .min(Comparator
                         .comparingDouble(AimSolution::score)
-                        .thenComparingDouble(solution -> current.distanceTo(solution.rotation())))
+                        .thenComparingDouble(solution -> current.distanceTo(solution.rotation()).length()))
                 .orElse(null);
     }
 
@@ -666,7 +666,7 @@ public final class ProjectileAura extends BasicModule {
             return false;
         }
 
-        if (previous.rotation().distanceTo(current.rotation()) > STABLE_ROTATION_DELTA) {
+        if (previous.rotation().distanceTo(current.rotation()).length() > STABLE_ROTATION_DELTA) {
             return false;
         }
 

@@ -410,7 +410,7 @@ public final class FireGuard extends BasicModule {
         Rotation current = currentRotation();
         return actions.stream()
                 .min(Comparator
-                        .comparingDouble((PlaceAction action) -> current.distanceTo(action.rotation()))
+                        .comparingDouble((PlaceAction action) -> current.distanceTo(action.rotation()).length())
                         .thenComparingDouble(action -> minecraft.player.getEyePosition().distanceToSqr(action.hit().getLocation())))
                 .orElse(null);
     }
@@ -439,7 +439,7 @@ public final class FireGuard extends BasicModule {
         Rotation current = currentRotation();
         return actions.stream()
                 .min(Comparator
-                        .comparingDouble((BreakAction action) -> current.distanceTo(action.rotation()))
+                        .comparingDouble((BreakAction action) -> current.distanceTo(action.rotation()).length())
                         .thenComparingDouble(action -> minecraft.player.getEyePosition().distanceToSqr(action.hit().getLocation())))
                 .orElse(null);
     }
@@ -480,7 +480,7 @@ public final class FireGuard extends BasicModule {
 
         Rotation current = currentRotation();
         return hits.stream()
-                .min(Comparator.comparingDouble(hit -> current.distanceTo(hit.rotation())))
+                .min(Comparator.comparingDouble(hit -> current.distanceTo(hit.rotation()).length()))
                 .orElse(null);
     }
 
@@ -509,7 +509,7 @@ public final class FireGuard extends BasicModule {
 
         Rotation current = currentRotation();
         return hits.stream()
-                .min(Comparator.comparingDouble(hit -> current.distanceTo(hit.rotation())))
+                .min(Comparator.comparingDouble(hit -> current.distanceTo(hit.rotation()).length()))
                 .orElse(null);
     }
 
@@ -543,7 +543,7 @@ public final class FireGuard extends BasicModule {
 
         Rotation current = currentRotation();
         return actions.stream()
-                .min(Comparator.comparingDouble(action -> current.distanceTo(action.rotation())))
+                .min(Comparator.comparingDouble(action -> current.distanceTo(action.rotation()).length()))
                 .orElse(null);
     }
 

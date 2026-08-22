@@ -62,7 +62,7 @@ public final class ModuleManager implements InstanceManager {
                     new Sprint(),
                     new Scaffold(),
                     new Speed(),
-                    new FastWeb(),
+                    new AntiWeb(),
                     new NoFall(),
                     new NoSlow(),
                     new Target(),

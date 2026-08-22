@@ -252,7 +252,7 @@ public final class ProjectilePhysicsUtils {
         Vec3 velocity = getLaunchVelocity(rotation, profile, resolvedSpeed).add(inheritedVelocity(shooter));
         double closestDistance = Double.MAX_VALUE;
         double bestScore = Double.MAX_VALUE;
-        double rotationDelta = currentRotation().distanceTo(rotation);
+        double rotationDelta = currentRotation().distanceTo(rotation).length();
 
         for (int tick = 0; tick < maxTicks; tick++) {
             Vec3 next = pos.add(velocity);

@@ -80,6 +80,7 @@ public class Delay extends Mode<Legit> implements IMinecraft {
         if (!shouldRelease()) {
             return;
         }
+        if (mc.player.isInWater() || mc.player.isInLava()) return;
 
         if (releaseMode.is("EntityData Delay")) {
             boolean stoppedAtSprintEntityData = releaseUntilSprintEntityData();

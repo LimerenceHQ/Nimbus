@@ -9,9 +9,7 @@ import cc.nimbus.features.rotation.RotationMath;
 import cc.nimbus.utils.mixin.FallDistanceAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
@@ -27,9 +25,6 @@ public abstract class EntityMixin implements FallDistanceAccess {
 
     @Shadow
     protected Vec3 stuckSpeedMultiplier;
-
-    @Shadow
-    protected abstract void checkFallDamage(double movementY, boolean onGround, BlockState state, BlockPos pos);
 
     @Redirect(method = "moveRelative", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/Entity;getYRot()F"))
@@ -75,10 +70,13 @@ public abstract class EntityMixin implements FallDistanceAccess {
             return;
         }
 
+        // Entity.move normally performs this subtraction. A cancelled travel
+        // never reaches Entity.move, so preserve only the vanilla falling
+        // accumulation; no landing/block damage logic runs without movement.
         double movementY = player.getDeltaMovement().y;
         if (movementY < 0.0D) {
-            BlockPos pos = player.blockPosition();
-            checkFallDamage(movementY, false, player.level().getBlockState(pos), pos);
+            player.fallDistance -= (float) movementY;
         }
     }
+
 }

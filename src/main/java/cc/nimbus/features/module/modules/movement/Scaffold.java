@@ -181,6 +181,12 @@ public class Scaffold extends BasicModule {
 
         Player player = mc.player;
         Level world = mc.level;
+        // A completed landing starts a new placement cycle. Clear a previous
+        // predicted-fall lock so AutoStuck cannot carry stale state forward.
+        if (player.onGround()) {
+            reachable = true;
+            rotateCount = 0;
+        }
         float ny = Mth.wrapDegrees(mc.player.getYRot() - getHarCodedYaw());
         if (mc.player.onGround() && GameStateManager.onGroundTicks <= 1) {
             float normalizedYaw = (ny % 360.0F + 360.0F) % 360.0F;

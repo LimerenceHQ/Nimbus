@@ -566,7 +566,7 @@ public final class NoFall extends BasicModule {
         return plans.stream()
                 .min(Comparator
                         .comparingDouble((LadderPlan plan) -> current.distanceTo(
-                                plan.needsSupportBlock() ? plan.supportRotation() : plan.ladderRotation()))
+                                plan.needsSupportBlock() ? plan.supportRotation() : plan.ladderRotation()).length())
                         .thenComparingDouble(plan -> minecraft.player == null ? 0.0D : Vec3.atCenterOf(plan.ladderPos()).distanceToSqr(minecraft.player.position())))
                 .orElse(null);
     }
