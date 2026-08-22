@@ -471,6 +471,20 @@
   "nimbus.module.esp.setting.skeleton": "Skeleton",
   "nimbus.module.esp.setting.show_self": "Show Self",
 
+  "nimbus.module.pointer_esp.name": "Pointer ESP",
+  "nimbus.module.pointer_esp.description": "Shows arrows pointing to other players.",
+  "nimbus.module.pointer_esp.setting.name": "Name",
+  "nimbus.module.pointer_esp.setting.health": "Health",
+  "nimbus.module.pointer_esp.setting.blink_animation": "Blink Animation",
+  "nimbus.module.pointer_esp.setting.outline_rect": "Arrow Outline",
+  "nimbus.module.pointer_esp.setting.outline_width": "Outline Width",
+  "nimbus.module.pointer_esp.setting.radius": "Radius",
+  "nimbus.module.pointer_esp.setting.arrow_size": "Arrow Size",
+  "nimbus.module.pointer_esp.setting.hide_through_walls": "Hide Through Walls",
+  "nimbus.module.pointer_esp.setting.show_invisibles": "Show Invisibles",
+  "nimbus.module.pointer_esp.setting.visible_color": "Visible Color",
+  "nimbus.module.pointer_esp.setting.invisible_color": "Invisible Color",
+
   "nimbus.module.nametag.name": "Nametag",
   "nimbus.module.nametag.description": "Shows player IDs and distance above players.",
 

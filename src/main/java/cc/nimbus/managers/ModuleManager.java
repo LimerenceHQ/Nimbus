@@ -78,6 +78,7 @@ public final class ModuleManager implements InstanceManager {
                     new AutoTool(),
                     new FastPlace(),
                     new ESP(),
+                    new PointerESP(),
                     new Nametag(),
                     new FullBright(),
                     new NoFov(),

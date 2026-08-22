@@ -471,6 +471,20 @@
   "nimbus.module.esp.setting.skeleton": "骨骼",
   "nimbus.module.esp.setting.show_self": "显示自己",
 
+  "nimbus.module.pointer_esp.name": "指针透视",
+  "nimbus.module.pointer_esp.description": "在屏幕边缘显示指向其他玩家的箭头。",
+  "nimbus.module.pointer_esp.setting.name": "名称",
+  "nimbus.module.pointer_esp.setting.health": "血量",
+  "nimbus.module.pointer_esp.setting.blink_animation": "闪烁动画",
+  "nimbus.module.pointer_esp.setting.outline_rect": "箭头轮廓",
+  "nimbus.module.pointer_esp.setting.outline_width": "轮廓宽度",
+  "nimbus.module.pointer_esp.setting.radius": "半径",
+  "nimbus.module.pointer_esp.setting.arrow_size": "箭头大小",
+  "nimbus.module.pointer_esp.setting.hide_through_walls": "隐藏墙后目标",
+  "nimbus.module.pointer_esp.setting.show_invisibles": "显示隐身目标",
+  "nimbus.module.pointer_esp.setting.visible_color": "可见颜色",
+  "nimbus.module.pointer_esp.setting.invisible_color": "隐身颜色",
+
   "nimbus.module.nametag.name": "玩家名牌",
   "nimbus.module.nametag.description": "在玩家上方显示实体 ID 与距离。",
 

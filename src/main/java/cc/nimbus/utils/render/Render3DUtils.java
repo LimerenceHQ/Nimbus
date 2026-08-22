@@ -51,6 +51,8 @@ public final class Render3DUtils {
         public float height() { return bottom - top; }
     }
 
+    public record ProjectedPoint(float x, float y, float depth, boolean inFront) {}
+
     public static final class WorldProjection {
         private final Matrix4f viewProjection;
         private final Vec3 cameraPosition;
@@ -357,6 +359,25 @@ public final class Render3DUtils {
 
     public static WorldProjection worldProjection() {
         return worldProjection;
+    }
+
+    public static ProjectedPoint projectPoint(Vec3 point, WorldProjection projection) {
+        if (point == null || projection == null) return null;
+        Vector4f clip = new Vector4f(
+                (float) (point.x - projection.cameraPosition.x),
+                (float) (point.y - projection.cameraPosition.y),
+                (float) (point.z - projection.cameraPosition.z), 1f
+        );
+        projection.viewProjection.transform(clip);
+        if (!Float.isFinite(clip.x) || !Float.isFinite(clip.y)
+                || !Float.isFinite(clip.z) || !Float.isFinite(clip.w)
+                || Math.abs(clip.w) < 1.0e-5f) return null;
+        float reciprocal = 1f / clip.w;
+        float x = clip.x * reciprocal;
+        float y = -clip.y * reciprocal;
+        float depth = clip.z * reciprocal;
+        if (!Float.isFinite(x) || !Float.isFinite(y) || !Float.isFinite(depth)) return null;
+        return new ProjectedPoint(x, y, depth, clip.w > 0.001f);
     }
 
     public static ProjectedBox projectAabb(AABB box, WorldProjection projection) {
