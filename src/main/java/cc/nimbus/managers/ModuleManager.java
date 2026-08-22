@@ -80,6 +80,7 @@ public final class ModuleManager implements InstanceManager {
                     new FastPlace(),
                     new ESP(),
                     new PointerESP(),
+                    new ChestESP(),
                     new Nametag(),
                     new FullBright(),
                     new NoFov(),

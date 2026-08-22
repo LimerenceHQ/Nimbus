@@ -22,9 +22,24 @@ import cc.nimbus.features.module.modules.player.FireGuard;
 import cc.nimbus.features.module.modules.movement.Scaffold;
 import cc.nimbus.features.module.modules.render.OldHitting;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
+import cc.nimbus.core.Core;
 
 @Mixin(Minecraft.class)
 public class MinecraftMixin {
+    @Inject(method = "updateTitle", at = @At("HEAD"), cancellable = true)
+    private void nimbus$legacyTitle(CallbackInfo ci) {
+        if (!Core.INSTANCE.isInitialized()) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.getWindow() == null) {
+            ci.cancel();
+            return;
+        }
+        if (Core.INSTANCE.getConfigManager().clientSettings().arentIOnePointEight.getValue()) {
+            minecraft.getWindow().setTitle("Minecraft 1.8.9");
+            ci.cancel();
+        }
+    }
+
     @Inject(method = "tick",at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;pick(F)V", shift = At.Shift.BEFORE))
     public void hookRotation(CallbackInfo ci) {
         EventBus.call(new EventRotation());

@@ -79,6 +79,7 @@ public enum Core {
         musicManager = music;
         commandManager = commands;
         initialized = true;
+        configs.clientSettings().refreshWindowIdentity();
         configs.applyDeferredModuleStates();
     }
 
