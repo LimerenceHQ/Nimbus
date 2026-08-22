@@ -476,6 +476,7 @@
   "nimbus.module.pointer_esp.setting.name": "名称",
   "nimbus.module.pointer_esp.setting.health": "血量",
   "nimbus.module.pointer_esp.setting.blink_animation": "闪烁动画",
+  "nimbus.module.pointer_esp.setting.always_show": "始终显示",
   "nimbus.module.pointer_esp.setting.outline_rect": "箭头轮廓",
   "nimbus.module.pointer_esp.setting.outline_width": "轮廓宽度",
   "nimbus.module.pointer_esp.setting.radius": "半径",

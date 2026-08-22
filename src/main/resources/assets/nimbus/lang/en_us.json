@@ -476,6 +476,7 @@
   "nimbus.module.pointer_esp.setting.name": "Name",
   "nimbus.module.pointer_esp.setting.health": "Health",
   "nimbus.module.pointer_esp.setting.blink_animation": "Blink Animation",
+  "nimbus.module.pointer_esp.setting.always_show": "Always Show",
   "nimbus.module.pointer_esp.setting.outline_rect": "Arrow Outline",
   "nimbus.module.pointer_esp.setting.outline_width": "Outline Width",
   "nimbus.module.pointer_esp.setting.radius": "Radius",

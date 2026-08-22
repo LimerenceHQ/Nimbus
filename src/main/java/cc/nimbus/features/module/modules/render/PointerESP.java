@@ -29,6 +29,7 @@ public final class PointerESP extends BasicModule {
     public final BooleanSetting name = new BooleanSetting("Name", true);
     public final BooleanSetting health = new BooleanSetting("Health", true);
     public final BooleanSetting blink = new BooleanSetting("Blink Animation", true);
+    public final BooleanSetting alwaysShow = new BooleanSetting("Always Show", false);
     public final BooleanSetting outline = new BooleanSetting("Outline Rect", true);
     public final NumberSetting outlineWidth = new NumberSetting("Outline Width", 1.5, 0.5, 5, 0.1);
     public final NumberSetting radius = new NumberSetting("Radius", 100, 15, 100, 5);
@@ -83,7 +84,7 @@ public final class PointerESP extends BasicModule {
         boolean onScreen = entry.point.inFront() && entry.point.x() >= -1f && entry.point.x() <= 1f
                 && entry.point.y() >= -1f && entry.point.y() <= 1f
                 && entry.point.depth() >= -1f && entry.point.depth() <= 1f;
-        if (onScreen) return;
+        if (onScreen && !alwaysShow.getValue()) return;
         float angle = (float) Math.atan2(sy - cy, sx - cx);
         if (!entry.point.inFront()) angle += Math.PI;
         float cos = (float) Math.cos(angle), sin = (float) Math.sin(angle);
