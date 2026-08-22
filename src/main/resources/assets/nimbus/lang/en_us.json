@@ -302,6 +302,7 @@
   "nimbus.module.scaffold.setting.rotate_speed": "Rotate Speed",
   "nimbus.module.scaffold.setting.silent_rotate": "Silent Rotate",
   "nimbus.module.scaffold.setting.auto_switch": "Auto Switch",
+  "nimbus.module.scaffold.setting.item_spoof": "Item Spoof",
   "nimbus.module.scaffold.setting.auto_sneak": "Auto Sneak",
   "nimbus.module.scaffold.setting.keep_y": "Keep Y",
   "nimbus.module.scaffold.setting.max_jump_delay": "Max Jump Delay",

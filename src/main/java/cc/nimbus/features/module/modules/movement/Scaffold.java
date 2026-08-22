@@ -55,6 +55,7 @@ public class Scaffold extends BasicModule {
     private final NumberSetting rotateSpeed = new NumberSetting("Rotate Speed", 180.0, 1.0, 180.0, 1.0,() -> rotationMode.is("Smooth"));
     private final BooleanSetting silentRotate = new BooleanSetting("Silent rotate", false);
     private final BooleanSetting autoSwitch = new BooleanSetting("Auto Switch", true);
+    private final BooleanSetting itemSpoof = new BooleanSetting("Item Spoof", true);
     private final BooleanSetting autoSneak = new BooleanSetting("Auto Sneak", false);
     private final BooleanSetting keepY = new BooleanSetting("Keep Y", false);
     private final NumberSetting jumpDelayMax = new NumberSetting("Max Jump Delay", 2.0, 0.0, 3.0, 1.0,() -> mode.is("Telly"));
@@ -83,6 +84,7 @@ public class Scaffold extends BasicModule {
     private int rotateCount = 0;
     private int counter = 0;
     private int oldSlot;
+    private boolean itemSpoofing;
     private int yLevel;
     private boolean reachable = true;
     private boolean noti = false;
@@ -108,6 +110,7 @@ public class Scaffold extends BasicModule {
         reachable = true;
         rotateCount = 0;
         counter = 0;
+        itemSpoofing = false;
         placeTimer.reset();
         if (mc.player != null) {
             oldSlot = mc.player.getInventory().selected;
@@ -128,6 +131,7 @@ public class Scaffold extends BasicModule {
         reachable = true;
         rotateCount = 0;
         counter = 0;
+        itemSpoofing = false;
         if (mc.player != null) {
             mc.player.getInventory().selected = (oldSlot);
         }
@@ -148,6 +152,10 @@ public class Scaffold extends BasicModule {
         reachable = true;
         rotateCount = 0;
         counter = 0;
+        itemSpoofing = false;
+        if (mc.player != null) {
+            oldSlot = mc.player.getInventory().selected;
+        }
     }
 
     @EventTarget
@@ -181,8 +189,6 @@ public class Scaffold extends BasicModule {
 
         Player player = mc.player;
         Level world = mc.level;
-        // A completed landing starts a new placement cycle. Clear a previous
-        // predicted-fall lock so AutoStuck cannot carry stale state forward.
         if (player.onGround()) {
             reachable = true;
             rotateCount = 0;
@@ -408,8 +414,20 @@ public class Scaffold extends BasicModule {
             }
         }
         if (slotId != -1 && mc.player.getInventory().selected != slotId) {
+            if (itemSpoof.getValue()) {
+                itemSpoofing = true;
+            }
             mc.player.getInventory().selected = (slotId);
         }
+    }
+
+    public ItemStack getSpoofStack() {
+        if (!itemSpoof.getValue() || !itemSpoofing || mc.player == null
+                || oldSlot < 0 || oldSlot >= 9) {
+            return null;
+        }
+        ItemStack stack = mc.player.getInventory().getItem(oldSlot);
+        return stack.isEmpty() ? null : stack;
     }
 
     @EventTarget

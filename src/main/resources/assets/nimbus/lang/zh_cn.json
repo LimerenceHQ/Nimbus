@@ -302,6 +302,7 @@
   "nimbus.module.scaffold.setting.rotate_speed": "转向速度",
   "nimbus.module.scaffold.setting.silent_rotate": "静默转向",
   "nimbus.module.scaffold.setting.auto_switch": "自动切换方块",
+  "nimbus.module.scaffold.setting.item_spoof": "物品伪装",
   "nimbus.module.scaffold.setting.auto_sneak": "自动潜行",
   "nimbus.module.scaffold.setting.keep_y": "保持高度",
   "nimbus.module.scaffold.setting.max_jump_delay": "最大跳跃延迟",

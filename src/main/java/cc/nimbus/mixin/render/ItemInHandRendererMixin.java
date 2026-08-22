@@ -4,6 +4,7 @@ import cc.nimbus.core.Core;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.player.AutoTool;
 import cc.nimbus.features.module.modules.player.MidPearl;
+import cc.nimbus.features.module.modules.movement.Scaffold;
 import cc.nimbus.features.module.modules.render.OldHitting;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -39,6 +40,9 @@ public abstract class ItemInHandRendererMixin {
         MidPearl midPearl = MixinModuleLookup.enabled(MidPearl.class);
         ItemStack pearlSpoof = midPearl == null ? null : midPearl.getSpoofStack();
         if (pearlSpoof != null) return pearlSpoof;
+        Scaffold scaffold = MixinModuleLookup.enabled(Scaffold.class);
+        ItemStack scaffoldSpoof = scaffold == null ? null : scaffold.getSpoofStack();
+        if (scaffoldSpoof != null) return scaffoldSpoof;
         AutoTool autoTool = MixinModuleLookup.enabled(AutoTool.class);
         ItemStack spoof = autoTool == null ? null : autoTool.getSpoofStack();
         return spoof == null ? player.getMainHandItem() : spoof;
