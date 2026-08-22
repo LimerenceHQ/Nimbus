@@ -33,12 +33,12 @@ import java.util.Map;
 import java.util.Set;
 
 @ModuleInfo(
-        name = "PotionHUD",
-        displayName = "Potion HUD",
+        name = "Potion",
+        displayName = "Potion",
         description = "Shows active potion effects and their remaining duration.",
         category = ModuleCategory.HUD
 )
-public final class PotionHUD extends BasicModule {
+public final class Potion extends BasicModule {
     private static final String FONT = NimbusFonts.BODY_MEDIUM;
     private static final String TIME_FONT = NimbusFonts.BODY_MEDIUM;
     private static final float MAX_WIDTH = 230f;
@@ -77,8 +77,8 @@ public final class PotionHUD extends BasicModule {
         }
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         HudViewport viewport = Core.INSTANCE.getHudManager().viewport(skija.width(), skija.height());
-        effects.sort(Comparator.comparingInt(PotionHUD::displayLength)
-                .thenComparing(PotionHUD::effectKey));
+        effects.sort(Comparator.comparingInt(Potion::displayLength)
+                .thenComparing(Potion::effectKey));
         List<EffectLine> activeLines = effects.stream()
                 .map(effect -> new EffectLine(
                         effectKey(effect),
@@ -113,7 +113,7 @@ public final class PotionHUD extends BasicModule {
         for (EffectLine line : displayedLines.values()) {
             if (!activeKeys.contains(line.key())) lines.add(line);
         }
-        lines.sort(Comparator.comparingInt(PotionHUD::lineDisplayLength)
+        lines.sort(Comparator.comparingInt(Potion::lineDisplayLength)
                 .thenComparing(EffectLine::key));
         if (lines.isEmpty()) {
             layoutSize = new HudSize(2f, 2f);
