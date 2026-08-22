@@ -30,7 +30,6 @@
     "render.PlayerModelMixin",
     "render.PotionEffectGuiMixin",
     "render.TitleScreenMixin",
-    "render.ToastManagerMixin",
     "world.ClientLevelDataMixin",
     "accessor.client.MinecraftAccessor",
     "accessor.client.DeltaTrackerTimerAccessor",
