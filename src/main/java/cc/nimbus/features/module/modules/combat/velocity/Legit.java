@@ -10,6 +10,7 @@ import cc.nimbus.features.module.modules.combat.velocity.legitVelocity.Delay;
 import cc.nimbus.features.module.modules.combat.velocity.legitVelocity.JumpReset;
 import cc.nimbus.features.module.modules.combat.velocity.legitVelocity.Reduce;
 import cc.nimbus.utils.client.IMinecraft;
+import cc.nimbus.utils.client.MessageUtils;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.world.effect.MobEffects;
@@ -81,15 +82,15 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
             return false;
         }
 
-        boolean falling = packet.getYa() <= 0.0;
-        double strength = Math.hypot(packet.getXa(), packet.getZa());
+        double velocityX = packet.getXa();
+        double velocityY = packet.getYa();
+        double velocityZ = packet.getZa();
+
+        boolean falling = velocityY <= 0.0;
+        double strength = new Vec3(velocityX, 0, velocityZ).length();
         boolean lowStrength = strength < 0.1;
 
-        return !falling
-                && !lowStrength
-                && !mc.player.onClimbable()
-                && !mc.player.isInWater()
-                && !mc.player.isInLava();
+        return !falling && !lowStrength && !mc.player.onClimbable() && !mc.player.isInLiquid();
     }
 
     public boolean cantSprint() {

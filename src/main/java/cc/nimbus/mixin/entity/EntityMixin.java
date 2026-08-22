@@ -1,6 +1,7 @@
 package cc.nimbus.mixin.entity;
 
 import cc.nimbus.event.EventBus;
+import cc.nimbus.event.impl.player.EventRayTrace;
 import cc.nimbus.event.impl.player.EventRotationApplied;
 import cc.nimbus.event.impl.player.EventSlowMovement;
 import cc.nimbus.event.impl.player.EventStrafe;
@@ -8,6 +9,7 @@ import cc.nimbus.features.rotation.Rotation;
 import cc.nimbus.features.rotation.RotationMath;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -25,11 +27,58 @@ public abstract class EntityMixin {
     @Shadow
     protected Vec3 stuckSpeedMultiplier;
 
-    @Redirect(method = "moveRelative", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/entity/Entity;getYRot()F"))
-    private float nimbus$strafeYaw(Entity entity) {
-        if (entity != Minecraft.getInstance().player) return entity.getYRot();
-        return EventBus.call(new EventStrafe(entity.getYRot())).getYaw();
+    @Inject(method = "getViewVector", at = @At("HEAD"), cancellable = true)
+    private void onGetViewVector(float partialTicks, CallbackInfoReturnable<Vec3> cir) {
+        Entity entity = (Entity) (Object) this;
+        if (!(entity instanceof LocalPlayer)) {
+            return;
+        }
+
+        EventRayTrace event = new EventRayTrace(entity, entity.getViewYRot(partialTicks), entity.getViewXRot(partialTicks));
+        EventBus.call(event);
+
+        float pitchRadians = event.getPitch() * ((float) Math.PI / 180.0F);
+        float yawRadians = -event.getYaw() * ((float) Math.PI / 180.0F);
+        float cosYaw = Mth.cos(yawRadians);
+        float sinYaw = Mth.sin(yawRadians);
+        float cosPitch = Mth.cos(pitchRadians);
+        float sinPitch = Mth.sin(pitchRadians);
+        cir.setReturnValue(new Vec3(sinYaw * cosPitch, -sinPitch, cosYaw * cosPitch));
+    }
+
+    @Inject(method = "moveRelative", at = @At("HEAD"), cancellable = true)
+    private void onMoveRelative(float friction, Vec3 movementInput, CallbackInfo ci) {
+
+        Entity entity = (Entity) (Object) this;
+        if (!(entity instanceof LocalPlayer)) {
+            return;
+        }
+
+        EventStrafe event = new EventStrafe(entity.getYRot());
+        EventBus.call(event);
+
+        if (event.isCancel()) {
+            entity.setDeltaMovement(entity.getDeltaMovement().add(movementInput));
+            ci.cancel();
+            return;
+        }
+
+        Vec3 adjustedInput = new Vec3(movementInput.x, movementInput.y, movementInput.z);
+        double length = adjustedInput.lengthSqr();
+        Vec3 velocity;
+
+        if (length < 1.0E-7D) {
+            velocity = Vec3.ZERO;
+        } else {
+            Vec3 scaled = (length > 1.0D ? adjustedInput.normalize() : adjustedInput).scale(friction);
+            float yawRadians = event.getYaw() * ((float) Math.PI / 180.0F);
+            float sin = Mth.sin(yawRadians);
+            float cos = Mth.cos(yawRadians);
+            velocity = new Vec3(scaled.x * cos - scaled.z * sin, scaled.y, scaled.z * cos + scaled.x * sin);
+        }
+
+        entity.setDeltaMovement(entity.getDeltaMovement().add(velocity));
+        ci.cancel();
     }
 
     @Inject(method = "makeStuckInBlock", at = @At("RETURN"))

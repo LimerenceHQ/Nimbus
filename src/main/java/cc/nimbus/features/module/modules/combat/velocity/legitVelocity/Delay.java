@@ -130,6 +130,8 @@ public class Delay extends Mode<Legit> implements IMinecraft {
             return;
         }
 
+        if (Core.INSTANCE.getModuleManager().getModule(KillAura.class).attackTarget == null) return;
+
         bufferTicks = 0;
         state = BufferState.BUFFERING;
         holdingSprintEntityData = false;

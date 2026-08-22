@@ -219,47 +219,23 @@ public final class PacketManager implements InstanceManager {
 
     public boolean outboundsHook(Packet<?> packet) {
         try {
-            Packet<?> current = packet;
-            Packet<?> original = packet;
+            capturedThisCycle = false;
 
-            int limit = 16;
-            for (int i = 0; i < limit; i++) {
-                capturedThisCycle = false;
-                PacketEvent event = new PacketEvent(current, PacketEvent.PacketState.SEND);
-                EventBus.call(event);
-                if (capturedThisCycle || event.isCancel()) {
-                    return false;
-                }
+            PacketEvent outbounds = new PacketEvent(packet, PacketEvent.PacketState.SEND);
+            EventBus.call(outbounds);
 
-                Packet<?> next = event.getPacket();
-                if (next == current) {
-                    break;
-                }
-                current = next;
-            }
+            if (capturedThisCycle) return false;
+            if (outbounds.isCancel()) return false;
 
-            if (current != original) {
-                if (shouldFreeze(PacketDirection.OUTBOUND, current)) {
-                    if (!outbound.enqueue(current, internalTimer)) {
-                        System.err.println("Packet queue is full, this shouldn't happen!");
-                        dispatch(PacketDirection.OUTBOUND);
-                        send(current);
-                        return false;
-                    }
-                    return false;
-                }
-                send(current);
-                return false;
-            }
-
-            if (shouldFreeze(PacketDirection.OUTBOUND, original)) {
-                if (!outbound.enqueue(original, internalTimer)) {
+            if (outboundFrozen && !PacketUtils.isEssential(packet)) {
+                if (!outbound.enqueue(packet, internalTimer)) {
                     System.err.println("Packet queue is full, this shouldn't happen!");
                     dispatch(PacketDirection.OUTBOUND);
                     return true;
                 }
                 return false;
             }
+
             return true;
         }catch (Exception exception) {
             System.err.println("[CentralPacketPipeline] outboundsHook exception on: " + packet.getClass().getSimpleName());

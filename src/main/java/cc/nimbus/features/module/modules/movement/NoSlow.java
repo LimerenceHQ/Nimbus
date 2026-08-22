@@ -141,10 +141,7 @@ public class NoSlow extends BasicModule {
                 if (useTicks == -1) {
                     useTicks = 0;
                 }
-                Core.INSTANCE.getPacketManager().freeze(PacketDirection.INBOUND,
-                        ClientboundSetEntityMotionPacket.class,
-                        ClientboundPingPacket.class
-                );
+                Core.INSTANCE.getPacketManager().freeze(PacketDirection.INBOUND);
             }
         }
     }
