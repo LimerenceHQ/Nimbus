@@ -87,7 +87,6 @@ public final class InventoryManager extends BasicModule {
     public final BooleanSetting randomSlot = new BooleanSetting("Random Slot", false);
     public final BooleanSetting openInventory = new BooleanSetting("Open Inventory", false);
     public final BooleanSetting spectatorCheck = new BooleanSetting("Spectator Check", false);
-    public final BooleanSetting disableOnWorldChange = new BooleanSetting("Disable On World Change", true);
 
     private final Minecraft minecraft = Minecraft.getInstance();
     private final List<Integer> slots = new ArrayList<>();
@@ -122,7 +121,6 @@ public final class InventoryManager extends BasicModule {
     private void onWorldLoad(EventWorldLoad event) {
         closeSpoofedInventory();
         resetState();
-        if (disableOnWorldChange.getValue() && isEnabled()) setEnabled(false);
     }
 
     @EventTarget

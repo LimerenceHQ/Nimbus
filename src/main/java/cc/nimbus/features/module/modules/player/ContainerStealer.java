@@ -38,7 +38,6 @@ public final class ContainerStealer extends BasicModule {
     public final BooleanSetting noGui = new BooleanSetting("No Gui Container", false);
     public final BooleanSetting randomSlot = new BooleanSetting("Random Slot", false);
     public final BooleanSetting filterTrash = new BooleanSetting("Filter Trash", false);
-    public final BooleanSetting disableOnWorldChange = new BooleanSetting("Disable On World Change", true);
 
     private final Minecraft minecraft = Minecraft.getInstance();
     private long openedAt;
@@ -51,10 +50,7 @@ public final class ContainerStealer extends BasicModule {
     @Override protected void onEnable() { reset(); }
     @Override protected void onDisable() { reset(); }
     @EventTarget
-    private void onWorldLoad(EventWorldLoad event) {
-        reset();
-        if (disableOnWorldChange.getValue() && isEnabled()) setEnabled(false);
-    }
+    private void onWorldLoad(EventWorldLoad event) { reset(); }
 
     @EventTarget private void onScreen(EventScreenChange event) {
         if (event.getScreen() != null && noGui.getValue() && supportedScreen(event.getScreen())) event.cancelEvent();

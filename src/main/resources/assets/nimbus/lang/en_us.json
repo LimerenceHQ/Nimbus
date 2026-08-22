@@ -445,6 +445,11 @@
   "nimbus.module.target.setting.villager": "Villagers",
   "nimbus.module.target.setting.invisible": "Invisible Entities",
 
+  "nimbus.module.auto_close.name": "Auto Close",
+  "nimbus.module.auto_close.description": "Closes selected modules after a world change or match result message.",
+  "nimbus.module.auto_close.setting.world_change": "Close On World Change",
+  "nimbus.module.auto_close.setting.win_or_spectator_message": "Close On Win Or Spectator Message",
+
   "nimbus.module.teams.name": "Teams",
   "nimbus.module.teams.description": "Prevents combat modules from selecting teammates.",
   "nimbus.module.teams.setting.mode": "Mode",
@@ -605,7 +610,6 @@
   "nimbus.module.container_stealer.setting.no_gui_container": "Hide Container GUI",
   "nimbus.module.container_stealer.setting.random_slot": "Random Slot",
   "nimbus.module.container_stealer.setting.filter_trash": "Filter Trash",
-  "nimbus.module.container_stealer.setting.disable_on_world_change": "Disable On World Change",
 
   "nimbus.module.inventory_manager.name": "Inventory Manager",
   "nimbus.module.inventory_manager.description": "Sorts, equips and cleans the player inventory.",
@@ -638,7 +642,6 @@
   "nimbus.module.inventory_manager.setting.random_slot": "Random Slot",
   "nimbus.module.inventory_manager.setting.open_inventory": "Require Inventory Screen",
   "nimbus.module.inventory_manager.setting.spectator_check": "Spectator Check",
-  "nimbus.module.inventory_manager.setting.disable_on_world_change": "Disable On World Change",
   "nimbus.module.inventory_manager.setting.sort_type.option.none": "None",
   "nimbus.module.inventory_manager.setting.sort_type.option.sword": "Sword",
   "nimbus.module.inventory_manager.setting.sort_type.option.bow": "Bow",

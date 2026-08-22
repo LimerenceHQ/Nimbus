@@ -445,6 +445,11 @@
   "nimbus.module.target.setting.villager": "村民",
   "nimbus.module.target.setting.invisible": "隐身实体",
 
+  "nimbus.module.auto_close.name": "自动关闭",
+  "nimbus.module.auto_close.description": "在切换世界或收到胜利、旁观者提示时关闭指定功能。",
+  "nimbus.module.auto_close.setting.world_change": "切换世界时关闭",
+  "nimbus.module.auto_close.setting.win_or_spectator_message": "胜利或旁观者消息时关闭",
+
   "nimbus.module.teams.name": "队伍识别",
   "nimbus.module.teams.description": "防止战斗功能选择队友作为目标。",
   "nimbus.module.teams.setting.mode": "识别方式",
@@ -605,7 +610,6 @@
   "nimbus.module.container_stealer.setting.no_gui_container": "隐藏容器界面",
   "nimbus.module.container_stealer.setting.random_slot": "随机槽位",
   "nimbus.module.container_stealer.setting.filter_trash": "过滤垃圾",
-  "nimbus.module.container_stealer.setting.disable_on_world_change": "切换世界时关闭",
 
   "nimbus.module.inventory_manager.name": "背包管理",
   "nimbus.module.inventory_manager.description": "自动整理、穿戴和清理背包。",
@@ -638,7 +642,6 @@
   "nimbus.module.inventory_manager.setting.random_slot": "随机槽位",
   "nimbus.module.inventory_manager.setting.open_inventory": "需要打开背包",
   "nimbus.module.inventory_manager.setting.spectator_check": "旁观者检查",
-  "nimbus.module.inventory_manager.setting.disable_on_world_change": "切换世界时关闭",
   "nimbus.module.inventory_manager.setting.sort_type.option.none": "无",
   "nimbus.module.inventory_manager.setting.sort_type.option.sword": "剑",
   "nimbus.module.inventory_manager.setting.sort_type.option.bow": "弓",

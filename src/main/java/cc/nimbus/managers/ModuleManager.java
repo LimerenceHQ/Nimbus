@@ -65,6 +65,7 @@ public final class ModuleManager implements InstanceManager {
                     new AntiWeb(),
                     new NoFall(),
                     new NoSlow(),
+                    new AutoClose(),
                     new Target(),
                     new Teams(),
                     new Timer(),
