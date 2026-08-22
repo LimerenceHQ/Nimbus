@@ -55,10 +55,15 @@ public abstract class ItemInHandRendererMixin {
         if (module == null && auraBlocking && Core.INSTANCE.isInitialized()) {
             module = Core.INSTANCE.getModuleManager().getModule(OldHitting.class);
         }
+        boolean usingMainHand = player.isUsingItem() && player.getUsedItemHand() == InteractionHand.MAIN_HAND;
+        if (!usingMainHand && hand == InteractionHand.MAIN_HAND
+                && Minecraft.getInstance().options.keyUse.isDown()) {
+            usingMainHand = true;
+        }
         if (module == null || hand != InteractionHand.MAIN_HAND || stack.isEmpty()
                 || !stack.is(ItemTags.SWORDS) || player.isScoping()
                 || (!auraBlocking && module.shouldIgnoreUse(player))
-                || (!Minecraft.getInstance().options.keyUse.isDown() && !auraBlocking)) return;
+                || (!auraBlocking && !usingMainHand && swingProgress <= 0.001f)) return;
 
         HumanoidArm arm = player.getMainArm();
         int side = arm == HumanoidArm.RIGHT ? 1 : -1;
@@ -104,6 +109,8 @@ public abstract class ItemInHandRendererMixin {
 
         float scale = module.scale.getValue().floatValue();
         poseStack.pushPose();
+        poseStack.translate(module.x.getValue().floatValue(),
+                module.y.getValue().floatValue(), module.z.getValue().floatValue());
         poseStack.scale(scale, scale, scale);
         renderItem(entity, stack, displayContext, leftHand, poseStack, buffer, packedLight);
         poseStack.popPose();
