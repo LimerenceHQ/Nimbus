@@ -63,10 +63,6 @@ public final class AccountScreen extends Screen {
         if (minecraft.level == null) renderPanorama(graphics, partialTick);
         else renderBlurredBackground();
         graphics.fill(0, 0, graphics.guiWidth(), graphics.guiHeight(), 0xCC0B1015);
-    }
-
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         int panelLeft = width / 2 - 160;
         int panelRight = width / 2 + 160;
         int listTop = 86;
@@ -91,6 +87,10 @@ public final class AccountScreen extends Screen {
             }
             y += 32;
         }
+    }
+
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 

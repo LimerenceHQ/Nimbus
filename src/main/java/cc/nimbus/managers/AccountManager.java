@@ -32,6 +32,8 @@ public final class AccountManager implements InstanceManager {
     private final Path directory;
     private final Path accountsFile;
     private final Path lastAccountFile;
+    private final Path legacyAccountsFile;
+    private final Path legacyLastAccountFile;
     private final List<Alt> accounts = new ArrayList<>();
     private Alt lastAccount;
     private MicrosoftAuth microsoftAuth;
@@ -40,6 +42,13 @@ public final class AccountManager implements InstanceManager {
         this.directory = Objects.requireNonNull(directory, "directory");
         accountsFile = directory.resolve("accounts.json");
         lastAccountFile = directory.resolve("last.json");
+        Path nimbusDirectory = directory.getParent();
+        legacyAccountsFile = nimbusDirectory == null
+                ? directory.resolve("alts.json")
+                : nimbusDirectory.resolve("configs").resolve("alts.json");
+        legacyLastAccountFile = nimbusDirectory == null
+                ? directory.resolve("lastalt.json")
+                : nimbusDirectory.resolve("configs").resolve("lastalt.json");
     }
 
     @Override
@@ -119,8 +128,8 @@ public final class AccountManager implements InstanceManager {
         Objects.requireNonNull(callback, "callback");
         Consumer<String> statusCallback = status == null ? ignored -> {} : status;
 
-        if (account instanceof OfflineAlt) {
-            completeLogin(
+        switch (account) {
+            case OfflineAlt offlineAlt -> completeLogin(
                     account,
                     account,
                     offlineUuid(account.getUserName()),
@@ -128,18 +137,15 @@ public final class AccountManager implements InstanceManager {
                     callback,
                     statusCallback
             );
-        } else if (account instanceof OriginalAlt original) {
-            new Thread(
+            case OriginalAlt original -> new Thread(
                     () -> loginOriginal(original, callback, statusCallback),
                     "nimbus-token-login"
             ).start();
-        } else if (account instanceof MicrosoftAlt microsoft) {
-            new Thread(
+            case MicrosoftAlt microsoft -> new Thread(
                     () -> loginMicrosoft(account, microsoft, callback, statusCallback),
                     "nimbus-alt-login"
             ).start();
-        } else {
-            statusCallback.accept("Login failed: unsupported account type");
+            default -> statusCallback.accept("Login failed: unsupported account type");
         }
     }
 
@@ -300,15 +306,20 @@ public final class AccountManager implements InstanceManager {
     }
 
     private void load() throws IOException {
-        if (!Files.isRegularFile(accountsFile)) return;
+        Path sourceAccounts = Files.isRegularFile(accountsFile) ? accountsFile : legacyAccountsFile;
+        Path sourceLast = Files.isRegularFile(lastAccountFile) ? lastAccountFile : legacyLastAccountFile;
+        if (!Files.isRegularFile(sourceAccounts)) return;
 
-        JsonElement root = JsonParser.parseString(Files.readString(accountsFile, StandardCharsets.UTF_8));
+        JsonElement root = JsonParser.parseString(Files.readString(sourceAccounts, StandardCharsets.UTF_8));
         if (!root.isJsonArray()) throw new IllegalStateException("Account file must contain a JSON array");
         for (JsonElement element : root.getAsJsonArray()) loadAccount(element);
 
-        if (!Files.isRegularFile(lastAccountFile)) return;
+        if (!Files.isRegularFile(sourceLast)) {
+            if (sourceAccounts.equals(legacyAccountsFile)) save();
+            return;
+        }
         JsonObject json = JsonParser.parseString(
-                Files.readString(lastAccountFile, StandardCharsets.UTF_8)
+                Files.readString(sourceLast, StandardCharsets.UTF_8)
         ).getAsJsonObject();
         String name = stringValue(json, "UserName");
         String type = stringValue(json, "AltType");
@@ -317,6 +328,7 @@ public final class AccountManager implements InstanceManager {
                 .filter(account -> account.getAccountType().getWriteName().equals(type))
                 .findFirst()
                 .orElse(null);
+        if (sourceAccounts.equals(legacyAccountsFile)) save();
     }
 
     private void loadAccount(JsonElement element) {
