@@ -22,7 +22,8 @@ public abstract class AvatarRendererMixin {
     private void nimbus$hideVanillaNametag(AbstractClientPlayer avatar, PlayerRenderState state,
                                            float partialTick, CallbackInfo ci) {
         if (!Core.INSTANCE.isInitialized()) return;
-        if (avatar == Minecraft.getInstance().player) {
+
+        if (avatar == Minecraft.getInstance().player && Minecraft.getInstance().screen == null) {
             Rotation rotation = Core.INSTANCE.getRotationManager().getAnimationRotation(partialTick);
             if (rotation != null) {
                 state.bodyRot = rotation.yaw();
