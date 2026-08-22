@@ -44,7 +44,8 @@ public class FallingPlayer {
         );
         float jumpFactor = player.level().getBlockState(player.blockPosition()).getBlock().getJumpFactor();
         float onPosJumpFactor = player.level().getBlockState(player.getOnPos()).getBlock().getJumpFactor();
-        this.jumpMovementFactor = 0.42F * ((double) jumpFactor == 1.0D ? onPosJumpFactor : jumpFactor) + player.getJumpBoostPower();
+        float jumpingVelocity = 0.42F * ((double) jumpFactor == 1.0D ? onPosJumpFactor : jumpFactor) + player.getJumpBoostPower();
+        this.jumpMovementFactor = jumpingVelocity;
     }
 
     void calculateForTick() {

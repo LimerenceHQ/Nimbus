@@ -6,7 +6,6 @@ import cc.nimbus.event.impl.player.EventSlowMovement;
 import cc.nimbus.event.impl.player.EventStrafe;
 import cc.nimbus.features.rotation.Rotation;
 import cc.nimbus.features.rotation.RotationMath;
-import cc.nimbus.utils.mixin.FallDistanceAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
@@ -21,7 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Entity.class)
-public abstract class EntityMixin implements FallDistanceAccess {
+public abstract class EntityMixin {
 
     @Shadow
     protected Vec3 stuckSpeedMultiplier;
@@ -59,24 +58,4 @@ public abstract class EntityMixin implements FallDistanceAccess {
             cir.setReturnValue(RotationMath.direction(new Rotation(event.getYaw(), event.getPitch())));
         }
     }
-
-    @Override
-    public void nimbus$updateFallDistance() {
-        Entity entity = (Entity) (Object) this;
-        if (!(entity instanceof LocalPlayer player)) return;
-
-        if (player.onGround() || player.isPassenger()) {
-            player.fallDistance = 0.0F;
-            return;
-        }
-
-        // Entity.move normally performs this subtraction. A cancelled travel
-        // never reaches Entity.move, so preserve only the vanilla falling
-        // accumulation; no landing/block damage logic runs without movement.
-        double movementY = player.getDeltaMovement().y;
-        if (movementY < 0.0D) {
-            player.fallDistance -= (float) movementY;
-        }
-    }
-
 }

@@ -217,7 +217,7 @@ public class Scaffold extends BasicModule {
         if (mode.is("Telly") && !rotationMode.is("Hypixel")) {
             if (placeDelayMode.is("Check Height")) {
                 double threshold = 1.0D + (mc.options.keyJump.isDown() && !keepY.getValue() ? upTellyHeight.getValue().doubleValue() : height.getValue().doubleValue());
-                if (fallDist() == 0.0F && mc.player.getY() < yLevel + threshold && mc.player.hurtTime == 0) {
+                if (GameStateManager.fallDist() == 0.0F && mc.player.getY() < yLevel + threshold && mc.player.hurtTime == 0) {
                     return;
                 }
             } else if (placeDelayMode.is("Check Tick")) {
@@ -315,7 +315,7 @@ public class Scaffold extends BasicModule {
                     }
                 }
 
-                if (fallDist() <= 1.9F) {
+                if (GameStateManager.fallDist() <= 1.9F) {
                     reachable = true;
                 }
 
@@ -530,10 +530,6 @@ public class Scaffold extends BasicModule {
     private boolean isAirAbove(Player player, Level world) {
         BlockPos above = player.blockPosition().above();
         return world.getBlockState(above).isAir();
-    }
-
-    private float fallDist() {
-        return mc.player == null ? 0.0F : (float) mc.player.fallDistance;
     }
 
     private double getSpeed() {

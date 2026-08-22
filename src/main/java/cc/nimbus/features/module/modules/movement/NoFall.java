@@ -12,6 +12,7 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.rotation.*;
+import cc.nimbus.managers.GameStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -176,8 +177,8 @@ public final class NoFall extends BasicModule {
         }
 
         boolean enoughFallDistance = distanceMode.is("Safe Distance")
-                ? minecraft.player.fallDistance > minecraft.player.getMaxFallDistance()
-                : minecraft.player.fallDistance > fallDistance.getValue().doubleValue();
+                ? GameStateManager.fallDist()  > minecraft.player.getMaxFallDistance()
+                : GameStateManager.fallDist()  > fallDistance.getValue().doubleValue();
         return enoughFallDistance
                 && !minecraft.player.isInWater()
                 && !minecraft.player.onGround()
