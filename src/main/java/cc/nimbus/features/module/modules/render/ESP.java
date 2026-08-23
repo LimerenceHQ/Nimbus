@@ -130,7 +130,7 @@ public final class ESP extends BasicModule {
         }
         if (!segments.isEmpty()) {
             Render3DUtils.drawLineSegmentsWithDepth(
-                    event.getPoseStack(), segments, 1.8f, Render3DUtils.DepthMode.BOTH
+                    event.getPoseStack(), segments, 1.5f, Render3DUtils.DepthMode.NONE
             );
         }
     }
@@ -169,13 +169,13 @@ public final class ESP extends BasicModule {
         double y = Mth.lerp(partialTick, player.yOld, player.getY());
         double z = Mth.lerp(partialTick, player.zOld, player.getZ());
         float bodyYaw = Mth.rotLerp(partialTick, player.yBodyRotO, player.yBodyRot);
-        float headYaw = Mth.rotLerp(partialTick, player.yHeadRotO, player.yHeadRot);
+        float headYaw = player.yHeadRot;
         boolean crouching = player.isCrouching();
         float yOffset = crouching ? 0.6f : 0.75f;
 
         PoseStack stack = new PoseStack();
         stack.translate(x, y, z);
-        stack.mulPose(Axis.YP.rotationDegrees(180f - bodyYaw));
+        stack.mulPose(Axis.YP.rotationDegrees(-bodyYaw));
         stack.scale(player.getScale(), player.getScale(), player.getScale());
         if (crouching) stack.translate(0f, 0f, -0.235f);
 
@@ -192,10 +192,11 @@ public final class ESP extends BasicModule {
         appendRotatedBone(segments, stack, 0.375f, yOffset + 0.55f, 0f,
                 0f, -0.5f, 0f, pose.leftArm, color);
 
+        // Fuliki rotates the head from body space into head space before applying its pitch.
         stack.pushPose();
-        stack.mulPose(Axis.YP.rotationDegrees(headYaw - bodyYaw));
+        stack.mulPose(Axis.YP.rotationDegrees(bodyYaw - headYaw));
         stack.translate(0f, yOffset + 0.55f, 0f);
-        stack.mulPose(Axis.XP.rotation(pose.head.x));
+        if (pose.head.x != 0f) stack.mulPose(Axis.XP.rotation(pose.head.x));
         appendSegment(segments, stack, 0f, 0f, 0f, 0f, 0.3f, 0f, color);
         stack.popPose();
         stack.popPose();

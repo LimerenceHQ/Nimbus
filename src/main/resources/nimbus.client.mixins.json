@@ -28,7 +28,7 @@
     "render.ItemInHandRendererMixin",
     "render.LevelRendererMixin",
     "render.LightmapRenderStateMixin",
-    "render.PlayerModelMixin",
+    "render.LivingEntityRendererMixin",
     "render.PotionEffectGuiMixin",
     "render.TitleScreenMixin",
     "world.ClientLevelDataMixin",
