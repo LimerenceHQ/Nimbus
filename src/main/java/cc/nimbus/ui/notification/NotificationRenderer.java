@@ -180,8 +180,11 @@ public final class NotificationRenderer {
                 String time = Math.round(((entry.durationMs() - entry.elapsedMs()) / 1000D) * 10.0) / 10.0 + "s";
                 float titleY = headerCenterY
                         - frame.text().visualCenterY(CLIENT_TITLE_FONT, CLIENT_TITLE_SIZE, entry.title());
-                float timeY = headerCenterY
-                        - frame.text().visualCenterY(CLIENT_TIME_FONT, CLIENT_TIME_SIZE, time);
+                float titleBaselineOffset = frame.text().baselineFromTop(
+                        CLIENT_TITLE_FONT, CLIENT_TITLE_SIZE, entry.title(), 0f);
+                float timeBaselineOffset = frame.text().baselineFromTop(
+                        CLIENT_TIME_FONT, CLIENT_TIME_SIZE, time, 0f);
+                float timeY = titleY + titleBaselineOffset - timeBaselineOffset;
                 float messageY = bodyCenterY
                         - frame.text().visualCenterY(CLIENT_MESSAGE_FONT, CLIENT_MESSAGE_SIZE, entry.message());
                 frame.text().draw(CLIENT_TITLE_FONT, CLIENT_TITLE_SIZE, entry.title(),
@@ -211,8 +214,6 @@ public final class NotificationRenderer {
         for (GameEntry entry : entries) {
             float x = entry.logicalWidth() - entry.width() + entry.animationX();
             float y = entry.posY() - entry.height();
-            // animationX is the horizontal offset from the old implementation. The card itself
-            // keeps its measured width while it moves in from and out to the right edge.
             frame.draw().roundedRect(x, y, entry.width(), entry.height() + 2, 3, 0x5C000000);
             float progress = Math.min(1f, entry.elapsedMs() / (float) entry.durationMs());
             frame.draw().roundedRect(x, y + entry.height(), entry.width(), GAME_PROGRESS_HEIGHT,
