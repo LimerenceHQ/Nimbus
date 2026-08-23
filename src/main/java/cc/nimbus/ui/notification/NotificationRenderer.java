@@ -33,6 +33,7 @@ public final class NotificationRenderer {
     private static final float GAME_FONT_SIZE = 14f;
     private static final float CLIENT_PROGRESS_HEIGHT = 3f;
     private static final float GAME_PROGRESS_HEIGHT = 3f;
+    private static final float GAME_PROGRESS_OVERLAP = 1f;
     private static final float DEFAULT_RENDER_SCALE = 1.5f;
 
     private final NotificationManager manager;
@@ -118,7 +119,9 @@ public final class NotificationRenderer {
             float x = entry.logicalWidth() - entry.width() + entry.animationX();
             float y = entry.posY() - entry.height();
             skija.postProcess().add(RRect.makeXYWH(
-                    x * scale, y * scale, entry.width() * scale, (entry.height() + 2f) * scale, 3f * scale));
+                    x * scale, y * scale, entry.width() * scale,
+                    (entry.height() + GAME_PROGRESS_HEIGHT - GAME_PROGRESS_OVERLAP) * scale,
+                    3f * scale));
         }
     }
 
@@ -218,11 +221,12 @@ public final class NotificationRenderer {
             float y = entry.posY() - entry.height();
             float progressX = x + 1f;
             float progressWidth = Math.max(0f, entry.width() - 2f);
-            frame.draw().roundedRect(x, y, entry.width(), entry.height() + 2, 3, 0x5C000000);
+            frame.draw().roundedRect(x, y, entry.width(), entry.height(), 3, 0x5C000000);
             float progress = Math.min(1f, entry.elapsedMs() / (float) entry.durationMs());
-            frame.draw().roundedRect(progressX, y + entry.height(), progressWidth, GAME_PROGRESS_HEIGHT,
+            float progressY = y + entry.height() - GAME_PROGRESS_OVERLAP;
+            frame.draw().roundedRect(progressX, progressY, progressWidth, GAME_PROGRESS_HEIGHT,
                     2, 0x2FFFFFFF);
-            frame.draw().roundedRect(progressX, y + entry.height(),
+            frame.draw().roundedRect(progressX, progressY,
                     entry.finished() ? 0f : progress * progressWidth, GAME_PROGRESS_HEIGHT, 2, 0xBFFFFFFF);
             drawGameText(frame, entry, x, y);
         }
@@ -242,7 +246,7 @@ public final class NotificationRenderer {
 
         float messageWidth = frame.text().width(GAME_FONT, GAME_FONT_SIZE, message);
         float textX = x + (entry.width() - messageWidth) * .5f;
-        float textY = y + (entry.height() + GAME_PROGRESS_HEIGHT) * .5f
+        float textY = y + entry.height() * .5f
                 - frame.text().visualCenterY(GAME_FONT, GAME_FONT_SIZE, message);
         if (status == null) {
             frame.text().draw(GAME_FONT, GAME_FONT_SIZE, message, textX, textY, 0xFFFFFFFF);
@@ -343,7 +347,7 @@ public final class NotificationRenderer {
         private final NotificationManager.Notification notification;
         private float posY = -1f;
         private float width;
-        private float height = 30f;
+        private float height = 28f;
         private float animationX;
         private boolean measured;
 
@@ -355,7 +359,7 @@ public final class NotificationRenderer {
 
         private void measure(SkijaRenderer skija) {
             width = skija.text().width(GAME_FONT, GAME_FONT_SIZE, notification.message()) + 24f;
-            height = 30f;
+            height = 28f;
             if (!measured) {
                 animationX = width;
                 measured = true;
