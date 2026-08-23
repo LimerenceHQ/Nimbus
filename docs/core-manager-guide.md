@@ -14,6 +14,7 @@ Nimbus.onInitializeClient()
    ├─ RenderManager
    ├─ RotationManager
    ├─ ModuleManager
+   ├─ NotificationManager
    ├─ TargetManager
    ├─ HudManager
    ├─ ConfigManager
@@ -83,13 +84,14 @@ default Core core() {
 1. RenderManager
 2. RotationManager
 3. ModuleManager
-4. TargetManager
-5. HudManager
-6. ConfigManager
-7. I18nManager
-8. AccountManager
-9. MusicManager
-10. CommandManager
+4. NotificationManager
+5. TargetManager
+6. HudManager
+7. ConfigManager
+8. I18nManager
+9. AccountManager
+10. MusicManager
+11. CommandManager
 ```
 
 shutdown 使用相反顺序：
@@ -102,9 +104,10 @@ shutdown 使用相反顺序：
 5. ConfigManager
 6. HudManager
 7. TargetManager
-8. ModuleManager
-9. RotationManager
-10. RenderManager
+8. NotificationManager
+9. ModuleManager
+10. RotationManager
+11. RenderManager
 ```
 
 Core 先用局部变量创建全部 Manager，全部成功后才提交到字段：
@@ -235,6 +238,7 @@ public ExampleManager getExampleManager() {
 | `RenderManager` | 持有 `SkijaRenderer`，初始化和关闭渲染子系统 | 无 |
 | `RotationManager` | Rotation 请求裁决、平滑恢复、服务端角度、MovementFix、RayCast/模型使用的活动角度 | Minecraft client、EventBus |
 | `ModuleManager` | Module 注册、索引、按键映射和自动启用 | EventBus |
+| `NotificationManager` | Client/Game 通知队列、生命周期与公共 post API；渲染由 `ui.notification` 表现层负责 | NotificationRenderer、EventBus |
 | `TargetManager` | 每 Tick 构建不可变候选快照和范围缓存，集中应用 Target、Teams、AntiBot 过滤 | ModuleManager、Minecraft client、EventBus |
 | `HudManager` | HUD 元素注册、编辑状态和拖拽布局 | ModuleManager、RenderManager |
 | `ConfigManager` | 命名 Module 配置、全局 Client Settings、自动保存和配置文件切换 | ModuleManager、EventBus |

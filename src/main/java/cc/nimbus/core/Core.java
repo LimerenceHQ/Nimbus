@@ -26,6 +26,7 @@ public enum Core {
     private RotationManager rotationManager;
     private TargetManager targetManager;
     private GameStateManager gameStateManager;
+    private NotificationManager notificationManager;
     private boolean initialized;
 
     public synchronized void init(Path fabricConfigDirectory) {
@@ -44,7 +45,8 @@ public enum Core {
         AccountManager accounts = new AccountManager(nimbusDirectory.resolve("accounts"));
         MusicManager music = new MusicManager(nimbusDirectory.resolve("music"));
         CommandManager commands = new CommandManager();
-        List<InstanceManager> started = new ArrayList<>(12);
+        NotificationManager notifications = new NotificationManager(modules, renders, hud);
+        List<InstanceManager> started = new ArrayList<>(13);
 
         EventBus.clear();
         try {
@@ -52,6 +54,7 @@ public enum Core {
             start(rotations, started);
             start(packets, started);
             start(modules, started);
+            start(notifications, started);
             start(targets, started);
             start(hud, started);
             start(configs, started);
@@ -73,6 +76,7 @@ public enum Core {
         renderManager = renders;
         hudManager = hud;
         gameStateManager = state;
+        notificationManager = notifications;
         configManager = configs;
         i18nManager = i18n;
         accountManager = accounts;
@@ -91,6 +95,7 @@ public enum Core {
                 rotationManager,
                 packetManager,
                 moduleManager,
+                notificationManager,
                 targetManager,
                 hudManager,
                 configManager,
@@ -112,6 +117,7 @@ public enum Core {
             hudManager = null;
             configManager = null;
             gameStateManager = null;
+            notificationManager = null;
             i18nManager = null;
             accountManager = null;
             musicManager = null;
@@ -186,6 +192,10 @@ public enum Core {
 
     public I18nManager getI18nManager() {
         return requireInitialized(i18nManager, "I18nManager");
+    }
+
+    public NotificationManager getNotificationManager() {
+        return requireInitialized(notificationManager, "NotificationManager");
     }
 
     public boolean isInitialized() {

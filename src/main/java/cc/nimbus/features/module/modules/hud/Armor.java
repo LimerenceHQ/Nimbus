@@ -20,12 +20,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 @ModuleInfo(
-        name = "ArmorHUD",
-        displayName = "Armor HUD",
+        name = "Armor",
+        displayName = "Armor",
         description = "Shows the armor worn by the local player.",
         category = ModuleCategory.HUD
 )
-public final class ArmorHUD extends BasicModule {
+public final class Armor extends BasicModule {
     private static final EquipmentSlot[] ARMOR_SLOTS = {
             EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
@@ -34,7 +34,7 @@ public final class ArmorHUD extends BasicModule {
 
     private volatile HudSize layoutSize = new HudSize(2f, 2f);
 
-    private final Draggable drag = new Draggable("ArmorHUD", 0.5, 0.86) {
+    private final Draggable drag = new Draggable("Armor", 0.5, 0.86) {
         @Override
         public HudSize getSize() {
             return layoutSize;
