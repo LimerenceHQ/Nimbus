@@ -32,8 +32,7 @@ public final class NotificationRenderer {
     private static final float CLIENT_MESSAGE_SIZE = 11f;
     private static final float GAME_FONT_SIZE = 14f;
     private static final float CLIENT_PROGRESS_HEIGHT = 3f;
-    private static final float GAME_PROGRESS_HEIGHT = 3f;
-    private static final float GAME_PROGRESS_OVERLAP = 1f;
+    private static final float GAME_PROGRESS_HEIGHT = 2f;
     private static final float DEFAULT_RENDER_SCALE = 1.5f;
 
     private final NotificationManager manager;
@@ -120,7 +119,7 @@ public final class NotificationRenderer {
             float y = entry.posY() - entry.height();
             skija.postProcess().add(RRect.makeXYWH(
                     x * scale, y * scale, entry.width() * scale,
-                    (entry.height() + GAME_PROGRESS_HEIGHT - GAME_PROGRESS_OVERLAP) * scale,
+                    entry.height() * scale,
                     3f * scale));
         }
     }
@@ -219,15 +218,16 @@ public final class NotificationRenderer {
         for (GameEntry entry : entries) {
             float x = entry.logicalWidth() - entry.width() + entry.animationX();
             float y = entry.posY() - entry.height();
-            float progressX = x + 1f;
-            float progressWidth = Math.max(0f, entry.width() - 2f);
+            float progressX = x;
+            float progressWidth = entry.width();
             frame.draw().roundedRect(x, y, entry.width(), entry.height(), 3, 0x5C000000);
             float progress = Math.min(1f, entry.elapsedMs() / (float) entry.durationMs());
-            float progressY = y + entry.height() - GAME_PROGRESS_OVERLAP;
+            float progressY = y + entry.height() - GAME_PROGRESS_HEIGHT;
             frame.draw().roundedRect(progressX, progressY, progressWidth, GAME_PROGRESS_HEIGHT,
-                    2, 0x2FFFFFFF);
+                    1f, 0x26FFFFFF);
             frame.draw().roundedRect(progressX, progressY,
-                    entry.finished() ? 0f : progress * progressWidth, GAME_PROGRESS_HEIGHT, 2, 0xBFFFFFFF);
+                    entry.finished() ? 0f : progress * progressWidth, GAME_PROGRESS_HEIGHT,
+                    1f, 0x9FFFFFFF);
             drawGameText(frame, entry, x, y);
         }
     }
