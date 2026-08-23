@@ -334,6 +334,18 @@ skija.layer("module-name");
 
 独立全屏 Layer 会额外分配 framebuffer，并破坏统一 HUD 合成顺序。HUD 模块只提交绘制内容。
 
+Notification 的队列由 `NotificationManager` 持有，
+`cc.nimbus.ui.notification.NotificationRenderer` 负责把冻结的通知动画快照提交到共享
+`"hud"` Layer。Client 和 Game 的动画状态属于表现层，不得放入 Manager 或 HUD Module；
+表现层只能通过 `RenderManager.skija()` 取得共享渲染入口，不能创建独立 Layer，也不能保存
+`SkijaFrame`、Canvas 或帧效果对象。
+
+通知的布局必须通过 `HudManager.viewport(skija.width(), skija.height())` 获取逻辑视口，
+并使用 `HudViewport.scale()` 统一映射到 framebuffer；不得重新使用 GUI Scale 比例，
+否则通知会与其他 HUD 的自适应尺寸和用户 `HUD Scale` 脱节。通知卡片的圆角区域可以通过
+`skija.postProcess().add(...)` 提交到共享后处理管线，让客户端当前的 Gaussian/Kawase
+设置作用于卡片背后的场景；Renderer 仍不得保存任何帧内效果对象。
+
 `skija.hud().render()` 由渲染基础设施调用，普通功能不要主动调用。HUD callback 会直接绘制到共享 HUD Layer，
 由 Layer 在最外层统一提交；不要在 Backend 中增加第二张全屏 Surface 或 snapshot 中转。
 

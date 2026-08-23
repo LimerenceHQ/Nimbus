@@ -6,14 +6,7 @@ import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.game.EventChatSend;
 import cc.nimbus.features.command.api.BasicCommand;
 import cc.nimbus.features.command.api.CommandLine;
-import cc.nimbus.features.command.commands.BindCommand;
-import cc.nimbus.features.command.commands.ConfigCommand;
-import cc.nimbus.features.command.commands.HelpCommand;
-import cc.nimbus.features.command.commands.HideCommand;
-import cc.nimbus.features.command.commands.ModulesCommand;
-import cc.nimbus.features.command.commands.MusicCommand;
-import cc.nimbus.features.command.commands.ProfileCommand;
-import cc.nimbus.features.command.commands.ToggleCommand;
+import cc.nimbus.features.command.commands.*;
 import cc.nimbus.utils.client.MessageUtils;
 
 import java.util.ArrayList;

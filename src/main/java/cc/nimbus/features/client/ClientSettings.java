@@ -1,5 +1,6 @@
 package cc.nimbus.features.client;
 
+import cc.nimbus.core.Core;
 import cc.nimbus.features.module.api.setting.Setting;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
@@ -8,6 +9,7 @@ import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.TextSetting;
 import cc.nimbus.utils.render.skija.api.PostProcessOptions;
 import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.platform.IconSet;
 
 import java.awt.Color;
 import java.util.List;
@@ -42,6 +44,9 @@ public final class ClientSettings {
     );
     public final ModeValue colorMode = new ModeValue(
             "Color Mode", new String[]{"Static", "Fade", "Dynamic", "Astolfo", "Rainbow"}, "Static"
+    );
+    public final BooleanSetting arentIOnePointEight = new BooleanSetting(
+            "Minecraft 1.8.9", false
     );
     public final ColorSetting accent = new ColorSetting(
             "Accent", 0xFFFFFFFF, () -> customPreset() && colorMode.is("Static", "Fade", "Dynamic"), false
@@ -129,7 +134,7 @@ public final class ClientSettings {
     );
 
     private final List<Setting<?>> settings = List.of(
-            clientName, language, style, themePreset, colorMode, accent, secondaryAccent,
+            clientName, language, style, themePreset, colorMode, arentIOnePointEight, accent, secondaryAccent,
             rainbowSaturation, rainbowBrightness, astolfoIndex, astolfoOffset, hudScale,
             hudRefresh, hudRefreshLimit,
             postProcessing, splitRegions, texture, textureOpacity,
@@ -147,7 +152,22 @@ public final class ClientSettings {
     }
 
     public void bindChangeListener(Runnable listener) {
-        settings.forEach(setting -> setting.setChangeListener(listener));
+        Runnable callback = listener == null ? () -> {} : listener;
+        settings.forEach(setting -> setting.setChangeListener(() -> {
+            callback.run();
+            if (setting == arentIOnePointEight && Core.INSTANCE.isInitialized()) refreshWindowIdentity();
+        }));
+    }
+
+    public void refreshWindowIdentity() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.getWindow() == null) return;
+        minecraft.updateTitle();
+        try {
+            minecraft.getWindow().setIcon(minecraft.getVanillaPackResources(), IconSet.RELEASE);
+        } catch (java.io.IOException error) {
+            System.err.println("[Nimbus] Failed to refresh window icon: " + error.getMessage());
+        }
     }
 
     public boolean customStyle() {

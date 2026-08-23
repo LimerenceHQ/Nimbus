@@ -10,6 +10,7 @@ import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.modules.combat.*;
 import cc.nimbus.features.module.modules.exploit.*;
 import cc.nimbus.features.module.modules.hud.*;
+import cc.nimbus.features.module.modules.hud.Target;
 import cc.nimbus.features.module.modules.movement.*;
 import cc.nimbus.features.module.modules.player.*;
 import cc.nimbus.features.module.modules.render.*;
@@ -52,12 +53,13 @@ public final class ModuleManager implements InstanceManager {
                     new Disabler(),
                     new ClickGui(),
                     new ActiveList(),
+                    new Notification(),
                     new MusicLyrics(),
                     new MusicSpectrum(),
                     new MusicToast(),
-                    new ArmorHUD(),
-                    new TargetHUD(),
-                    new PotionHUD(),
+                    new Armor(),
+                    new Target(),
+                    new Potion(),
                     new WaterMark(),
                     new Sprint(),
                     new Scaffold(),
@@ -66,7 +68,7 @@ public final class ModuleManager implements InstanceManager {
                     new NoFall(),
                     new NoSlow(),
                     new AutoClose(),
-                    new Target(),
+                    new cc.nimbus.features.module.modules.player.Target(),
                     new Teams(),
                     new Timer(),
                     new AntiBot(),
@@ -80,6 +82,7 @@ public final class ModuleManager implements InstanceManager {
                     new FastPlace(),
                     new ESP(),
                     new PointerESP(),
+                    new ChestESP(),
                     new Nametag(),
                     new FullBright(),
                     new NoFov(),

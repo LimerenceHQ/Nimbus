@@ -6,6 +6,8 @@ import cc.nimbus.features.module.api.setting.Setting;
 import cc.nimbus.features.module.api.setting.impl.submodule.Mode;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.submodule.ComponentValue;
+import cc.nimbus.core.Core;
+import cc.nimbus.ui.notification.NotificationType;
 import cc.nimbus.utils.client.IMinecraft;
 import cc.nimbus.utils.i18n.I18nKeys;
 
@@ -82,7 +84,10 @@ public abstract class BasicModule extends ToggleElement implements IMinecraft {
                     .forEach(ComponentValue::onModuleEnabled);
             modesStarted = true;
             onEnable();
-            if (enabled) changed();
+            if (enabled) {
+                changed();
+                postToggleNotification(true);
+            }
         } catch (Throwable failure) {
             boolean needsHookCleanup = hookStarted && enabled;
             enabled = false;
@@ -99,6 +104,7 @@ public abstract class BasicModule extends ToggleElement implements IMinecraft {
         failure = cleanup(failure, this::disableModes);
         failure = cleanup(failure, () -> EventBus.unregister(this));
         failure = cleanup(failure, this::onDisable);
+        failure = cleanup(failure, () -> postToggleNotification(false));
         failure = cleanup(failure, this::changed);
         if (failure != null) rethrow(failure);
     }
@@ -130,6 +136,14 @@ public abstract class BasicModule extends ToggleElement implements IMinecraft {
         if (failure instanceof RuntimeException runtime) throw runtime;
         if (failure instanceof Error error) throw error;
         throw new IllegalStateException(failure);
+    }
+
+    private void postToggleNotification(boolean enabled) {
+        if (!Core.INSTANCE.isInitialized() || mc.level == null || mc.player == null || getName().equalsIgnoreCase("Notification")) return;
+        Core.INSTANCE.getNotificationManager().postGame(
+                getDisplayName() + (enabled ? " enabled" : " disabled"),
+                2000L,
+                enabled ? NotificationType.SUCCESS : NotificationType.ERROR);
     }
 
     @Override

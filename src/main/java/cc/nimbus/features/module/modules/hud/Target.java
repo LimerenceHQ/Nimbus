@@ -30,11 +30,11 @@ import net.minecraft.world.entity.LivingEntity;
 
 @ModuleInfo(
         name = "TargetHUD",
-        displayName = "Target HUD",
+        displayName = "Target",
         description = "Shows the current combat target's face, name and health.",
         category = ModuleCategory.HUD
 )
-public final class TargetHUD extends BasicModule {
+public final class Target extends BasicModule {
     private static final String FONT = NimbusFonts.BODY_STRONG;
     private static final float WIDTH = 236f;
     private static final float HEIGHT = 56f;
@@ -48,7 +48,7 @@ public final class TargetHUD extends BasicModule {
     private static final int BACKGROUND = 0x5C171A1E;
     private static final long TARGET_HOLD_MILLIS = 700L;
 
-    private final Draggable drag = new Draggable("TargetHUD", 0.5, 0.32) {
+    private final Draggable drag = new Draggable("Target", 0.5, 0.32) {
         @Override
         public HudSize getSize() {
             return new HudSize(WIDTH, HEIGHT);
