@@ -249,6 +249,8 @@
   "nimbus.module.watermark.setting.accent": "强调色",
   "nimbus.module.notification.name": "通知",
   "nimbus.module.notification.description": "在 HUD 中显示临时通知。",
+  "nimbus.module.notification.setting.client": "客户端通知",
+  "nimbus.module.notification.setting.game": "游戏通知",
   "nimbus.module.music_toast.name": "音乐提示",
   "nimbus.module.music_toast.description": "Nimbus Music 切换歌曲时显示 Minecraft 原生提示。",
   "nimbus.module.armor.name": "装备显示",

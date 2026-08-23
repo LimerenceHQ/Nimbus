@@ -249,6 +249,8 @@
   "nimbus.module.watermark.setting.accent": "Accent",
   "nimbus.module.notification.name": "Notification",
   "nimbus.module.notification.description": "Displays transient notifications in the HUD.",
+  "nimbus.module.notification.setting.client": "Client Notifications",
+  "nimbus.module.notification.setting.game": "Game Notifications",
   "nimbus.module.music_toast.name": "Music Toast",
   "nimbus.module.music_toast.description": "Shows the native Minecraft toast when the Nimbus Music track changes.",
   "nimbus.module.armor.name": "Armor",
