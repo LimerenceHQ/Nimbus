@@ -10,9 +10,11 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -27,13 +29,32 @@ public abstract class LivingEntityMixin {
     @Shadow
     public float yBodyRot;
 
-    @Redirect(method = "jumpFromGround", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/entity/LivingEntity;getYRot()F"))
-    private float nimbus$jumpYaw(LivingEntity entity) {
-        if (entity != Minecraft.getInstance().player) return entity.getYRot();
-        return EventBus.call(new EventJump(entity.getYRot())).getYaw();
+    @Unique
+    private EventJump jumpEvent;
+
+    @Unique private float preYaw = 0f;
+
+    @Inject(method = "jumpFromGround",at = @At("HEAD"),cancellable = true)
+    public void jumpPre(CallbackInfo callbackInfo) {
+        if((LivingEntity)(Object)this instanceof Player playerEntity) {
+            jumpEvent = new EventJump(playerEntity.getYRot());
+            EventBus.call(jumpEvent);
+            if (jumpEvent.isCancel()) {
+                callbackInfo.cancel();
+                return;
+            }
+            preYaw = playerEntity.getYRot();
+            playerEntity.setYRot(jumpEvent.getYaw());
+        }
     }
 
+    @Inject(method = "jumpFromGround",at = @At("TAIL"))
+    public void jumpPost(CallbackInfo ci){
+        if((LivingEntity)(Object)this instanceof Player playerEntity && jumpEvent != null) {
+            jumpEvent = null;
+            playerEntity.setYRot(preYaw);
+        }
+    }
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     private void nimbus$travel(Vec3 travelVector, CallbackInfo ci) {
         LivingEntity entity = (LivingEntity) (Object) this;
