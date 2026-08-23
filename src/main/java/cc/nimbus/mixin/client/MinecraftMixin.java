@@ -64,7 +64,6 @@ public class MinecraftMixin {
 
     @Inject(method = "clearClientLevel(Lnet/minecraft/client/gui/screens/Screen;)V", at = @At("HEAD"))
     private void onClientLevel(Screen screen, CallbackInfo info) {
-
         EventBus.call(new EventWorldLoad());
     }
     @Inject(method = "handleKeybinds", at = @At("HEAD"))
