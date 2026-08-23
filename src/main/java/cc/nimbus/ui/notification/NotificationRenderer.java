@@ -2,6 +2,8 @@ package cc.nimbus.ui.notification;
 
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.render.EventRender2D;
+import cc.nimbus.core.Core;
+import cc.nimbus.features.client.ClientSettings;
 import cc.nimbus.features.hud.HudViewport;
 import cc.nimbus.features.module.modules.hud.Notification;
 import cc.nimbus.managers.HudManager;
@@ -79,8 +81,9 @@ public final class NotificationRenderer {
 
         ClientRenderSnapshot client = updateClient(notifications, module.client.getValue(),
                 logicalWidth, skija);
+        ClientSettings clientSettings = Core.INSTANCE.getConfigManager().clientSettings();
         GameRenderSnapshot game = updateGame(notifications, module.game.getValue(),
-                logicalWidth, logicalHeight, skija);
+                logicalWidth, logicalHeight, skija, clientSettings, System.currentTimeMillis());
         removeFinished(notifications);
         if (client.entries().isEmpty() && game.entries().isEmpty()) return;
 
@@ -142,16 +145,21 @@ public final class NotificationRenderer {
 
     private GameRenderSnapshot updateGame(List<NotificationManager.Notification> notifications,
                                           boolean visible, float logicalWidth, float logicalHeight,
-                                          SkijaRenderer skija) {
+                                          SkijaRenderer skija, ClientSettings clientSettings,
+                                          long colorTime) {
         List<GameEntry> entries = new java.util.ArrayList<>();
         double startY = logicalHeight - 24;
+        int colorIndex = 0;
         for (NotificationManager.Notification notification : notifications) {
             if (notification.kind() != NotificationManager.Kind.GAME) continue;
             GameState state = gameStates.computeIfAbsent(notification.id(),
                     ignored -> new GameState(notification));
             state.measure(skija);
             state.update(startY);
-            if (visible) entries.add(state.snapshot(logicalWidth));
+            if (visible) {
+                entries.add(state.snapshot(logicalWidth,
+                        clientSettings.accentColor(colorIndex++, colorTime)));
+            }
             startY -= state.height + 8;
         }
         return new GameRenderSnapshot(List.copyOf(entries));
@@ -227,7 +235,7 @@ public final class NotificationRenderer {
                     1f, 0x26FFFFFF);
             frame.draw().roundedRect(progressX, progressY,
                     entry.finished() ? 0f : progress * progressWidth, GAME_PROGRESS_HEIGHT,
-                    1f, 0x9FFFFFFF);
+                    1f, multiplyAlpha(entry.color(), .75f));
             drawGameText(frame, entry, x, y);
         }
     }
@@ -384,8 +392,8 @@ public final class NotificationRenderer {
             return isFinished() && animationX >= width;
         }
 
-        private GameEntry snapshot(float logicalWidth) {
-            return new GameEntry(notification.message(), notification.type(), logicalWidth, width, height,
+        private GameEntry snapshot(float logicalWidth, int color) {
+            return new GameEntry(notification.message(), notification.type(), color, logicalWidth, width, height,
                     posY, animationX, notification.durationMs(), elapsedMs(), isFinished());
         }
     }
@@ -395,7 +403,8 @@ public final class NotificationRenderer {
                                float scale, float animationW, float titleWidth,
                                long durationMs, long elapsedMs) {}
 
-    private record GameEntry(String message, NotificationType type, float logicalWidth, float width, float height,
+    private record GameEntry(String message, NotificationType type, int color,
+                             float logicalWidth, float width, float height,
                              float posY, float animationX, long durationMs,
                              long elapsedMs, boolean finished) {}
 
