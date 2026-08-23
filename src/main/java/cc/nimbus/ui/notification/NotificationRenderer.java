@@ -33,6 +33,7 @@ public final class NotificationRenderer {
     private static final float GAME_FONT_SIZE = 11f;
     private static final float CLIENT_PROGRESS_HEIGHT = 3f;
     private static final float GAME_PROGRESS_HEIGHT = 3f;
+    private static final float DEFAULT_RENDER_SCALE = 1.5f;
 
     private final NotificationManager manager;
     private final HudManager hudManager;
@@ -71,8 +72,9 @@ public final class NotificationRenderer {
 
         SkijaRenderer skija = renderManager.skija();
         HudViewport viewport = hudManager.viewport(skija.width(), skija.height());
-        float logicalWidth = viewport.width() / viewport.scale();
-        float logicalHeight = viewport.height() / viewport.scale();
+        float renderScale = viewport.scale() * DEFAULT_RENDER_SCALE;
+        float logicalWidth = viewport.width() / renderScale;
+        float logicalHeight = viewport.height() / renderScale;
         if (logicalWidth <= 0f || logicalHeight <= 0f) return;
 
         ClientRenderSnapshot client = updateClient(notifications, module.client.getValue(),
@@ -82,12 +84,12 @@ public final class NotificationRenderer {
         removeFinished(notifications);
         if (client.entries().isEmpty() && game.entries().isEmpty()) return;
 
-        addBlurRegions(skija, client.entries(), game.entries(), viewport.scale());
+        addBlurRegions(skija, client.entries(), game.entries(), renderScale);
         skija.hud().submit(frame -> {
             Canvas canvas = frame.canvas();
             int save = canvas.save();
             try {
-                canvas.scale(viewport.scale(), viewport.scale());
+                canvas.scale(renderScale, renderScale);
                 drawClient(frame, client.entries());
                 drawGame(frame, game.entries());
             } finally {
@@ -220,10 +222,35 @@ public final class NotificationRenderer {
                     2, 0x2FFFFFFF);
             frame.draw().roundedRect(x, y + entry.height(),
                     entry.finished() ? 0f : progress * (float) entry.width(), GAME_PROGRESS_HEIGHT, 2, 0xBFFFFFFF);
-            float textY = y + entry.height() * .5f
-                    - frame.text().visualCenterY(GAME_FONT, GAME_FONT_SIZE, entry.message());
-            frame.text().draw(GAME_FONT, GAME_FONT_SIZE, entry.message(), x + 8, textY, 0xFFFFFFFF);
+            drawGameText(frame, entry, x, y);
         }
+    }
+
+    private static void drawGameText(SkijaFrame frame, GameEntry entry, float x, float y) {
+        String message = entry.message();
+        String status = null;
+        String moduleName = message;
+        if (entry.type() != null) {
+            String suffix = entry.type() == NotificationType.SUCCESS ? " enabled" : " disabled";
+            if (message.endsWith(suffix)) {
+                moduleName = message.substring(0, message.length() - suffix.length());
+                status = suffix;
+            }
+        }
+
+        float messageWidth = frame.text().width(GAME_FONT, GAME_FONT_SIZE, message);
+        float textX = x + (entry.width() - messageWidth) * .5f;
+        float textY = y + entry.height() * .5f
+                - frame.text().visualCenterY(GAME_FONT, GAME_FONT_SIZE, message);
+        if (status == null) {
+            frame.text().draw(GAME_FONT, GAME_FONT_SIZE, message, textX, textY, 0xFFFFFFFF);
+            return;
+        }
+
+        float moduleWidth = frame.text().width(GAME_FONT, GAME_FONT_SIZE, moduleName);
+        frame.text().draw(GAME_FONT, GAME_FONT_SIZE, moduleName, textX, textY, 0xFFFFFFFF);
+        frame.text().draw(GAME_FONT, GAME_FONT_SIZE, status,
+                textX + moduleWidth, textY, entry.type().getColor());
     }
 
     private static float moveUD(float current, float target, float speed) {
@@ -352,8 +379,8 @@ public final class NotificationRenderer {
         }
 
         private GameEntry snapshot(float logicalWidth) {
-            return new GameEntry(notification.message(), logicalWidth, width, height, posY, animationX,
-                    notification.durationMs(), elapsedMs(), isFinished());
+            return new GameEntry(notification.message(), notification.type(), logicalWidth, width, height,
+                    posY, animationX, notification.durationMs(), elapsedMs(), isFinished());
         }
     }
 
@@ -362,7 +389,7 @@ public final class NotificationRenderer {
                                float scale, float animationW, float titleWidth,
                                long durationMs, long elapsedMs) {}
 
-    private record GameEntry(String message, float logicalWidth, float width, float height,
+    private record GameEntry(String message, NotificationType type, float logicalWidth, float width, float height,
                              float posY, float animationX, long durationMs,
                              long elapsedMs, boolean finished) {}
 

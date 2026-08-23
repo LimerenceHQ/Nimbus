@@ -16,6 +16,7 @@ public final class NotificationManager implements InstanceManager {
     private final List<Notification> notifications = new ArrayList<>();
     private final AtomicLong nextId = new AtomicLong();
     private final NotificationRenderer renderer;
+    private volatile boolean running;
 
     public NotificationManager(ModuleManager modules, RenderManager renderManager, HudManager hudManager) {
         renderer = new NotificationRenderer(this,
@@ -29,21 +30,29 @@ public final class NotificationManager implements InstanceManager {
         clear();
         renderer.clear();
         EventBus.register(renderer);
+        running = true;
     }
 
     @Override
     public synchronized void shutdown() {
+        running = false;
         EventBus.unregister(renderer);
         clear();
         renderer.clear();
     }
 
     public synchronized void postClient(String title, String message, long durationMs, NotificationType type) {
+        if (!running) return;
         add(Notification.client(nextId.incrementAndGet(), title, message, durationMs, type));
     }
 
     public synchronized void postGame(String message, long durationMs) {
-        add(Notification.game(nextId.incrementAndGet(), message, durationMs));
+        postGame(message, durationMs, null);
+    }
+
+    public synchronized void postGame(String message, long durationMs, NotificationType type) {
+        if (!running) return;
+        add(Notification.game(nextId.incrementAndGet(), message, durationMs, type));
     }
 
     public synchronized List<Notification> snapshot() {
@@ -92,7 +101,11 @@ public final class NotificationManager implements InstanceManager {
         }
 
         public static Notification game(long id, String message, long durationMs) {
-            return new Notification(id, Kind.GAME, null, message, durationMs, null,
+            return game(id, message, durationMs, null);
+        }
+
+        public static Notification game(long id, String message, long durationMs, NotificationType type) {
+            return new Notification(id, Kind.GAME, null, message, durationMs, type,
                     System.currentTimeMillis());
         }
     }
