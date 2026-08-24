@@ -65,6 +65,7 @@ public final class ModuleManager implements InstanceManager {
                     new Scaffold(),
                     new Speed(),
                     new AntiWeb(),
+                    new FastWeb(),
                     new NoFall(),
                     new NoSlow(),
                     new AutoClose(),
@@ -179,7 +180,12 @@ public final class ModuleManager implements InstanceManager {
     @EventTarget
     public void onKey(EventKeyPress event) {
         if (event.getAction() != GLFW.GLFW_PRESS || !acceptsModuleKeybinds()) return;
-        getModulesByKey(event.getKey()).forEach(BasicModule::toggle);
+        List<BasicModule> bound = getModulesByKey(event.getKey());
+        if (bound.isEmpty()) return;
+        bound.forEach(BasicModule::toggle);
+        // A module keybind is an application command. Do not let the same
+        // GLFW press continue into Minecraft's screen/keybind handling.
+        event.cancelEvent();
     }
 
     private static boolean acceptsModuleKeybinds() {
