@@ -1,7 +1,6 @@
 package cc.nimbus.utils.network;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFutureListener;
 import net.minecraft.network.Connection;
 import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.PacketListener;
@@ -12,16 +11,15 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-/** Connection helpers used for queue replay without dispatching PacketEvent. */
 public final class ConnectionUtils {
     private static final Field CHANNEL = findField(Connection.class, "channel", "f_129468_");
     private static final Field PACKET_LISTENER = findField(Connection.class, "packetListener", "f_129470_");
     private static final Field SENT_PACKETS = findField(Connection.class, "sentPackets", "f_129475_");
     private static final Method DO_SEND_PACKET = findMethod(Connection.class, "doSendPacket", "m_243087_");
+    private static final Method GET_CURRENT_PROTOCOL = findMethod0(Connection.class, "getCurrentProtocol", "m_178315_");
 
     private ConnectionUtils() {
     }
-
 
     public static void sendPacketNoEvent(Connection connection, Packet<?> packet) {
         try {
@@ -29,53 +27,53 @@ public final class ConnectionUtils {
         } catch (IllegalAccessException ignored) {
         }
 
-        Channel channel = channel(connection);
+        ConnectionProtocol protocol = getCurrentProtocol(connection);
+        Channel channel = getChannel(connection);
         if (channel.eventLoop().inEventLoop()) {
-            doSendPacket(connection, packet, null, true);
+            doSendPacket(connection, packet, null, protocol, ConnectionProtocol.getProtocolForPacket(packet));
         } else {
-            channel.eventLoop().execute(() -> doSendPacket(connection, packet, null,true));
+            channel.eventLoop().execute(() -> doSendPacket(connection, packet, null, protocol, ConnectionProtocol.getProtocolForPacket(packet)));
         }
     }
 
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings("unchecked")
     public static void receivePacketNoEvent(Connection connection, Packet<?> packet) {
-        if (connection == null || packet == null || !connection.isConnected()) return;
-        PacketListener listener = connection.getPacketListener();
-        if (listener == null) return;
-        ((Packet) packet).handle(listener);
-    }
-    private static void doSendPacket(Connection connection, Packet<?> packet,
-                                     ChannelFutureListener listener, boolean flush) {
-        try {
-            DO_SEND_PACKET.invoke(connection, packet, listener, flush);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new IllegalStateException("Failed to invoke doSendPacket", e);
+        if (connection.isConnected()) {
+            PacketListener listener = getPacketListener(connection);
+            ((Packet<PacketListener>) packet).handle(listener);
         }
     }
 
-    private static Channel channel(Connection connection) {
+    private static Channel getChannel(Connection connection) {
         try {
             return (Channel) CHANNEL.get(connection);
-        } catch (IllegalAccessException error) {
-            throw new IllegalStateException("Unable to access Connection.channel", error);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Failed to read channel field", e);
         }
     }
 
-    private static void incrementSentPackets(Connection connection) {
+    private static PacketListener getPacketListener(Connection connection) {
         try {
-            SENT_PACKETS.setInt(connection, SENT_PACKETS.getInt(connection) + 1);
-        } catch (IllegalAccessException error) {
-            throw new IllegalStateException("Unable to update Connection.sentPackets", error);
+            return (PacketListener) PACKET_LISTENER.get(connection);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Failed to read packetListener field", e);
         }
     }
 
-    private static void invokeDoSendPacket(Connection connection, Packet<?> packet,
-                                           ChannelFutureListener listener, boolean flush) {
+    private static ConnectionProtocol getCurrentProtocol(Connection connection) {
         try {
-            DO_SEND_PACKET.invoke(connection, packet, listener, flush);
-        } catch (ReflectiveOperationException error) {
-            throw new IllegalStateException("Unable to invoke Connection.doSendPacket", error);
+            return (ConnectionProtocol) GET_CURRENT_PROTOCOL.invoke(connection);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalStateException("Failed to invoke getCurrentProtocol", e);
+        }
+    }
+
+    private static void doSendPacket(Connection connection, Packet<?> packet, PacketSendListener callbacks,
+                                     ConnectionProtocol currentProtocol, ConnectionProtocol packetProtocol) {
+        try {
+            DO_SEND_PACKET.invoke(connection, packet, callbacks, currentProtocol, packetProtocol);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalStateException("Failed to invoke doSendPacket", e);
         }
     }
 
@@ -91,18 +89,6 @@ public final class ConnectionUtils {
         throw new IllegalStateException("Failed to resolve field on " + owner.getName());
     }
 
-    private static Field findField(Class<?> owner, String name, Class<?> type) {
-        for (Class<?> current = owner; current != null; current = current.getSuperclass()) {
-            try {
-                Field field = current.getDeclaredField(name);
-                if (!type.isAssignableFrom(field.getType()) && !(type == int.class && field.getType() == int.class)) continue;
-                field.setAccessible(true);
-                return field;
-            } catch (NoSuchFieldException ignored) {
-            }
-        }
-        throw new IllegalStateException("Unable to resolve field " + owner.getName() + "." + name);
-    }
     private static Method findMethod(Class<?> owner, String name, String... altNames) {
         for (Method method : owner.getDeclaredMethods()) {
             if (method.getName().equals(name)) {
@@ -121,4 +107,21 @@ public final class ConnectionUtils {
         throw new IllegalStateException("Failed to resolve method on " + owner.getName());
     }
 
+    private static Method findMethod0(Class<?> owner, String name, String... altNames) {
+        for (Method method : owner.getDeclaredMethods()) {
+            if (method.getName().equals(name)) {
+                method.setAccessible(true);
+                return method;
+            }
+        }
+        for (String alt : altNames) {
+            for (Method method : owner.getDeclaredMethods()) {
+                if (method.getName().equals(alt)) {
+                    method.setAccessible(true);
+                    return method;
+                }
+            }
+        }
+        throw new IllegalStateException("Failed to resolve method on " + owner.getName());
+    }
 }

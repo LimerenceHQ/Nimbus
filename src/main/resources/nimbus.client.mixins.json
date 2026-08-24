@@ -9,6 +9,7 @@
     "client.MinecraftMixin",
     "client.WindowMixin",
     "client.MouseHandlerMixin",
+    "client.TimerMixin",
     "entity.EntityMixin",
     "entity.LivingEntityMixin",
     "input.KeyboardInputMixin",

@@ -9,15 +9,14 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Timer.class)
-public abstract class DeltaTrackerTimerMixin {
+public abstract class TimerMixin {
     @Shadow
     public float tickDelta;
 
     @Inject(method = "advanceTime", at = @At(value = "FIELD", target = "Lnet/minecraft/client/Timer;tickDelta:F", shift = At.Shift.AFTER))
     private void hookTimer(CallbackInfoReturnable<Integer> cir) {
-        float customTimer = GameStateManager.getTimerSpeed();
-        if (customTimer > 0.0F) {
-            tickDelta *= customTimer;
+        if (GameStateManager.timerSpeed > 0.0F) {
+            tickDelta *= GameStateManager.timerSpeed;
         }
     }
 }
