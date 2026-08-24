@@ -4,6 +4,7 @@ import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.render.EventRotationRender;
 import cc.nimbus.features.module.modules.render.ESP;
+import cc.nimbus.mixin.accessor.LivingEntityRendererAccess;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
@@ -21,9 +22,15 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LivingEntityRenderer.class)
-public abstract class LivingEntityRendererMixin <T extends LivingEntity, M extends EntityModel<T>>{
+public abstract class LivingEntityRendererMixin <T extends LivingEntity, M extends EntityModel<T>>
+        implements LivingEntityRendererAccess {
     @Shadow
     protected EntityModel<?> model;
+
+    @Override
+    public EntityModel<?> nimbus$getModel() {
+        return model;
+    }
 
     @Inject(
             method = {"render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V"},

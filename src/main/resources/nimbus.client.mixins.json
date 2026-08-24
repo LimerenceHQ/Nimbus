@@ -30,6 +30,7 @@
     "render.LightmapRenderStateMixin",
     "render.LivingEntityRendererMixin",
     "render.PotionEffectGuiMixin",
+    "render.PlayerRendererMixin",
     "render.TitleScreenMixin",
     "world.ClientLevelDataMixin",
     "accessor.client.MinecraftAccessor",

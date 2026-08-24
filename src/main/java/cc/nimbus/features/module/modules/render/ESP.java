@@ -13,13 +13,18 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
+import cc.nimbus.mixin.accessor.LivingEntityRendererAccess;
+import cc.nimbus.mixin.accessor.PlayerRendererAccess;
 import cc.nimbus.utils.render.Render2DUtils;
 import cc.nimbus.utils.render.Render3DUtils;
 import cc.nimbus.utils.render.PlayerProjectionCache;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
@@ -136,6 +141,9 @@ public final class ESP extends BasicModule {
             if (self && (!showSelf.getValue() || minecraft.options.getCameraType().isFirstPerson())) continue;
             if (player.isSpectator() || player.isRemoved()) continue;
             SkeletonPose pose = skeletonPoses.get(player.getId());
+            if (pose == null || pose.gameTime() != gameTime) {
+                pose = fallbackSkeletonPose(minecraft, player, partialTick, gameTime);
+            }
             if (pose == null) continue;
             int color = 0xFF000000 | (settings.accentColor(colorIndex++, now) & 0x00FFFFFF);
             appendSkeleton(segments, player, pose, partialTick, color);
@@ -169,11 +177,56 @@ public final class ESP extends BasicModule {
         return (point.y() + 1f) * .5f * height;
     }
 
+    @SuppressWarnings("unchecked")
+    private static SkeletonPose fallbackSkeletonPose(Minecraft minecraft, Player player,
+                                                     float partialTick, long gameTime) {
+        if (!(player instanceof AbstractClientPlayer clientPlayer)) return null;
+        EntityRenderer<?> renderer = minecraft.getEntityRenderDispatcher().getRenderer(player);
+        if (!(renderer instanceof LivingEntityRendererAccess modelAccess)
+                || !(renderer instanceof PlayerRendererAccess playerAccess)
+                || !(modelAccess.nimbus$getModel() instanceof PlayerModel<?> rawModel)) return null;
+
+        playerAccess.nimbus$setModelProperties(clientPlayer);
+        PlayerModel<net.minecraft.world.entity.LivingEntity> model =
+                (PlayerModel<net.minecraft.world.entity.LivingEntity>) (PlayerModel<?>) rawModel;
+
+        float bodyYaw = Mth.rotLerp(partialTick, player.yBodyRotO, player.yBodyRot);
+        float headYaw = Mth.rotLerp(partialTick, player.yHeadRotO, player.yHeadRot);
+        float netHeadYaw = headYaw - bodyYaw;
+        if (player.isPassenger() && player.getVehicle() instanceof net.minecraft.world.entity.LivingEntity vehicle) {
+            bodyYaw = Mth.rotLerp(partialTick, vehicle.yBodyRotO, vehicle.yBodyRot);
+            netHeadYaw = Mth.wrapDegrees(headYaw - bodyYaw);
+            netHeadYaw = Mth.clamp(netHeadYaw, -85f, 85f);
+            bodyYaw = headYaw - netHeadYaw;
+            if (netHeadYaw * netHeadYaw > 2500f) bodyYaw += netHeadYaw * .2f;
+            netHeadYaw = headYaw - bodyYaw;
+        }
+
+        float headPitch = Mth.lerp(partialTick, player.xRotO, player.getXRot());
+        float limbSwingAmount = 0f;
+        float limbSwing = 0f;
+        if (!player.isPassenger() && player.isAlive()) {
+            limbSwingAmount = Math.min(1f, player.walkAnimation.speed(partialTick));
+            limbSwing = player.walkAnimation.position(partialTick);
+            if (player.isBaby()) limbSwing *= 3f;
+        }
+
+        model.prepareMobModel(player, limbSwing, limbSwingAmount, partialTick);
+        model.setupAnim(player, limbSwing, limbSwingAmount,
+                player.tickCount + partialTick, netHeadYaw, headPitch);
+        return new SkeletonPose(
+                rotation(model.head), rotation(model.rightArm), rotation(model.leftArm),
+                rotation(model.rightLeg), rotation(model.leftLeg), gameTime
+        );
+    }
+
     public void captureSkeletonPose(int entityId, PlayerModel model) {
         if (!skeleton.getValue()) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        long gameTime = minecraft.level == null ? Long.MIN_VALUE : minecraft.level.getGameTime();
         skeletonPoses.put(entityId, new SkeletonPose(
                 rotation(model.head), rotation(model.rightArm), rotation(model.leftArm),
-                rotation(model.rightLeg), rotation(model.leftLeg)
+                rotation(model.rightLeg), rotation(model.leftLeg), gameTime
         ));
     }
 
@@ -277,7 +330,7 @@ public final class ESP extends BasicModule {
                          Render2DUtils.EspDetails details) { }
     private record BoneRotation(float x, float y, float z) { }
     private record SkeletonPose(BoneRotation head, BoneRotation rightArm, BoneRotation leftArm,
-                                BoneRotation rightLeg, BoneRotation leftLeg) { }
+                                BoneRotation rightLeg, BoneRotation leftLeg, long gameTime) { }
     private record ProjectedSegment(Render3DUtils.ProjectedPoint start,
                                     Render3DUtils.ProjectedPoint end, int color) { }
     private record CachedDetails(long tick, boolean equipment, boolean effects,
