@@ -40,6 +40,7 @@ public final class Nametag extends BasicModule {
     private static final int BACKGROUND_COLOR = 0x70171A1E;
     private final Map<Integer, LabelCache> labels = new HashMap<>();
     private ClientLevel labelLevel;
+    private long labelsCleanupTick = Long.MIN_VALUE;
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
@@ -59,6 +60,13 @@ public final class Nametag extends BasicModule {
             labelLevel = minecraft.level;
         }
         long gameTime = minecraft.level.getGameTime();
+        if (labelsCleanupTick != gameTime) {
+            labels.entrySet().removeIf(entry -> {
+                var entity = minecraft.level.getEntity(entry.getKey());
+                return !(entity instanceof Player player) || player.isRemoved();
+            });
+            labelsCleanupTick = gameTime;
+        }
         TargetIndicators targetIndicators = targetIndicators();
         int colorIndex = 0;
 
@@ -76,10 +84,11 @@ public final class Nametag extends BasicModule {
             float scale = guiScale * relativeScale;
             float width = Math.max(espWidth, naturalWidth * relativeScale);
             float height = HEIGHT * scale;
+            String indicator = label.targetIndicator.isEmpty() ? "" : "  ·  " + label.targetIndicator;
             entries.add(new Entry(
                     (projected.left() + projected.right()) * 0.5f,
                     projected.top(), width, height, scale, label.name, label.metadata,
-                    label.targetIndicator,
+                    indicator, label.metadataWidth * relativeScale, label.indicatorWidth * relativeScale,
                     settings.accentColor(colorIndex++, now)
             ));
         }
@@ -112,16 +121,12 @@ public final class Nametag extends BasicModule {
                     frame.text().center(NAME_FONT, NAME_SIZE * entry.scale, entry.name,
                             centerX, y + 4f * entry.scale, 0xFFF4F7F8);
                     float metadataSize = META_SIZE * entry.scale;
-                    String indicator = entry.targetIndicator.isEmpty()
-                            ? "" : "  ·  " + entry.targetIndicator;
-                    float metadataWidth = frame.text().width(META_FONT, metadataSize, entry.metadata);
-                    float indicatorWidth = frame.text().width(META_FONT, metadataSize, indicator);
-                    float metadataX = centerX - (metadataWidth + indicatorWidth) * 0.5f;
+                    float metadataX = centerX - (entry.metadataWidth + entry.indicatorWidth) * 0.5f;
                     frame.text().draw(META_FONT, metadataSize, entry.metadata,
                             metadataX, y + META_Y * entry.scale, 0xFFB8C0C7);
-                    if (!indicator.isEmpty()) {
-                        frame.text().draw(META_FONT, metadataSize, indicator,
-                                metadataX + metadataWidth, y + META_Y * entry.scale,
+                    if (!entry.indicator.isEmpty()) {
+                        frame.text().draw(META_FONT, metadataSize, entry.indicator,
+                                metadataX + entry.metadataWidth, y + META_Y * entry.scale,
                                 0xFF000000 | (entry.accent & 0x00FFFFFF));
                     }
                 }
@@ -133,6 +138,7 @@ public final class Nametag extends BasicModule {
     protected void onDisable() {
         labels.clear();
         labelLevel = null;
+        labelsCleanupTick = Long.MIN_VALUE;
     }
 
     private LabelCache label(Player player, Player viewer, SkijaRenderer skija,
@@ -142,7 +148,14 @@ public final class Nametag extends BasicModule {
                 && targetIndicator.equals(cached.targetIndicator)) return cached;
 
         String name = player.getName().getString();
-        String metadata = String.format(Locale.ROOT, "ID %d  ·  %.1fm", player.getId(), viewer.distanceTo(player));
+        int distanceTenths = Math.round(viewer.distanceTo(player) * 10f);
+        boolean textChanged = !name.equals(cached.name)
+                || distanceTenths != cached.distanceTenths
+                || !targetIndicator.equals(cached.targetIndicator)
+                || Float.compare(cached.guiScale, guiScale) != 0;
+        String metadata = textChanged
+                ? String.format(Locale.ROOT, "ID %d  ·  %.1fm", player.getId(), distanceTenths / 10f)
+                : cached.metadata;
         if (!name.equals(cached.name) || !metadata.equals(cached.metadata)
                 || !targetIndicator.equals(cached.targetIndicator)
                 || Float.compare(cached.guiScale, guiScale) != 0) {
@@ -150,12 +163,14 @@ public final class Nametag extends BasicModule {
             cached.metadata = metadata;
             cached.guiScale = guiScale;
             String indicator = targetIndicator.isEmpty() ? "" : "  ·  " + targetIndicator;
+            cached.metadataWidth = skija.text().width(META_FONT, META_SIZE * guiScale, metadata);
+            cached.indicatorWidth = skija.text().width(META_FONT, META_SIZE * guiScale, indicator);
             cached.naturalWidth = Math.max(
                     skija.text().width(NAME_FONT, NAME_SIZE * guiScale, name),
-                    skija.text().width(META_FONT, META_SIZE * guiScale, metadata)
-                            + skija.text().width(META_FONT, META_SIZE * guiScale, indicator)
+                    cached.metadataWidth + cached.indicatorWidth
             ) + PADDING_X * guiScale * 2f;
         }
+        cached.distanceTenths = distanceTenths;
         cached.tick = gameTime;
         cached.targetIndicator = targetIndicator;
         return cached;
@@ -181,7 +196,8 @@ public final class Nametag extends BasicModule {
     }
 
     private record Entry(float centerX, float top, float width, float height, float scale,
-                         String name, String metadata, String targetIndicator, int accent) { }
+                         String name, String metadata, String indicator,
+                         float metadataWidth, float indicatorWidth, int accent) { }
 
     private record TargetIndicators(int projectileTargetId, int bowTargetId,
                                     String projectileLabel, String bowLabel) {
@@ -197,7 +213,10 @@ public final class Nametag extends BasicModule {
     private static final class LabelCache {
         private long tick = Long.MIN_VALUE;
         private float guiScale = Float.NaN;
+        private int distanceTenths = Integer.MIN_VALUE;
         private float naturalWidth;
+        private float metadataWidth;
+        private float indicatorWidth;
         private String name = "";
         private String metadata = "";
         private String targetIndicator = "";

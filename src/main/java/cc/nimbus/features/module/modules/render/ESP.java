@@ -82,8 +82,10 @@ public final class ESP extends BasicModule {
             Render2DUtils.EspDetails details = details(player, gameTime, drawEquipment, drawEffects);
             entries.add(new Entry(projected, Math.clamp(armor, 0f, 1f),
                     Math.clamp(health, 0f, 1f), settings.accentColor(colorIndex++, now), details));
-            Render2DUtils.drawEspEquipment(event.getGraphics(), player.getId(), projected,
-                    details.equipment());
+            if (drawEquipment) {
+                Render2DUtils.drawEspEquipment(event.getGraphics(), player.getId(), projected,
+                        details.equipment());
+            }
         }
         if (entries.isEmpty()) return;
 
@@ -117,7 +119,14 @@ public final class ESP extends BasicModule {
         float partialTick = event.getPartialTick();
         long now = System.currentTimeMillis();
         ClientSettings settings = Core.INSTANCE.getConfigManager().clientSettings();
-        List<Render3DUtils.LineSegment> segments = new ArrayList<>();
+        long gameTime = minecraft.level.getGameTime();
+        if (gameTime % 20L == 0L) {
+            skeletonPoses.entrySet().removeIf(entry -> {
+                var entity = minecraft.level.getEntity(entry.getKey());
+                return !(entity instanceof Player player) || player.isRemoved();
+            });
+        }
+        List<Render3DUtils.LineSegment> segments = new ArrayList<>(minecraft.level.players().size() * 8);
         int colorIndex = 0;
         for (Player player : minecraft.level.players()) {
             boolean self = player == minecraft.player;

@@ -22,7 +22,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @ModuleInfo(name = "PointerESP", description = "Shows arrows pointing to other players.", category = ModuleCategory.Render)
 public final class PointerESP extends BasicModule {
@@ -38,6 +40,10 @@ public final class PointerESP extends BasicModule {
     public final BooleanSetting invisibles = new BooleanSetting("Show Invisibles", true);
     public final ColorSetting visibleColor = new ColorSetting("Visible Color", 0xFF00FF00);
     public final ColorSetting invisibleColor = new ColorSetting("Invisible Color", 0xFFFF0000);
+    private final Map<Integer, Boolean> visibilityCache = new HashMap<>();
+    private ClientLevel visibilityLevel;
+    private long visibilityCacheUntil;
+
     @EventTarget
     private void onRender2D(EventRender2D event) {
         Minecraft minecraft = Minecraft.getInstance();
@@ -47,6 +53,11 @@ public final class PointerESP extends BasicModule {
         float partial = projection.partialTick();
         long colorTime = System.currentTimeMillis();
         ClientSettings clientSettings = Core.INSTANCE.getConfigManager().clientSettings();
+        if (visibilityLevel != minecraft.level || colorTime >= visibilityCacheUntil) {
+            visibilityCache.clear();
+            visibilityLevel = minecraft.level;
+            visibilityCacheUntil = colorTime + 100L;
+        }
         List<Entry> entries = new ArrayList<>();
         int colorIndex = 0;
         for (Player player : minecraft.level.players()) {
@@ -54,17 +65,18 @@ public final class PointerESP extends BasicModule {
                     || player.isSpectator()) continue;
             if (player.isInvisible() && !invisibles.getValue()) continue;
             if (!Core.INSTANCE.getTargetManager().isTarget(player)) continue;
-            boolean visible = minecraft.player.hasLineOfSight(player);
+            boolean visible = visibilityCache.computeIfAbsent(player.getId(), ignored ->
+                    minecraft.player.hasLineOfSight(player));
             if (hideThroughWalls.getValue() && !visible) continue;
             Vec3 position = new Vec3(
                     Mth.lerp(partial, player.xOld, player.getX()),
                     Mth.lerp(partial, player.yOld, player.getY()) + player.getBbHeight() * .5,
                     Mth.lerp(partial, player.zOld, player.getZ()));
             Render3DUtils.ProjectedPoint point = Render3DUtils.projectPoint(position, projection);
-            if (point != null) {
-                entries.add(new Entry(player, point, visible,
-                        clientSettings.accentColor(colorIndex++, colorTime)));
-            }
+            if (point == null || (!alwaysShow.getValue() && isOnScreen(point))) continue;
+            entries.add(new Entry(point, visible, player.getName().getString(),
+                    Mth.clamp(player.getHealth() / Math.max(1f, player.getMaxHealth()), 0f, 1f),
+                    clientSettings.accentColor(colorIndex++, colorTime)));
         }
         if (entries.isEmpty()) return;
         List<Entry> snapshot = List.copyOf(entries);
@@ -73,18 +85,16 @@ public final class PointerESP extends BasicModule {
             float cy = frame.height() * .5f;
             float rx = Math.max(1f, frame.width() * .5f - 20f) * radius.getValue().floatValue() / 100f;
             float ry = Math.max(1f, frame.height() * .5f - 20f) * radius.getValue().floatValue() / 100f;
-            for (Entry entry : snapshot) draw(frame, entry, cx, cy, rx, ry);
+            try (Paint fillPaint = fill(0); Paint strokePaint = fill(0)) {
+                for (Entry entry : snapshot) draw(frame, entry, cx, cy, rx, ry, fillPaint, strokePaint);
+            }
         });
     }
 
     private void draw(cc.nimbus.utils.render.skija.api.SkijaFrame frame, Entry entry,
-                      float cx, float cy, float rx, float ry) {
+                      float cx, float cy, float rx, float ry, Paint fillPaint, Paint strokePaint) {
         float sx = (entry.point.x() + 1f) * .5f * frame.width();
         float sy = (entry.point.y() + 1f) * .5f * frame.height();
-        boolean onScreen = entry.point.inFront() && entry.point.x() >= -1f && entry.point.x() <= 1f
-                && entry.point.y() >= -1f && entry.point.y() <= 1f
-                && entry.point.depth() >= -1f && entry.point.depth() <= 1f;
-        if (onScreen && !alwaysShow.getValue()) return;
         float angle = (float) Math.atan2(sy - cy, sx - cx);
         if (!entry.point.inFront()) angle += Math.PI;
         float cos = (float) Math.cos(angle), sin = (float) Math.sin(angle);
@@ -100,30 +110,30 @@ public final class PointerESP extends BasicModule {
         float halfWidth = size * .5f;
         float bx = x - cos * rearDistance, by = y - sin * rearDistance;
         float px = -sin, py = cos;
+        fillPaint.setColor(color);
         try (PathBuilder builder = new PathBuilder()) {
             builder.moveTo(x + cos * tipDistance, y + sin * tipDistance);
             builder.lineTo(bx + px * halfWidth, by + py * halfWidth);
             builder.lineTo(bx - px * halfWidth, by - py * halfWidth);
             builder.closePath();
-            try (Path path = builder.detach(); Paint paint = fill(color)) {
-                frame.canvas().drawPath(path, paint);
+            try (Path path = builder.detach()) {
+                frame.canvas().drawPath(path, fillPaint);
                 if (outline.getValue()) {
-                    try (Paint stroke = fill(withAlpha(0xFF000000, alpha)).setStroke(true)
-                            .setStrokeWidth(outlineWidth.getValue().floatValue())) {
-                        frame.canvas().drawPath(path, stroke);
-                    }
+                    strokePaint.setColor(withAlpha(0xFF000000, alpha))
+                            .setStroke(true).setStrokeWidth(outlineWidth.getValue().floatValue());
+                    frame.canvas().drawPath(path, strokePaint);
                 }
             }
         }
         if (name.getValue()) {
             float nameSize = Math.max(9f, size * .85f);
-            float nameHeight = frame.text().height(NimbusFonts.BODY_STRONG, nameSize, entry.player.getName().getString());
+            float nameHeight = frame.text().height(NimbusFonts.BODY_STRONG, nameSize, entry.name);
             frame.text().center(NimbusFonts.BODY_STRONG, nameSize,
-                    entry.player.getName().getString(), x, y - size * .5f - nameHeight - 6f,
+                    entry.name, x, y - size * .5f - nameHeight - 6f,
                     withAlpha(0xFFFFFFFF, alpha));
         }
         if (health.getValue()) {
-            float pct = Mth.clamp(entry.player.getHealth() / Math.max(1f, entry.player.getMaxHealth()), 0f, 1f);
+            float pct = entry.health;
             float width = size + 4f;
             frame.draw().rect(x - width * .5f, y + size * .5f + 3f, width, 2f, withAlpha(0xFF000000, (int) (alpha * .59f)));
             frame.draw().rect(x - (width - 1f) * .5f, y + size * .5f + 3.5f,
@@ -134,5 +144,20 @@ public final class PointerESP extends BasicModule {
 
     private static Paint fill(int color) { return new Paint().setAntiAlias(true).setColor(color); }
     private static int withAlpha(int color, int alpha) { return (Math.clamp(alpha, 0, 255) << 24) | (color & 0x00FFFFFF); }
-    private record Entry(Player player, Render3DUtils.ProjectedPoint point, boolean visible, int color) {}
+
+    private static boolean isOnScreen(Render3DUtils.ProjectedPoint point) {
+        return point.inFront() && point.x() >= -1f && point.x() <= 1f
+                && point.y() >= -1f && point.y() <= 1f
+                && point.depth() >= -1f && point.depth() <= 1f;
+    }
+
+    @Override
+    protected void onDisable() {
+        visibilityCache.clear();
+        visibilityLevel = null;
+        visibilityCacheUntil = 0L;
+    }
+
+    private record Entry(Render3DUtils.ProjectedPoint point, boolean visible,
+                         String name, float health, int color) {}
 }
