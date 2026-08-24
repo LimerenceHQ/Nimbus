@@ -4,7 +4,6 @@ import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventTick;
-import cc.nimbus.event.impl.game.EventTickUpdate;
 import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.event.impl.player.EventMoveInput;
@@ -19,11 +18,11 @@ import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.movement.Scaffold;
 import cc.nimbus.features.module.modules.movement.Sprint;
 import cc.nimbus.mixin.accessor.player.LocalPlayerAccessor;
+import cc.nimbus.utils.client.TimerUtils;
 import cc.nimbus.utils.entity.player.InventoryUtils;
 import cc.nimbus.utils.network.PacketUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
-import net.minecraft.core.Holder;
 import net.minecraft.network.protocol.game.ServerboundContainerClickPacket;
 import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
 import net.minecraft.tags.ItemTags;
@@ -91,10 +90,6 @@ public final class InventoryManager extends BasicModule {
 
     private final Minecraft minecraft = Minecraft.getInstance();
     private final List<Integer> slots = new ArrayList<>();
-    private long lastSort;
-    private long lastThrow;
-    private long lastCraft;
-    private long lastArmor;
     private boolean randomized;
     private boolean serverInventoryOpened;
     private boolean stopSprint;
@@ -102,6 +97,11 @@ public final class InventoryManager extends BasicModule {
 
     private int inventoryState = 0;
     private int stateTickCounter = 0;
+    private final TimerUtils sortTimer = new TimerUtils();
+    private final TimerUtils throwTimer = new TimerUtils();
+    private final TimerUtils autoCraftTimer = new TimerUtils();
+    private final TimerUtils autoArmorTimer = new TimerUtils();
+
 
     public InventoryManager() {
         for (int i = 0; i < 9; i++) {
@@ -251,11 +251,10 @@ public final class InventoryManager extends BasicModule {
 
     private boolean autoCraftPlanks() {
         if (!(minecraft.player.containerMenu instanceof InventoryMenu menu)
-                || !menu.getCarried().isEmpty() || !elapsed(lastCraft, autoCraftDelay)) return false;
+                || !menu.getCarried().isEmpty() || !autoCraftTimer.hasTimeElapsed(autoCraftDelay.getValue().longValue(), true)) return false;
         ItemStack result = menu.getSlot(0).getItem();
         if (managedWoodGrid(menu) && result.is(ItemTags.PLANKS) && hasSpaceForItem(result.getItem())) {
             click(menu, 0, 0, ClickType.QUICK_MOVE);
-            lastCraft = now();
             return true;
         }
         if (!craftingGridEmpty(menu)) return false;
@@ -264,7 +263,6 @@ public final class InventoryManager extends BasicModule {
         if (woodSlot == -1 || !hasSpaceForAnyPlanks()) return false;
         click(menu, toContainerSlot(woodSlot), 0, ClickType.PICKUP);
         click(menu, 1, 0, ClickType.PICKUP);
-        lastCraft = now();
         return true;
     }
 
@@ -316,13 +314,12 @@ public final class InventoryManager extends BasicModule {
         return false;
     }
     private boolean autoThrowUseless() {
-        if (!elapsed(lastThrow, throwDelay)) return false;
+        if (!throwTimer.hasTimeElapsed(throwDelay.getValue().longValue(), true)) return false;
         for (int slot : slots) {
             if (isEquipmentSlot(slot)) continue;
             ItemStack stack = minecraft.player.getInventory().getItem(slot);
             if (stack.isEmpty() || !shouldThrow(slot, stack)) continue;
             click(minecraft.player.containerMenu, toContainerSlot(slot), 1, ClickType.THROW);
-            lastThrow = now();
             return true;
         }
         return false;
@@ -474,28 +471,48 @@ public final class InventoryManager extends BasicModule {
     }
 
     private boolean autoWear() {
-        if (!elapsed(lastArmor, autoArmorDelay) || !minecraft.player.containerMenu.getCarried().isEmpty()) return false;
-        for (EquipmentSlot slot : ARMOR_SLOTS) {
-            ItemStack best = InventoryUtils.getBestArmor(slot);
-            int inventorySlot = armorInventorySlot(slot);
-            if (best.isEmpty()) continue;
-            int bestSlot = findInventorySlot(best);
-            if (bestSlot == -1 || bestSlot == inventorySlot) continue;
-            ItemStack equipped = minecraft.player.getInventory().getItem(inventorySlot);
-            boolean accepted;
-            if (equipped.isEmpty()) {
-                accepted = click(minecraft.player.containerMenu, toContainerSlot(bestSlot), 0, ClickType.QUICK_MOVE);
-            } else {
-                accepted = click(minecraft.player.containerMenu, toContainerSlot(bestSlot), 0, ClickType.PICKUP);
-                accepted &= click(minecraft.player.containerMenu, armorMenuSlot(slot), 0, ClickType.PICKUP);
-                accepted &= click(minecraft.player.containerMenu, toContainerSlot(bestSlot), 0, ClickType.PICKUP);
-            }
-            if (accepted) {
-                lastArmor = now();
-                return true;
-            }
+        if (mc.gameMode == null || mc.player == null) {
+            return false;
         }
-        return false;
+
+        int delay = autoArmorDelay.getValue().intValue();
+
+        return equipArmor(InventoryUtils.getBestHelmet(), InventoryUtils.HELMET_SLOT_INVENTORY, InventoryUtils.HELMET_SLOT_INTERACTION_MANAGER, delay) ||
+                equipArmor(InventoryUtils.getBestChestPlate(), InventoryUtils.CHEST_PLATE_SLOT_INVENTORY, InventoryUtils.CHEST_PLATE_SLOT_INTERACTION_MANAGER, delay) ||
+                equipArmor(InventoryUtils.getBestLeggings(), InventoryUtils.LEGGINGS_SLOT_INVENTORY, InventoryUtils.LEGGINGS_SLOT_INTERACTION_MANAGER, delay) ||
+                equipArmor(InventoryUtils.getBestBoots(), InventoryUtils.BOOTS_SLOT_INVENTORY, InventoryUtils.BOOTS_SLOT_INTERACTION_MANAGER, delay);
+    }
+
+    private  boolean equipArmor(ItemStack bestStack, int inventorySlot, int menuSlot, int delay) {
+        if (bestStack.isEmpty() || mc.player == null || !mc.player.containerMenu.getCarried().isEmpty()) {
+            return false;
+        }
+
+        ItemStack equipped = mc.player.getInventory().getItem(inventorySlot);
+        if (equipped == bestStack) {
+            return false;
+        }
+
+        if (!autoArmorTimer.hasTimeElapsed(delay) && delay != 0) {
+            return false;
+        }
+
+        int bestSlot = findInventorySlot(bestStack);
+        if (bestSlot == -1) {
+            return false;
+        }
+
+        if (!equipped.isEmpty()) {
+            int bestMenuSlot = toContainerSlot(bestSlot);
+            click(mc.player.containerMenu, bestMenuSlot, 0, ClickType.PICKUP);
+            click(mc.player.containerMenu, menuSlot, 0, ClickType.PICKUP);
+            click(mc.player.containerMenu, bestMenuSlot, 0, ClickType.PICKUP);
+        } else {
+            click(mc.player.containerMenu, toContainerSlot(bestSlot), 0, ClickType.QUICK_MOVE);
+        }
+
+        autoArmorTimer.reset();
+        return true;
     }
 
     private boolean undressed() {
@@ -506,15 +523,16 @@ public final class InventoryManager extends BasicModule {
         return false;
     }
 
-    private boolean autoSort() {
-        if (!elapsed(lastSort, sortDelay)) return false;
+    private void autoSort() {
+        if (!sortTimer.hasTimeElapsed(sortDelay.getValue().longValue(), true)) return;
         for (int currentSlot : slots) {
             if (minecraft.player.getInventory().getItem(currentSlot).isEmpty()) continue;
             for (int target = 0; target < slotTypes.length; target++) {
-                if (sortIntoTarget(currentSlot, target)) { lastSort = now(); return true; }
+                if (sortIntoTarget(currentSlot, target)) {
+                    return;
+                }
             }
         }
-        return false;
     }
 
     private boolean sortIntoTarget(int currentSlot, int target) {
@@ -723,15 +741,12 @@ public final class InventoryManager extends BasicModule {
         if (minecraft.options != null) minecraft.options.keySprint.setDown(false);
     }
 
-    private boolean elapsed(long start, NumberSetting delay) {
-        return delay.getValue().longValue() == 0 || now() - start >= delay.getValue().longValue();
-    }
-
-    private long now() { return System.currentTimeMillis(); }
-
     private void resetState() {
         slots.clear();
-        lastSort = lastThrow = lastCraft = lastArmor = 0L;
+        autoArmorTimer.reset();
+        autoCraftTimer.reset();
+        throwTimer.reset();
+        sortTimer.reset();
         randomized = false;
         serverInventoryOpened = false;
         stopSprint = false;

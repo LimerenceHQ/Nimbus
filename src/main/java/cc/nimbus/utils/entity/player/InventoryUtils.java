@@ -28,6 +28,10 @@ public final class InventoryUtils {
     public static final int LEGS_SLOT_MENU = 7;
     public static final int FEET_SLOT_MENU = 8;
     public static final int OFFHAND_SLOT_MENU = 45;
+    public static final int  HELMET_SLOT_INTERACTION_MANAGER = 5;
+    public static final int CHEST_PLATE_SLOT_INVENTORY = 38, CHEST_PLATE_SLOT_INTERACTION_MANAGER = 6;
+    public static final int LEGGINGS_SLOT_INVENTORY = 37, LEGGINGS_SLOT_INTERACTION_MANAGER = 7;
+    public static final int BOOTS_SLOT_INVENTORY = 36, BOOTS_SLOT_INTERACTION_MANAGER = 8;
 
     private static final Minecraft MINECRAFT = Minecraft.getInstance();
 
@@ -75,6 +79,7 @@ public final class InventoryUtils {
                 excludeWeapon ? getBestWeapon() : ItemStack.EMPTY);
     }
 
+
     public static ItemStack getBestShears() {
         return bestStack(stack -> stack.is(Items.SHEARS), InventoryUtils::shearsScore, ItemStack.EMPTY);
     }
@@ -82,6 +87,23 @@ public final class InventoryUtils {
     public static ItemStack getBestArmor(EquipmentSlot slot) {
         return bestStack(stack -> armorSlot(stack) == slot, InventoryUtils::armorScore, ItemStack.EMPTY);
     }
+
+    public static ItemStack getBestHelmet() {
+        return getBestArmorItem(ArmorUtils::getHelmetDefense);
+    }
+
+    public static ItemStack getBestChestPlate() {
+        return getBestArmorItem(ArmorUtils::getChestPlateDefense);
+    }
+
+    public static ItemStack getBestLeggings() {
+        return getBestArmorItem(ArmorUtils::getLeggingsDefense);
+    }
+
+    public static ItemStack getBestBoots() {
+        return getBestArmorItem(ArmorUtils::getBootsDefense);
+    }
+
 
     public static ItemStack getBestFlintAndSteel() {
         return bestStack(stack -> stack.is(Items.FLINT_AND_STEEL), InventoryUtils::durability, ItemStack.EMPTY);
@@ -246,6 +268,30 @@ public final class InventoryUtils {
         return ItemStack.EMPTY;
     }
 
+    private static boolean isBetterArmor(ItemStack stack, ItemStack bestStack, ToDoubleFunction<ItemStack> scorer) {
+        if (bestStack.isEmpty()) {
+            return true;
+        }
+
+        int material = ArmorUtils.getMaterialPriority(stack);
+        int bestMaterial = ArmorUtils.getMaterialPriority(bestStack);
+        if (material != bestMaterial) {
+            return material > bestMaterial;
+        }
+
+        int protection = ArmorUtils.getProtectionLevel(stack);
+        int bestProtection = ArmorUtils.getProtectionLevel(bestStack);
+        if (protection != bestProtection) {
+            return protection > bestProtection;
+        }
+
+        return getRemainingDurability(stack) > getRemainingDurability(bestStack);
+    }
+
+    public static int getRemainingDurability(ItemStack stack) {
+        return stack.isDamageableItem() ? stack.getMaxDamage() - stack.getDamageValue() : Integer.MAX_VALUE;
+    }
+
     private static ItemStack bestStack(Predicate<ItemStack> predicate, ToDoubleFunction<ItemStack> scorer,
                                        ItemStack excluded) {
         if (MINECRAFT.player == null) return ItemStack.EMPTY;
@@ -314,6 +360,30 @@ public final class InventoryUtils {
         }
         return (base + addition + base * multiplyBase) * (1.0 + multiplyTotal);
     }
+
+    private static ItemStack getBestArmorItem(ToDoubleFunction<ItemStack> scorer) {
+        if (MINECRAFT.player == null) {
+            return ItemStack.EMPTY;
+        }
+
+        ItemStack bestStack = ItemStack.EMPTY;
+        int size = MINECRAFT.player.getInventory().getContainerSize();
+
+        for (int i = 0; i < size; i++) {
+            ItemStack stack = MINECRAFT.player.getInventory().getItem(i);
+            double defense = scorer.applyAsDouble(stack);
+            if (defense < 0) {
+                continue;
+            }
+
+            if (isBetterArmor(stack, bestStack, scorer)) {
+                bestStack = stack;
+            }
+        }
+
+        return bestStack;
+    }
+
 
     private static boolean badBlock(Block block) {
         return block instanceof AirBlock || block instanceof StairBlock || block instanceof SlabBlock
