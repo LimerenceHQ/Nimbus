@@ -1,6 +1,7 @@
 package cc.nimbus.ui.notification;
 
 import cc.nimbus.event.component.EventTarget;
+import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.render.EventRender2D;
 import cc.nimbus.core.Core;
 import cc.nimbus.features.client.ClientSettings;
@@ -57,7 +58,7 @@ public final class NotificationRenderer {
         gameStates.clear();
     }
 
-    @EventTarget
+    @EventTarget(priority = Priority.Lowest)
     private void onRender2D(EventRender2D event) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null

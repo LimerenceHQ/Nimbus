@@ -54,9 +54,9 @@ public enum Core {
             start(rotations, started);
             start(packets, started);
             start(modules, started);
-            start(notifications, started);
             start(targets, started);
             start(hud, started);
+            start(notifications, started);
             start(configs, started);
             start(state, started);
             start(i18n, started);
