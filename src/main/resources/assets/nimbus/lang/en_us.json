@@ -549,6 +549,7 @@
   "nimbus.module.bed_defense.setting.range": "Range",
   "nimbus.module.bed_defense.setting.defense_radius": "Defense Radius",
   "nimbus.module.bed_defense.setting.icons": "Icons",
+  "nimbus.module.bed_defense.overlay.distance": "%.0fm",
 
   "nimbus.module.projectile.name": "Projectile",
   "nimbus.module.projectile.description": "Predicts the path of held projectiles.",

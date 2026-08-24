@@ -549,6 +549,7 @@
   "nimbus.module.bed_defense.setting.range": "范围",
   "nimbus.module.bed_defense.setting.defense_radius": "防御半径",
   "nimbus.module.bed_defense.setting.icons": "图标",
+  "nimbus.module.bed_defense.overlay.distance": "%.0f米",
 
   "nimbus.module.projectile.name": "弹道预测",
   "nimbus.module.projectile.description": "预测手持投掷物与远程武器的飞行轨迹。",
