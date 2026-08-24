@@ -21,12 +21,7 @@ import cc.nimbus.utils.network.PacketUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
-import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
-import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
-import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
-import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
-import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
+import net.minecraft.network.protocol.game.*;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BowItem;
@@ -139,7 +134,9 @@ public class NoSlow extends BasicModule {
                 if (useTicks == -1) {
                     useTicks = 0;
                 }
-                Core.INSTANCE.getPacketManager().freeze(PacketDirection.INBOUND);
+                Core.INSTANCE.getPacketManager().freeze(PacketDirection.INBOUND,
+                        ClientboundSetEntityMotionPacket.class,
+                        ClientboundPingPacket.class);
             }
         }
     }
