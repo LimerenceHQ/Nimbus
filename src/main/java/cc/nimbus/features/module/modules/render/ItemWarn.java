@@ -113,10 +113,7 @@ public final class ItemWarn extends BasicModule {
     }
 
     private static boolean isGappleActive(Player player, ItemStack held) {
-        return player.getAbsorptionAmount() > 0f
-                || player.hasEffect(MobEffects.ABSORPTION)
-                || held.is(Items.GOLDEN_APPLE)
-                || held.is(Items.ENCHANTED_GOLDEN_APPLE);
+        return player.getAbsorptionAmount() > 0f || held.is(Items.ENCHANTED_GOLDEN_APPLE);
     }
 
     private void reset() {

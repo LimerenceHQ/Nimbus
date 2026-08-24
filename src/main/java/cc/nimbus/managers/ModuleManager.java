@@ -51,6 +51,7 @@ public final class ModuleManager implements InstanceManager {
                     new BowAssistant(),
                     new Velocity(),
                     new Disabler(),
+                    new HealthBypass(),
                     new ClickGui(),
                     new ActiveList(),
                     new Notification(),

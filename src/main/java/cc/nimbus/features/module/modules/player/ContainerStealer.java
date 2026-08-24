@@ -11,6 +11,7 @@ import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.modes.Modes;
+import cc.nimbus.utils.client.TimerUtils;
 import cc.nimbus.utils.entity.player.InventoryUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -40,12 +41,12 @@ public final class ContainerStealer extends BasicModule {
     public final BooleanSetting filterTrash = new BooleanSetting("Filter Trash", false);
 
     private final Minecraft minecraft = Minecraft.getInstance();
-    private long openedAt;
-    private long lastSteal;
-    private long lastStack;
-    private long emptySince;
     private boolean active;
     private final List<Integer> order = new ArrayList<>();
+    private final TimerUtils openDelayTimer = new TimerUtils();
+    private final TimerUtils stealDelayTimer = new TimerUtils();
+    private final TimerUtils stackDelayTimer = new TimerUtils();
+    private final TimerUtils closeDelayTimer = new TimerUtils();
 
     @Override protected void onEnable() { reset(); }
     @Override protected void onDisable() { reset(); }
@@ -61,8 +62,8 @@ public final class ContainerStealer extends BasicModule {
         AbstractContainerMenu menu = minecraft.player.containerMenu;
         int containerSlots = supportedSlots(menu);
         if (containerSlots <= 0) { reset(); return; }
-        if (!active) { active = true; openedAt = now(); lastSteal = 0; lastStack = 0; emptySince = 0; rebuild(containerSlots); return; }
-        if (now() - openedAt < openDelay.getValue().longValue()) return;
+        if (!active) { active = true; stealDelayTimer.reset(); stackDelayTimer.reset(); closeDelayTimer.reset(); rebuild(containerSlots); return; }
+        if (!openDelayTimer.hasTimeElapsed(openDelay.getValue().longValue(), true)) return;
         if (order.size() != containerSlots) rebuild(containerSlots);
         int selected = -1;
         for (int index : order) {
@@ -71,25 +72,19 @@ public final class ContainerStealer extends BasicModule {
             selected = index; break;
         }
         if (selected < 0) {
-            if (emptySince == 0) emptySince = now();
-            if (now() - emptySince >= closeDelay.getValue().longValue()) minecraft.player.closeContainer();
+            if (closeDelayTimer.hasTimeElapsed(closeDelay.getValue().longValue(), true)) minecraft.player.closeContainer();
             return;
         }
-        emptySince = 0;
         ItemStack stack = menu.getSlot(selected).getItem();
-        long stealWait = stealDelay.getValue().longValue();
-        if (stealWait > 0 && now() - lastSteal < stealWait) return;
+        if (!stealDelayTimer.hasTimeElapsed(stackDelay.getValue().longValue(), true)) return;
         if (swap.getValue() && stack.getMaxStackSize() > 1) {
-            long stackWait = stackDelay.getValue().longValue();
-            if (stackWait > 0 && now() - lastStack < stackWait) return;
+            if (!stackDelayTimer.hasTimeElapsed(stealDelay.getValue().longValue(), true)) return;
         }
         if (swap.getValue() && stack.getMaxStackSize() <= 1) {
             int empty = firstEmptyInventorySlot();
             if (empty >= 0 && empty < 9) click(menu, selected, empty, ClickType.SWAP);
             else click(menu, selected, 0, ClickType.QUICK_MOVE);
         } else click(menu, selected, 0, ClickType.QUICK_MOVE);
-        lastSteal = now();
-        if (stack.getMaxStackSize() > 1) lastStack = lastSteal;
     }
 
     private void click(AbstractContainerMenu menu, int slot, int button, ClickType type) {
@@ -159,6 +154,5 @@ public final class ContainerStealer extends BasicModule {
         return -1;
     }
     private void rebuild(int size) { order.clear(); for (int i = 0; i < size; i++) order.add(i); if (randomSlot.getValue()) Collections.shuffle(order); }
-    private long now() { return System.currentTimeMillis(); }
-    private void reset() { active = false; openedAt = lastSteal = lastStack = emptySince = 0; order.clear(); }
+    private void reset() { active = false; stackDelayTimer.reset(); stealDelayTimer.reset(); openDelayTimer.reset(); closeDelayTimer.reset(); order.clear(); }
 }
