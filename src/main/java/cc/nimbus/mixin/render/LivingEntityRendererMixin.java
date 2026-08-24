@@ -4,7 +4,7 @@ import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.render.EventRotationRender;
 import cc.nimbus.features.module.modules.render.ESP;
-import cc.nimbus.mixin.accessor.LivingEntityRendererAccess;
+import cc.nimbus.accessor.LivingEntityRendererAccess;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
