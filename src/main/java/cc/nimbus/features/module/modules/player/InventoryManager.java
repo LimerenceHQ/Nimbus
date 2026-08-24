@@ -100,6 +100,9 @@ public final class InventoryManager extends BasicModule {
     private boolean stopSprint;
     private boolean packetClick;
 
+    private int inventoryState = 0;
+    private int stateTickCounter = 0;
+
     public InventoryManager() {
         for (int i = 0; i < 9; i++) {
             slotTypes[i] = new ModeValue(
@@ -131,6 +134,16 @@ public final class InventoryManager extends BasicModule {
             Core.INSTANCE.getModuleManager().getModule(Sprint.class).canSprint = true;
             return;
         }
+        
+        if (inventoryState == 1) {
+            stateTickCounter++;
+            if (stateTickCounter >= 1) {
+                inventoryState = 2;
+                stateTickCounter = 0;
+            }
+            return;
+        }
+        
         if (!canRun()) { closeSpoofedInventory(); return; }
         if (isBusy()) {
             closeSpoofedInventory();
@@ -148,11 +161,20 @@ public final class InventoryManager extends BasicModule {
 
         stopSprint = true;
         if (minecraft.player.isSprinting()) { stopPlayerSprint(); return; }
-        openSpoofedInventory();
-        if (autoCraft.getValue() && autoCraftPlanks()) return;
-        if (throwUseless.getValue() && autoThrowUseless()) return;
-        if (autoArmor.getValue() && autoWear()) return;
-        if (sortInventory.getValue()) autoSort();
+        
+        if (inventoryState == 0) {
+            openSpoofedInventory();
+            inventoryState = 1;
+            stateTickCounter = 0;
+            return;
+        }
+        
+        if (inventoryState == 2) {
+            if (autoCraft.getValue() && autoCraftPlanks()) return;
+            if (throwUseless.getValue() && autoThrowUseless()) return;
+            if (autoArmor.getValue() && autoWear()) return;
+            if (sortInventory.getValue()) autoSort();
+        }
     }
 
     @EventTarget(priority = Priority.Lowest)
@@ -163,14 +185,7 @@ public final class InventoryManager extends BasicModule {
         stopPlayerSprint();
     }
 
-    @EventTarget
-    public void onPreUpdate(EventTickUpdate event) {
-        if (stopSprint) {
-            Core.INSTANCE.getModuleManager().getModule(Sprint.class).canSprint = false;
-            mc.options.keySprint.setDown(false);
-            mc.player.setSprinting(false);
-        }
-    }
+
 
     @EventTarget(priority = Priority.Highest)
     private void onPacketSend(PacketEvent event) {
@@ -694,6 +709,8 @@ public final class InventoryManager extends BasicModule {
         if (!serverInventoryOpened) return;
         if (minecraft.getConnection() != null) minecraft.getConnection().send(new ServerboundContainerClosePacket(0));
         serverInventoryOpened = false;
+        inventoryState = 0;
+        stateTickCounter = 0;
     }
 
     private void stopPlayerSprint() {
@@ -714,5 +731,7 @@ public final class InventoryManager extends BasicModule {
         serverInventoryOpened = false;
         stopSprint = false;
         packetClick = false;
+        inventoryState = 0;
+        stateTickCounter = 0;
     }
 }
