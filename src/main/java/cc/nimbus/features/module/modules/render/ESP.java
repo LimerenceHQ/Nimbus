@@ -16,6 +16,7 @@ import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.utils.render.Render2DUtils;
 import cc.nimbus.utils.render.Render3DUtils;
 import cc.nimbus.utils.render.PlayerProjectionCache;
+import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -111,6 +112,8 @@ public final class ESP extends BasicModule {
         if (!skeleton.getValue()) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) return;
+        Render3DUtils.WorldProjection projection = Render3DUtils.worldProjection();
+        if (projection == null) return;
         if (skeletonLevel != minecraft.level) {
             skeletonPoses.clear();
             skeletonLevel = minecraft.level;
@@ -137,11 +140,33 @@ public final class ESP extends BasicModule {
             int color = 0xFF000000 | (settings.accentColor(colorIndex++, now) & 0x00FFFFFF);
             appendSkeleton(segments, player, pose, partialTick, color);
         }
-        if (!segments.isEmpty()) {
-            Render3DUtils.drawLineSegmentsWithDepth(
-                    event.getPoseStack(), segments, 1.5f, Render3DUtils.DepthMode.NONE
-            );
+        if (segments.isEmpty()) return;
+        List<ProjectedSegment> projected = new ArrayList<>(segments.size());
+        for (Render3DUtils.LineSegment segment : segments) {
+            Render3DUtils.ProjectedPoint start = Render3DUtils.projectPoint(segment.start(), projection);
+            Render3DUtils.ProjectedPoint end = Render3DUtils.projectPoint(segment.end(), projection);
+            if (start == null || end == null || !start.inFront() || !end.inFront()) continue;
+            projected.add(new ProjectedSegment(start, end, segment.argb()));
         }
+        if (projected.isEmpty()) return;
+        List<ProjectedSegment> snapshot = List.copyOf(projected);
+        Core.INSTANCE.getRenderManager().skija().hud().submit(frame -> drawSkeleton(frame, snapshot));
+    }
+
+    private static void drawSkeleton(SkijaFrame frame, List<ProjectedSegment> segments) {
+        for (ProjectedSegment segment : segments) {
+            frame.draw().line(screenX(segment.start(), frame.width()), screenY(segment.start(), frame.height()),
+                    screenX(segment.end(), frame.width()), screenY(segment.end(), frame.height()),
+                    1.5f, segment.color());
+        }
+    }
+
+    private static float screenX(Render3DUtils.ProjectedPoint point, float width) {
+        return (point.x() + 1f) * .5f * width;
+    }
+
+    private static float screenY(Render3DUtils.ProjectedPoint point, float height) {
+        return (point.y() + 1f) * .5f * height;
     }
 
     public void captureSkeletonPose(int entityId, PlayerModel model) {
@@ -253,6 +278,8 @@ public final class ESP extends BasicModule {
     private record BoneRotation(float x, float y, float z) { }
     private record SkeletonPose(BoneRotation head, BoneRotation rightArm, BoneRotation leftArm,
                                 BoneRotation rightLeg, BoneRotation leftLeg) { }
+    private record ProjectedSegment(Render3DUtils.ProjectedPoint start,
+                                    Render3DUtils.ProjectedPoint end, int color) { }
     private record CachedDetails(long tick, boolean equipment, boolean effects,
                                  Render2DUtils.EspDetails details) { }
 }
