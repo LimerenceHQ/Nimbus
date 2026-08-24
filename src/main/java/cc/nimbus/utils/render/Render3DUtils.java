@@ -28,6 +28,8 @@ public final class Render3DUtils {
     private static int savedDepthFunc;
     private static Matrix4f pendingWorldProjection;
     private static WorldProjection worldProjection;
+    // BufferBuilder owns native memory. Keep one render-thread buffer instead of allocating it per mesh.
+    private static BufferBuilder meshBuffer;
     public enum DepthMode { NONE, NORMAL, BOTH, GREATER }
 
     public record LineSegment(Vec3 start, Vec3 end, int argb) {
@@ -589,7 +591,10 @@ public final class Render3DUtils {
     private static void drawMesh(RenderType renderType, DepthMode mode, float lineWidth,
                                  BuilderEmitter emitter) {
         RenderSystem.assertOnRenderThread();
-        BufferBuilder allocator = new BufferBuilder(1024);
+        BufferBuilder allocator = meshBuffer;
+        if (allocator == null) {
+            allocator = meshBuffer = new BufferBuilder(1024);
+        }
         MultiBufferSource.BufferSource buffers = MultiBufferSource.immediate(allocator);
         try {
             VertexConsumer consumer = buffers.getBuffer(renderType);

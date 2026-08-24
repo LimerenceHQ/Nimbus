@@ -25,11 +25,14 @@ import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 @ModuleInfo(name = "ChestESP", description = "Highlights nearby containers.", category = ModuleCategory.Render)
 public final class ChestESP extends BasicModule {
+    private static final int RENDER_BATCH_SIZE = 256;
+
     public final MultiSelectSetting containers = new MultiSelectSetting(
             "Containers", new Modes("Chest", "Furnace", "Blast Furnace", "Smoker", "Brewing Stand"),
             Set.of("Chest")
@@ -89,10 +92,27 @@ public final class ChestESP extends BasicModule {
         }
 
         if (fill.getValue()) {
-            Render3DUtils.drawColoredFilledBoxesWithDepth(event.getPoseStack(), filledBoxes, depth);
+            drawFilledBatches(event, filledBoxes, depth);
         }
-        Render3DUtils.drawColoredBoxOutlinesWithDepth(event.getPoseStack(), outlineBoxes,
-                lineWidth.getValue().floatValue(), depth);
+        drawOutlineBatches(event, outlineBoxes, lineWidth.getValue().floatValue(), depth);
+    }
+
+    private static void drawFilledBatches(EventRender3D event, List<Render3DUtils.ColoredBox> boxes,
+                                          Render3DUtils.DepthMode depth) {
+        for (int start = 0; start < boxes.size(); start += RENDER_BATCH_SIZE) {
+            int end = Math.min(start + RENDER_BATCH_SIZE, boxes.size());
+            Render3DUtils.drawColoredFilledBoxesWithDepth(event.getPoseStack(),
+                    boxes.subList(start, end), depth);
+        }
+    }
+
+    private static void drawOutlineBatches(EventRender3D event, List<Render3DUtils.ColoredBox> boxes,
+                                           float lineWidth, Render3DUtils.DepthMode depth) {
+        for (int start = 0; start < boxes.size(); start += RENDER_BATCH_SIZE) {
+            int end = Math.min(start + RENDER_BATCH_SIZE, boxes.size());
+            Render3DUtils.drawColoredBoxOutlinesWithDepth(event.getPoseStack(),
+                    boxes.subList(start, end), lineWidth, depth);
+        }
     }
 
     private boolean needsScan(ClientLevel level, int centerX, int centerZ, int chunkRadius,
@@ -104,7 +124,7 @@ public final class ChestESP extends BasicModule {
 
     private void scanLoadedChunks(ClientLevel level, int centerX, int centerZ, int chunkRadius,
                                   Set<String> selectedContainers) {
-        List<net.minecraft.core.BlockPos> positions = new ArrayList<>();
+        Set<net.minecraft.core.BlockPos> positions = new LinkedHashSet<>();
         for (int chunkX = centerX - chunkRadius; chunkX <= centerX + chunkRadius; chunkX++) {
             for (int chunkZ = centerZ - chunkRadius; chunkZ <= centerZ + chunkRadius; chunkZ++) {
                 ChunkAccess chunk = level.getChunk(chunkX, chunkZ, ChunkStatus.FULL, false);
