@@ -478,18 +478,22 @@ public final class InventoryManager extends BasicModule {
         for (EquipmentSlot slot : ARMOR_SLOTS) {
             ItemStack best = InventoryUtils.getBestArmor(slot);
             int inventorySlot = armorInventorySlot(slot);
-            if (best.isEmpty() || minecraft.player.getInventory().getItem(inventorySlot) == best) continue;
+            if (best.isEmpty()) continue;
             int bestSlot = findInventorySlot(best);
-            if (bestSlot == -1) continue;
+            if (bestSlot == -1 || bestSlot == inventorySlot) continue;
             ItemStack equipped = minecraft.player.getInventory().getItem(inventorySlot);
-            if (equipped.isEmpty()) click(minecraft.player.containerMenu, toContainerSlot(bestSlot), 0, ClickType.QUICK_MOVE);
-            else {
-                click(minecraft.player.containerMenu, toContainerSlot(bestSlot), 0, ClickType.PICKUP);
-                click(minecraft.player.containerMenu, armorMenuSlot(slot), 0, ClickType.PICKUP);
-                click(minecraft.player.containerMenu, toContainerSlot(bestSlot), 0, ClickType.PICKUP);
+            boolean accepted;
+            if (equipped.isEmpty()) {
+                accepted = click(minecraft.player.containerMenu, toContainerSlot(bestSlot), 0, ClickType.QUICK_MOVE);
+            } else {
+                accepted = click(minecraft.player.containerMenu, toContainerSlot(bestSlot), 0, ClickType.PICKUP);
+                accepted &= click(minecraft.player.containerMenu, armorMenuSlot(slot), 0, ClickType.PICKUP);
+                accepted &= click(minecraft.player.containerMenu, toContainerSlot(bestSlot), 0, ClickType.PICKUP);
             }
-            lastArmor = now();
-            return true;
+            if (accepted) {
+                lastArmor = now();
+                return true;
+            }
         }
         return false;
     }
@@ -687,14 +691,15 @@ public final class InventoryManager extends BasicModule {
                 || menu instanceof SmokerMenu || menu instanceof BrewingStandMenu;
     }
 
-    private void click(AbstractContainerMenu menu, int slot, int button, ClickType type) {
-        if (menu == null || mc.player == null || minecraft.gameMode == null) return;
+    private boolean click(AbstractContainerMenu menu, int slot, int button, ClickType type) {
+        if (menu == null || mc.player == null || minecraft.gameMode == null) return false;
         packetClick = clickMode.is("Packet");
         boolean isSprinting = ((LocalPlayerAccessor)mc.player).isWasSprinting();
-        if (isSprinting) return;
+        if (isSprinting) return false;
         try {
             minecraft.gameMode.handleInventoryMouseClick(menu.containerId, slot, button, type, mc.player);
             PacketUtils.sendPacketNoEvent(new ServerboundContainerClosePacket(menu.containerId));
+            return true;
         }
         finally { packetClick = false; }
     }
