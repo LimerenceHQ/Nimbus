@@ -2,13 +2,11 @@ package cc.nimbus.utils.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.MultiBufferSource;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.world.phys.AABB;
@@ -20,9 +18,6 @@ import org.lwjgl.opengl.GL11;
 
 import java.awt.Color;
 import java.util.List;
-import java.util.Map;
-import java.util.OptionalDouble;
-import java.util.concurrent.ConcurrentHashMap;
 
 @SuppressWarnings({"unused", "deprecation"})
 public final class Render3DUtils {
@@ -33,8 +28,6 @@ public final class Render3DUtils {
     private static int savedDepthFunc;
     private static Matrix4f pendingWorldProjection;
     private static WorldProjection worldProjection;
-    private static final Map<LineTypeKey, RenderType> LINE_TYPES = new ConcurrentHashMap<>();
-
     public enum DepthMode { NONE, NORMAL, BOTH, GREATER }
 
     public record LineSegment(Vec3 start, Vec3 end, int argb) {
@@ -44,6 +37,8 @@ public final class Render3DUtils {
             }
         }
     }
+
+    public record ColoredBox(AABB box, int argb) {}
 
     public record ProjectedBox(float left, float top, float right, float bottom) {
         public float width() { return right - left; }
@@ -192,32 +187,68 @@ public final class Render3DUtils {
     public static void drawBoxOutlinesWithDepth(PoseStack stack, Iterable<AABB> boxes,
                                                  int argb, float lineWidth, DepthMode mode) {
         if (stack == null || boxes == null) return;
-        if (mode == DepthMode.BOTH) {
-            drawBoxOutlinesWithDepth(stack, boxes, withAlpha(argb, 0x40), lineWidth, DepthMode.GREATER);
-            drawBoxOutlinesWithDepth(stack, boxes, argb, lineWidth, DepthMode.NORMAL);
-            return;
-        }
-        java.util.List<float[]> relative = new java.util.ArrayList<>();
-        for (AABB box : boxes) if (box != null) relative.add(getRelativeAABB(box));
-        if (relative.isEmpty()) return;
-        drawLines(stack, mode, lineWidth, sink -> {
-            for (float[] box : relative) emitBoxEdges(sink, box, argb);
-        });
+        java.util.List<ColoredBox> coloredBoxes = new java.util.ArrayList<>();
+        for (AABB box : boxes) if (box != null) coloredBoxes.add(new ColoredBox(box, argb));
+        drawColoredBoxOutlinesWithDepth(stack, coloredBoxes, lineWidth, mode);
     }
 
     public static void drawFilledBoxesWithDepth(PoseStack stack, Iterable<AABB> boxes,
                                                 int argb, DepthMode mode) {
         if (stack == null || boxes == null) return;
+        java.util.List<ColoredBox> coloredBoxes = new java.util.ArrayList<>();
+        for (AABB box : boxes) if (box != null) coloredBoxes.add(new ColoredBox(box, argb));
+        drawColoredFilledBoxesWithDepth(stack, coloredBoxes, mode);
+    }
+
+    public static void drawColoredBoxOutlinesWithDepth(PoseStack stack, Iterable<ColoredBox> boxes,
+                                                       float lineWidth, DepthMode mode) {
+        if (stack == null || boxes == null) return;
+        java.util.List<ColoredRelativeBox> relative = new java.util.ArrayList<>();
+        for (ColoredBox box : boxes) {
+            if (box != null && box.box() != null) {
+                relative.add(new ColoredRelativeBox(getRelativeAABB(box.box()), box.argb()));
+            }
+        }
+        if (relative.isEmpty()) return;
         if (mode == DepthMode.BOTH) {
-            drawFilledBoxesWithDepth(stack, boxes, withAlpha(argb, 0x20), DepthMode.GREATER);
-            drawFilledBoxesWithDepth(stack, boxes, argb, DepthMode.NORMAL);
+            drawLines(stack, DepthMode.GREATER, lineWidth, sink -> {
+                for (ColoredRelativeBox box : relative) {
+                    emitBoxEdges(sink, box.bounds(), withAlpha(box.argb(), 0x40));
+                }
+            });
+            drawLines(stack, DepthMode.NORMAL, lineWidth, sink -> {
+                for (ColoredRelativeBox box : relative) emitBoxEdges(sink, box.bounds(), box.argb());
+            });
             return;
         }
-        java.util.List<float[]> relative = new java.util.ArrayList<>();
-        for (AABB box : boxes) if (box != null) relative.add(getRelativeAABB(box));
+        drawLines(stack, mode, lineWidth, sink -> {
+            for (ColoredRelativeBox box : relative) emitBoxEdges(sink, box.bounds(), box.argb());
+        });
+    }
+
+    public static void drawColoredFilledBoxesWithDepth(PoseStack stack, Iterable<ColoredBox> boxes,
+                                                       DepthMode mode) {
+        if (stack == null || boxes == null) return;
+        java.util.List<ColoredRelativeBox> relative = new java.util.ArrayList<>();
+        for (ColoredBox box : boxes) {
+            if (box != null && box.box() != null) {
+                relative.add(new ColoredRelativeBox(getRelativeAABB(box.box()), box.argb()));
+            }
+        }
         if (relative.isEmpty()) return;
+        if (mode == DepthMode.BOTH) {
+            drawQuads(stack, DepthMode.GREATER, sink -> {
+                for (ColoredRelativeBox box : relative) {
+                    emitBoxFaces(sink, box.bounds(), withAlpha(box.argb(), 0x20));
+                }
+            });
+            drawQuads(stack, DepthMode.NORMAL, sink -> {
+                for (ColoredRelativeBox box : relative) emitBoxFaces(sink, box.bounds(), box.argb());
+            });
+            return;
+        }
         drawQuads(stack, mode, sink -> {
-            for (float[] box : relative) emitBoxFaces(sink, box, argb);
+            for (ColoredRelativeBox box : relative) emitBoxFaces(sink, box.bounds(), box.argb());
         });
     }
 
@@ -540,21 +571,27 @@ public final class Render3DUtils {
     private static void drawQuads(PoseStack stack, DepthMode mode, QuadEmitter emitter) {
         if (stack == null) return;
         Matrix4f modelView = stack.last().pose();
-        drawMesh(RenderType.debugQuads(),
+        drawMesh(RenderType.debugQuads(), mode,
                 builder -> emitter.emit(new QuadSink(builder, modelView)));
     }
 
     private static void drawLines(PoseStack stack, DepthMode mode, float width, LineEmitter emitter) {
         if (stack == null) return;
         Matrix4f modelView = stack.last().pose();
-        drawMesh(lineType(width, mode),
+        drawMesh(RenderType.lines(), mode, width,
                 builder -> emitter.emit(new LineSink(builder, modelView, width)));
     }
 
-    private static void drawMesh(RenderType renderType, BuilderEmitter emitter) {
+    private static void drawMesh(RenderType renderType, DepthMode mode, BuilderEmitter emitter) {
+        drawMesh(renderType, mode, 1.0f, emitter);
+    }
+
+    private static void drawMesh(RenderType renderType, DepthMode mode, float lineWidth,
+                                 BuilderEmitter emitter) {
         RenderSystem.assertOnRenderThread();
-        BufferBuilder allocator = new BufferBuilder(256 * 1024);
+        BufferBuilder allocator = new BufferBuilder(1024);
         MultiBufferSource.BufferSource buffers = MultiBufferSource.immediate(allocator);
+        try {
             VertexConsumer consumer = buffers.getBuffer(renderType);
             emitter.emit(consumer);
 
@@ -562,17 +599,29 @@ public final class Render3DUtils {
             globalModelView.pushPose();
             globalModelView.setIdentity();
             try {
-                buffers.endBatch(renderType);
+                if (!allocator.isCurrentBatchEmpty()) {
+                    BufferBuilder.RenderedBuffer rendered = allocator.end();
+                    renderType.setupRenderState();
+                    try {
+                        applyDepthMode(mode);
+                        if (renderType == RenderType.lines()) {
+                            GL11.glLineWidth(Math.max(0.5f, lineWidth));
+                        }
+                        BufferUploader.drawWithShader(rendered);
+                    } finally {
+                        if (renderType == RenderType.lines()) GL11.glLineWidth(1.0f);
+                        renderType.clearRenderState();
+                        GL11.glEnable(GL11.GL_DEPTH_TEST);
+                        GL11.glDepthFunc(GL11.GL_LEQUAL);
+                    }
+                }
             } finally {
+                GL11.glDepthMask(true);
                 globalModelView.popPose();
             }
-        allocator.clear();
-    }
-
-    private static RenderType lineType(float width, DepthMode mode) {
-        // 1.20.1 keeps the line render types factory-owned; custom CompositeState
-        // members are protected, so use the public debug line type here.
-        return RenderType.debugLineStrip(Math.max(0.5d, width));
+        } finally {
+            allocator.clear();
+        }
     }
 
 
@@ -622,7 +671,7 @@ public final class Render3DUtils {
     private interface QuadEmitter { void emit(QuadSink sink); }
     private interface LineEmitter { void emit(LineSink sink); }
 
-    private record LineTypeKey(int widthBits, DepthMode mode) {}
+    private record ColoredRelativeBox(float[] bounds, int argb) {}
 
     private static int argb(int r,int g,int b,int a) { return (clamp(a)<<24)|(clamp(r)<<16)|(clamp(g)<<8)|clamp(b); }
     private static int clamp(int value) { return Math.max(0, Math.min(255, value)); }
