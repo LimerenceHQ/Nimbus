@@ -44,7 +44,7 @@ public final class TNTWarn extends BasicModule {
     private static final float PULSE_THRESHOLD_SECONDS = 2.0f;
     private static final float PULSE_AMPLITUDE = 0.12f;
     private static final float PULSE_SPEED = 2.0f;
-    private static final double NOTIFICATION_RANGE_SQUARED = 32.0 * 32.0;
+    private static final double NOTIFICATION_RANGE_SQUARED = 8.0 * 8.0;
 
     public final NumberSetting dangerRadius = new NumberSetting("Danger Radius", 7.0, 0.5, 12, 0.1);
     public final NumberSetting lethalRadius = new NumberSetting("Lethal Radius", 4.0, 0.5, 12, 0.1);
