@@ -12,6 +12,8 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.List;
+
 public final class AccountScreen extends Screen {
     private final Screen parent;
     private Alt selected;
@@ -21,6 +23,7 @@ public final class AccountScreen extends Screen {
     private Button delete;
     private String status = tr("nimbus.account.status.ready", "Ready");
     private int listScroll;
+    private List<Alt> accountSnapshot = List.of();
 
     public AccountScreen(Screen parent) {
         super(component("nimbus.account.title", "Alt Manager"));
@@ -29,6 +32,7 @@ public final class AccountScreen extends Screen {
 
     @Override
     protected void init() {
+        refreshAccounts();
         int left = Math.max(12, width / 2 - Math.min(140, width / 2 - 12));
         int top = formTop();
         name = field(left, top, 280, tr("nimbus.account.username", "Username"));
@@ -51,6 +55,30 @@ public final class AccountScreen extends Screen {
         updateButtons();
     }
 
+    private void refreshAccounts() {
+        accountSnapshot = accounts().getAccounts();
+        Alt last = accounts().getLastAccount();
+        if (selected == null && !accountSnapshot.isEmpty()) {
+            selected = findAccount(last);
+            if (selected == null) selected = accountSnapshot.get(0);
+        } else if (selected != null) {
+            Alt current = findAccount(selected);
+            selected = current;
+        }
+        int visibleHeight = Math.max(0, listBottom() - listTop());
+        int maxScroll = Math.max(0, accountSnapshot.size() * 32 - visibleHeight);
+        listScroll = Math.max(0, Math.min(maxScroll, listScroll));
+    }
+
+    private Alt findAccount(Alt target) {
+        if (target == null) return null;
+        return accountSnapshot.stream()
+                .filter(account -> account.getAccountType() == target.getAccountType())
+                .filter(account -> account.getUserName().equalsIgnoreCase(target.getUserName()))
+                .findFirst()
+                .orElse(null);
+    }
+
     private EditBox field(int x, int y, int width, String hint) {
         EditBox box = addRenderableWidget(new EditBox(font, x, y, width, 20, Component.literal(hint)));
         box.setHint(Component.literal(hint));
@@ -60,11 +88,12 @@ public final class AccountScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics graphics) {
+        refreshAccounts();
         graphics.fill(0, 0, graphics.guiWidth(), graphics.guiHeight(), 0xCC0B1015);
-        int panelLeft = width / 2 - 160;
-        int panelRight = width / 2 + 160;
-        int listTop = 86;
-        int listBottom = formTop() - 26;
+        int panelLeft = panelLeft();
+        int panelRight = panelRight();
+        int listTop = listTop();
+        int listBottom = listBottom();
         graphics.fill(panelLeft, 16, panelRight, height - 16, 0xE9161D25);
         graphics.fill(panelLeft, 16, panelLeft + 4, height - 16, 0xFF39C59A);
         graphics.drawString(font, title, panelLeft + 16, 28, 0xFFFFFFFF, false);
@@ -74,7 +103,7 @@ public final class AccountScreen extends Screen {
                 panelLeft + 16, 68, 0xFFB9C4CC, false);
         graphics.drawString(font, status, panelRight - 150, 68, 0xFFB9C4CC, false);
         int y = listTop - listScroll;
-        for (Alt alt : accounts().getAccounts()) {
+        for (Alt alt : accountSnapshot) {
             if (y + 28 >= listTop && y <= listBottom) {
                 boolean active = alt == selected;
                 graphics.fill(panelLeft + 14, y, panelRight - 14, y + 28,
@@ -89,17 +118,26 @@ public final class AccountScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
     @Override
     public boolean mouseClicked(double x, double y, int button) {
+        refreshAccounts();
+        int listTop = listTop();
+        int listBottom = listBottom();
+        int panelLeft = panelLeft();
+        int panelRight = panelRight();
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
-                && x >= width / 2 - 146 && x <= width / 2 + 146
-                && y >= 86 && y < formTop() - 26) {
-            int index = ((int) y - 86 + listScroll) / 32;
-            if (index >= 0 && index < accounts().getAccounts().size()) {
-                selected = accounts().getAccounts().get(index);
+                && x >= panelLeft + 14 && x <= panelRight - 14
+                && y >= listTop && y < listBottom) {
+            int index = ((int) y - listTop + listScroll) / 32;
+            int rowY = listTop + index * 32 - listScroll;
+            if (index >= 0 && index < accountSnapshot.size()
+                    && y >= rowY && y < rowY + 28) {
+                selected = accountSnapshot.get(index);
+                accounts().setLastAccount(selected);
             }
             updateButtons();
             return true;
@@ -109,8 +147,9 @@ public final class AccountScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double x, double y, double vertical) {
-        int visibleHeight = Math.max(0, formTop() - 26 - 86);
-        int contentHeight = accounts().getAccounts().size() * 32;
+        refreshAccounts();
+        int visibleHeight = Math.max(0, listBottom() - listTop());
+        int contentHeight = accountSnapshot.size() * 32;
         int maxScroll = Math.max(0, contentHeight - visibleHeight);
         listScroll = Math.max(0, Math.min(maxScroll, listScroll - (int) (vertical * 32)));
         return true;
@@ -133,6 +172,7 @@ public final class AccountScreen extends Screen {
         }
         Alt alt = new OfflineAlt(user);
         accounts().addAccount(alt);
+        refreshAccounts();
         selected = alt;
         status = tr("nimbus.account.status.added", "Added %s", user);
         save();
@@ -148,6 +188,7 @@ public final class AccountScreen extends Screen {
         }
         OriginalAlt alt = new OriginalAlt(user, access, "");
         accounts().addAccount(alt);
+        refreshAccounts();
         selected = alt;
         status = tr("nimbus.account.status.token_added", "Token account added");
         save();
@@ -191,8 +232,9 @@ public final class AccountScreen extends Screen {
     private void deleteSelected() {
         if (selected == null) return;
         accounts().removeAccount(selected);
+        refreshAccounts();
         status = tr("nimbus.account.status.deleted", "Deleted");
-        selected = null;
+        if (selected == null && !accountSnapshot.isEmpty()) selected = accountSnapshot.get(0);
         save();
         updateButtons();
     }
@@ -212,6 +254,22 @@ public final class AccountScreen extends Screen {
 
     private int formTop() {
         return Math.max(220, Math.min(height - 210, (int) (height * 0.58f)));
+    }
+
+    private int panelLeft() {
+        return Math.max(8, width / 2 - 160);
+    }
+
+    private int panelRight() {
+        return Math.min(width - 8, width / 2 + 160);
+    }
+
+    private int listTop() {
+        return 86;
+    }
+
+    private int listBottom() {
+        return Math.max(listTop(), formTop() - 26);
     }
 
     private static Component component(String key, String fallback) {
