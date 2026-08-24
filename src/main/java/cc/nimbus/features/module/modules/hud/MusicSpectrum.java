@@ -44,6 +44,7 @@ public final class MusicSpectrum extends BasicModule {
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
+        if (event.isPost()) return;
         MusicManager music = Core.INSTANCE.getMusicManager();
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         ensureCapacity(BAND_COUNT);

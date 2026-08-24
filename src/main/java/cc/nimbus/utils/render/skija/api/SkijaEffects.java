@@ -9,7 +9,6 @@ import io.github.humbleui.skija.MaskFilter;
 import io.github.humbleui.skija.Shader;
 import io.github.humbleui.types.Point;
 
-/** Creates paint effects that are released automatically after the frame. */
 public final class SkijaEffects {
     private final FrameResources resources;
 

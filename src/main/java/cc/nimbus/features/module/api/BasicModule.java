@@ -140,8 +140,13 @@ public abstract class BasicModule extends ToggleElement implements IMinecraft {
 
     private void postToggleNotification(boolean enabled) {
         if (!Core.INSTANCE.isInitialized() || mc.level == null || mc.player == null || getName().equalsIgnoreCase("Notification")) return;
+        String moduleName = Core.INSTANCE.getI18nManager().get(
+                getDisplayNameTranslationKey(), getDisplayName());
+        String message = Core.INSTANCE.getI18nManager().get(
+                enabled ? "nimbus.module.toggle.enabled" : "nimbus.module.toggle.disabled",
+                enabled ? "%s enabled" : "%s disabled", moduleName);
         Core.INSTANCE.getNotificationManager().postGame(
-                getDisplayName() + (enabled ? " enabled" : " disabled"),
+                message,
                 2000L,
                 enabled ? NotificationType.SUCCESS : NotificationType.ERROR);
     }

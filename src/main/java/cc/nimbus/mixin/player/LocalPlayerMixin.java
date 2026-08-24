@@ -335,7 +335,7 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
         }
 
         sendIsSprintingIfNeeded();
-        EventBus.call(new EventPreUpdate());
+        EventBus.call(new EventPreUpdate(EventType.PRE));
         boolean shiftDown = player.isShiftKeyDown();
         if (shiftDown != this.wasShiftKeyDown) {
             ServerboundPlayerCommandPacket.Action action = shiftDown

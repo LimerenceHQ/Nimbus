@@ -2,6 +2,7 @@ package cc.nimbus.mixin.render;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.event.EventBus;
+import cc.nimbus.event.EventType;
 import cc.nimbus.event.impl.render.EventRender2D;
 import cc.nimbus.utils.render.skija.api.SkijaLayer;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
@@ -52,7 +53,7 @@ public abstract class GuiRendererMixin {
 
         var settings = Core.INSTANCE.getConfigManager().clientSettings();
         skija.configurePostProcess(settings.postProcessOptions());
-        EventBus.call(new EventRender2D(graphics));
+        EventBus.call(new EventRender2D(EventType.PRE, graphics));
         boolean hasPostProcess = skija.postProcess().hasRegions();
         boolean hasContent = hasPostProcess || skija.hud().hasPendingContent();
         boolean forceUpdate = resized || hasContent != nimbus$hudHadContent;
@@ -67,6 +68,7 @@ public abstract class GuiRendererMixin {
             skija.hud().discardFrame();
         }
         if (nimbus$hudHadContent) nimbus$hudLayer.extract(graphics, framebufferWidth, framebufferHeight);
+        EventBus.call(new EventRender2D(EventType.POST, graphics));
 
     }
 

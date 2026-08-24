@@ -60,6 +60,7 @@ public final class NotificationRenderer {
 
     @EventTarget(priority = Priority.Lowest)
     private void onRender2D(EventRender2D event) {
+        if (event.isPost()) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null
                 || !(minecraft.screen == null || minecraft.screen instanceof ChatScreen)) return;

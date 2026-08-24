@@ -125,6 +125,7 @@ public final class HudManager implements InstanceManager {
 
     @EventTarget(priority = Priority.Lowest)
     private void onRender2D(EventRender2D event) {
+        if (event.isPost()) return;
         if (!isEditing()) {
             finishMotion();
             return;

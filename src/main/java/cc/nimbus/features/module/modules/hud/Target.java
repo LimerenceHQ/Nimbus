@@ -64,6 +64,7 @@ public final class Target extends BasicModule {
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
+        if (event.isPost()) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.level == null) return;
         boolean preview = minecraft.screen instanceof ChatScreen;

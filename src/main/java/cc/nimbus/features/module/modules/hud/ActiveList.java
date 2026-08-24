@@ -75,6 +75,7 @@ public final class ActiveList extends BasicModule {
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
+        if (event.isPost()) return;
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         HudViewport viewport = Core.INSTANCE.getHudManager().viewport(skija.width(), skija.height());
         long nowNanos = System.nanoTime();

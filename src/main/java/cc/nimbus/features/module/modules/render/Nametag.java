@@ -11,6 +11,7 @@ import cc.nimbus.features.module.modules.combat.BowAssistant;
 import cc.nimbus.utils.render.Render3DUtils;
 import cc.nimbus.utils.render.PlayerProjectionCache;
 import cc.nimbus.utils.render.font.NimbusFonts;
+import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Path;
@@ -38,12 +39,14 @@ public final class Nametag extends BasicModule {
     private static final float GAP = 3f;
     private static final float META_Y = 24f;
     private static final int BACKGROUND_COLOR = 0x70171A1E;
+    private static final long TEXT_TRANSITION_NANOS = 180_000_000L;
     private final Map<Integer, LabelCache> labels = new HashMap<>();
     private ClientLevel labelLevel;
     private long labelsCleanupTick = Long.MIN_VALUE;
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
+        if (event.isPost()) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) return;
         Render3DUtils.WorldProjection projection = Render3DUtils.worldProjection();
@@ -53,6 +56,7 @@ public final class Nametag extends BasicModule {
         float guiScale = event.getGraphics().guiWidth() > 0
                 ? skija.width() / (float) event.getGraphics().guiWidth() : 1f;
         long now = System.currentTimeMillis();
+        long nowNanos = System.nanoTime();
         ClientSettings settings = Core.INSTANCE.getConfigManager().clientSettings();
         List<Entry> entries = new ArrayList<>();
         if (labelLevel != minecraft.level) {
@@ -68,6 +72,7 @@ public final class Nametag extends BasicModule {
             labelsCleanupTick = gameTime;
         }
         TargetIndicators targetIndicators = targetIndicators();
+        ItemWarn itemWarn = Core.INSTANCE.getModuleManager().getModule(ItemWarn.class);
         int colorIndex = 0;
 
         for (PlayerProjectionCache.Entry projectedPlayer : PlayerProjectionCache.entries(minecraft, projection)) {
@@ -77,18 +82,23 @@ public final class Nametag extends BasicModule {
 
             float espWidth = projected.width() * 0.5f * skija.width();
             if (espWidth <= 2f) continue;
-            String targetIndicator = targetIndicators.label(player.getId());
-            LabelCache label = label(player, minecraft.player, skija, guiScale, gameTime, targetIndicator);
-            float naturalWidth = label.naturalWidth;
+            TargetIndicator targetIndicator = targetIndicators.label(player.getId());
+            ItemWarn.Warning warning = itemWarn == null
+                    ? ItemWarn.detect(minecraft.player, player)
+                    : itemWarn.nametagWarning(minecraft.player, player);
+            LabelCache label = label(player, minecraft.player, skija, guiScale, gameTime,
+                    targetIndicator.text(), targetIndicator.color(), warning, nowNanos);
+            LabelVisual current = label.currentVisual();
+            LabelVisual previous = label.previousVisual(nowNanos);
+            float transition = label.transitionProgress(nowNanos);
+            float naturalWidth = Math.max(current.naturalWidth(),
+                    previous == null ? 0f : previous.naturalWidth());
             float relativeScale = Math.max(MIN_SCALE, Math.min(1f, espWidth / naturalWidth));
             float scale = guiScale * relativeScale;
             float width = Math.max(espWidth, naturalWidth * relativeScale);
-            float height = HEIGHT * scale;
-            String indicator = label.targetIndicator.isEmpty() ? "" : "  ·  " + label.targetIndicator;
             entries.add(new Entry(
-                    (projected.left() + projected.right()) * 0.5f,
-                    projected.top(), width, height, scale, label.name, label.metadata,
-                    indicator, label.metadataWidth * relativeScale, label.indicatorWidth * relativeScale,
+                    (projected.left() + projected.right()) * 0.5f, projected.top(), width,
+                    HEIGHT * scale, scale, current, previous, transition,
                     settings.accentColor(colorIndex++, now)
             ));
         }
@@ -118,17 +128,7 @@ public final class Nametag extends BasicModule {
                     frame.draw().rect(x, y + entry.height - 2f * entry.scale,
                             entry.width, 2f * entry.scale,
                             0xE6000000 | (entry.accent & 0x00FFFFFF));
-                    frame.text().center(NAME_FONT, NAME_SIZE * entry.scale, entry.name,
-                            centerX, y + 4f * entry.scale, 0xFFF4F7F8);
-                    float metadataSize = META_SIZE * entry.scale;
-                    float metadataX = centerX - (entry.metadataWidth + entry.indicatorWidth) * 0.5f;
-                    frame.text().draw(META_FONT, metadataSize, entry.metadata,
-                            metadataX, y + META_Y * entry.scale, 0xFFB8C0C7);
-                    if (!entry.indicator.isEmpty()) {
-                        frame.text().draw(META_FONT, metadataSize, entry.indicator,
-                                metadataX + entry.metadataWidth, y + META_Y * entry.scale,
-                                0xFF000000 | (entry.accent & 0x00FFFFFF));
-                    }
+                    drawLabelText(frame, entry, centerX, y);
                 }
             }
         });
@@ -142,10 +142,12 @@ public final class Nametag extends BasicModule {
     }
 
     private LabelCache label(Player player, Player viewer, SkijaRenderer skija,
-                             float guiScale, long gameTime, String targetIndicator) {
+                             float guiScale, long gameTime, String targetIndicator, int targetColor,
+                             ItemWarn.Warning warning, long nowNanos) {
         LabelCache cached = labels.computeIfAbsent(player.getId(), ignored -> new LabelCache());
         if (cached.tick == gameTime && Float.compare(cached.guiScale, guiScale) == 0
-                && targetIndicator.equals(cached.targetIndicator)) return cached;
+                && targetIndicator.equals(cached.targetIndicator)
+                && warning.key().equals(cached.warning.key())) return cached;
 
         String name = player.getName().getString();
         int distanceTenths = Math.round(viewer.distanceTo(player) * 10f);
@@ -156,17 +158,28 @@ public final class Nametag extends BasicModule {
         String metadata = textChanged
                 ? String.format(Locale.ROOT, "ID %d  ·  %.1fm", player.getId(), distanceTenths / 10f)
                 : cached.metadata;
+        boolean contentChanged = !name.equals(cached.name)
+                || !targetIndicator.equals(cached.targetIndicator)
+                || !warning.key().equals(cached.warning.key());
         if (!name.equals(cached.name) || !metadata.equals(cached.metadata)
                 || !targetIndicator.equals(cached.targetIndicator)
                 || Float.compare(cached.guiScale, guiScale) != 0) {
+            if (contentChanged && !cached.name.isEmpty()) {
+                cached.previous = cached.currentVisual();
+                cached.transitionStartedNanos = nowNanos;
+            }
             cached.name = name;
             cached.metadata = metadata;
             cached.guiScale = guiScale;
+            cached.targetColor = targetColor;
+            cached.warning = warning;
             String indicator = targetIndicator.isEmpty() ? "" : "  ·  " + targetIndicator;
             cached.metadataWidth = skija.text().width(META_FONT, META_SIZE * guiScale, metadata);
             cached.indicatorWidth = skija.text().width(META_FONT, META_SIZE * guiScale, indicator);
+            float warningWidth = skija.text().width(NAME_FONT, NAME_SIZE * guiScale, warning.label());
+            cached.warningWidth = warningWidth;
             cached.naturalWidth = Math.max(
-                    skija.text().width(NAME_FONT, NAME_SIZE * guiScale, name),
+                    warningWidth + skija.text().width(NAME_FONT, NAME_SIZE * guiScale, name),
                     cached.metadataWidth + cached.indicatorWidth
             ) + PADDING_X * guiScale * 2f;
         }
@@ -174,6 +187,59 @@ public final class Nametag extends BasicModule {
         cached.tick = gameTime;
         cached.targetIndicator = targetIndicator;
         return cached;
+    }
+
+    private static void drawLabelText(SkijaFrame frame, Entry entry, float centerX, float y) {
+        float progress = smoothStep(entry.transition());
+        if (entry.previous() != null && progress < 1f) {
+            drawLabelVisual(frame, entry, centerX, y, entry.previous(),
+                    1f - progress, -3f * progress * entry.scale());
+        }
+        drawLabelVisual(frame, entry, centerX, y, entry.current(),
+                progress, 3f * (1f - progress) * entry.scale());
+    }
+
+    private static void drawLabelVisual(SkijaFrame frame, Entry entry, float centerX, float y,
+                                        LabelVisual visual, float opacity, float offsetY) {
+        if (opacity <= 0f) return;
+        int nameColor = multiplyAlpha(0xFFF4F7F8, opacity);
+        int metadataColor = multiplyAlpha(0xFFB8C0C7, opacity);
+        int indicatorColor = multiplyAlpha(visual.indicatorColor(), opacity);
+        float nameSize = NAME_SIZE * entry.scale();
+        float metadataSize = META_SIZE * entry.scale();
+        float visualScale = entry.scale() / entry.guiScale();
+        float metadataWidth = visual.metadataWidth() * visualScale;
+        float indicatorWidth = visual.indicatorWidth() * visualScale;
+        float metadataX = centerX - (metadataWidth + indicatorWidth) * 0.5f;
+
+        float warningWidth = visual.warningWidth() * visualScale;
+        float nameWidth = frame.text().width(NAME_FONT, nameSize, visual.name());
+        float nameStart = centerX - (warningWidth + nameWidth) * 0.5f;
+        if (!visual.warning().isEmpty()) {
+            frame.text().draw(NAME_FONT, nameSize, visual.warning(), nameStart,
+                    y + 4f * entry.scale() + offsetY,
+                    multiplyAlpha(visual.warningColor(), opacity));
+            nameStart += warningWidth;
+        }
+        frame.text().draw(NAME_FONT, nameSize, visual.name(), nameStart,
+                y + 4f * entry.scale() + offsetY, nameColor);
+        frame.text().draw(META_FONT, metadataSize, visual.metadata(),
+                metadataX, y + META_Y * entry.scale() + offsetY, metadataColor);
+        if (!visual.indicator().isEmpty()) {
+            frame.text().draw(META_FONT, metadataSize, visual.indicator(),
+                    metadataX + metadataWidth, y + META_Y * entry.scale() + offsetY,
+                    indicatorColor);
+        }
+    }
+
+    private static float smoothStep(float value) {
+        float t = Math.clamp(value, 0f, 1f);
+        return t * t * (3f - 2f * t);
+    }
+
+    private static int multiplyAlpha(int color, float opacity) {
+        int alpha = Math.round(((color >>> 24) & 0xFF) * Math.clamp(opacity, 0f, 1f));
+        return (color & 0x00FFFFFF) | (alpha << 24);
     }
 
     private TargetIndicators targetIndicators() {
@@ -196,18 +262,24 @@ public final class Nametag extends BasicModule {
     }
 
     private record Entry(float centerX, float top, float width, float height, float scale,
-                         String name, String metadata, String indicator,
-                         float metadataWidth, float indicatorWidth, int accent) { }
+                         LabelVisual current, LabelVisual previous, float transition, int accent) {
+        private float guiScale() {
+            return current.guiScale();
+        }
+    }
 
     private record TargetIndicators(int projectileTargetId, int bowTargetId,
                                     String projectileLabel, String bowLabel) {
-        private String label(int entityId) {
+        private TargetIndicator label(int entityId) {
             boolean projectile = projectileTargetId == entityId;
             boolean bow = bowTargetId == entityId;
-            if (projectile && bow) return projectileLabel + " / " + bowLabel;
-            if (projectile) return projectileLabel;
-            return bow ? bowLabel : "";
+            if (projectile && bow) return new TargetIndicator(projectileLabel + " / " + bowLabel, 0xFFFFFFFF);
+            if (projectile) return new TargetIndicator(projectileLabel, 0xFFFFFFFF);
+            return bow ? new TargetIndicator(bowLabel, 0xFFFFFFFF) : new TargetIndicator("", 0xFFFFFFFF);
         }
+    }
+
+    private record TargetIndicator(String text, int color) {
     }
 
     private static final class LabelCache {
@@ -217,8 +289,38 @@ public final class Nametag extends BasicModule {
         private float naturalWidth;
         private float metadataWidth;
         private float indicatorWidth;
+        private float warningWidth;
         private String name = "";
         private String metadata = "";
         private String targetIndicator = "";
+        private int targetColor = 0xFFFFFFFF;
+        private ItemWarn.Warning warning = ItemWarn.detect(null, null);
+        private LabelVisual previous;
+        private long transitionStartedNanos = Long.MIN_VALUE;
+
+        private LabelVisual currentVisual() {
+            String indicator = targetIndicator.isEmpty() ? "" : "  ·  " + targetIndicator;
+            return new LabelVisual(name, warning.label(), metadata, indicator, metadataWidth, indicatorWidth,
+                    this.warningWidth, naturalWidth, guiScale, targetColor, warning.color());
+        }
+
+        private LabelVisual previousVisual(long nowNanos) {
+            if (previous == null) return null;
+            if (transitionProgress(nowNanos) >= 1f) {
+                previous = null;
+                transitionStartedNanos = Long.MIN_VALUE;
+                return null;
+            }
+            return previous;
+        }
+
+        private float transitionProgress(long nowNanos) {
+            if (previous == null || transitionStartedNanos == Long.MIN_VALUE) return 1f;
+            return Math.clamp((nowNanos - transitionStartedNanos) / (float) TEXT_TRANSITION_NANOS, 0f, 1f);
+        }
     }
+
+    private record LabelVisual(String name, String warning, String metadata, String indicator,
+                               float metadataWidth, float indicatorWidth, float warningWidth,
+                               float naturalWidth, float guiScale, int indicatorColor, int warningColor) { }
 }

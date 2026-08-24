@@ -57,6 +57,7 @@ public final class ESP extends BasicModule {
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
+        if (event.isPost()) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) return;
 

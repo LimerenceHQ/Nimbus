@@ -77,6 +77,7 @@ public final class MusicLyrics extends BasicModule {
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
+        if (event.isPost()) return;
         MusicManager music = Core.INSTANCE.getMusicManager();
         PlaybackState playback = music.state();
         CurrentLyricsState state = music.currentLyrics();

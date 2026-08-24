@@ -46,6 +46,7 @@ public final class PointerESP extends BasicModule {
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
+        if (event.isPost()) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) return;
         Render3DUtils.WorldProjection projection = Render3DUtils.worldProjection();

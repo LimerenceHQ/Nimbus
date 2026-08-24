@@ -8,6 +8,8 @@
   "nimbus.ui.on": "On",
   "nimbus.ui.off": "Off",
   "nimbus.ui.loading": "Loading...",
+  "nimbus.module.toggle.enabled": "%s enabled",
+  "nimbus.module.toggle.disabled": "%s disabled",
 
   "nimbus.category.combat": "Combat",
   "nimbus.category.move": "Move",
@@ -517,6 +519,36 @@
 
   "nimbus.module.nametag.name": "Nametag",
   "nimbus.module.nametag.description": "Shows player IDs and distance above players.",
+
+  "nimbus.module.item_warn.name": "Item Warn",
+  "nimbus.module.item_warn.description": "Warns about dangerous player effects and held items.",
+  "nimbus.module.item_warn.setting.nametag": "Nametag",
+  "nimbus.module.item_warn.setting.client_notification": "Client Notification",
+
+  "nimbus.module.tnt_warn.name": "TNT Warn",
+  "nimbus.module.tnt_warn.description": "Shows TNT fuse timers and explosion danger ranges.",
+  "nimbus.module.tnt_warn.setting.danger_radius": "Danger Radius",
+  "nimbus.module.tnt_warn.setting.lethal_radius": "Lethal Radius",
+  "nimbus.module.tnt_warn.setting.alpha": "Alpha",
+  "nimbus.module.tnt_warn.setting.pulse_near_explosion": "Pulse Near Explosion",
+  "nimbus.module.tnt_warn.setting.timer": "Timer",
+  "nimbus.module.tnt_warn.overlay.timer": "%.1fs",
+  "nimbus.notification.tnt_warning.title": "TNT Warning",
+  "nimbus.notification.tnt_warning.message": "TNT %.1fs",
+
+  "nimbus.module.tntwarn.name": "TNT Warn",
+  "nimbus.module.tntwarn.description": "Shows TNT fuse timers and explosion danger ranges.",
+  "nimbus.module.tntwarn.setting.danger_radius": "Danger Radius",
+  "nimbus.module.tntwarn.setting.lethal_radius": "Lethal Radius",
+  "nimbus.module.tntwarn.setting.alpha": "Alpha",
+  "nimbus.module.tntwarn.setting.pulse_near_explosion": "Pulse Near Explosion",
+  "nimbus.module.tntwarn.setting.timer": "Timer",
+
+  "nimbus.module.bed_defense.name": "Bed Defense",
+  "nimbus.module.bed_defense.description": "Shows the blocks protecting nearby beds.",
+  "nimbus.module.bed_defense.setting.range": "Range",
+  "nimbus.module.bed_defense.setting.defense_radius": "Defense Radius",
+  "nimbus.module.bed_defense.setting.icons": "Icons",
 
   "nimbus.module.projectile.name": "Projectile",
   "nimbus.module.projectile.description": "Predicts the path of held projectiles.",

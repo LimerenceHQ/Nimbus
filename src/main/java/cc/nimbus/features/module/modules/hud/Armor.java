@@ -43,6 +43,7 @@ public final class Armor extends BasicModule {
 
     @EventTarget
     private void onRender2D(EventRender2D event) {
+        if (event.isPost()) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.level == null) {
             layoutSize = new HudSize(2f, 2f);

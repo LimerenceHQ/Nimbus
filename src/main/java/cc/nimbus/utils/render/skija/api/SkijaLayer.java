@@ -9,8 +9,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
 
 public final class SkijaLayer {
     private final SkijaRenderer renderer;
@@ -50,11 +48,6 @@ public final class SkijaLayer {
         pose.pushPose();
         try {
             pose.scale(scaleX, scaleY, 1.0f);
-            // Skija's framebuffer has a bottom-left origin; GuiGraphics is top-left.
-            // Skija stores colors premultiplied. Flush this blit while using the
-            // matching ONE/ONE_MINUS_SRC_ALPHA blend equation; the vanilla GUI
-            // state uses SRC_ALPHA and produces dark halos around translucent HUD
-            // pixels and blur regions.
             RenderSystem.enableBlend();
             RenderSystem.blendFunc(GlStateManager.SourceFactor.ONE,
                     GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);

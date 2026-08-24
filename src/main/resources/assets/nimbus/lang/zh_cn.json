@@ -8,6 +8,8 @@
   "nimbus.ui.on": "开启",
   "nimbus.ui.off": "关闭",
   "nimbus.ui.loading": "加载中...",
+  "nimbus.module.toggle.enabled": "%s 已启用",
+  "nimbus.module.toggle.disabled": "%s 已禁用",
 
   "nimbus.category.combat": "战斗",
   "nimbus.category.move": "移动",
@@ -517,6 +519,36 @@
 
   "nimbus.module.nametag.name": "玩家名牌",
   "nimbus.module.nametag.description": "在玩家上方显示实体 ID 与距离。",
+
+  "nimbus.module.item_warn.name": "物品警告",
+  "nimbus.module.item_warn.description": "提示玩家身上的危险效果和手持物品。",
+  "nimbus.module.item_warn.setting.nametag": "名牌提示",
+  "nimbus.module.item_warn.setting.client_notification": "客户端通知",
+
+  "nimbus.module.tnt_warn.name": "TNT 警告",
+  "nimbus.module.tnt_warn.description": "显示 TNT 引信时间和爆炸危险范围。",
+  "nimbus.module.tnt_warn.setting.danger_radius": "危险范围",
+  "nimbus.module.tnt_warn.setting.lethal_radius": "致死范围",
+  "nimbus.module.tnt_warn.setting.alpha": "透明度",
+  "nimbus.module.tnt_warn.setting.pulse_near_explosion": "接近爆炸时脉冲",
+  "nimbus.module.tnt_warn.setting.timer": "引信计时",
+  "nimbus.module.tnt_warn.overlay.timer": "%.1f秒",
+  "nimbus.notification.tnt_warning.title": "TNT 警告",
+  "nimbus.notification.tnt_warning.message": "TNT %.1f秒",
+
+  "nimbus.module.tntwarn.name": "TNT 警告",
+  "nimbus.module.tntwarn.description": "显示 TNT 引信时间和爆炸危险范围。",
+  "nimbus.module.tntwarn.setting.danger_radius": "危险范围",
+  "nimbus.module.tntwarn.setting.lethal_radius": "致死范围",
+  "nimbus.module.tntwarn.setting.alpha": "透明度",
+  "nimbus.module.tntwarn.setting.pulse_near_explosion": "接近爆炸时脉冲",
+  "nimbus.module.tntwarn.setting.timer": "引信计时",
+
+  "nimbus.module.bed_defense.name": "床防御",
+  "nimbus.module.bed_defense.description": "显示附近床的防御方块。",
+  "nimbus.module.bed_defense.setting.range": "范围",
+  "nimbus.module.bed_defense.setting.defense_radius": "防御半径",
+  "nimbus.module.bed_defense.setting.icons": "图标",
 
   "nimbus.module.projectile.name": "弹道预测",
   "nimbus.module.projectile.description": "预测手持投掷物与远程武器的飞行轨迹。",

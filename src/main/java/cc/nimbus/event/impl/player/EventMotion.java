@@ -75,7 +75,7 @@ public class EventMotion extends Cancelable {
         this.onGround = ground;
     }
 
-    public EventType getType() {
+    public  EventType getType() {
         return eventState;
     }
 
