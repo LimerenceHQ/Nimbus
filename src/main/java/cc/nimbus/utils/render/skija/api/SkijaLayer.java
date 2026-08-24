@@ -3,30 +3,16 @@ package cc.nimbus.utils.render.skija.api;
 import cc.nimbus.utils.render.skija.internal.backend.SkijaRenderTarget;
 import cc.nimbus.utils.render.skija.internal.backend.SkijaBackend;
 import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.RenderStateShard;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.TriState;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 public final class SkijaLayer {
-    private static final Map<ResourceLocation, RenderType> PREMULTIPLIED_TEXTURES = new ConcurrentHashMap<>();
-    private static final RenderStateShard.TransparencyStateShard PREMULTIPLIED_ALPHA =
-            new RenderStateShard.TransparencyStateShard("nimbus_premultiplied_alpha", () -> {
-                com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-                com.mojang.blaze3d.systems.RenderSystem.blendFunc(
-                        GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
-            }, () -> {
-                com.mojang.blaze3d.systems.RenderSystem.disableBlend();
-                com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
-            });
     private final SkijaRenderer renderer;
     private final SkijaRenderTarget target;
 
@@ -64,36 +50,21 @@ public final class SkijaLayer {
         pose.pushPose();
         try {
             pose.scale(scaleX, scaleY, 1.0f);
-            graphics.blit(
-                    SkijaLayer::premultipliedTexture,
-                    identifier(),
-                    0, 0, 0F, height,
-                    graphics.guiWidth(), graphics.guiHeight(),
-                    width, -height, width, height
-            );
+            // Skija's framebuffer has a bottom-left origin; GuiGraphics is top-left.
+            // Skija stores colors premultiplied. Flush this blit while using the
+            // matching ONE/ONE_MINUS_SRC_ALPHA blend equation; the vanilla GUI
+            // state uses SRC_ALPHA and produces dark halos around translucent HUD
+            // pixels and blur regions.
+            RenderSystem.enableBlend();
+            RenderSystem.blendFunc(GlStateManager.SourceFactor.ONE,
+                    GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
+            graphics.blit(identifier(), 0, 0, graphics.guiWidth(), graphics.guiHeight(),
+                    0F, height, width, -height, width, height);
+            graphics.flush();
+            RenderSystem.defaultBlendFunc();
         } finally {
             pose.popPose();
         }
-    }
-
-    private static RenderType premultipliedTexture(ResourceLocation id) {
-        return PREMULTIPLIED_TEXTURES.computeIfAbsent(id, value -> RenderType.create(
-                "nimbus_gui_premultiplied",
-                DefaultVertexFormat.POSITION_TEX_COLOR,
-                VertexFormat.Mode.QUADS,
-                1536,
-                false,
-                true,
-                RenderType.CompositeState.builder()
-                        .setShaderState(RenderStateShard.POSITION_TEXTURE_COLOR_SHADER)
-                        .setTextureState(new RenderStateShard.TextureStateShard(value, TriState.DEFAULT, false))
-                        .setTransparencyState(PREMULTIPLIED_ALPHA)
-                        .setDepthTestState(RenderStateShard.NO_DEPTH_TEST)
-                        .setCullState(RenderStateShard.NO_CULL)
-                        .setLightmapState(RenderStateShard.NO_LIGHTMAP)
-                        .setOverlayState(RenderStateShard.NO_OVERLAY)
-                        .createCompositeState(true)
-        ));
     }
 
     public void render(SkijaFrameRenderer callback) {

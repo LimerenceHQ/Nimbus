@@ -21,10 +21,8 @@ import net.minecraft.network.protocol.game.ServerboundSwingPacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.ItemUseAnimation;
-import net.minecraft.world.item.Items;
+import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.item.*;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -352,9 +350,16 @@ public final class AutoTrap extends BasicModule {
                 && isFoodOrDrink(minecraft.player.getInventory().getItem(oldSlot));
     }
 
-    private boolean isFoodOrDrink(ItemStack stack) {
-        ItemUseAnimation animation = stack.getUseAnimation();
-        return animation == ItemUseAnimation.EAT || animation == ItemUseAnimation.DRINK;
+
+    public static boolean isFoodOrDrink(ItemStack itemStack) {
+        if (itemStack == null || itemStack.isEmpty()) {
+            return false;
+        }
+        Item item = itemStack.getItem();
+        FoodProperties food = item.getFoodProperties();
+        boolean isFood = food != null;
+        boolean isPotion = item instanceof PotionItem;
+        return isFood || isPotion;
     }
 
     private void refreshPreviewActions() {
@@ -853,7 +858,7 @@ public final class AutoTrap extends BasicModule {
     private double getPlaceRange() {
         double configured = placeRange.getValue().doubleValue();
         double vanilla = minecraft.player == null
-                ? MAX_BLOCK_INTERACTION_RANGE : minecraft.player.blockInteractionRange();
+                ? MAX_BLOCK_INTERACTION_RANGE : mc.gameMode.getPickRange();
         return Math.min(configured, Math.min(vanilla, MAX_BLOCK_INTERACTION_RANGE));
     }
 

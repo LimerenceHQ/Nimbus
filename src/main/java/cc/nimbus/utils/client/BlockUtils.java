@@ -65,7 +65,7 @@ public class BlockUtils implements IMinecraft {
 
         Level world = mc.level;
         int y = blockPos.getY();
-        if (y < world.getMinY() || y >= world.getMaxY()) {
+        if (y < world.getMinBuildHeight() || y >= world.getMaxBuildHeight()) {
             return false;
         }
 

@@ -90,7 +90,7 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
         double strength = new Vec3(velocityX, 0, velocityZ).length();
         boolean lowStrength = strength < 0.1;
 
-        return !falling && !lowStrength && !mc.player.onClimbable() && !mc.player.isInLiquid();
+        return !falling && !lowStrength && !mc.player.onClimbable() && !mc.player.isInWater();
     }
 
     public boolean cantSprint() {

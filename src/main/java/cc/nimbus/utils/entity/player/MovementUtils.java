@@ -2,7 +2,7 @@ package cc.nimbus.utils.entity.player;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.utils.client.IMinecraft;
-import net.minecraft.world.entity.player.Input;
+import net.minecraft.client.player.Input;
 
 public class MovementUtils implements IMinecraft {
     public static boolean isMoving() {
@@ -16,26 +16,28 @@ public class MovementUtils implements IMinecraft {
 
         mc.player.setDeltaMovement(-Math.sin(yaw) * speed, mc.player.getDeltaMovement().y, Math.cos(yaw) * speed);
     }
-
     public static double getDirection() {
         if (mc.player == null) return 0;
 
-        float rotationYaw = Core.INSTANCE.getRotationManager().getEffectiveRotation().yaw();
-        Input input = mc.player.input.keyPresses;
-        float forwardImpulse = axis(input.forward(), input.backward());
-        float leftImpulse = axis(input.left(), input.right());
+        var rotationYaw = Core.INSTANCE.getRotationManager().getEffectiveRotation().yaw();
 
-        if (forwardImpulse < 0F) {
+        if (mc.player.input.forwardImpulse < 0F) {
             rotationYaw += 180F;
         }
 
-        float forward = forwardImpulse < 0F ? -0.5F : forwardImpulse > 0F ? 0.5F : 1F;
+        var forward = 1F;
 
-        if (leftImpulse > 0F) {
+        if (mc.player.input.leftImpulse < 0F) {
+            forward = -0.5F;
+        } else if (mc.player.input.forwardImpulse > 0F) {
+            forward = 0.5F;
+        }
+
+        if (mc.player.input.leftImpulse > 0F) {
             rotationYaw -= 90F * forward;
         }
 
-        if (leftImpulse < 0F) {
+        if (mc.player.input.leftImpulse < 0F) {
             rotationYaw += 90F * forward;
         }
 

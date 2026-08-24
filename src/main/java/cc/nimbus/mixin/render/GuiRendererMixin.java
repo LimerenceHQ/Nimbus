@@ -6,7 +6,6 @@ import cc.nimbus.event.impl.render.EventRender2D;
 import cc.nimbus.utils.render.skija.api.SkijaLayer;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.ChatScreen;
@@ -28,7 +27,7 @@ public abstract class GuiRendererMixin {
     @Unique private ClientLevel nimbus$scene;
     
     @Inject(method = "render", at = @At("TAIL"))
-    private void nimbus$render(GuiGraphics graphics, DeltaTracker delta, CallbackInfo ci) {
+    private void nimbus$render(GuiGraphics graphics, float partialTick, CallbackInfo ci) {
         Minecraft minecraft = Minecraft.getInstance();
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         skija.validateSupport();

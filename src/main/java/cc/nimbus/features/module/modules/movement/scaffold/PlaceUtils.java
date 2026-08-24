@@ -127,9 +127,9 @@ public class PlaceUtils implements IMinecraft {
         Vec3 center = new Vec3(pos.getX() + 0.5D, pos.getY(), pos.getZ() + 0.5D);
 
         for (Direction face : Direction.values()) {
-            Vec3 faceVector = Vec3.atLowerCornerOf(face.getUnitVec3i());
+            Vec3 faceVector = Vec3.atLowerCornerOf(face.getNormal());
             Vec3 hit = center.add(faceVector.scale(0.5D));
-            BlockPos offsetPos = pos.offset(face.getUnitVec3i());
+            BlockPos offsetPos = pos.offset(face.getNormal());
 
             if (BlockUtils.canPlace(offsetPos) || mc.level.getBlockState(offsetPos).isAir()) {
                 continue;

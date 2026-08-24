@@ -30,6 +30,7 @@ import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.BlastFurnaceMenu;
 import net.minecraft.world.inventory.BrewingStandMenu;
@@ -179,25 +180,31 @@ public final class InventoryManager extends BasicModule {
         PacketUtils.sendPacketNoEvent(packet);
     }
 
-    public static double handAttributeValueWithStack(ItemStack stack, Holder<Attribute> attribute, InteractionHand hand) {
-        return attributeValueWithStack(stack, attribute,
-                hand == InteractionHand.MAIN_HAND ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
-    }
 
-    public static double attributeValueWithStack(ItemStack stack, Holder<Attribute> attribute, EquipmentSlot slot) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || stack == null || stack.isEmpty()) return 0.0;
-        double base = minecraft.player.getAttributeBaseValue(attribute);
-        double[] modifiers = {0.0, 0.0, 0.0};
-        stack.forEachModifier(slot, (candidate, modifier) -> {
-            if (!candidate.equals(attribute)) return;
-            switch (modifier.operation()) {
-                case ADD_VALUE -> modifiers[0] += modifier.amount();
-                case ADD_MULTIPLIED_BASE -> modifiers[1] += modifier.amount();
-                case ADD_MULTIPLIED_TOTAL -> modifiers[2] += modifier.amount();
+    public static double attributeValueWithStack(ItemStack stack, Attribute attribute, InteractionHand hand) {
+        if (mc.player == null) {
+            return 0.0;
+        }
+
+        EquipmentSlot slot = hand == InteractionHand.MAIN_HAND ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
+        double base = mc.player.getAttributeBaseValue(attribute);
+
+        double addition = 0.0;
+        double multiplyBase = 0.0;
+        double multiplyTotal = 0.0;
+
+        for (AttributeModifier modifier : stack.getAttributeModifiers(slot).get(attribute)) {
+            switch (modifier.getOperation()) {
+                case ADDITION -> addition += modifier.getAmount();
+                case MULTIPLY_BASE -> multiplyBase += modifier.getAmount();
+                case MULTIPLY_TOTAL -> multiplyTotal += modifier.getAmount();
             }
-        });
-        return (base + modifiers[0] + base * modifiers[1]) * (1.0 + modifiers[2]);
+        }
+
+        double value = base + addition;
+        value += base * multiplyBase;
+        value *= 1.0 + multiplyTotal;
+        return value;
     }
 
     private boolean canRun() {
@@ -231,7 +238,7 @@ public final class InventoryManager extends BasicModule {
         if (!(minecraft.player.containerMenu instanceof InventoryMenu menu)
                 || !menu.getCarried().isEmpty() || !elapsed(lastCraft, autoCraftDelay)) return false;
         ItemStack result = menu.getSlot(0).getItem();
-        if (managedWoodGrid(menu) && result.is(ItemTags.PLANKS) && hasSpaceFor(result)) {
+        if (managedWoodGrid(menu) && result.is(ItemTags.PLANKS) && hasSpaceForItem(result.getItem())) {
             click(menu, 0, 0, ClickType.QUICK_MOVE);
             lastCraft = now();
             return true;
@@ -249,7 +256,7 @@ public final class InventoryManager extends BasicModule {
     private boolean canAutoCraftPlanks() {
         if (!(minecraft.player.containerMenu instanceof InventoryMenu menu) || !menu.getCarried().isEmpty()) return false;
         ItemStack result = menu.getSlot(0).getItem();
-        if (managedWoodGrid(menu) && result.is(ItemTags.PLANKS)) return hasSpaceFor(result);
+        if (managedWoodGrid(menu) && result.is(ItemTags.PLANKS)) return hasSpaceForItem(result.getItem());
         return craftingGridEmpty(menu) && findFirstMatching(stack -> stack.is(ItemTags.LOGS)
                 || stack.is(Items.BAMBOO_BLOCK) || stack.is(Items.STRIPPED_BAMBOO_BLOCK)) != -1
                 && hasSpaceForAnyPlanks();
@@ -276,16 +283,23 @@ public final class InventoryManager extends BasicModule {
         return false;
     }
 
-    private boolean hasSpaceFor(ItemStack result) {
-        for (int slot = 0; slot < minecraft.player.getInventory().getContainerSize(); slot++) {
-            if (isEquipmentSlot(slot)) continue;
-            ItemStack stack = minecraft.player.getInventory().getItem(slot);
-            if (stack.isEmpty() || ItemStack.isSameItemSameComponents(stack, result)
-                    && stack.getCount() < stack.getMaxStackSize()) return true;
+    private boolean hasSpaceForItem(Item item) {
+        if (mc.player == null) {
+            return false;
+        }
+
+        for (int slot = 0; slot < mc.player.getInventory().getContainerSize(); slot++) {
+            if (isEquipmentSlot(slot)) {
+                continue;
+            }
+
+            ItemStack stack = mc.player.getInventory().getItem(slot);
+            if (stack.isEmpty() || (stack.getItem() == item && stack.getCount() < stack.getMaxStackSize())) {
+                return true;
+            }
         }
         return false;
     }
-
     private boolean autoThrowUseless() {
         if (!elapsed(lastThrow, throwDelay)) return false;
         for (int slot : slots) {
@@ -563,20 +577,15 @@ public final class InventoryManager extends BasicModule {
         };
     }
 
-    private boolean sameSortedStack(String type, ItemStack target, ItemStack source) {
-        if (source.isEmpty()) return true;
+    private boolean sameSortedStack(String type, ItemStack targetStack, ItemStack sourceStack) {
+        if (sourceStack.isEmpty()) {
+            return true;
+        }
+
         return switch (type) {
-            case "Food", "Block", "Golden Apple", "Pearl", "Arrow", "Projectile", "TNT" ->
-                    !target.isEmpty() && ItemStack.isSameItemSameComponents(target, source)
-                            && target.getCount() == source.getCount();
-            case "Sword" -> sameRank(target, source, InventoryUtils::weaponScore);
-            case "Bow" -> sameRank(target, source, InventoryUtils::bowScore);
-            case "Crossbow" -> sameRank(target, source, InventoryUtils::crossbowScore);
-            case "Pickaxe" -> sameRank(target, source, InventoryUtils::pickaxeScore);
-            case "Axe" -> sameRank(target, source, InventoryUtils::axeScore);
-            case "Shovel" -> sameRank(target, source, InventoryUtils::shovelScore);
-            case "Shears" -> sameRank(target, source, InventoryUtils::shearsScore);
-            default -> ItemStack.isSameItemSameComponents(target, source);
+            case "Food", "Block", "Golden Apple", "Pearl", "Projectile", "TNT" ->
+                    !targetStack.isEmpty() && targetStack.getItem() == sourceStack.getItem() && targetStack.getCount() == sourceStack.getCount();
+            default -> targetStack == sourceStack;
         };
     }
 

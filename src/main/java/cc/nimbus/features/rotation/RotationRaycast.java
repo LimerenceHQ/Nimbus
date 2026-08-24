@@ -189,7 +189,7 @@ public class RotationRaycast implements IMinecraft {
 
     public static BlockHitResult getFacedContainerBlock(float yaw, float pitch) {
         if (mc.player == null) return null;
-        final double reachDistance = mc.player.blockInteractionRange();
+        final double reachDistance = mc.gameMode.getPickRange();
         Vec3 startPos = mc.player.getEyePosition();
         Vec3 direction = getRotationVector(pitch, yaw);
         Vec3 endPos = startPos.add(direction.scale(reachDistance));
@@ -251,7 +251,7 @@ public class RotationRaycast implements IMinecraft {
 
     public static BlockHitResult getFacedBlock(float yaw, float pitch) {
         if (mc.player == null) return null;
-        final double reachDistance = mc.player.blockInteractionRange();
+        final double reachDistance = mc.gameMode.getPickRange();
         final double reachDistanceSq = reachDistance * reachDistance;
 
         Vec3 startPos = mc.player.getEyePosition();

@@ -15,7 +15,7 @@ public final class ClickGui extends BasicModule {
     private final ClickGuiSession session = new ClickGuiSession();
 
     @Override protected void onEnable() {
-        Minecraft.getInstance().schedule(() -> {
+        Minecraft.getInstance().execute(() -> {
             Minecraft minecraft = Minecraft.getInstance();
             if (minecraft.level == null || minecraft.player == null || minecraft.screen != null) return;
             var skija = Core.INSTANCE.getRenderManager().skija();

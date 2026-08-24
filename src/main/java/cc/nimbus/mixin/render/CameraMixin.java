@@ -10,9 +10,9 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 @Mixin(Camera.class)
 public abstract class CameraMixin {
     @ModifyArg(method = "setup", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/client/Camera;getMaxZoom(F)F"), index = 0)
-    private float nimbus$thirdPersonDistance(float vanillaDistance) {
+            target = "Lnet/minecraft/client/Camera;getMaxZoom(D)D"), index = 0)
+    private double nimbus$thirdPersonDistance(double vanillaDistance) {
         BetterThirdPerson module = MixinModuleLookup.enabled(BetterThirdPerson.class);
-        return module == null ? vanillaDistance : module.renderDistance(vanillaDistance);
+        return module == null ? vanillaDistance : (double) module.renderDistance((float) vanillaDistance);
     }
 }

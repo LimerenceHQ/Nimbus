@@ -2,24 +2,20 @@ package cc.nimbus.features.module.modules.player;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
-import cc.nimbus.event.component.Priority;
-import cc.nimbus.event.impl.game.EventClick;
-import cc.nimbus.event.impl.game.EventTick;
-import cc.nimbus.event.impl.game.EventWorldLoad;
+import cc.nimbus.event.impl.game.*;
 import cc.nimbus.event.impl.player.EventMoveInput;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
+import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.features.module.modules.combat.AutoTrap;
 import cc.nimbus.features.module.modules.movement.Scaffold;
-import cc.nimbus.features.rotation.MovementFix;
-import cc.nimbus.features.rotation.Rotation;
-import cc.nimbus.features.rotation.RotationMath;
-import cc.nimbus.features.rotation.SmoothMode;
+import cc.nimbus.features.rotation.*;
+import cc.nimbus.utils.entity.rotation.RotationUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -32,7 +28,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.Blocks;
@@ -49,9 +44,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import static cc.nimbus.features.module.modules.movement.AntiWeb.findHotbarSlot;
+
 @ModuleInfo(name = "FireGuard", description = "Protects the player from nearby fire and lava hazards.", category = ModuleCategory.Player)
 public final class FireGuard extends BasicModule {
-    private final Minecraft minecraft = Minecraft.getInstance();
     private static final double MAX_BLOCK_INTERACTION_RANGE = 4.5D;
     private static final int SEARCH_RADIUS = 5;
     private static final Direction[] PLACE_DIRECTIONS = new Direction[]{
@@ -61,12 +57,12 @@ public final class FireGuard extends BasicModule {
             0.08D, 0.20D, 0.32D, 0.44D, 0.56D, 0.68D, 0.80D, 0.92D
     };
 
-    public final BooleanSetting lavaSeal = new BooleanSetting("Lava Seal", true);
-    public final BooleanSetting flameClear = new BooleanSetting("Flame Clear", true);
-    public final BooleanSetting waterRescue = new BooleanSetting("Water Rescue", true);
-    public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180.0, 0.0, 180.0, 1.0);
-    public final ModeValue movementFix = new ModeValue("Movement Fix", new String[]{"None", "Strict", "Silent"}, "Silent");
-    public final ModeValue swingMode = new ModeValue("Swing Mode", new String[]{"Off", "Normal", "Silent"}, "Normal");
+    private final BooleanSetting lavaSeal = new BooleanSetting("Lava Seal", true);
+    private final BooleanSetting flameClear = new BooleanSetting("Flame Clear", true);
+    private final BooleanSetting waterRescue = new BooleanSetting("Water Rescue", true);
+    private final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180.0, 0.0, 180.0, 1.0);
+    private final ModeSetting movementFix = new ModeSetting("Movement Fix", new String[]{"None", "Strict", "Silent"}, "Silent");
+    private final ModeSetting swingMode = new ModeSetting("Swing Mode", new String[]{"Off", "Normal", "Silent"}, "Normal");
 
     private Stage stage = Stage.IDLE;
     private PlaceAction lavaAction;
@@ -76,40 +72,32 @@ public final class FireGuard extends BasicModule {
     private int oldSlot = -1;
     private int cooldownTicks;
     private boolean shouldPickupWater;
-    private boolean blockBreakOwnedThisTick;
 
     @Override
-    protected void onEnable() {
+    public void onEnable() {
         reset(true);
         cooldownTicks = 0;
         shouldPickupWater = false;
     }
 
     @Override
-    protected void onDisable() {
+    public void onDisable() {
         reset(true);
         cooldownTicks = 0;
         shouldPickupWater = false;
     }
 
-    @EventTarget(priority = Priority.Highest)
-    private void onCooldownTick(EventTick event) {
-        if (event.getPhase() != EventTick.Phase.PRE) return;
-        blockBreakOwnedThisTick = false;
+    @EventTarget
+    public void onTick(EventTick event) {
+        if (event.isPost()) return;
         if (cooldownTicks > 0) {
             cooldownTicks--;
         }
     }
 
     @EventTarget
-    private void onPlanTick(EventTick event) {
-        if (event.getPhase() != EventTick.Phase.PRE) return;
-        if (minecraft.player == null || minecraft.level == null || minecraft.gameMode == null || minecraft.screen != null) {
-            reset(true);
-            return;
-        }
-
-        if (shouldYieldToItemUse() || isAutoTrapWorking()) {
+    public void onRotation(EventRotation event) {
+        if (mc.player == null || mc.level == null || mc.gameMode == null || mc.screen != null) {
             reset(true);
             return;
         }
@@ -125,7 +113,7 @@ public final class FireGuard extends BasicModule {
         }
 
         if (stage == Stage.LAVA_SEAL && lavaAction != null) {
-            minecraft.player.getInventory().selected = (findHotbarBlockSlot());
+            mc.player.getInventory().selected = findHotbarBlockSlot();
             applyRotation(lavaAction.rotation());
             return;
         }
@@ -135,8 +123,7 @@ public final class FireGuard extends BasicModule {
             return;
         }
 
-        Scaffold scaffold = Core.INSTANCE.getModuleManager().getModule(Scaffold.class);
-        if (cooldownTicks > 0 || scaffold != null && scaffold.isEnabled()) {
+        if (cooldownTicks > 0 || Core.INSTANCE.getModuleManager().getModule(Scaffold.class).isEnabled()) {
             return;
         }
 
@@ -145,8 +132,8 @@ public final class FireGuard extends BasicModule {
                 BucketAction action = findWaterPlaceAction();
                 int waterSlot = findHotbarSlot(Items.WATER_BUCKET);
                 if (action != null && waterSlot != -1) {
-                    oldSlot = minecraft.player.getInventory().selected;
-                    minecraft.player.getInventory().selected = (waterSlot);
+                    oldSlot = mc.player.getInventory().selected;
+                    mc.player.getInventory().selected = waterSlot;
                     waterAction = action;
                     stage = Stage.WATER_PLACE;
                     applyRotation(action.rotation());
@@ -155,8 +142,8 @@ public final class FireGuard extends BasicModule {
             } else if (shouldPickupWater && findHotbarSlot(Items.BUCKET) != -1) {
                 pickupAction = findWaterPickupAction();
                 if (pickupAction != null) {
-                    oldSlot = minecraft.player.getInventory().selected;
-                    minecraft.player.getInventory().selected = (findHotbarSlot(Items.BUCKET));
+                    oldSlot = mc.player.getInventory().selected;
+                    mc.player.getInventory().selected = findHotbarSlot(Items.BUCKET);
                     stage = Stage.WATER_PICKUP;
                     applyRotation(pickupAction.rotation());
                     return;
@@ -167,8 +154,8 @@ public final class FireGuard extends BasicModule {
         if (lavaSeal.getValue() && notInStillLava() && findHotbarBlockSlot() != -1) {
             lavaAction = findLavaAction();
             if (lavaAction != null) {
-                oldSlot = minecraft.player.getInventory().selected;
-                minecraft.player.getInventory().selected = (findHotbarBlockSlot());
+                oldSlot = mc.player.getInventory().selected;
+                mc.player.getInventory().selected = findHotbarBlockSlot();
                 stage = Stage.LAVA_SEAL;
                 applyRotation(lavaAction.rotation());
                 return;
@@ -185,20 +172,15 @@ public final class FireGuard extends BasicModule {
     }
 
     @EventTarget
-    private void onClick(EventClick event) {
-        if (minecraft.player == null || minecraft.level == null || minecraft.gameMode == null) {
-            reset(true);
-            return;
-        }
-
-        if (shouldYieldToItemUse() || isAutoTrapWorking()) {
+    public void onRotationApplied(RotationAppliedEvent event) {
+        if (mc.player == null || mc.level == null || mc.gameMode == null) {
             reset(true);
             return;
         }
 
         if (stage == Stage.WATER_PLACE && waterAction != null) {
             InteractionResult result = useItem(waterAction.rotation(), waterAction.hit());
-            if (result.consumesAction() || minecraft.player.getMainHandItem().getItem() == Items.BUCKET) {
+            if (result.consumesAction() || mc.player.getMainHandItem().getItem() == Items.BUCKET) {
                 swing();
                 shouldPickupWater = true;
             }
@@ -209,7 +191,7 @@ public final class FireGuard extends BasicModule {
 
         if (stage == Stage.WATER_PICKUP && pickupAction != null) {
             InteractionResult result = useItem(pickupAction.rotation(), pickupAction.hit());
-            if (result.consumesAction() || minecraft.player.getMainHandItem().getItem() == Items.WATER_BUCKET) {
+            if (result.consumesAction() || mc.player.getMainHandItem().getItem() == Items.WATER_BUCKET) {
                 swing();
                 shouldPickupWater = false;
             }
@@ -229,9 +211,8 @@ public final class FireGuard extends BasicModule {
         }
 
         if (stage == Stage.FIRE_CLEAR && fireAction != null) {
-            blockBreakOwnedThisTick = true;
-            minecraft.hitResult = fireAction.hit();
-            if (minecraft.gameMode.startDestroyBlock(fireAction.pos(), fireAction.hit().getDirection())) {
+            mc.hitResult = fireAction.hit();
+            if (mc.gameMode.startDestroyBlock(fireAction.pos(), fireAction.hit().getDirection())) {
                 swing();
             }
             reset(true);
@@ -240,61 +221,26 @@ public final class FireGuard extends BasicModule {
     }
 
     @EventTarget
-    private void onMoveInput(EventMoveInput event) {
-        if ((stage == Stage.WATER_PLACE || shouldPickupWater) && minecraft.player != null) {
-            minecraft.player.setSprinting(false);
+    public void onMoveInput(EventMoveInput event) {
+        if ((stage == Stage.WATER_PLACE || shouldPickupWater) && mc.player != null) {
+            mc.player.setSprinting(false);
         }
     }
 
-    @EventTarget
-    private void onWorldLoad(EventWorldLoad event) {
-        reset(true);
-        cooldownTicks = 0;
-        shouldPickupWater = false;
-    }
-
     private boolean shouldPlaceWater() {
-        if (minecraft.player == null || minecraft.level == null) {
+        if (mc.player == null || mc.level == null) {
             return false;
         }
 
         KillAura killAura = Core.INSTANCE.getModuleManager().getModule(KillAura.class);
-        return minecraft.player.isOnFire()
-                && !minecraft.player.hasEffect(MobEffects.FIRE_RESISTANCE)
-                && !minecraft.player.isInWater()
-                && !minecraft.player.isCreative()
-                && !minecraft.player.isUsingItem()
+        return mc.player.isOnFire()
+                && !mc.player.hasEffect(MobEffects.FIRE_RESISTANCE)
+                && !mc.player.isInWaterOrBubble()
+                && !mc.player.isCreative()
+                && !mc.player.isUsingItem()
                 && (killAura == null || killAura.attackTarget == null)
                 && predictLandingSupport() != null
                 && findHotbarSlot(Items.WATER_BUCKET) != -1;
-    }
-
-    public boolean isActing() {
-        return isEnabled() && stage != Stage.IDLE;
-    }
-
-    public boolean ownsBlockBreaking() {
-        return isEnabled() && (stage == Stage.FIRE_CLEAR || blockBreakOwnedThisTick);
-    }
-
-    private boolean isAutoTrapWorking() {
-        AutoTrap autoTrap = Core.INSTANCE.getModuleManager().getModule(AutoTrap.class);
-        return autoTrap != null && autoTrap.isActing();
-    }
-
-    private boolean shouldYieldToItemUse() {
-        if (minecraft.player == null) return false;
-        if (minecraft.player.isUsingItem()) return true;
-        if (minecraft.options == null || !minecraft.options.keyUse.isDown()) return false;
-        if (isFoodOrDrink(minecraft.player.getMainHandItem())
-                || isFoodOrDrink(minecraft.player.getOffhandItem())) return true;
-        return oldSlot >= 0 && oldSlot < 9
-                && isFoodOrDrink(minecraft.player.getInventory().getItem(oldSlot));
-    }
-
-    private boolean isFoodOrDrink(ItemStack stack) {
-        ItemUseAnimation animation = stack.getUseAnimation();
-        return animation == ItemUseAnimation.EAT || animation == ItemUseAnimation.DRINK;
     }
 
     private BucketAction findWaterPlaceAction() {
@@ -307,13 +253,13 @@ public final class FireGuard extends BasicModule {
     }
 
     private SupportHit predictLandingSupport() {
-        if (minecraft.player == null || minecraft.level == null) {
+        if (mc.player == null || mc.level == null) {
             return null;
         }
 
-        AABB box = minecraft.player.getBoundingBox();
-        Vec3 velocity = minecraft.player.getDeltaMovement();
-        Vec3 clipped = Entity.collideBoundingBox(minecraft.player, velocity, box, minecraft.level, List.of());
+        AABB box = mc.player.getBoundingBox();
+        Vec3 velocity = mc.player.getDeltaMovement();
+        Vec3 clipped = Entity.collideBoundingBox(mc.player, velocity, box, mc.level, List.of());
         if (velocity.y >= 0.0D || clipped.y == velocity.y) {
             return null;
         }
@@ -322,7 +268,7 @@ public final class FireGuard extends BasicModule {
     }
 
     private SupportHit findBestSupport(AABB predictedBox) {
-        if (minecraft.player == null || minecraft.level == null) {
+        if (mc.player == null || mc.level == null) {
             return null;
         }
 
@@ -347,8 +293,8 @@ public final class FireGuard extends BasicModule {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     BlockPos pos = new BlockPos(x, y, z);
-                    BlockState state = minecraft.level.getBlockState(pos);
-                    VoxelShape shape = state.getCollisionShape(minecraft.level, pos);
+                    BlockState state = mc.level.getBlockState(pos);
+                    VoxelShape shape = state.getCollisionShape(mc.level, pos);
                     if (state.isAir() || shape.isEmpty()) {
                         continue;
                     }
@@ -364,8 +310,8 @@ public final class FireGuard extends BasicModule {
                                 worldBox.maxY,
                                 clamp(predictedBox.getCenter().z, worldBox.minZ + 0.001D, worldBox.maxZ - 0.001D)
                         );
-                        Rotation rotation = toRotation(hitVec).normalized();
-                        BlockHitResult hit = rayCastBlock(rotation, minecraft.player, minecraft.level, getReach(), false);
+                        Rotation rotation = RotationUtils.toRotation(hitVec).normalized();
+                        BlockHitResult hit = RotationRaycast.rayCast(rotation, mc.player, mc.level, getReach(), false);
                         if (hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(pos)) {
                             supports.add(new SupportHit(pos, hit, rotation, worldBox));
                         }
@@ -387,7 +333,7 @@ public final class FireGuard extends BasicModule {
     }
 
     private PlaceAction findLavaAction() {
-        if (minecraft.player == null || minecraft.level == null) {
+        if (mc.player == null || mc.level == null) {
             return null;
         }
 
@@ -407,16 +353,16 @@ public final class FireGuard extends BasicModule {
             return null;
         }
 
-        Rotation current = currentRotation();
+        Rotation current = Core.INSTANCE.getRotationManager().getEffectiveRotation();
         return actions.stream()
                 .min(Comparator
                         .comparingDouble((PlaceAction action) -> current.distanceTo(action.rotation()).length())
-                        .thenComparingDouble(action -> minecraft.player.getEyePosition().distanceToSqr(action.hit().getLocation())))
+                        .thenComparingDouble(action -> mc.player.getEyePosition().distanceToSqr(action.hit().getLocation())))
                 .orElse(null);
     }
 
     private BreakAction findFireAction() {
-        if (minecraft.player == null || minecraft.level == null) {
+        if (mc.player == null || mc.level == null) {
             return null;
         }
 
@@ -436,16 +382,16 @@ public final class FireGuard extends BasicModule {
             return null;
         }
 
-        Rotation current = currentRotation();
+        Rotation current = Core.INSTANCE.getRotationManager().getEffectiveRotation();
         return actions.stream()
                 .min(Comparator
                         .comparingDouble((BreakAction action) -> current.distanceTo(action.rotation()).length())
-                        .thenComparingDouble(action -> minecraft.player.getEyePosition().distanceToSqr(action.hit().getLocation())))
+                        .thenComparingDouble(action -> mc.player.getEyePosition().distanceToSqr(action.hit().getLocation())))
                 .orElse(null);
     }
 
     private PlaceHit findPlaceHit(BlockPos placePos) {
-        if (minecraft.player == null || minecraft.level == null) {
+        if (mc.player == null || mc.level == null) {
             return null;
         }
 
@@ -458,12 +404,12 @@ public final class FireGuard extends BasicModule {
             }
 
             for (Vec3 hitVec : sampleFace(clickedPos, face)) {
-                if (minecraft.player.getEyePosition().distanceTo(hitVec) > range) {
+                if (mc.player.getEyePosition().distanceTo(hitVec) > range) {
                     continue;
                 }
 
-                Rotation rotation = toRotation(hitVec).normalized();
-                BlockHitResult raycast = rayCastBlock(rotation, minecraft.player, minecraft.level, range, false);
+                Rotation rotation = RotationUtils.toRotation(hitVec).normalized();
+                BlockHitResult raycast = RotationRaycast.rayCast(rotation, mc.player, mc.level, range, false);
                 if (raycast.getType() != HitResult.Type.BLOCK
                         || !raycast.getBlockPos().equals(clickedPos)
                         || raycast.getDirection() != face) {
@@ -478,26 +424,26 @@ public final class FireGuard extends BasicModule {
             return null;
         }
 
-        Rotation current = currentRotation();
+        Rotation current = Core.INSTANCE.getRotationManager().getEffectiveRotation();
         return hits.stream()
                 .min(Comparator.comparingDouble(hit -> current.distanceTo(hit.rotation()).length()))
                 .orElse(null);
     }
 
     private BreakHit findBreakHit(BlockPos pos) {
-        if (minecraft.player == null || minecraft.level == null) {
+        if (mc.player == null || mc.level == null) {
             return null;
         }
 
         List<BreakHit> hits = new ArrayList<>();
         double range = getReach();
         for (Vec3 hitVec : sampleBlockShape(pos)) {
-            if (minecraft.player.getEyePosition().distanceTo(hitVec) > range) {
+            if (mc.player.getEyePosition().distanceTo(hitVec) > range) {
                 continue;
             }
 
-            Rotation rotation = toRotation(hitVec).normalized();
-            BlockHitResult raycast = rayCastBlock(rotation, minecraft.player, minecraft.level, range, false);
+            Rotation rotation = RotationUtils.toRotation(hitVec).normalized();
+            BlockHitResult raycast = RotationRaycast.rayCast(rotation, mc.player, mc.level, range, false);
             if (raycast.getType() == HitResult.Type.BLOCK && raycast.getBlockPos().equals(pos)) {
                 hits.add(new BreakHit(raycast, rotation));
             }
@@ -507,14 +453,14 @@ public final class FireGuard extends BasicModule {
             return null;
         }
 
-        Rotation current = currentRotation();
+        Rotation current = Core.INSTANCE.getRotationManager().getEffectiveRotation();
         return hits.stream()
                 .min(Comparator.comparingDouble(hit -> current.distanceTo(hit.rotation()).length()))
                 .orElse(null);
     }
 
     private BucketAction findWaterPickupAction() {
-        if (minecraft.player == null || minecraft.level == null) {
+        if (mc.player == null || mc.level == null) {
             return null;
         }
 
@@ -525,12 +471,12 @@ public final class FireGuard extends BasicModule {
             }
 
             for (Vec3 hitVec : sampleBlockShape(pos)) {
-                if (minecraft.player.getEyePosition().distanceTo(hitVec) > getReach()) {
+                if (mc.player.getEyePosition().distanceTo(hitVec) > getReach()) {
                     continue;
                 }
 
-                Rotation rotation = toRotation(hitVec).normalized();
-                BlockHitResult hit = rayCastBlock(rotation, minecraft.player, minecraft.level, getReach(), true);
+                Rotation rotation = RotationUtils.toRotation(hitVec).normalized();
+                BlockHitResult hit = RotationRaycast.rayCast(rotation, mc.player, mc.level, getReach(), true);
                 if (hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(pos)) {
                     actions.add(new BucketAction(hit, rotation));
                 }
@@ -541,7 +487,7 @@ public final class FireGuard extends BasicModule {
             return null;
         }
 
-        Rotation current = currentRotation();
+        Rotation current = Core.INSTANCE.getRotationManager().getEffectiveRotation();
         return actions.stream()
                 .min(Comparator.comparingDouble(action -> current.distanceTo(action.rotation()).length()))
                 .orElse(null);
@@ -549,11 +495,11 @@ public final class FireGuard extends BasicModule {
 
     private List<BlockPos> searchAroundPlayer(int radius) {
         List<BlockPos> positions = new ArrayList<>();
-        if (minecraft.player == null) {
+        if (mc.player == null) {
             return positions;
         }
 
-        BlockPos playerPos = minecraft.player.blockPosition();
+        BlockPos playerPos = mc.player.blockPosition();
         for (int x = -radius; x <= radius; x++) {
             for (int y = -radius; y <= radius; y++) {
                 for (int z = -radius; z <= radius; z++) {
@@ -562,26 +508,26 @@ public final class FireGuard extends BasicModule {
             }
         }
 
-        positions.sort(Comparator.comparingDouble(pos -> Vec3.atCenterOf(pos).distanceToSqr(minecraft.player.getEyePosition())));
+        positions.sort(Comparator.comparingDouble(pos -> Vec3.atCenterOf(pos).distanceToSqr(mc.player.getEyePosition())));
         return positions;
     }
 
     private boolean canClickBlock(BlockPos pos) {
-        if (minecraft.level == null) {
+        if (mc.level == null) {
             return false;
         }
 
-        BlockState state = minecraft.level.getBlockState(pos);
-        return !state.isAir() && !state.getShape(minecraft.level, pos).isEmpty();
+        BlockState state = mc.level.getBlockState(pos);
+        return !state.isAir() && !state.getShape(mc.level, pos).isEmpty();
     }
 
     private boolean hasEntityInside(BlockPos pos) {
-        if (minecraft.level == null) {
+        if (mc.level == null) {
             return false;
         }
 
         AABB box = new AABB(pos);
-        for (Entity entity : minecraft.level.getEntities((Entity) null, box)) {
+        for (Entity entity : mc.level.getEntities((Entity) null, box)) {
             if (entity.isAlive() && !entity.isSpectator() && entity.isPickable()) {
                 return true;
             }
@@ -590,12 +536,12 @@ public final class FireGuard extends BasicModule {
     }
 
     private boolean hasTargetInside(BlockPos pos) {
-        if (minecraft.level == null) {
+        if (mc.level == null) {
             return false;
         }
 
         AABB box = new AABB(pos);
-        for (Entity entity : minecraft.level.getEntities((Entity) null, box)) {
+        for (Entity entity : mc.level.getEntities((Entity) null, box)) {
             if (Core.INSTANCE.getTargetManager().isTarget(entity)) {
                 return true;
             }
@@ -604,11 +550,11 @@ public final class FireGuard extends BasicModule {
     }
 
     private boolean notInStillLava() {
-        if (minecraft.player == null || minecraft.level == null) {
+        if (mc.player == null || mc.level == null) {
             return false;
         }
 
-        AABB box = minecraft.player.getBoundingBox();
+        AABB box = mc.player.getBoundingBox();
         int minX = (int) Math.floor(box.minX);
         int maxX = (int) Math.floor(box.maxX);
         int minY = (int) Math.floor(box.minY);
@@ -629,36 +575,36 @@ public final class FireGuard extends BasicModule {
     }
 
     private boolean isStillLava(BlockPos pos) {
-        if (minecraft.level == null) {
+        if (mc.level == null) {
             return false;
         }
 
-        FluidState fluid = minecraft.level.getFluidState(pos);
+        FluidState fluid = mc.level.getFluidState(pos);
         return fluid.is(FluidTags.LAVA) && fluid.isSource();
     }
 
     private boolean isWaterSource(BlockPos pos) {
-        return minecraft.level != null
-                && minecraft.level.getFluidState(pos).is(Fluids.WATER)
-                && minecraft.level.getFluidState(pos).isSource();
+        return mc.level != null
+                && mc.level.getFluidState(pos).is(Fluids.WATER)
+                && mc.level.getFluidState(pos).isSource();
     }
 
     private boolean isFire(BlockPos pos) {
-        if (minecraft.level == null) {
+        if (mc.level == null) {
             return false;
         }
 
-        BlockState state = minecraft.level.getBlockState(pos);
+        BlockState state = mc.level.getBlockState(pos);
         return state.is(Blocks.FIRE) || state.is(Blocks.SOUL_FIRE);
     }
 
     private int findHotbarBlockSlot() {
-        if (minecraft.player == null) {
+        if (mc.player == null) {
             return -1;
         }
 
         for (int i = 0; i < 9; i++) {
-            ItemStack stack = minecraft.player.getInventory().getItem(i);
+            ItemStack stack = mc.player.getInventory().getItem(i);
             if (!stack.isEmpty() && stack.getItem() instanceof BlockItem) {
                 return i;
             }
@@ -668,11 +614,11 @@ public final class FireGuard extends BasicModule {
 
     private List<Vec3> sampleBlockShape(BlockPos blockPos) {
         List<Vec3> points = new ArrayList<>();
-        if (minecraft.level == null) {
+        if (mc.level == null) {
             return points;
         }
 
-        VoxelShape shape = minecraft.level.getBlockState(blockPos).getShape(minecraft.level, blockPos);
+        VoxelShape shape = mc.level.getBlockState(blockPos).getShape(mc.level, blockPos);
         if (shape.isEmpty()) {
             points.add(Vec3.atCenterOf(blockPos));
             return points;
@@ -684,7 +630,7 @@ public final class FireGuard extends BasicModule {
             addBoxFaceSamples(points, box);
         }
 
-        Vec3 eyes = minecraft.player != null ? minecraft.player.getEyePosition() : Vec3.ZERO;
+        Vec3 eyes = mc.player != null ? mc.player.getEyePosition() : Vec3.ZERO;
         points.sort(Comparator.comparingDouble(eyes::distanceToSqr));
         return points;
     }
@@ -753,9 +699,13 @@ public final class FireGuard extends BasicModule {
             }
         }
 
-        Vec3 eyes = minecraft.player != null ? minecraft.player.getEyePosition() : Vec3.ZERO;
+        Vec3 eyes = mc.player != null ? mc.player.getEyePosition() : Vec3.ZERO;
         points.sort(Comparator.comparingDouble(eyes::distanceToSqr));
         return points;
+    }
+
+    public boolean isActing() {
+        return isEnabled() && stage != Stage.IDLE;
     }
 
     private Vec3 offset(BlockPos blockPos, double x, double y, double z) {
@@ -763,34 +713,34 @@ public final class FireGuard extends BasicModule {
     }
 
     private InteractionResult useItem(Rotation rotation, BlockHitResult hit) {
-        if (minecraft.player == null || minecraft.gameMode == null) {
+        if (mc.player == null || mc.gameMode == null) {
             return InteractionResult.FAIL;
         }
 
-        minecraft.hitResult = hit;
-        float currentYaw = minecraft.player.getYRot();
-        float currentPitch = minecraft.player.getXRot();
-        minecraft.player.setYRot(rotation.yaw());
-        minecraft.player.setXRot(rotation.pitch());
-        InteractionResult result = minecraft.gameMode.useItem(minecraft.player, InteractionHand.MAIN_HAND);
-        minecraft.player.setYRot(currentYaw);
-        minecraft.player.setXRot(currentPitch);
+        mc.hitResult = hit;
+        float currentYaw = mc.player.getYRot();
+        float currentPitch = mc.player.getXRot();
+        mc.player.setYRot(rotation.yaw());
+        mc.player.setXRot(rotation.pitch());
+        InteractionResult result = mc.gameMode.useItem(mc.player, InteractionHand.MAIN_HAND);
+        mc.player.setYRot(currentYaw);
+        mc.player.setXRot(currentPitch);
         return result;
     }
 
     private InteractionResult useItemOn(Rotation rotation, BlockHitResult hit) {
-        if (minecraft.player == null || minecraft.gameMode == null) {
+        if (mc.player == null || mc.gameMode == null) {
             return InteractionResult.FAIL;
         }
 
-        minecraft.hitResult = hit;
-        float currentYaw = minecraft.player.getYRot();
-        float currentPitch = minecraft.player.getXRot();
-        minecraft.player.setYRot(rotation.yaw());
-        minecraft.player.setXRot(rotation.pitch());
-        InteractionResult result = minecraft.gameMode.useItemOn(minecraft.player, InteractionHand.MAIN_HAND, hit);
-        minecraft.player.setYRot(currentYaw);
-        minecraft.player.setXRot(currentPitch);
+        mc.hitResult = hit;
+        float currentYaw = mc.player.getYRot();
+        float currentPitch = mc.player.getXRot();
+        mc.player.setYRot(rotation.yaw());
+        mc.player.setXRot(rotation.pitch());
+        InteractionResult result = mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
+        mc.player.setYRot(currentYaw);
+        mc.player.setXRot(currentPitch);
         return result;
     }
 
@@ -808,24 +758,23 @@ public final class FireGuard extends BasicModule {
                 rotationSpeed.getValue().floatValue(),
                 0,
                 0,
-                cc.nimbus.features.rotation.Priority.MEDIUM
+                Priority.MEDIUM
         );
     }
 
     private void swing() {
-        if (minecraft.player == null) {
+        if (mc.player == null) {
             return;
         }
         if (swingMode.is("Normal")) {
-            minecraft.player.swing(InteractionHand.MAIN_HAND);
-        } else if (swingMode.is("Silent") && minecraft.getConnection() != null) {
-            minecraft.getConnection().send(new ServerboundSwingPacket(InteractionHand.MAIN_HAND));
+            mc.player.swing(InteractionHand.MAIN_HAND);
+        } else if (swingMode.is("Silent") && mc.getConnection() != null) {
+            mc.getConnection().send(new ServerboundSwingPacket(InteractionHand.MAIN_HAND));
         }
     }
 
     private double getReach() {
-        return Math.min(minecraft.player == null
-                ? MAX_BLOCK_INTERACTION_RANGE : minecraft.player.blockInteractionRange(), MAX_BLOCK_INTERACTION_RANGE);
+        return Math.min(mc.gameMode == null ? MAX_BLOCK_INTERACTION_RANGE : mc.gameMode.getPickRange(), MAX_BLOCK_INTERACTION_RANGE);
     }
 
     private double clamp(double value, double min, double max) {
@@ -840,8 +789,8 @@ public final class FireGuard extends BasicModule {
     }
 
     private void restoreSlot(boolean clear) {
-        if (oldSlot != -1 && minecraft.player != null) {
-            minecraft.player.getInventory().selected = (oldSlot);
+        if (oldSlot != -1 && mc.player != null) {
+            mc.player.getInventory().selected = oldSlot;
         }
         if (clear) {
             oldSlot = -1;
@@ -860,37 +809,6 @@ public final class FireGuard extends BasicModule {
         fireAction = null;
         waterAction = null;
         pickupAction = null;
-    }
-
-    private int findHotbarSlot(Item item) {
-        if (minecraft.player == null) return -1;
-        for (int slot = 0; slot < 9; slot++) {
-            if (minecraft.player.getInventory().getItem(slot).is(item)) return slot;
-        }
-        return -1;
-    }
-
-    private Rotation toRotation(Vec3 point) {
-        return minecraft.player == null
-                ? new Rotation(0.0f, 0.0f)
-                : RotationMath.toRotation(minecraft.player.getEyePosition(), point);
-    }
-
-    private Rotation currentRotation() {
-        if (Core.INSTANCE.isInitialized()) return Core.INSTANCE.getRotationManager().getEffectiveRotation();
-        return minecraft.player == null
-                ? new Rotation(0.0f, 0.0f)
-                : new Rotation(minecraft.player.getYRot(), minecraft.player.getXRot());
-    }
-
-    private BlockHitResult rayCastBlock(Rotation rotation, Entity source,
-                                        net.minecraft.world.level.Level level,
-                                        double range, boolean includeFluids) {
-        Vec3 start = source.getEyePosition();
-        Vec3 end = start.add(RotationMath.direction(rotation).scale(range));
-        return level.clip(new ClipContext(
-                start, end, ClipContext.Block.OUTLINE,
-                includeFluids ? ClipContext.Fluid.ANY : ClipContext.Fluid.NONE, source));
     }
 
     private enum Stage {

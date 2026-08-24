@@ -36,14 +36,15 @@ public abstract class MultiPlayerGameModeMixin {
     private void nimbus$attackPre(Player player, Entity target, CallbackInfo ci) {
         if (nimbus$replacingAttack) return;
         EventAttack event = EventBus.call(new EventAttack(target, EventAttack.Stage.PRE));
-        if (event.isCancel() || event.getEntity() == null) {
+        if (event.isCancel()) {
             ci.cancel();
             return;
         }
-        if (event.getEntity() != target) {
+        Entity replacement = event.getEntity() == null ? target : event.getEntity();
+        if (replacement != target) {
             nimbus$replacingAttack = true;
             try {
-                attack(player, event.getEntity());
+                attack(player, replacement);
             } finally {
                 nimbus$replacingAttack = false;
             }

@@ -84,7 +84,7 @@ public final class Potion extends BasicModule {
                         effectKey(effect),
                         displayName(effect),
                         duration(effect),
-                        0xFF000000 | effect.getEffect().value().getColor(),
+                        0xFF000000 | effect.getEffect().getColor(),
                         icon(effect)))
                 .toList();
 
@@ -232,19 +232,19 @@ public final class Potion extends BasicModule {
     }
 
     private static ResourceLocation icon(MobEffectInstance effect) {
-        ResourceLocation key = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
-        if (key == null) key = ResourceLocation.withDefaultNamespace("speed");
-        return ResourceLocation.fromNamespaceAndPath(key.getNamespace(),
+        ResourceLocation key = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect());
+        if (key == null) key = new ResourceLocation("minecraft", "speed");
+        return new ResourceLocation(key.getNamespace(),
                 "textures/mob_effect/" + key.getPath() + ".png");
     }
 
     private static String displayName(MobEffectInstance effect) {
-        String name = effect.getEffect().value().getDisplayName().getString();
+        String name = effect.getEffect().getDisplayName().getString();
         return effect.getAmplifier() > 0 ? name + " " + (effect.getAmplifier() + 1) : name;
     }
 
     private static String effectKey(MobEffectInstance effect) {
-        ResourceLocation key = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
+        ResourceLocation key = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect());
         return key == null ? displayName(effect) : key.toString();
     }
 

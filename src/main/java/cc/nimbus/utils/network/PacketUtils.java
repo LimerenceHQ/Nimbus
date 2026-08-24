@@ -5,12 +5,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.LevelLoadingScreen;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.common.ClientboundDisconnectPacket;
-import net.minecraft.network.protocol.configuration.ClientboundFinishConfigurationPacket;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.network.protocol.login.ClientboundLoginCompressionPacket;
 import net.minecraft.network.protocol.login.ClientboundHelloPacket;
-import net.minecraft.network.protocol.login.ClientboundLoginFinishedPacket;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -47,8 +44,6 @@ public final class PacketUtils {
         if (packet instanceof ClientboundServerDataPacket
                 || packet instanceof ClientboundLoginCompressionPacket
                 || packet instanceof ClientboundHelloPacket
-                || packet instanceof ClientboundLoginFinishedPacket
-                || packet instanceof ClientboundFinishConfigurationPacket
                 || packet instanceof ClientboundPlayerInfoUpdatePacket
                 || packet instanceof ClientboundDisconnectPacket
                 || packet instanceof ClientboundLevelChunkWithLightPacket

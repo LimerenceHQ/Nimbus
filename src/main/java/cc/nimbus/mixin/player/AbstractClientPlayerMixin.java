@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(AbstractClientPlayer.class)
 public abstract class AbstractClientPlayerMixin {
     @Inject(method = "getFieldOfViewModifier", at = @At("HEAD"), cancellable = true)
-    private void nimbus$noFov(boolean firstPerson, float effectScale, CallbackInfoReturnable<Float> cir) {
+    private void nimbus$noFov(CallbackInfoReturnable<Float> cir) {
         NoFov module = MixinModuleLookup.enabled(NoFov.class);
         if (module != null) cir.setReturnValue(module.fov.getValue().floatValue());
     }

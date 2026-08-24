@@ -2,42 +2,48 @@ package cc.nimbus.mixin.input;
 
 import cc.nimbus.event.EventBus;
 import cc.nimbus.event.impl.player.EventMoveInput;
-import net.minecraft.client.player.ClientInput;
+import net.minecraft.client.Options;
+import net.minecraft.client.player.Input;
 import net.minecraft.client.player.KeyboardInput;
-import net.minecraft.world.entity.player.Input;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(KeyboardInput.class)
-public abstract class KeyboardInputMixin extends ClientInput {
-    @Inject(method = "tick", at = @At("TAIL"))
-    private void nimbus$moveInput(CallbackInfo ci) {
-        float originalForward = axis(keyPresses.forward(), keyPresses.backward());
-        float originalStrafe = axis(keyPresses.left(), keyPresses.right());
-        EventMoveInput event = EventBus.call(new EventMoveInput(
-                originalForward, originalStrafe, keyPresses.jump(), keyPresses.sprint(), keyPresses.shift()));
-        float forward = event.isCancel() ? 0.0f : event.getForward();
-        float strafe = event.isCancel() ? 0.0f : event.getStrafe();
-        // In 1.21.4 ClientInput consumes these impulses directly. Updating
-        // only the key-state record would quantize the corrected silent
-        // movement back to the original direction on the next tick.
-        this.forwardImpulse = forward;
-        this.leftImpulse = strafe;
-        keyPresses = new Input(
-                forward > 0.0f,
-                forward < 0.0f,
-                strafe > 0.0f,
-                strafe < 0.0f,
-                !event.isCancel() && event.getJump(),
-                !event.isCancel() && event.getSneak(),
-                !event.isCancel() && event.getSprint()
-        );
-    }
+public abstract class KeyboardInputMixin extends Input {
+    @Shadow
+    @Final
+    private Options options;
 
-    private static float axis(boolean positive, boolean negative) {
-        if (positive == negative) return 0.0f;
-        return positive ? 1.0f : -1.0f;
+    @Inject(method = "tick", at = @At("TAIL"))
+    private void onTick(boolean slowDown, float factor, CallbackInfo ci) {
+        EventMoveInput event = new EventMoveInput(this.forwardImpulse, this.leftImpulse, this.jumping, this.options.keySprint.isDown(), this.shiftKeyDown);
+        EventBus.call(event);
+
+        if (event.isCancel()) {
+            this.forwardImpulse = 0.0F;
+            this.leftImpulse = 0.0F;
+            this.up = false;
+            this.down = false;
+            this.left = false;
+            this.right = false;
+            this.jumping = false;
+            this.shiftKeyDown = false;
+            this.options.keySprint.setDown(false);
+            return;
+        }
+
+        this.forwardImpulse = event.getForward();
+        this.leftImpulse = event.getStrafe();
+        this.up = event.getForward() > 0.0F;
+        this.down = event.getForward() < 0.0F;
+        this.left = event.getStrafe() > 0.0F;
+        this.right = event.getStrafe() < 0.0F;
+        this.jumping = event.getJump();
+        this.shiftKeyDown = event.getSneak();
+        this.options.keySprint.setDown(event.getSprint() && event.getForward() > 0.0F);
     }
 }

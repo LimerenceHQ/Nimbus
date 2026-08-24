@@ -84,7 +84,7 @@ public abstract class AbstractSkijaScreen extends Screen {
         try {
             removedSkijaScreen();
         } finally {
-            minecraft.schedule(layer::releaseTarget);
+            minecraft.execute(layer::releaseTarget);
             super.removed();
         }
     }

@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Connection.class)
 public abstract class ConnectionMixin {
     @Inject(method = "sendPacket", at = @At("HEAD"), cancellable = true)
-    private void nimbus$packetSend(Packet<?> packet, PacketSendListener packetSendListener, boolean bl, CallbackInfo ci) {
+    private void nimbus$packetSend(Packet<?> packet, PacketSendListener packetSendListener, CallbackInfo ci) {
         if (!Core.INSTANCE.isInitialized()) return;
         if (!Core.INSTANCE.getPacketManager().outboundsHook(packet)) {
             ci.cancel();

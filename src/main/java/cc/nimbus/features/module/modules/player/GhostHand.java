@@ -7,7 +7,6 @@ import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.rotation.RotationRaycast;
 import cc.nimbus.managers.GameStateManager;
-import cc.nimbus.mixin.accessor.client.DeltaTrackerTimerAccessor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundUseItemOnPacket;
@@ -45,7 +44,7 @@ public class GhostHand extends BasicModule {
     }
 
     public static BlockHitResult raycastForChest() {
-        float tickDelta = ((DeltaTrackerTimerAccessor)mc.getDeltaTracker()).nimbus$getDeltaTickResidual();
+        float tickDelta = mc.getFrameTime();
         Vec3 start = mc.player.getEyePosition(tickDelta);
         Vec3 direction = mc.player.getViewVector(tickDelta);
 

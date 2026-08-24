@@ -373,7 +373,7 @@ public class AntiWeb extends BasicModule {
     }
 
     private boolean canWaterFlowInto(BlockPos pos) {
-        if (mc.level == null || pos.getY() < mc.level.getMinY() || pos.getY() >= mc.level.getMaxY()) {
+        if (mc.level == null || pos.getY() < mc.level.getMinBuildHeight() || pos.getY() >= mc.level.getMaxBuildHeight()) {
             return false;
         }
 
@@ -690,7 +690,7 @@ public class AntiWeb extends BasicModule {
     }
 
     private double getReach() {
-        return Math.min(mc.gameMode == null ? MAX_BLOCK_INTERACTION_RANGE : mc.player.blockInteractionRange(), MAX_BLOCK_INTERACTION_RANGE);
+        return Math.min(mc.gameMode == null ? MAX_BLOCK_INTERACTION_RANGE : mc.gameMode.getPickRange(), MAX_BLOCK_INTERACTION_RANGE);
     }
 
     private void restoreSlot(boolean clear) {

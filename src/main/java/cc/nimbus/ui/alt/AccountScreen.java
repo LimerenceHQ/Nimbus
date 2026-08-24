@@ -59,9 +59,7 @@ public final class AccountScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        if (minecraft.level == null) renderPanorama(graphics, partialTick);
-        else renderBlurredBackground();
+    public void renderBackground(GuiGraphics graphics) {
         graphics.fill(0, 0, graphics.guiWidth(), graphics.guiHeight(), 0xCC0B1015);
         int panelLeft = width / 2 - 160;
         int panelRight = width / 2 + 160;
@@ -110,7 +108,7 @@ public final class AccountScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
+    public boolean mouseScrolled(double x, double y, double vertical) {
         int visibleHeight = Math.max(0, formTop() - 26 - 86);
         int contentHeight = accounts().getAccounts().size() * 32;
         int maxScroll = Math.max(0, contentHeight - visibleHeight);

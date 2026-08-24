@@ -1,46 +1,85 @@
 package cc.nimbus.mixin.render;
 
 import cc.nimbus.core.Core;
+import cc.nimbus.event.EventBus;
+import cc.nimbus.event.impl.render.EventRotationRender;
 import cc.nimbus.features.module.modules.render.ESP;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
-import net.minecraft.client.renderer.entity.state.EntityRenderState;
-import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
-import net.minecraft.client.renderer.entity.state.PlayerRenderState;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LivingEntityRenderer.class)
-public abstract class LivingEntityRendererMixin {
+public abstract class LivingEntityRendererMixin <T extends LivingEntity, M extends EntityModel<T>>{
     @Shadow
     protected EntityModel<?> model;
 
     @Inject(
-            method = "render(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;"
-                    + "Lcom/mojang/blaze3d/vertex/PoseStack;"
-                    + "Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
+            method = {"render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V"},
+            at = {@At("HEAD")}
+    )
+    private void renderHead(
+            T pEntity, float pEntityYaw, float pPartialTicks, PoseStack pMatrixStack, MultiBufferSource pBuffer, int pPackedLight, CallbackInfo ci
+    ) {
+        EventRotationRender.currentEntity = pEntity;
+    }
+
+    @Redirect(
+            method = {"render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V"},
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/model/EntityModel;setupAnim("
-                            + "Lnet/minecraft/client/renderer/entity/state/EntityRenderState;)V",
-                    shift = At.Shift.AFTER
+                    target = "Lnet/minecraft/util/Mth;rotLerp(FFF)F",
+                    ordinal = 1
             )
     )
-    private void nimbus$captureSkeletonPose(LivingEntityRenderState state, PoseStack poseStack,
+    private float rotAnimationYaw(float pDelta, float pStart, float pEnd) {
+
+        EventRotationRender event = new EventRotationRender(pEnd, pStart, 0.0F, 0.0F);
+        if (EventRotationRender.currentEntity == Minecraft.getInstance().player) {
+            EventBus.call(event);
+        }
+
+        return Mth.rotLerp(pDelta, event.getLastYaw(), event.getYaw());
+    }
+
+    @Redirect(
+            method = {"render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V"},
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/util/Mth;lerp(FFF)F",
+                    ordinal = 0
+            )
+    )
+    private float rotAnimationPitch(float pDelta, float pStart, float pEnd) {
+        EventRotationRender event = new EventRotationRender(0.0F, 0.0F, pEnd, pStart);
+        if (EventRotationRender.currentEntity == Minecraft.getInstance().player) {
+            EventBus.call(event);
+        }
+
+        return Mth.lerp(pDelta, event.getLastPitch(), event.getPitch());
+    }
+
+    @Inject(method = "render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V", at = @At("TAIL"))
+    private void nimbus$captureSkeletonPose(LivingEntity entity, float yaw, float partialTick, PoseStack poseStack,
                                              MultiBufferSource buffer, int packedLight, CallbackInfo ci) {
         if (!Core.INSTANCE.isInitialized()
-                || !(model instanceof PlayerModel playerModel)
-                || !(state instanceof PlayerRenderState playerState)) return;
+                || !(entity instanceof AbstractClientPlayer)
+                || !(model instanceof PlayerModel<?> playerModel)) return;
 
         ESP esp = Core.INSTANCE.getModuleManager().getModule(ESP.class);
         if (esp != null && esp.isEnabled() && esp.skeleton.getValue()) {
-            esp.captureSkeletonPose(playerState.id, playerModel);
+            esp.captureSkeletonPose(entity.getId(), playerModel);
         }
     }
 }

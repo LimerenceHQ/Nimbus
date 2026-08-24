@@ -319,7 +319,7 @@ public final class ConfigManager implements InstanceManager {
                 state.addProperty("scale", draggable.getScale());
                 draggables.add(draggable.getName(), state);
             }
-            if (!draggables.isEmpty()) value.add("draggables", draggables);
+            if (draggables.size() > 0) value.add("draggables", draggables);
             modules.add(module.getName(), value);
         }
         root.add("modules", modules);

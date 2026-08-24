@@ -3,7 +3,6 @@ package cc.nimbus.mixin.client;
 import cc.nimbus.event.impl.game.*;
 import cc.nimbus.event.impl.player.EventItemUse;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.ReceivingLevelScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.tags.ItemTags;
@@ -45,10 +44,12 @@ public class MinecraftMixin {
         EventBus.call(new EventRotation());
     }
 
-    @Inject(method = "tick", at = @At("HEAD")) private void nimbus$preTick(CallbackInfo ci) {
+    @Inject(method = "tick", at = @At("HEAD"))
+    private void nimbus$preTick(CallbackInfo ci) {
         EventBus.call(new EventTick(EventTick.Phase.PRE));
     }
-    @Inject(method = "tick", at = @At("TAIL")) private void nimbus$postTick(CallbackInfo ci) {
+    @Inject(method = "tick", at = @At("TAIL"))
+    private void nimbus$postTick(CallbackInfo ci) {
         EventBus.call(new EventTick(EventTick.Phase.POST));
     }
     @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;handleKeybinds()V", shift = At.Shift.BEFORE))
@@ -57,28 +58,18 @@ public class MinecraftMixin {
     }
 
     @Inject(method = "setLevel", at = @At("HEAD"))
-    private void onSetLevel(ClientLevel clientLevel, ReceivingLevelScreen.Reason reason, CallbackInfo ci) {
+    private void onSetLevel(ClientLevel clientLevel, CallbackInfo ci) {
 
         EventBus.call(new EventWorldLoad());
     }
 
-    @Inject(method = "clearClientLevel(Lnet/minecraft/client/gui/screens/Screen;)V", at = @At("HEAD"))
+    @Inject(method = "clearLevel(Lnet/minecraft/client/gui/screens/Screen;)V", at = @At("HEAD"))
     private void onClientLevel(Screen screen, CallbackInfo info) {
         EventBus.call(new EventWorldLoad());
     }
     @Inject(method = "handleKeybinds", at = @At("HEAD"))
     private void nimbus$oldHittingSwingWhileUsing(CallbackInfo ci) {
         EventBus.call(new EventClick());
-        Minecraft minecraft = Minecraft.getInstance();
-        OldHitting oldHitting = MixinModuleLookup.enabled(OldHitting.class);
-        if (oldHitting != null
-                && minecraft.player != null
-                && minecraft.player.isUsingItem()
-                && !oldHitting.shouldIgnoreUse(minecraft.player)
-                && minecraft.player.getMainHandItem().is(ItemTags.SWORDS)
-                && minecraft.options.keyAttack.consumeClick()) {
-            minecraft.player.swing(InteractionHand.MAIN_HAND);
-        }
     }
 
     @Inject(method = "startAttack", at = @At("HEAD"), cancellable = true)
@@ -102,10 +93,8 @@ public class MinecraftMixin {
         if (event.isCancel()) {
             ci.cancel();
         }
-        Scaffold scaffold = MixinModuleLookup.enabled(Scaffold.class);
         BowAssistant bowAssistant = MixinModuleLookup.enabled(BowAssistant.class);
-        if ((scaffold != null)
-                || (bowAssistant != null && bowAssistant.autoReleasedThisTick())
+        if ((bowAssistant != null && bowAssistant.autoReleasedThisTick())
                 || nimbus$auraOwnsSwordUse()) {
             ci.cancel();
         }
@@ -128,7 +117,7 @@ public class MinecraftMixin {
     @Unique
     private static boolean nimbus$fireGuardOwnsBlockBreaking() {
         FireGuard fireGuard = MixinModuleLookup.enabled(FireGuard.class);
-        return fireGuard != null && fireGuard.ownsBlockBreaking();
+        return fireGuard != null && fireGuard.isActing();
     }
 
     @Unique

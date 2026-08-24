@@ -91,7 +91,7 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
         if (acceptsInput()) view.mouseReleased();
         return true;
     }
-    @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
+    @Override public boolean mouseScrolled(double x, double y, double vertical) {
         if (!acceptsInput()) return true;
         return view.mouseScrolled(logicalX(framebufferX(x)), logicalY(framebufferY(y)), vertical);
     }
@@ -117,13 +117,13 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
     @Override protected void extractedSkijaFramePresented() {
         if (!closeReady || closeScheduled) return;
         closeScheduled = true;
-        minecraft.schedule(this::finishClose);
+        minecraft.execute(this::finishClose);
     }
     @Override protected void removedSkijaScreen() { view.close(); }
     @Override public boolean isPauseScreen() { return false; }
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {}
+    public void renderBackground(GuiGraphics graphics) {}
 
     private float logicalX(float value) { return (value - originX) / scale; }
     private float logicalY(float value) { return (value - originY) / scale; }

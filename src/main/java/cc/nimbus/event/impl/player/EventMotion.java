@@ -4,61 +4,46 @@ import cc.nimbus.event.Cancelable;
 import cc.nimbus.event.EventType;
 
 public class EventMotion extends Cancelable {
-    private double posX;
-    private double posY;
-    private double posZ;
+    private final EventType eventState;
     private float yaw;
     private float pitch;
-    private float cameraYaw;
-    private float cameraPitch;
-    private boolean ground;
-    private EventType type;
+    private double x;
+    private double y;
+    private double z;
+    private boolean onGround;
 
-    public EventMotion() {
-    }
-
-    public EventMotion(double x, double y, double z, float yaw, float pitch,
-                       float cameraYaw, float cameraPitch, boolean ground, EventType type) {
-        set(x, y, z, yaw, pitch, cameraYaw, cameraPitch, ground, type);
-    }
-
-    public EventMotion set(double x, double y, double z, float yaw, float pitch,
-                           float cameraYaw, float cameraPitch, boolean ground, EventType type) {
-        reset();
-        posX = x;
-        posY = y;
-        posZ = z;
+    public EventMotion(EventType eventState, float yaw, float pitch, double x, double y, double z, boolean onGround) {
+        this.eventState = eventState;
         this.yaw = yaw;
         this.pitch = pitch;
-        this.cameraYaw = cameraYaw;
-        this.cameraPitch = cameraPitch;
-        this.ground = ground;
-        this.type = type;
-        return this;
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.onGround = onGround;
     }
 
     public double getPosX() {
-        return posX;
+        return x;
     }
 
     public void setPosX(double posX) {
-        this.posX = posX;
+        this.x = posX;
     }
 
     public double getPosY() {
-        return posY;
+        return y;
     }
 
     public void setPosY(double posY) {
-        this.posY = posY;
+        this.y = posY;
     }
 
     public double getPosZ() {
-        return posZ;
+        return z;
     }
 
     public void setPosZ(double posZ) {
-        this.posZ = posZ;
+        this.z = posZ;
     }
 
     public float getYaw() {
@@ -77,36 +62,28 @@ public class EventMotion extends Cancelable {
         this.pitch = pitch;
     }
 
-    public float getCameraYaw() {
-        return cameraYaw;
-    }
-
-    public float getCameraPitch() {
-        return cameraPitch;
-    }
-
     public void setRotation(float yaw, float pitch) {
         this.yaw = yaw;
         this.pitch = pitch;
     }
 
     public boolean isGround() {
-        return ground;
+        return onGround;
     }
 
     public void setGround(boolean ground) {
-        this.ground = ground;
+        this.onGround = ground;
     }
 
     public EventType getType() {
-        return type;
+        return eventState;
     }
 
     public boolean isPre() {
-        return type == EventType.PRE;
+        return eventState == EventType.PRE;
     }
 
     public boolean isPost() {
-        return type == EventType.POST;
+        return eventState == EventType.POST;
     }
 }

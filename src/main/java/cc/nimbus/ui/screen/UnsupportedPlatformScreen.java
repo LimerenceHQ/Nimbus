@@ -24,7 +24,7 @@ public final class UnsupportedPlatformScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    public void renderBackground(GuiGraphics graphics) {
         graphics.fill(0, 0, graphics.guiWidth(), graphics.guiHeight(), 0xF014171A);
     }
 

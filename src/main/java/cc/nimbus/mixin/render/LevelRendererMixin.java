@@ -1,10 +1,10 @@
 package cc.nimbus.mixin.render;
 
-import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.LightTexture;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.*;
@@ -16,14 +16,10 @@ import cc.nimbus.utils.render.Render3DUtils;
 @Mixin(LevelRenderer.class)
 public class LevelRendererMixin {
     @Inject(method = "renderLevel", at = @At("RETURN"))
-    private void nimbus$render(GraphicsResourceAllocator allocator, DeltaTracker delta, boolean outline, Camera camera,
-                               net.minecraft.client.renderer.GameRenderer gameRenderer,
-                               Matrix4f modelView, Matrix4f projection, CallbackInfo ci) {
-        PoseStack stack = new PoseStack();
-        stack.mulPose(modelView);
-        float partialTick = delta.getGameTimeDeltaPartialTick(false);
+    private void nimbus$render(PoseStack stack, float partialTick, long finishTimeNano, boolean outline, Camera camera,
+                               GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f projection, CallbackInfo ci) {
         Render3DUtils.captureWorldProjectionMatrix(projection);
-        Render3DUtils.finishWorldProjection(modelView, camera.getPosition(), partialTick);
+        Render3DUtils.finishWorldProjection(stack.last().pose(), camera.getPosition(), partialTick);
         EventBus.call(new EventRender3D(stack, partialTick));
     }
 }

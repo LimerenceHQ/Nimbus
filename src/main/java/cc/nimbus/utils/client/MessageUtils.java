@@ -18,7 +18,7 @@ public final class MessageUtils {
 
     private static void add(Component message) {
         Minecraft minecraft = Minecraft.getInstance();
-        minecraft.schedule(() -> {
+        minecraft.execute(() -> {
             if (minecraft.gui != null) {
                 minecraft.gui.getChat().addMessage(message);
             }

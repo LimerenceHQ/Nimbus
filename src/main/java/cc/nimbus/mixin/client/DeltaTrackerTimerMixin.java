@@ -1,21 +1,23 @@
 package cc.nimbus.mixin.client;
 
 import cc.nimbus.managers.GameStateManager;
-import cc.nimbus.mixin.accessor.client.DeltaTrackerTimerAccessor;
-import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Timer;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(DeltaTracker.Timer.class)
+@Mixin(Timer.class)
 public abstract class DeltaTrackerTimerMixin {
-    @Inject(method = "advanceGameTime", at = @At(value = "FIELD", target = "Lnet/minecraft/client/DeltaTracker$Timer;deltaTicks:F", shift = At.Shift.AFTER))
-    private void nimbus$applyTimerSpeed(long gameTime, CallbackInfoReturnable<Integer> cir) {
-        float speed = GameStateManager.getTimerSpeed();
-        if (speed > 0.0F && speed != 1.0F) {
-            DeltaTrackerTimerAccessor timer = (DeltaTrackerTimerAccessor) (Object) this;
-            timer.nimbus$setDeltaTicks(timer.nimbus$getDeltaTicks() * speed);
+    @Shadow
+    public float tickDelta;
+
+    @Inject(method = "advanceTime", at = @At(value = "FIELD", target = "Lnet/minecraft/client/Timer;tickDelta:F", shift = At.Shift.AFTER))
+    private void hookTimer(CallbackInfoReturnable<Integer> cir) {
+        float customTimer = GameStateManager.getTimerSpeed();
+        if (customTimer > 0.0F) {
+            tickDelta *= customTimer;
         }
     }
 }

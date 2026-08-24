@@ -20,9 +20,7 @@ import cc.nimbus.utils.client.TimerUtils;
 import cc.nimbus.utils.network.PacketUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.common.ClientboundPingPacket;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
@@ -246,7 +244,8 @@ public class NoSlow extends BasicModule {
             return false;
         }
         Item item = itemStack.getItem();
-        boolean isFood = itemStack.has(DataComponents.FOOD);
+        FoodProperties food = item.getFoodProperties();
+        boolean isFood = food != null;
         boolean isPotion = item instanceof PotionItem;
         boolean isShield = item == Items.SHIELD;
         boolean isBow = item instanceof BowItem;

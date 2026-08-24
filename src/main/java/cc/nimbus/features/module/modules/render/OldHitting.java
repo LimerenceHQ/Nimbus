@@ -28,7 +28,6 @@ public final class OldHitting extends BasicModule {
             Items.EXPERIENCE_BOTTLE,
             Items.SPLASH_POTION,
             Items.LINGERING_POTION,
-            Items.WIND_CHARGE,
             Items.FIREWORK_ROCKET,
             Items.TRIDENT
     );

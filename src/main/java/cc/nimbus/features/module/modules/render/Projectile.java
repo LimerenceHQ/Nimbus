@@ -72,7 +72,7 @@ public final class Projectile extends BasicModule {
                 -0.1f,
                 -Mth.sin(yaw * radians) * 0.16f
         );
-        Vec3 inherited = minecraft.player.getKnownMovement();
+        Vec3 inherited = minecraft.player.getDeltaMovement();
         Vec3 movement = direction.scale(speed).add(
                 inherited.x, minecraft.player.onGround() ? 0d : inherited.y, inherited.z
         );

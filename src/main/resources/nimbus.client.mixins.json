@@ -6,7 +6,6 @@
   "client": [
     "client.CommandSuggestionsMixin",
     "client.KeyboardHandlerMixin",
-    "client.DeltaTrackerTimerMixin",
     "client.MinecraftMixin",
     "client.WindowMixin",
     "client.MouseHandlerMixin",
@@ -33,7 +32,6 @@
     "render.TitleScreenMixin",
     "world.ClientLevelDataMixin",
     "accessor.client.MinecraftAccessor",
-    "accessor.client.DeltaTrackerTimerAccessor",
     "accessor.network.ServerboundInteractPacketAccessor",
     "accessor.network.ServerboundMovePlayerPacketAccessor",
     "accessor.player.MultiPlayerGameModeAccessor",

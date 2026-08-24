@@ -35,7 +35,7 @@ public final class Teams extends BasicModule {
             ItemStack other = target.getItemBySlot(slot);
             if (own.isEmpty() && other.isEmpty()) continue;
             foundArmor = true;
-            if (!ItemStack.isSameItemSameComponents(own, other)) return false;
+            if (own.getItem() != other.getItem()) return false;
         }
         return foundArmor;
     }

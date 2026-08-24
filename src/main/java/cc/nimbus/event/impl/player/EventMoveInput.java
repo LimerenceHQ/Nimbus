@@ -69,4 +69,8 @@ public class EventMoveInput extends Cancelable {
     public boolean getSneak() {
         return sneak;
     }
+
+    public void setSneak(boolean sneak) {
+        this.sneak = sneak;
+    }
 }

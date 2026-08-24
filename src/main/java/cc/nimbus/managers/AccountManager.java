@@ -395,7 +395,7 @@ public final class AccountManager implements InstanceManager {
                 field.setAccessible(true);
                 field.set(Minecraft.getInstance(), new net.minecraft.client.User(
                         name,
-                        uuid,
+                        uuid.toString(),
                         accessToken,
                         Optional.empty(),
                         Optional.empty(),

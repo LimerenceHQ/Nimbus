@@ -106,8 +106,8 @@ public final class Render2DUtils {
                 }
                 String level = effect.getAmplifier() > 0 ? " " + (effect.getAmplifier() + 1) : "";
                 effects.add(new EffectLabel(
-                        effect.getEffect().value().getDisplayName().getString() + level + " " + duration,
-                        0xFF000000 | effect.getEffect().value().getColor()
+                        effect.getEffect().getDisplayName().getString() + level + " " + duration,
+                        0xFF000000 | effect.getEffect().getColor()
                 ));
             }
         }

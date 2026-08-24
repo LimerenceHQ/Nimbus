@@ -7,6 +7,7 @@ import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.network.PacketEvent;
 import cc.nimbus.event.impl.player.*;
+import cc.nimbus.event.impl.render.EventRotationRender;
 import cc.nimbus.features.rotation.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.Packet;
@@ -241,18 +242,19 @@ public class RotationManager implements InstanceManager {
         }
     }
 
+    @EventTarget
+    public void onRenderRotation(EventRotationRender e) {
+        if (animationRotation != null && lastAnimationRotation != null) {
+            e.setYaw(animationRotation.yaw());
+            e.setLastYaw(lastAnimationRotation.yaw());
+            e.setPitch(animationRotation.pitch());
+            e.setLastPitch(lastAnimationRotation.pitch());
+        }
+    }
+
 
     public static Rotation animationRotation;
     public static Rotation lastAnimationRotation;
-
-    public synchronized Rotation getAnimationRotation(float partialTick) {
-        if (animationRotation == null) return null;
-        Rotation previous = lastAnimationRotation == null ? animationRotation : lastAnimationRotation;
-        return new Rotation(
-                previous.yaw() + Mth.wrapDegrees(animationRotation.yaw() - previous.yaw()) * partialTick,
-                Mth.lerp(partialTick, previous.pitch(), animationRotation.pitch())
-        );
-    }
 
     private void apply(Request request) {
         cachedTarget = request.isSmooth()
