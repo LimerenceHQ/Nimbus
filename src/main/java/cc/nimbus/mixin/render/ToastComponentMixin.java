@@ -1,6 +1,6 @@
 package cc.nimbus.mixin.render;
 
-import cc.nimbus.accessor.GuiHudRenderAccess;
+import cc.nimbus.utils.mixin.GuiHudRenderAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.toasts.ToastComponent;

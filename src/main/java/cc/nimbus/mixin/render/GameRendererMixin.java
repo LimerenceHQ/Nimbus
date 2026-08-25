@@ -2,7 +2,7 @@ package cc.nimbus.mixin.render;
 
 import cc.nimbus.features.module.modules.render.FullBright;
 import cc.nimbus.features.module.modules.render.NoHurtCamera;
-import cc.nimbus.accessor.GuiHudRenderAccess;
+import cc.nimbus.utils.mixin.GuiHudRenderAccess;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;

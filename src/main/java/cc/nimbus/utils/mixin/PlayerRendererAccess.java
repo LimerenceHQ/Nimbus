@@ -1,4 +1,4 @@
-package cc.nimbus.accessor;
+package cc.nimbus.utils.mixin;
 
 import net.minecraft.client.player.AbstractClientPlayer;
 

@@ -6,7 +6,7 @@ import cc.nimbus.event.EventType;
 import cc.nimbus.event.impl.render.EventRender2D;
 import cc.nimbus.utils.render.skija.api.SkijaLayer;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
-import cc.nimbus.accessor.GuiHudRenderAccess;
+import cc.nimbus.utils.mixin.GuiHudRenderAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphics;

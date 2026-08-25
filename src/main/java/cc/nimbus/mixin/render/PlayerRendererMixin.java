@@ -1,6 +1,6 @@
 package cc.nimbus.mixin.render;
 
-import cc.nimbus.accessor.PlayerRendererAccess;
+import cc.nimbus.utils.mixin.PlayerRendererAccess;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.entity.player.PlayerRenderer;
 import org.spongepowered.asm.mixin.Mixin;
