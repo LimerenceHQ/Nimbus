@@ -1,5 +1,6 @@
 package cc.nimbus.features.module.modules.player;
 
+import cc.nimbus.core.Core;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.impl.input.EventMouseButton;
 import cc.nimbus.features.module.api.BasicModule;
@@ -17,12 +18,12 @@ import java.util.Set;
 import java.util.UUID;
 
 @ModuleInfo(
-        name = "IRCFriend",
+        name = "Friend",
         description = "Marks players as friends with a configurable mouse button.",
         category = ModuleCategory.Player,
         enableOnStartUp = true
 )
-public final class IRCFriend extends BasicModule {
+public final class Friend extends BasicModule {
     private static final Set<UUID> MANUAL_FRIENDS = new HashSet<>();
     private final Minecraft minecraft = Minecraft.getInstance();
 
@@ -38,9 +39,11 @@ public final class IRCFriend extends BasicModule {
                 || target == minecraft.player) return;
 
         boolean added = toggleFriend(target);
-        MessageUtils.addMessage(added
-                ? "§a已添加好友: §f" + target.getName().getString()
-                : "§c已移除好友: §f" + target.getName().getString());
+        String message = Core.INSTANCE.getI18nManager().get(
+                added ? "nimbus.module.friend.message.added" : "nimbus.module.friend.message.removed",
+                added ? "Added friend: %s" : "Removed friend: %s",
+                target.getName().getString());
+        MessageUtils.addMessage((added ? "§a" : "§c") + message);
     }
 
     public static boolean isFriend(Player player) {

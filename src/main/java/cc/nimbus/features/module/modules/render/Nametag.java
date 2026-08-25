@@ -9,6 +9,7 @@ import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.modules.combat.BowAssistant;
 import cc.nimbus.features.module.modules.player.AntiBot;
+import cc.nimbus.features.module.modules.player.Friend;
 import cc.nimbus.utils.render.Render3DUtils;
 import cc.nimbus.utils.render.PlayerProjectionCache;
 import cc.nimbus.utils.render.font.NimbusFonts;
@@ -39,6 +40,8 @@ public final class Nametag extends BasicModule {
     private static final float MIN_SCALE = 0.3f;
     private static final float GAP = 3f;
     private static final float META_Y = 24f;
+    private static final float INDICATOR_GAP = 4f;
+    private static final String INDICATOR_DOT = "·";
     private static final int BACKGROUND_COLOR = 0x70171A1E;
     private static final long TEXT_TRANSITION_NANOS = 180_000_000L;
     private final Map<Integer, LabelCache> labels = new HashMap<>();
@@ -75,6 +78,10 @@ public final class Nametag extends BasicModule {
         TargetIndicators targetIndicators = targetIndicators();
         ItemWarn itemWarn = Core.INSTANCE.getModuleManager().getModule(ItemWarn.class);
         AntiBot antiBot = Core.INSTANCE.getModuleManager().getModule(AntiBot.class);
+        Friend friend = Core.INSTANCE.getModuleManager().getModule(Friend.class);
+        String friendLabel = friend != null && friend.isEnabled()
+                ? Core.INSTANCE.getI18nManager().get(
+                friend.getDisplayNameTranslationKey(), friend.getDisplayName()) : "";
         int colorIndex = 0;
 
         for (PlayerProjectionCache.Entry projectedPlayer : PlayerProjectionCache.entries(minecraft, projection)) {
@@ -85,7 +92,9 @@ public final class Nametag extends BasicModule {
 
             float espWidth = projected.width() * 0.5f * skija.width();
             if (espWidth <= 2f) continue;
-            TargetIndicator targetIndicator = targetIndicators.label(player.getId());
+            TargetIndicator targetIndicator = friend != null && friend.isEnabled() && Friend.isFriend(player)
+                    ? new TargetIndicator(friendLabel, 0xFF96C077)
+                    : targetIndicators.label(player.getId());
             ItemWarn.Warning warning = itemWarn == null
                     ? ItemWarn.detect(minecraft.player, player)
                     : itemWarn.nametagWarning(minecraft.player, player);
@@ -176,9 +185,12 @@ public final class Nametag extends BasicModule {
             cached.guiScale = guiScale;
             cached.targetColor = targetColor;
             cached.warning = warning;
-            String indicator = targetIndicator.isEmpty() ? "" : "  ·  " + targetIndicator;
+            String indicator = targetIndicator;
             cached.metadataWidth = skija.text().width(META_FONT, META_SIZE * guiScale, metadata);
-            cached.indicatorWidth = skija.text().width(META_FONT, META_SIZE * guiScale, indicator);
+            cached.indicatorWidth = indicator.isEmpty() ? 0f
+                    : skija.text().width(META_FONT, META_SIZE * guiScale, INDICATOR_DOT)
+                    + INDICATOR_GAP * guiScale
+                    + skija.text().width(META_FONT, META_SIZE * guiScale, indicator);
             float warningWidth = skija.text().width(NAME_FONT, NAME_SIZE * guiScale, warning.label());
             cached.warningWidth = warningWidth;
             cached.naturalWidth = Math.max(
@@ -229,8 +241,12 @@ public final class Nametag extends BasicModule {
         frame.text().draw(META_FONT, metadataSize, visual.metadata(),
                 metadataX, y + META_Y * entry.scale() + offsetY, metadataColor);
         if (!visual.indicator().isEmpty()) {
+            float dotWidth = frame.text().width(META_FONT, metadataSize, INDICATOR_DOT);
+            frame.text().draw(META_FONT, metadataSize, INDICATOR_DOT,
+                    metadataX + metadataWidth, y + META_Y * entry.scale() + offsetY, metadataColor);
             frame.text().draw(META_FONT, metadataSize, visual.indicator(),
-                    metadataX + metadataWidth, y + META_Y * entry.scale() + offsetY,
+                    metadataX + metadataWidth + dotWidth + INDICATOR_GAP * entry.scale(),
+                    y + META_Y * entry.scale() + offsetY,
                     indicatorColor);
         }
     }
@@ -302,7 +318,7 @@ public final class Nametag extends BasicModule {
         private long transitionStartedNanos = Long.MIN_VALUE;
 
         private LabelVisual currentVisual() {
-            String indicator = targetIndicator.isEmpty() ? "" : "  ·  " + targetIndicator;
+            String indicator = targetIndicator;
             return new LabelVisual(name, warning.label(), metadata, indicator, metadataWidth, indicatorWidth,
                     this.warningWidth, naturalWidth, guiScale, targetColor, warning.color());
         }
