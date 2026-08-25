@@ -197,8 +197,9 @@ public final class BedDefense extends BasicModule {
     }
 
     private static String distanceText(float distance) {
+        long roundedDistance = Math.round(distance);
         return Core.INSTANCE.getI18nManager().get(
-                "nimbus.module.bed_defense.overlay.distance", "%.0fm", distance);
+                "nimbus.module.bed_defense.overlay.distance", "%dm", roundedDistance);
     }
 
     private boolean needsRebuild(Minecraft minecraft) {

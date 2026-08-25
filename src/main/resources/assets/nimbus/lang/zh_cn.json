@@ -469,7 +469,6 @@
   "nimbus.module.teams.setting.mode": "识别方式",
   "nimbus.module.teams.setting.mode.option.color": "名称颜色",
   "nimbus.module.teams.setting.mode.option.scoreboard": "计分板队伍",
-  "nimbus.module.teams.setting.mode.option.armor": "相同护甲",
 
   "nimbus.module.click_gui.name": "功能界面",
   "nimbus.module.click_gui.description": "打开 Nimbus 功能界面。",
@@ -520,6 +519,9 @@
   "nimbus.module.nametag.name": "玩家名牌",
   "nimbus.module.nametag.description": "在玩家上方显示实体 ID 与距离。",
 
+  "nimbus.module.health_bypass.name": "生命绕过",
+  "nimbus.module.health_bypass.description": "在 Heypixel 显示真实生命值。",
+
   "nimbus.module.item_warn.name": "物品警告",
   "nimbus.module.item_warn.description": "提示玩家身上的危险效果和手持物品。",
   "nimbus.module.item_warn.setting.nametag": "名牌提示",
@@ -549,7 +551,7 @@
   "nimbus.module.bed_defense.setting.range": "范围",
   "nimbus.module.bed_defense.setting.defense_radius": "防御半径",
   "nimbus.module.bed_defense.setting.icons": "图标",
-  "nimbus.module.bed_defense.overlay.distance": "%.0f米",
+  "nimbus.module.bed_defense.overlay.distance": "%d米",
 
   "nimbus.module.projectile.name": "弹道预测",
   "nimbus.module.projectile.description": "预测手持投掷物与远程武器的飞行轨迹。",

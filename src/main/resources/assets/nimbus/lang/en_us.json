@@ -469,7 +469,6 @@
   "nimbus.module.teams.setting.mode": "Mode",
   "nimbus.module.teams.setting.mode.option.color": "Color",
   "nimbus.module.teams.setting.mode.option.scoreboard": "Scoreboard",
-  "nimbus.module.teams.setting.mode.option.armor": "Armor",
 
   "nimbus.module.click_gui.name": "Click GUI",
   "nimbus.module.click_gui.description": "Opens the Nimbus module interface.",
@@ -520,6 +519,9 @@
   "nimbus.module.nametag.name": "Nametag",
   "nimbus.module.nametag.description": "Shows player IDs and distance above players.",
 
+  "nimbus.module.health_bypass.name": "Health Bypass",
+  "nimbus.module.health_bypass.description": "Shows real health in Heypixel.",
+
   "nimbus.module.item_warn.name": "Item Warn",
   "nimbus.module.item_warn.description": "Warns about dangerous player effects and held items.",
   "nimbus.module.item_warn.setting.nametag": "Nametag",
@@ -549,7 +551,7 @@
   "nimbus.module.bed_defense.setting.range": "Range",
   "nimbus.module.bed_defense.setting.defense_radius": "Defense Radius",
   "nimbus.module.bed_defense.setting.icons": "Icons",
-  "nimbus.module.bed_defense.overlay.distance": "%.0fm",
+  "nimbus.module.bed_defense.overlay.distance": "%dm",
 
   "nimbus.module.projectile.name": "Projectile",
   "nimbus.module.projectile.description": "Predicts the path of held projectiles.",

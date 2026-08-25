@@ -13,6 +13,7 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
+import cc.nimbus.features.module.modules.player.AntiBot;
 import cc.nimbus.accessor.LivingEntityRendererAccess;
 import cc.nimbus.accessor.PlayerRendererAccess;
 import cc.nimbus.utils.render.Render2DUtils;
@@ -78,10 +79,12 @@ public final class ESP extends BasicModule {
             detailsCache.entrySet().removeIf(entry -> gameTime - entry.getValue().tick() > 20L);
         }
         int colorIndex = 0;
+        AntiBot antiBot = Core.INSTANCE.getModuleManager().getModule(AntiBot.class);
         for (PlayerProjectionCache.Entry projectedPlayer : PlayerProjectionCache.entries(minecraft, projection)) {
             if (!(minecraft.level.getEntity(projectedPlayer.entityId()) instanceof Player player)) continue;
             boolean self = player == minecraft.player;
             if (self && (!showSelf.getValue() || minecraft.options.getCameraType().isFirstPerson())) continue;
+            if (!self && antiBot != null && antiBot.isBot(player)) continue;
             Render3DUtils.ProjectedBox projected = projectedPlayer.bounds();
 
             float health = player.getMaxHealth() <= 0f ? 0f : player.getHealth() / player.getMaxHealth();
@@ -137,10 +140,12 @@ public final class ESP extends BasicModule {
         }
         List<Render3DUtils.LineSegment> segments = new ArrayList<>(minecraft.level.players().size() * 8);
         int colorIndex = 0;
+        AntiBot antiBot = Core.INSTANCE.getModuleManager().getModule(AntiBot.class);
         for (Player player : minecraft.level.players()) {
             boolean self = player == minecraft.player;
             if (self && (!showSelf.getValue() || minecraft.options.getCameraType().isFirstPerson())) continue;
             if (player.isSpectator() || player.isRemoved()) continue;
+            if (!self && antiBot != null && antiBot.isBot(player)) continue;
             SkeletonPose pose = skeletonPoses.get(player.getId());
             if (pose == null || pose.gameTime() != gameTime) {
                 pose = fallbackSkeletonPose(minecraft, player, partialTick, gameTime);

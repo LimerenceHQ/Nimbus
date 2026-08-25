@@ -8,6 +8,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.modules.combat.BowAssistant;
+import cc.nimbus.features.module.modules.player.AntiBot;
 import cc.nimbus.utils.render.Render3DUtils;
 import cc.nimbus.utils.render.PlayerProjectionCache;
 import cc.nimbus.utils.render.font.NimbusFonts;
@@ -73,11 +74,13 @@ public final class Nametag extends BasicModule {
         }
         TargetIndicators targetIndicators = targetIndicators();
         ItemWarn itemWarn = Core.INSTANCE.getModuleManager().getModule(ItemWarn.class);
+        AntiBot antiBot = Core.INSTANCE.getModuleManager().getModule(AntiBot.class);
         int colorIndex = 0;
 
         for (PlayerProjectionCache.Entry projectedPlayer : PlayerProjectionCache.entries(minecraft, projection)) {
             if (!(minecraft.level.getEntity(projectedPlayer.entityId()) instanceof Player player)) continue;
             if (player == minecraft.player) continue;
+            if (antiBot != null && antiBot.isBot(player)) continue;
             Render3DUtils.ProjectedBox projected = projectedPlayer.bounds();
 
             float espWidth = projected.width() * 0.5f * skija.width();

@@ -4,9 +4,12 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
-import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
+
+import java.util.Objects;
 
 @ModuleInfo(
         name = "Teams",
@@ -15,28 +18,21 @@ import net.minecraft.world.item.ItemStack;
 )
 public final class Teams extends BasicModule {
     public final ModeValue mode = new ModeValue(
-            "Mode", new String[]{"Color", "Scoreboard", "Armor"}, "Color");
+            "Mode", new String[]{"Scoreboard", "Color"}, "Scoreboard");
 
     public boolean isSameTeam(Player self, Player target) {
         if (!isEnabled() || self == target) return false;
         return switch (mode.getValue()) {
-            case "Scoreboard" -> self.isAlliedTo(target);
-            case "Armor" -> sameArmor(self, target);
-            default -> self.getTeam() != null && target.getTeam() != null
-                    && self.getTeamColor() == target.getTeamColor();
+            case "Color" -> Integer.valueOf(target.getTeamColor()).equals(self.getTeamColor());
+            default -> Objects.equals(getTeam(self), getTeam(target));
         };
     }
 
-    private static boolean sameArmor(Player self, Player target) {
-        boolean foundArmor = false;
-        for (EquipmentSlot slot : new EquipmentSlot[]{
-                EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
-            ItemStack own = self.getItemBySlot(slot);
-            ItemStack other = target.getItemBySlot(slot);
-            if (own.isEmpty() && other.isEmpty()) continue;
-            foundArmor = true;
-            if (own.getItem() != other.getItem()) return false;
-        }
-        return foundArmor;
+    private static String getTeam(Entity entity) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.getConnection() == null || entity == null) return null;
+        PlayerInfo playerInfo = minecraft.getConnection().getPlayerInfo(entity.getUUID());
+        return playerInfo == null || playerInfo.getTeam() == null
+                ? null : playerInfo.getTeam().getName();
     }
 }

@@ -57,7 +57,7 @@ public final class ItemWarn extends BasicModule {
             active.add(player.getId());
             Warning current = detect(minecraft.player, player);
             Warning old = previous.put(player.getId(), current);
-            if (!initialized || !clientNotification.getValue() || current.kind() == Kind.NONE
+            if (!initialized || !clientNotification.getValue() || current.kind() != Kind.ITEM
                     || current.equals(old)) continue;
             Core.INSTANCE.getNotificationManager().postClient(
                     "Item Warning",

@@ -247,7 +247,10 @@ public final class NotificationRenderer {
         String status = null;
         String moduleName = message;
         if (entry.type() != null) {
-            String suffix = entry.type() == NotificationType.SUCCESS ? " enabled" : " disabled";
+            boolean enabled = entry.type() == NotificationType.SUCCESS;
+            String suffix = Core.INSTANCE.getI18nManager().get(
+                    enabled ? "nimbus.module.toggle.enabled" : "nimbus.module.toggle.disabled",
+                    enabled ? "%s enabled" : "%s disabled", "");
             if (message.endsWith(suffix)) {
                 moduleName = message.substring(0, message.length() - suffix.length());
                 status = suffix;

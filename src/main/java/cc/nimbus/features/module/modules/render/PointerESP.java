@@ -10,6 +10,7 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
+import cc.nimbus.features.module.modules.player.AntiBot;
 import cc.nimbus.utils.render.Render3DUtils;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import io.github.humbleui.skija.Paint;
@@ -61,9 +62,11 @@ public final class PointerESP extends BasicModule {
         }
         List<Entry> entries = new ArrayList<>();
         int colorIndex = 0;
+        AntiBot antiBot = Core.INSTANCE.getModuleManager().getModule(AntiBot.class);
         for (Player player : minecraft.level.players()) {
             if (player == minecraft.player || player.isRemoved() || !player.isAlive()
                     || player.isSpectator()) continue;
+            if (antiBot != null && antiBot.isBot(player)) continue;
             if (player.isInvisible() && !invisibles.getValue()) continue;
             if (!Core.INSTANCE.getTargetManager().isTarget(player)) continue;
             boolean visible = visibilityCache.computeIfAbsent(player.getId(), ignored ->
