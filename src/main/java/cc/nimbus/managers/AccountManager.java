@@ -1,12 +1,12 @@
 package cc.nimbus.managers;
 
 import cc.nimbus.core.interfaces.InstanceManager;
-import cc.nimbus.ui.alt.microsoft.MicrosoftAuth;
-import cc.nimbus.ui.alt.model.AccountEnum;
-import cc.nimbus.ui.alt.model.Alt;
-import cc.nimbus.ui.alt.model.MicrosoftAlt;
-import cc.nimbus.ui.alt.model.OfflineAlt;
-import cc.nimbus.ui.alt.model.OriginalAlt;
+import cc.nimbus.features.alt.microsoft.MicrosoftAuth;
+import cc.nimbus.features.alt.model.AccountEnum;
+import cc.nimbus.features.alt.model.Alt;
+import cc.nimbus.features.alt.model.MicrosoftAlt;
+import cc.nimbus.features.alt.model.OfflineAlt;
+import cc.nimbus.features.alt.model.OriginalAlt;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;

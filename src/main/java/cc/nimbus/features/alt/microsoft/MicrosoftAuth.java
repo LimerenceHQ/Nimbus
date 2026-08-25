@@ -1,4 +1,4 @@
-package cc.nimbus.ui.alt.microsoft;
+package cc.nimbus.features.alt.microsoft;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;

@@ -1,4 +1,4 @@
-package cc.nimbus.ui.alt.model;
+package cc.nimbus.features.alt.model;
 
 public abstract class Alt {
     private final String userName;

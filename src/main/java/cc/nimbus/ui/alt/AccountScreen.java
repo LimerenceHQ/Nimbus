@@ -2,9 +2,9 @@ package cc.nimbus.ui.alt;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.managers.AccountManager;
-import cc.nimbus.ui.alt.model.Alt;
-import cc.nimbus.ui.alt.model.OfflineAlt;
-import cc.nimbus.ui.alt.model.OriginalAlt;
+import cc.nimbus.features.alt.model.Alt;
+import cc.nimbus.features.alt.model.OfflineAlt;
+import cc.nimbus.features.alt.model.OriginalAlt;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;

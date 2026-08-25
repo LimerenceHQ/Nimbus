@@ -1,4 +1,4 @@
-package cc.nimbus.ui.alt.model;
+package cc.nimbus.features.alt.model;
 
 public final class MicrosoftAlt extends Alt {
     private final String refreshToken;

@@ -1,4 +1,4 @@
-package cc.nimbus.ui.alt.model;
+package cc.nimbus.features.alt.model;
 
 public final class OriginalAlt extends Alt {
     private final String accessToken;
