@@ -187,8 +187,6 @@ public final class ModuleManager implements InstanceManager {
         List<BasicModule> bound = getModulesByKey(event.getKey());
         if (bound.isEmpty()) return;
         bound.forEach(BasicModule::toggle);
-        // A module keybind is an application command. Do not let the same
-        // GLFW press continue into Minecraft's screen/keybind handling.
         event.cancelEvent();
     }
 
