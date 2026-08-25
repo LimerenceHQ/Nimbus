@@ -46,7 +46,7 @@ public final class ClientSettings {
             "Color Mode", new String[]{"Static", "Fade", "Dynamic", "Astolfo", "Rainbow"}, "Static"
     );
     public final BooleanSetting arentIOnePointEight = new BooleanSetting(
-            "Minecraft 1.8.9", false
+            "1.8.9 Window Branding", false
     );
     public final ColorSetting accent = new ColorSetting(
             "Accent", 0xFFFFFFFF, () -> customPreset() && colorMode.is("Static", "Fade", "Dynamic"), false

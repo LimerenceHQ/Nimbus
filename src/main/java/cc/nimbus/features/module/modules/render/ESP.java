@@ -52,6 +52,7 @@ public final class ESP extends BasicModule {
     public final BooleanSetting showSelf = new BooleanSetting("Show Self", false);
 
     private final Map<Integer, SkeletonPose> skeletonPoses = new HashMap<>();
+    private final Map<Integer, MotionState> skeletonMotion = new HashMap<>();
     private final Map<Integer, CachedDetails> detailsCache = new HashMap<>();
     private ClientLevel skeletonLevel;
     private ClientLevel detailsLevel;
@@ -125,6 +126,7 @@ public final class ESP extends BasicModule {
         if (projection == null) return;
         if (skeletonLevel != minecraft.level) {
             skeletonPoses.clear();
+            skeletonMotion.clear();
             skeletonLevel = minecraft.level;
         }
 
@@ -134,6 +136,10 @@ public final class ESP extends BasicModule {
         long gameTime = minecraft.level.getGameTime();
         if (gameTime % 20L == 0L) {
             skeletonPoses.entrySet().removeIf(entry -> {
+                var entity = minecraft.level.getEntity(entry.getKey());
+                return !(entity instanceof Player player) || player.isRemoved();
+            });
+            skeletonMotion.entrySet().removeIf(entry -> {
                 var entity = minecraft.level.getEntity(entry.getKey());
                 return !(entity instanceof Player player) || player.isRemoved();
             });
@@ -184,8 +190,8 @@ public final class ESP extends BasicModule {
     }
 
     @SuppressWarnings("unchecked")
-    private static SkeletonPose fallbackSkeletonPose(Minecraft minecraft, Player player,
-                                                     float partialTick, long gameTime) {
+    private SkeletonPose fallbackSkeletonPose(Minecraft minecraft, Player player,
+                                              float partialTick, long gameTime) {
         if (!(player instanceof AbstractClientPlayer clientPlayer)) return null;
         EntityRenderer<?> renderer = minecraft.getEntityRenderDispatcher().getRenderer(player);
         if (!(renderer instanceof LivingEntityRendererAccess modelAccess)
@@ -209,13 +215,12 @@ public final class ESP extends BasicModule {
         }
 
         float headPitch = Mth.lerp(partialTick, player.xRotO, player.getXRot());
-        float limbSwingAmount = 0f;
-        float limbSwing = 0f;
-        if (!player.isPassenger() && player.isAlive()) {
-            limbSwingAmount = Math.min(1f, player.walkAnimation.speed(partialTick));
-            limbSwing = player.walkAnimation.position(partialTick);
-            if (player.isBaby()) limbSwing *= 3f;
-        }
+        MotionState motion = skeletonMotion.computeIfAbsent(player.getId(), ignored -> new MotionState());
+        motion.update(player, gameTime);
+        float limbSwingAmount = player.isPassenger() || !player.isAlive()
+                ? 0f : Mth.lerp(partialTick, motion.speedOld, motion.speed);
+        float limbSwing = motion.position - motion.speed * (1f - partialTick);
+        if (player.isBaby()) limbSwing *= 3f;
 
         model.prepareMobModel(player, limbSwing, limbSwingAmount, partialTick);
         model.setupAnim(player, limbSwing, limbSwingAmount,
@@ -239,6 +244,7 @@ public final class ESP extends BasicModule {
     @Override
     protected void onDisable() {
         skeletonPoses.clear();
+        skeletonMotion.clear();
         detailsCache.clear();
         skeletonLevel = null;
         detailsLevel = null;
@@ -337,6 +343,24 @@ public final class ESP extends BasicModule {
     private record BoneRotation(float x, float y, float z) { }
     private record SkeletonPose(BoneRotation head, BoneRotation rightArm, BoneRotation leftArm,
                                 BoneRotation rightLeg, BoneRotation leftLeg, long gameTime) { }
+    private static final class MotionState {
+        private long gameTime = Long.MIN_VALUE;
+        private float speedOld;
+        private float speed;
+        private float position;
+
+        private void update(Player player, long currentGameTime) {
+            if (gameTime == currentGameTime) return;
+            gameTime = currentGameTime;
+            speedOld = speed;
+            double dx = player.getX() - player.xOld;
+            double dz = player.getZ() - player.zOld;
+            float movement = (float) Math.sqrt(dx * dx + dz * dz);
+            float target = Math.clamp(movement * 4f, 0f, 1f);
+            speed += (target - speed) * 0.4f;
+            position += speed;
+        }
+    }
     private record ProjectedSegment(Render3DUtils.ProjectedPoint start,
                                     Render3DUtils.ProjectedPoint end, int color) { }
     private record CachedDetails(long tick, boolean equipment, boolean effects,

@@ -6,6 +6,7 @@ import cc.nimbus.event.EventType;
 import cc.nimbus.event.impl.render.EventRender2D;
 import cc.nimbus.utils.render.skija.api.SkijaLayer;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
+import cc.nimbus.accessor.GuiHudRenderAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphics;
@@ -18,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 
 @Mixin(Gui.class)
-public abstract class GuiRendererMixin {
+public abstract class GuiRendererMixin implements GuiHudRenderAccess {
     @Unique private SkijaLayer nimbus$hudLayer;
     @Unique private int nimbus$hudWidth;
     @Unique private int nimbus$hudHeight;
@@ -26,6 +27,21 @@ public abstract class GuiRendererMixin {
     @Unique private long nimbus$nextHudUpdateNanos;
     @Unique private int nimbus$hudRefreshRate;
     @Unique private ClientLevel nimbus$scene;
+    @Unique private boolean nimbus$hudReadyForExtraction;
+
+    @Override
+    public void nimbus$resetHudExtraction() {
+        nimbus$hudReadyForExtraction = false;
+    }
+
+    @Override
+    public void nimbus$extractHud(GuiGraphics graphics) {
+        if (!nimbus$hudReadyForExtraction || !nimbus$hudHadContent || nimbus$hudLayer == null) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        var target = minecraft.getMainRenderTarget();
+        nimbus$hudLayer.extract(graphics, target.width, target.height);
+        nimbus$hudReadyForExtraction = false;
+    }
     
     @Inject(method = "render", at = @At("TAIL"))
     private void nimbus$render(GuiGraphics graphics, float partialTick, CallbackInfo ci) {
@@ -35,6 +51,7 @@ public abstract class GuiRendererMixin {
         if (!skija.isSupported() || minecraft.level == null || minecraft.player == null
                 || !(minecraft.screen == null || minecraft.screen instanceof ChatScreen)) {
             nimbus$resetHudCadence();
+            nimbus$hudReadyForExtraction = false;
             return;
         }
         if (nimbus$scene != minecraft.level) {
@@ -67,7 +84,7 @@ public abstract class GuiRendererMixin {
         } else {
             skija.hud().discardFrame();
         }
-        if (nimbus$hudHadContent) nimbus$hudLayer.extract(graphics, framebufferWidth, framebufferHeight);
+        nimbus$hudReadyForExtraction = nimbus$hudHadContent;
         EventBus.call(new EventRender2D(EventType.POST, graphics));
 
     }

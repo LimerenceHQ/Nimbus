@@ -192,7 +192,7 @@
   "nimbus.client.setting.theme_preset.option.burgundy": "Burgundy",
   "nimbus.client.setting.theme_preset.option.custom": "Custom",
   "nimbus.client.setting.color_mode": "Color Mode",
-  "nimbus.client.setting.aren_t_i_minecraft_1_8_9": "Minecraft 1.8.9",
+  "nimbus.client.setting.1_8_9_window_branding": "1.8.9 Window Branding",
   "nimbus.client.setting.color_mode.option.static": "Static",
   "nimbus.client.setting.color_mode.option.fade": "Fade",
   "nimbus.client.setting.color_mode.option.dynamic": "Dynamic",

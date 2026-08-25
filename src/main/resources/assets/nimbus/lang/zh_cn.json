@@ -192,7 +192,7 @@
   "nimbus.client.setting.theme_preset.option.burgundy": "酒红",
   "nimbus.client.setting.theme_preset.option.custom": "自定义",
   "nimbus.client.setting.color_mode": "颜色模式",
-  "nimbus.client.setting.aren_t_i_minecraft_1_8_9": "我的世界 1.8.9",
+  "nimbus.client.setting.1_8_9_window_branding": "1.8.9 窗口标识",
   "nimbus.client.setting.color_mode.option.static": "静态",
   "nimbus.client.setting.color_mode.option.fade": "呼吸渐变",
   "nimbus.client.setting.color_mode.option.dynamic": "双色动态",

@@ -28,7 +28,6 @@ public final class Render3DUtils {
     private static int savedDepthFunc;
     private static Matrix4f pendingWorldProjection;
     private static WorldProjection worldProjection;
-    // BufferBuilder owns native memory. Keep one render-thread buffer instead of allocating it per mesh.
     private static BufferBuilder meshBuffer;
     public enum DepthMode { NONE, NORMAL, BOTH, GREATER }
 
