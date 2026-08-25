@@ -37,8 +37,8 @@ public final class NameProtect extends BasicModule {
     private static final Pattern DISPLAY_NAME_TOKEN = Pattern.compile("([\\p{L}\\p{N}_]{1,32})$");
     private static final long NAME_REFRESH_INTERVAL_MS = 100L;
     private static final long CHAT_ECHO_TIMEOUT_MS = 5_000L;
-    private static final long AUTO_PROBE_DELAY_MS = 2_000L;
-    private static final String AUTO_PROBE_MESSAGE = "1";
+    private static final long AUTO_PROBE_DELAY_MS = 5_00L;
+    private static final String AUTO_PROBE_MESSAGE = "WHO I AM?";
 
     public final TextSetting name = new TextSetting("Nick Name", "Hidden");
     private List<String> cachedNames = List.of();
@@ -63,7 +63,7 @@ public final class NameProtect extends BasicModule {
         String replacement = module.replacementName();
         List<String> names = module.resolveNames(minecraft);
         if (replacement.isEmpty() || names.isEmpty()) return text;
-        return replacePlain(text, names, ChatFormatting.LIGHT_PURPLE + replacement + ChatFormatting.RESET);
+        return replacePlain(text, names, ChatFormatting.BLUE + replacement + ChatFormatting.RESET);
     }
 
     public static Component replace(Component source) {
@@ -204,7 +204,7 @@ public final class NameProtect extends BasicModule {
             appendRange(result, text, styles, from, nextMatch.start());
             Style style = nextMatch.start() < styles.size() ? styles.get(nextMatch.start()) : Style.EMPTY;
             result.append(Component.literal(replacement)
-                    .setStyle(style.withColor(ChatFormatting.LIGHT_PURPLE)));
+                    .setStyle(style.withColor(ChatFormatting.BLUE)));
             from = nextMatch.end();
         }
         appendRange(result, text, styles, from, text.length());

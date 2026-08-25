@@ -157,7 +157,9 @@ public final class MusicTool implements ToolPage {
         disposed = false;
         generation++;
         routeProgress = 0f;
-        data.opened(session.musicRoute());
+        RouteEntry entry = currentEntry();
+        session.musicRoute(entry.route());
+        data.opened(entry.route());
     }
 
     @Override
@@ -2155,7 +2157,10 @@ public final class MusicTool implements ToolPage {
     }
 
     private void transition(ClickGuiSession.MusicRoute route, Object payload, float direction) {
-        ClickGuiSession.MusicRoute currentRoute = session.musicRoute();
+        if (!validPayload(route, payload)) {
+            route = ClickGuiSession.MusicRoute.RECOMMENDED;
+            payload = null;
+        }
         if (session.musicRoute() == ClickGuiSession.MusicRoute.LOGIN && route != ClickGuiSession.MusicRoute.LOGIN) {
             manager.cancelLogin();
             qrArtwork = null;
@@ -2313,13 +2318,24 @@ public final class MusicTool implements ToolPage {
     }
 
     private RouteEntry currentEntry() {
-        return switch (session.musicRoute()) {
+        RouteEntry entry = switch (session.musicRoute()) {
             case PLAYLIST -> new RouteEntry(session.musicRoute(), data.selectedPlaylist());
             case ALBUM -> new RouteEntry(session.musicRoute(), data.selectedAlbum());
             case ARTIST -> new RouteEntry(session.musicRoute(),
                     data.selectedArtist() == null ? null : data.selectedArtist().artist());
             case SEARCH -> new RouteEntry(session.musicRoute(), search.value());
             default -> new RouteEntry(session.musicRoute(), null);
+        };
+        return validPayload(entry.route(), entry.payload())
+                ? entry : new RouteEntry(ClickGuiSession.MusicRoute.RECOMMENDED, null);
+    }
+
+    private static boolean validPayload(ClickGuiSession.MusicRoute route, Object payload) {
+        return switch (route) {
+            case PLAYLIST -> payload instanceof Playlist;
+            case ALBUM -> payload instanceof Album;
+            case ARTIST -> payload instanceof Artist;
+            default -> true;
         };
     }
 

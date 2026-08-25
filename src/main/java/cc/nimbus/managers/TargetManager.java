@@ -7,6 +7,7 @@ import cc.nimbus.event.component.Priority;
 import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.game.EventWorldLoad;
 import cc.nimbus.features.module.modules.player.AntiBot;
+import cc.nimbus.features.module.modules.player.IRCFriend;
 import cc.nimbus.features.module.modules.player.Target;
 import cc.nimbus.features.module.modules.player.Teams;
 import cc.nimbus.features.rotation.RotationMath;
@@ -99,7 +100,11 @@ public final class TargetManager implements InstanceManager {
         if (antiBot != null && antiBot.isBot(entity)) return false;
         Teams teams = modules.getModule(Teams.class);
         if (entity instanceof Player player && teams != null && teams.isSameTeam(minecraft.player, player)) return false;
-        if (entity instanceof Player) return target.player.getValue();
+        if (entity instanceof Player player) {
+            IRCFriend friends = modules.getModule(IRCFriend.class);
+            if (friends != null && friends.isEnabled() && IRCFriend.isFriend(player)) return false;
+            return target.player.getValue();
+        }
         if (entity instanceof AbstractGolem) return target.golem.getValue();
         if (entity instanceof Villager) return target.villager.getValue();
         if (entity instanceof Animal) return target.animal.getValue();

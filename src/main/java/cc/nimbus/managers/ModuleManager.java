@@ -73,6 +73,7 @@ public final class ModuleManager implements InstanceManager {
                     new AutoClose(),
                     new cc.nimbus.features.module.modules.player.Target(),
                     new Teams(),
+                    new IRCFriend(),
                     new Timer(),
                     new AntiBot(),
                     new Stuck(),
