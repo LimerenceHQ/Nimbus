@@ -69,6 +69,7 @@ public final class ModuleManager implements InstanceManager {
                     new FastWeb(),
                     new NoFall(),
                     new NoSlow(),
+                    new NameProtect(),
                     new AutoClose(),
                     new cc.nimbus.features.module.modules.player.Target(),
                     new Teams(),

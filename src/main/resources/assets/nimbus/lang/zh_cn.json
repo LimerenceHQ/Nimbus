@@ -10,6 +10,9 @@
   "nimbus.ui.loading": "加载中...",
   "nimbus.module.toggle.enabled": "%s 已启用",
   "nimbus.module.toggle.disabled": "%s 已禁用",
+  "nimbus.module.nameprotect.name": "名字保护",
+  "nimbus.module.nameprotect.description": "替换 Minecraft 原版文字中的自己的名字。",
+  "nimbus.module.nameprotect.setting.nick_name": "昵称",
 
   "nimbus.category.combat": "战斗",
   "nimbus.category.move": "移动",

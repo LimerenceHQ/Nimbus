@@ -10,6 +10,9 @@
   "nimbus.ui.loading": "Loading...",
   "nimbus.module.toggle.enabled": "%s enabled",
   "nimbus.module.toggle.disabled": "%s disabled",
+  "nimbus.module.nameprotect.name": "Name Protect",
+  "nimbus.module.nameprotect.description": "Replaces your name in vanilla Minecraft text.",
+  "nimbus.module.nameprotect.setting.nick_name": "Nick Name",
 
   "nimbus.category.combat": "Combat",
   "nimbus.category.move": "Move",
