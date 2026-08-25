@@ -7,6 +7,11 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.utils.render.Render3DUtils;
+import cc.nimbus.utils.render.skija.api.SkijaFrame;
+import io.github.humbleui.skija.Paint;
+import io.github.humbleui.skija.PaintStrokeCap;
+import io.github.humbleui.skija.Path;
+import io.github.humbleui.skija.PathBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.CrossbowItem;
@@ -26,6 +31,16 @@ import java.util.List;
 
 @ModuleInfo(name = "Projectile", description = "Predicts the path of held projectiles.", category = ModuleCategory.Render)
 public final class Projectile extends BasicModule {
+    private static final int[][] BOX_EDGES = {
+            {0, 1}, {1, 3}, {3, 2}, {2, 0},
+            {4, 5}, {5, 7}, {7, 6}, {6, 4},
+            {0, 4}, {1, 5}, {2, 6}, {3, 7}
+    };
+    private static final int[][] BOX_FACES = {
+            {0, 1, 3, 2}, {4, 6, 7, 5}, {0, 4, 5, 1},
+            {2, 3, 7, 6}, {0, 2, 6, 4}, {1, 5, 7, 3}
+    };
+
     private int targetEntityId = -1;
 
     @EventTarget
@@ -114,8 +129,12 @@ public final class Projectile extends BasicModule {
 
         int color = 0xE6000000
                 | (Core.INSTANCE.getConfigManager().clientSettings().accentColor() & 0x00FFFFFF);
-        Render3DUtils.drawPolylineWithDepth(event.getPoseStack(), points, color, 2f,
-                Render3DUtils.DepthMode.BOTH);
+        Render3DUtils.WorldProjection projection = Render3DUtils.worldProjection();
+        if (projection == null) return;
+
+        List<ProjectedPath> paths = projectPaths(points, projection);
+        ProjectedBox landingBox = null;
+        Render3DUtils.ProjectedPoint impactPoint = null;
         if (landingHit instanceof BlockHitResult blockHit) {
             var blockPos = blockHit.getBlockPos();
             VoxelShape shape = minecraft.level.getBlockState(blockPos)
@@ -124,23 +143,18 @@ public final class Projectile extends BasicModule {
                     ? new AABB(blockPos.getX(), blockPos.getY(), blockPos.getZ(),
                     blockPos.getX() + 1, blockPos.getY() + 1, blockPos.getZ() + 1)
                     : shape.bounds().move(blockPos);
-            Render3DUtils.drawFilledBoxWithDepth(event.getPoseStack(), blockBox,
-                    0x24000000 | (color & 0x00FFFFFF), Render3DUtils.DepthMode.BOTH);
-            Render3DUtils.drawBoxOutlineWithDepth(event.getPoseStack(), blockBox, color, 2.5f,
-                    Render3DUtils.DepthMode.BOTH);
-
-            Vec3 impact = blockHit.getLocation();
-            Render3DUtils.drawBoxOutlineWithDepth(event.getPoseStack(),
-                    new AABB(impact, impact).inflate(0.035), 0xF0FFFFFF, 2f,
-                    Render3DUtils.DepthMode.NONE);
+            landingBox = projectBox(blockBox, projection);
+            impactPoint = visiblePoint(blockHit.getLocation(), projection);
         } else if (landingHit instanceof EntityHitResult entityHit) {
             targetEntityId = entityHit.getEntity().getId();
         } else if (landingHit != null) {
-            Vec3 landing = landingHit.getLocation();
-            Render3DUtils.drawBoxOutlineWithDepth(event.getPoseStack(),
-                    new AABB(landing, landing).inflate(0.09), color, 2.5f,
-                    Render3DUtils.DepthMode.BOTH);
+            impactPoint = visiblePoint(landingHit.getLocation(), projection);
         }
+
+        if (paths.isEmpty() && landingBox == null && impactPoint == null) return;
+        ProjectileSnapshot snapshot = new ProjectileSnapshot(
+                List.copyOf(paths), landingBox, impactPoint, color);
+        Core.INSTANCE.getRenderManager().skija().hud().submit(frame -> draw(frame, snapshot));
     }
 
     @Override
@@ -158,4 +172,126 @@ public final class Projectile extends BasicModule {
                 || stack.is(Items.ENDER_PEARL) || stack.is(Items.SPLASH_POTION)
                 || stack.is(Items.LINGERING_POTION));
     }
+
+    private static List<ProjectedPath> projectPaths(List<Vec3> points,
+                                                    Render3DUtils.WorldProjection projection) {
+        List<ProjectedPath> paths = new ArrayList<>();
+        List<Render3DUtils.ProjectedPoint> current = new ArrayList<>(points.size());
+        for (Vec3 point : points) {
+            Render3DUtils.ProjectedPoint projected = visiblePoint(point, projection);
+            if (projected == null) {
+                finishPath(paths, current);
+                current = new ArrayList<>();
+                continue;
+            }
+            current.add(projected);
+        }
+        finishPath(paths, current);
+        return paths;
+    }
+
+    private static void finishPath(List<ProjectedPath> paths,
+                                   List<Render3DUtils.ProjectedPoint> points) {
+        if (points.size() >= 2) paths.add(new ProjectedPath(List.copyOf(points)));
+    }
+
+    private static ProjectedBox projectBox(AABB box, Render3DUtils.WorldProjection projection) {
+        Vec3[] corners = {
+                new Vec3(box.minX, box.minY, box.minZ), new Vec3(box.maxX, box.minY, box.minZ),
+                new Vec3(box.minX, box.maxY, box.minZ), new Vec3(box.maxX, box.maxY, box.minZ),
+                new Vec3(box.minX, box.minY, box.maxZ), new Vec3(box.maxX, box.minY, box.maxZ),
+                new Vec3(box.minX, box.maxY, box.maxZ), new Vec3(box.maxX, box.maxY, box.maxZ)
+        };
+        List<Render3DUtils.ProjectedPoint> projected = new ArrayList<>(corners.length);
+        for (Vec3 corner : corners) {
+            Render3DUtils.ProjectedPoint point = visiblePoint(corner, projection);
+            if (point == null) return null;
+            projected.add(point);
+        }
+        return new ProjectedBox(List.copyOf(projected));
+    }
+
+    private static Render3DUtils.ProjectedPoint visiblePoint(
+            Vec3 point, Render3DUtils.WorldProjection projection) {
+        Render3DUtils.ProjectedPoint projected = Render3DUtils.projectPoint(point, projection);
+        return projected != null && projected.inFront() ? projected : null;
+    }
+
+    private static void draw(SkijaFrame frame, ProjectileSnapshot snapshot) {
+        drawPaths(frame, snapshot.paths(), snapshot.color());
+        if (snapshot.landingBox() != null) {
+            drawBox(frame, snapshot.landingBox(), snapshot.color());
+        }
+        if (snapshot.impactPoint() != null) {
+            float x = screenX(snapshot.impactPoint(), frame.width());
+            float y = screenY(snapshot.impactPoint(), frame.height());
+            frame.draw().outline(x - 3.5f, y - 3.5f, 7f, 7f, 2f, 1.5f, 0xF0FFFFFF);
+        }
+    }
+
+    private static void drawPaths(SkijaFrame frame, List<ProjectedPath> paths, int color) {
+        try (PathBuilder builder = new PathBuilder();
+             Paint paint = new Paint().setAntiAlias(true).setColor(color).setStroke(true)
+                     .setStrokeWidth(2f).setStrokeCap(PaintStrokeCap.ROUND)) {
+            for (ProjectedPath path : paths) {
+                List<Render3DUtils.ProjectedPoint> points = path.points();
+                builder.moveTo(screenX(points.get(0), frame.width()),
+                        screenY(points.get(0), frame.height()));
+                for (int index = 1; index < points.size(); index++) {
+                    builder.lineTo(screenX(points.get(index), frame.width()),
+                            screenY(points.get(index), frame.height()));
+                }
+            }
+            try (Path path = builder.detach()) {
+                frame.canvas().drawPath(path, paint);
+            }
+        }
+    }
+
+    private static void drawBox(SkijaFrame frame, ProjectedBox box, int color) {
+        List<Render3DUtils.ProjectedPoint> points = box.points();
+        try (Paint paint = new Paint().setAntiAlias(true)
+                .setColor(0x24000000 | (color & 0x00FFFFFF))) {
+            for (int[] face : BOX_FACES) {
+                try (PathBuilder builder = new PathBuilder()) {
+                    builder.moveTo(screenX(points.get(face[0]), frame.width()),
+                            screenY(points.get(face[0]), frame.height()));
+                    for (int index = 1; index < face.length; index++) {
+                        builder.lineTo(screenX(points.get(face[index]), frame.width()),
+                                screenY(points.get(face[index]), frame.height()));
+                    }
+                    builder.closePath();
+                    try (Path path = builder.detach()) {
+                        frame.canvas().drawPath(path, paint);
+                    }
+                }
+            }
+        }
+        try (PathBuilder builder = new PathBuilder();
+             Paint paint = new Paint().setAntiAlias(true).setColor(color).setStroke(true)
+                     .setStrokeWidth(2.5f).setStrokeCap(PaintStrokeCap.ROUND)) {
+            for (int[] edge : BOX_EDGES) {
+                builder.moveTo(screenX(points.get(edge[0]), frame.width()),
+                        screenY(points.get(edge[0]), frame.height()));
+                builder.lineTo(screenX(points.get(edge[1]), frame.width()),
+                        screenY(points.get(edge[1]), frame.height()));
+            }
+            try (Path path = builder.detach()) {
+                frame.canvas().drawPath(path, paint);
+            }
+        }
+    }
+
+    private static float screenX(Render3DUtils.ProjectedPoint point, float width) {
+        return (point.x() + 1f) * .5f * width;
+    }
+
+    private static float screenY(Render3DUtils.ProjectedPoint point, float height) {
+        return (point.y() + 1f) * .5f * height;
+    }
+
+    private record ProjectedPath(List<Render3DUtils.ProjectedPoint> points) { }
+    private record ProjectedBox(List<Render3DUtils.ProjectedPoint> points) { }
+    private record ProjectileSnapshot(List<ProjectedPath> paths, ProjectedBox landingBox,
+                                      Render3DUtils.ProjectedPoint impactPoint, int color) { }
 }
