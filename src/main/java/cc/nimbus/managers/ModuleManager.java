@@ -81,7 +81,7 @@ public final class ModuleManager implements InstanceManager {
                     new FireGuard(),
                     new GhostHand(),
                     new ContainerStealer(),
-                    new InventoryManager(),
+                    new InventoryCleaner(),
                     new AutoTool(),
                     new FastPlace(),
                     new ESP(),

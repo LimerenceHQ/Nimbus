@@ -59,7 +59,8 @@ public final class AutoClose extends BasicModule {
         boolean closed = false;
         KillAura killAura = Core.INSTANCE.getModuleManager().getModule(KillAura.class);
         ContainerStealer containerStealer = Core.INSTANCE.getModuleManager().getModule(ContainerStealer.class);
-        InventoryManager inventoryManager = Core.INSTANCE.getModuleManager().getModule(InventoryManager.class);
+        InventoryCleaner inventoryCleaner =
+                Core.INSTANCE.getModuleManager().getModule(InventoryCleaner.class);
 
         if (killAura != null && killAura.isEnabled()) {
             killAura.setEnabled(false);
@@ -69,8 +70,8 @@ public final class AutoClose extends BasicModule {
             containerStealer.setEnabled(false);
             closed = true;
         }
-        if (inventoryManager != null && inventoryManager.isEnabled()) {
-            inventoryManager.setEnabled(false);
+        if (inventoryCleaner != null && inventoryCleaner.isEnabled()) {
+            inventoryCleaner.setEnabled(false);
             closed = true;
         }
         return closed;
