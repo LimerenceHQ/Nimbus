@@ -486,6 +486,7 @@ public final class ClickGuiView {
 
     public boolean mouseClicked(float x, float y, int button, UiContext context) {
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) leftDown = true;
+        if (controls.capturingKey()) return controls.mouseClicked(x, y, button);
         for (RailHit hit : railHits) {
             if (!hit.bounds().contains(x, y) || button != GLFW.GLFW_MOUSE_BUTTON_LEFT) continue;
             activate(hit.action());

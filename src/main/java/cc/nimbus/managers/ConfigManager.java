@@ -351,6 +351,12 @@ public final class ConfigManager implements InstanceManager {
             object.addProperty("rainbow", color.isRainbow());
             return object;
         }
+        if (setting instanceof KeySetting key) {
+            JsonObject object = new JsonObject();
+            object.addProperty("type", key.getValue().typeName());
+            object.addProperty("code", key.getValue().code());
+            return object;
+        }
         if (value instanceof Set<?> set) {
             JsonArray array = new JsonArray();
             set.forEach(item -> array.add(String.valueOf(item)));
@@ -416,6 +422,7 @@ public final class ConfigManager implements InstanceManager {
                     target.setValue(selected);
                 }
                 else if (setting instanceof ColorSetting target) readColor(target, value);
+                else if (setting instanceof KeySetting target) readKey(target, value);
                 else if (setting instanceof FoldSetting target) target.setValue(value.getAsBoolean());
                 else if (setting instanceof TextSetting target) target.setValue(value.getAsString());
                 else if (setting instanceof MultiSelectSetting target && value.isJsonArray()) {
@@ -438,6 +445,28 @@ public final class ConfigManager implements InstanceManager {
         } else {
             target.setValue(value.getAsInt());
         }
+    }
+
+    private void readKey(KeySetting target, JsonElement value) {
+        if (value.isJsonObject()) {
+            JsonObject object = value.getAsJsonObject();
+            String type = object.has("type") ? object.get("type").getAsString() : "NONE";
+            int code = object.has("code") ? object.get("code").getAsInt() : 0;
+            try {
+                target.setValue(new KeySetting.Key(KeySetting.InputType.valueOf(
+                        type.toUpperCase(java.util.Locale.ROOT)), code));
+            } catch (IllegalArgumentException ignored) {
+                target.setValue(KeySetting.Key.none());
+            }
+            return;
+        }
+        String legacy = value.getAsString();
+        target.setValue(switch (legacy.toLowerCase(java.util.Locale.ROOT)) {
+            case "middle", "mouse2" -> KeySetting.Key.mouse(2);
+            case "mouse3" -> KeySetting.Key.mouse(3);
+            case "mouse4" -> KeySetting.Key.mouse(4);
+            default -> KeySetting.Key.none();
+        });
     }
 
     private static JsonElement findIgnoreCase(JsonObject object, String name) {

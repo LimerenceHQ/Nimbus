@@ -2,7 +2,6 @@ package cc.nimbus.utils.entity.player;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.utils.client.IMinecraft;
-import net.minecraft.client.player.Input;
 
 public class MovementUtils implements IMinecraft {
     public static boolean isMoving() {

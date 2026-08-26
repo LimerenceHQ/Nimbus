@@ -135,6 +135,14 @@ public final class InventoryManager extends BasicModule {
             return;
         }
         
+        if (!canRun()) { closeSpoofedInventory(); return; }
+        if (isBusy()) {
+            closeSpoofedInventory();
+            stopSprint = false;
+            Core.INSTANCE.getModuleManager().getModule(Sprint.class).canSprint = true;
+            return; }
+        if (!canManageScreen()) { closeSpoofedInventory(); randomized = false; return; }
+
         if (inventoryState == 1) {
             stateTickCounter++;
             if (stateTickCounter >= 1) {
@@ -143,14 +151,6 @@ public final class InventoryManager extends BasicModule {
             }
             return;
         }
-        
-        if (!canRun()) { closeSpoofedInventory(); return; }
-        if (isBusy()) {
-            closeSpoofedInventory();
-            stopSprint = false;
-            Core.INSTANCE.getModuleManager().getModule(Sprint.class).canSprint = true;
-            return; }
-        if (!canManageScreen()) { closeSpoofedInventory(); randomized = false; return; }
 
         rebuildSlots();
         boolean needsAction = autoCraft.getValue() && canAutoCraftPlanks()
@@ -233,7 +233,13 @@ public final class InventoryManager extends BasicModule {
         KillAura aura = Core.INSTANCE.getModuleManager().getModule(KillAura.class);
         return scaffold != null && scaffold.isEnabled()
                 || aura != null && aura.attackTarget != null
-                || isContainerMenu(minecraft.player.containerMenu);
+                || isContainerMenu(minecraft.player.containerMenu)
+                || containerStealerBlocksInventory();
+    }
+
+    private boolean containerStealerBlocksInventory() {
+        ContainerStealer stealer = Core.INSTANCE.getModuleManager().getModule(ContainerStealer.class);
+        return stealer != null && stealer.blocksInventoryManager();
     }
 
     private boolean canManageScreen() {
@@ -716,7 +722,6 @@ public final class InventoryManager extends BasicModule {
         if (isSprinting) return false;
         try {
             minecraft.gameMode.handleInventoryMouseClick(menu.containerId, slot, button, type, mc.player);
-            PacketUtils.sendPacketNoEvent(new ServerboundContainerClosePacket(menu.containerId));
             return true;
         }
         finally { packetClick = false; }

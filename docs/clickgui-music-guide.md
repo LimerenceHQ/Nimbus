@@ -13,6 +13,7 @@
 - 左键启停 Module。
 - 右键在当前列内展开 Setting；同列只保留一个展开项。
 - 中键进入按键监听，Escape 取消，Backspace/Delete 清除绑定。
+- Setting 类型为 `KeySetting` 时，左键进入捕获；随后可按任意键盘键或鼠标键完成绑定。
 - 每列独立滚动；不可见 Module 和 Setting 不创建可点击命中区。
 - Search 只过滤 Module 列表，不修改 Module registry。
 

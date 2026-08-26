@@ -8,6 +8,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
+import cc.nimbus.features.module.api.setting.impl.KeySetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.combat.KillAura;
 import cc.nimbus.managers.GameStateManager;
@@ -19,7 +20,8 @@ public class Timer extends BasicModule {
     private final ModeValue mode = new ModeValue("Mode", new String[]{"Always", "SlowBalance"}, "Always");
     private final NumberSetting timerSpeed = new NumberSetting("Timer Speed", 2.0, 0.1, 10.0, 0.1);
     private final NumberSetting ticks = new NumberSetting("Max Balance", 8.0, 1.0, 20.0, 1.0,() -> mode.is("SlowBalance"));
-    private final ModeValue keyMode = new ModeValue("Key Mode", new String[]{"Middle", "Mouse3", "Mouse4"}, "Middle",() -> mode.is("SlowBalance"));
+    private final KeySetting keyMode = new KeySetting("Key Mode",
+            KeySetting.Key.mouse(GLFW.GLFW_MOUSE_BUTTON_MIDDLE), () -> mode.is("SlowBalance"));
 
     private float balance = 0.0F;
 
@@ -82,14 +84,11 @@ public class Timer extends BasicModule {
 
     private boolean isReleaseButtonDown() {
         long window = mc.getWindow().getWindow();
-        return GLFW.glfwGetMouseButton(window, getButtonCode()) == GLFW.GLFW_PRESS;
-    }
-
-    private int getButtonCode() {
-        return switch (keyMode.getValue()) {
-            case "Mouse3" -> 3;
-            case "Mouse4" -> 4;
-            default -> GLFW.GLFW_MOUSE_BUTTON_MIDDLE;
+        KeySetting.Key key = keyMode.getValue();
+        return switch (key.type()) {
+            case KEYBOARD -> GLFW.glfwGetKey(window, key.code()) == GLFW.GLFW_PRESS;
+            case MOUSE -> GLFW.glfwGetMouseButton(window, key.code()) == GLFW.GLFW_PRESS;
+            case NONE -> false;
         };
     }
 }

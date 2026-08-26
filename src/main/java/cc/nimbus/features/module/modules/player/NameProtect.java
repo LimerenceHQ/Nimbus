@@ -45,10 +45,8 @@ public final class NameProtect extends BasicModule {
     private UUID cachedPlayerId;
     private long nextNameRefreshAt;
     private final Set<String> learnedNames = new LinkedHashSet<>();
+    private final List<PendingChat> pendingChats = new ArrayList<>();
     private ClientPacketListener learnedConnection;
-    private String pendingChat;
-    private long pendingChatExpiresAt;
-    private boolean pendingChatAutomatic;
     private boolean sendingAutomaticProbe;
     private boolean automaticProbeSent;
     private long automaticProbeAt;
@@ -108,9 +106,13 @@ public final class NameProtect extends BasicModule {
         NameProtect module = module();
         if (module == null || !module.isEnabled() || message == null || message.isBlank()) return;
         module.resetLearnedNamesIfNeeded(Minecraft.getInstance());
-        module.pendingChat = stripLegacyFormatting(message.trim());
-        module.pendingChatExpiresAt = System.currentTimeMillis() + CHAT_ECHO_TIMEOUT_MS;
-        module.pendingChatAutomatic = module.sendingAutomaticProbe;
+        long now = System.currentTimeMillis();
+        module.removeExpiredPendingChats(now);
+        if (module.pendingChats.size() >= 8) module.pendingChats.removeFirst();
+        module.pendingChats.add(new PendingChat(
+                stripLegacyFormatting(message.trim()),
+                now + CHAT_ECHO_TIMEOUT_MS,
+                module.sendingAutomaticProbe));
     }
 
     public static boolean observeIncomingChat(Component message) {
@@ -120,30 +122,23 @@ public final class NameProtect extends BasicModule {
         Minecraft minecraft = Minecraft.getInstance();
         module.resetLearnedNamesIfNeeded(minecraft);
         long now = System.currentTimeMillis();
-        if (module.pendingChat == null || now > module.pendingChatExpiresAt) {
-            module.clearPendingChat();
-            return false;
-        }
+        module.removeExpiredPendingChats(now);
+        if (module.pendingChats.isEmpty()) return false;
 
         String text = stripLegacyFormatting(message.getString()).trim();
-        String body = module.pendingChat;
-        if (!text.endsWith(body)) return false;
+        int pendingIndex = module.matchingPendingChat(text, true);
+        if (pendingIndex < 0) pendingIndex = module.matchingPendingChat(text, false);
+        if (pendingIndex < 0) return false;
 
-        String prefix = text.substring(0, text.length() - body.length());
-        if (!prefix.endsWith(" > ")) return false;
-        String speaker = prefix.substring(0, prefix.length() - 3).trim();
-        Matcher matcher = DISPLAY_NAME_TOKEN.matcher(speaker);
-        if (!matcher.find()) return false;
-
-        String learnedName = matcher.group(1);
-        if (!learnedName.isBlank()) {
+        PendingChat pending = module.pendingChats.get(pendingIndex);
+        String learnedName = extractSpeakerName(text, pending.body());
+        if (learnedName != null && !learnedName.isBlank()) {
             module.learnedNames.add(learnedName);
             module.cachedNames = List.of();
             module.nextNameRefreshAt = 0L;
         }
-        boolean suppress = module.pendingChatAutomatic;
-        module.clearPendingChat();
-        return suppress;
+        if (pending.automatic() || learnedName != null) module.pendingChats.remove(pendingIndex);
+        return pending.automatic();
     }
 
     @EventTarget
@@ -322,9 +317,30 @@ public final class NameProtect extends BasicModule {
     }
 
     private void clearPendingChat() {
-        pendingChat = null;
-        pendingChatExpiresAt = 0L;
-        pendingChatAutomatic = false;
+        pendingChats.clear();
+    }
+
+    private void removeExpiredPendingChats(long now) {
+        pendingChats.removeIf(pending -> now > pending.expiresAt());
+    }
+
+    private int matchingPendingChat(String text, boolean automatic) {
+        for (int index = 0; index < pendingChats.size(); index++) {
+            PendingChat pending = pendingChats.get(index);
+            if (pending.automatic() != automatic) continue;
+            if (automatic ? text.contains(pending.body()) : text.endsWith(pending.body())) return index;
+        }
+        return -1;
+    }
+
+    private static String extractSpeakerName(String text, String body) {
+        int bodyStart = text.lastIndexOf(body);
+        if (bodyStart < 0) return null;
+        String prefix = text.substring(0, bodyStart).stripTrailing();
+        if (!prefix.endsWith(">")) return null;
+        String speaker = prefix.substring(0, prefix.length() - 1).stripTrailing();
+        Matcher matcher = DISPLAY_NAME_TOKEN.matcher(speaker);
+        return matcher.find() ? matcher.group(1) : null;
     }
 
     private static String stripLegacyFormatting(String text) {
@@ -374,5 +390,8 @@ public final class NameProtect extends BasicModule {
     }
 
     private record NameMatch(int start, int end, String name) {
+    }
+
+    private record PendingChat(String body, long expiresAt, boolean automatic) {
     }
 }

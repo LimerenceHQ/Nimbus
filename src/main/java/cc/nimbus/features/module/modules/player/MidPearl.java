@@ -7,7 +7,7 @@ import cc.nimbus.event.impl.input.EventMouseButton;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
+import cc.nimbus.features.module.api.setting.impl.KeySetting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
@@ -21,8 +21,7 @@ import org.lwjgl.glfw.GLFW;
         category = ModuleCategory.Player
 )
 public final class MidPearl extends BasicModule {
-    public final ModeValue keyMode = new ModeValue(
-            "Key Mode", new String[]{"Middle", "Mouse3", "Mouse4"}, "Middle");
+    public final KeySetting keyMode = new KeySetting("Key Mode", KeySetting.Key.mouse(GLFW.GLFW_MOUSE_BUTTON_MIDDLE));
 
     private final Minecraft minecraft = Minecraft.getInstance();
     private int originalSlot = -1;
@@ -51,9 +50,8 @@ public final class MidPearl extends BasicModule {
 
     @EventTarget
     private void onMouseButton(EventMouseButton event) {
-        int configuredButton = configuredButton();
         if (event.getAction() == GLFW.GLFW_PRESS
-                && event.getButton() == configuredButton
+                && keyMode.matchesMouse(event.getButton())
                 && minecraft.screen == null) {
             activeButton = event.getButton();
             awaitingRelease = true;
@@ -129,14 +127,6 @@ public final class MidPearl extends BasicModule {
             if (minecraft.player.getInventory().getItem(slot).is(Items.ENDER_PEARL)) return slot;
         }
         return -1;
-    }
-
-    private int configuredButton() {
-        return switch (keyMode.getValue()) {
-            case "Mouse3" -> GLFW.GLFW_MOUSE_BUTTON_4;
-            case "Mouse4" -> GLFW.GLFW_MOUSE_BUTTON_5;
-            default -> GLFW.GLFW_MOUSE_BUTTON_MIDDLE;
-        };
     }
 
     private void reset(boolean restoreSlot) {

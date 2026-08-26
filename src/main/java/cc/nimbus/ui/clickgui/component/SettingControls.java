@@ -8,6 +8,7 @@ import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.ModeSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.api.setting.impl.TextSetting;
+import cc.nimbus.features.module.api.setting.impl.KeySetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.Mode;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.submodule.ComponentValue;
@@ -65,6 +66,7 @@ public final class SettingControls {
     private NumberSetting draggingNumber;
     private ColorSetting draggingColor;
     private ColorSetting openColor;
+    private KeySetting capturingKey;
     private HitKind colorDragKind;
     private UiRect hitClip;
     private UiContext lastContext;
@@ -136,6 +138,11 @@ public final class SettingControls {
     }
 
     public boolean mouseClicked(float x, float y, int button) {
+        if (capturingKey != null) {
+            capturingKey.setValue(KeySetting.Key.mouse(button));
+            capturingKey = null;
+            return true;
+        }
         if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false;
         Hit hit = findHit(x, y);
         if (hit == null) {
@@ -180,6 +187,7 @@ public final class SettingControls {
                     multilineEditor.placeCursor(lastContext, hit.bounds(), 10.5f, x, y);
                 }
             }
+            case KEY -> capturingKey = (KeySetting) setting;
         }
         return true;
     }
@@ -212,6 +220,15 @@ public final class SettingControls {
     }
 
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (capturingKey != null) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) capturingKey = null;
+            else {
+                capturingKey.setValue(keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE
+                        ? KeySetting.Key.none() : KeySetting.Key.keyboard(keyCode));
+                capturingKey = null;
+            }
+            return true;
+        }
         if (editing == null) return false;
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             cancelEditor();
@@ -237,6 +254,10 @@ public final class SettingControls {
 
     public boolean editing() {
         return editing != null;
+    }
+
+    public boolean capturingKey() {
+        return capturingKey != null;
     }
 
     public void cancelEditor() {
@@ -265,6 +286,7 @@ public final class SettingControls {
 
     public void clearTransient() {
         cancelEditor();
+        capturingKey = null;
         openOptions = null;
         draggingNumber = null;
         if (openColor != null) openColor.setExpanded(false);
@@ -281,7 +303,7 @@ public final class SettingControls {
     }
 
     public boolean cancelTransient() {
-        boolean active = editing != null || openOptions != null || openColor != null
+        boolean active = editing != null || capturingKey != null || openOptions != null || openColor != null
                 || draggingNumber != null || draggingColor != null;
         if (active) clearTransient();
         return active;
@@ -323,6 +345,7 @@ public final class SettingControls {
         else if (setting instanceof ColorSetting value) renderColor(context, value, bounds);
         else if (setting instanceof TextSetting value && value.isMultiline()) renderMultilineText(context, value, bounds);
         else if (setting instanceof TextSetting value) renderText(context, value, bounds, value.isSecure());
+        else if (setting instanceof KeySetting value) renderKey(context, value, bounds);
         else {
             context.textIn(context.translate("nimbus.ui.unsupported", "Unsupported: %s",
                             setting.getClass().getSimpleName()),
@@ -355,6 +378,17 @@ public final class SettingControls {
         iconAlpha(context, ClickGuiIcons.EXPAND_LESS, row.x() + row.width() - 26f,
                 row.y() + 8f - progress, 18f, ClickGuiTheme.MUTED, progress);
         addHit(new Hit(setting, HitKind.FOLD, row, null));
+    }
+
+    private void renderKey(UiContext context, KeySetting setting, UiRect bounds) {
+        UiRect value = new UiRect(bounds.x() + bounds.width() * .44f, bounds.y(),
+                bounds.width() * .56f - 29f, ROW_HEIGHT);
+        String display = capturingKey == setting
+                ? context.translate("nimbus.ui.press_key", "Press a key")
+                : setting.displayName();
+        scrollingText(context, valueMarqueeStates, setting, display, value,
+                10.5f, capturingKey == setting ? context.theme().accent(0xFF) : ClickGuiTheme.MUTED, true);
+        addHit(new Hit(setting, HitKind.KEY, new UiRect(bounds.x(), bounds.y(), bounds.width(), ROW_HEIGHT), null));
     }
 
     private void renderNumber(UiContext context, NumberSetting setting, UiRect bounds) {
@@ -715,12 +749,14 @@ public final class SettingControls {
             return ROW_HEIGHT + pickerHeight * disclosure(setting, color.isExpanded());
         }
         if (setting instanceof NumberSetting) return NUMBER_HEIGHT;
+        if (setting instanceof KeySetting) return ROW_HEIGHT;
         if (setting instanceof TextSetting text && text.isMultiline()) return MULTILINE_TEXT_HEIGHT;
         if (setting instanceof TextSetting) return width < STACKED_TEXT_THRESHOLD ? STACKED_TEXT_HEIGHT : ROW_HEIGHT;
         if (!(setting instanceof BooleanSetting || setting instanceof FoldSetting || setting instanceof NumberSetting
                 || setting instanceof ModeValue || setting instanceof ModeSetting
                 || setting instanceof MultiSelectSetting || setting instanceof ComponentValue
-                || setting instanceof ColorSetting || setting instanceof TextSetting)) {
+                || setting instanceof ColorSetting || setting instanceof TextSetting
+                || setting instanceof KeySetting)) {
             return 54f;
         }
         return ROW_HEIGHT;
@@ -920,6 +956,7 @@ public final class SettingControls {
             case ComponentValue ignored -> width * .44f - 12f;
             case ColorSetting ignored -> width - 41f;
             case TextSetting ignored -> width * .46f - 12f;
+            case KeySetting ignored -> width * .44f - 12f;
             default -> width - 16f;
         };
         return Math.max(24f, available);
@@ -993,7 +1030,8 @@ public final class SettingControls {
         COLOR_HUE,
         COLOR_ALPHA,
         COLOR_RAINBOW,
-        TEXT
+        TEXT,
+        KEY
     }
 
     private record Hit(Setting<?> setting, HitKind kind, UiRect bounds, String option, UiRect clip) {

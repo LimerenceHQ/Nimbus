@@ -467,6 +467,7 @@ profile.json.tmp
 - `NumberSetting`
 - `ModeSetting`
 - `ColorSetting`
+- `KeySetting`（以 `{ "type": "KEYBOARD|MOUSE|NONE", "code": number }` 保存）
 - `FoldSetting`
 - `TextSetting`
 - `MultiSelectSetting`

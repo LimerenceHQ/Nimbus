@@ -8,6 +8,7 @@
   "nimbus.ui.on": "开启",
   "nimbus.ui.off": "关闭",
   "nimbus.ui.loading": "加载中...",
+  "nimbus.ui.press_key": "按下一个按键",
   "nimbus.module.toggle.enabled": "%s 已启用",
   "nimbus.module.toggle.disabled": "%s 已禁用",
   "nimbus.module.name_protect.name": "名字保护",

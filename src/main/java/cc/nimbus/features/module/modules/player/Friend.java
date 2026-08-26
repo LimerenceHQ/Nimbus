@@ -6,7 +6,7 @@ import cc.nimbus.event.impl.input.EventMouseButton;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
-import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
+import cc.nimbus.features.module.api.setting.impl.KeySetting;
 import cc.nimbus.utils.client.MessageUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
@@ -27,12 +27,11 @@ public final class Friend extends BasicModule {
     private static final Set<UUID> MANUAL_FRIENDS = new HashSet<>();
     private final Minecraft minecraft = Minecraft.getInstance();
 
-    public final ModeValue keyMode = new ModeValue(
-            "Friend Key", new String[]{"Middle", "Mouse3", "Mouse4"}, "Middle");
+    public final KeySetting keyMode = new KeySetting("Friend Key", KeySetting.Key.mouse(GLFW.GLFW_MOUSE_BUTTON_MIDDLE));
 
     @EventTarget
     private void onMouseButton(EventMouseButton event) {
-        if (event.getAction() != GLFW.GLFW_PRESS || event.getButton() != configuredButton()
+        if (event.getAction() != GLFW.GLFW_PRESS || !keyMode.matchesMouse(event.getButton())
                 || minecraft.screen != null || minecraft.player == null || minecraft.level == null) return;
         if (!(minecraft.hitResult instanceof EntityHitResult hit)
                 || !(hit.getEntity() instanceof Player target)
@@ -60,11 +59,4 @@ public final class Friend extends BasicModule {
         return true;
     }
 
-    private int configuredButton() {
-        return switch (keyMode.getValue()) {
-            case "Mouse3" -> GLFW.GLFW_MOUSE_BUTTON_4;
-            case "Mouse4" -> GLFW.GLFW_MOUSE_BUTTON_5;
-            default -> GLFW.GLFW_MOUSE_BUTTON_MIDDLE;
-        };
-    }
 }

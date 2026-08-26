@@ -8,6 +8,7 @@
   "nimbus.ui.on": "On",
   "nimbus.ui.off": "Off",
   "nimbus.ui.loading": "Loading...",
+  "nimbus.ui.press_key": "Press a key",
   "nimbus.module.toggle.enabled": "%s enabled",
   "nimbus.module.toggle.disabled": "%s disabled",
   "nimbus.module.name_protect.name": "Name Protect",
