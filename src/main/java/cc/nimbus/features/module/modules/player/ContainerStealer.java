@@ -47,12 +47,11 @@ public final class ContainerStealer extends BasicModule {
     private final TimerUtils stealDelayTimer = new TimerUtils();
     private final TimerUtils stackDelayTimer = new TimerUtils();
     private final TimerUtils closeDelayTimer = new TimerUtils();
-    private long inventoryHandoffUntil;
 
-    @Override protected void onEnable() { reset(); inventoryHandoffUntil = 0L; }
-    @Override protected void onDisable() { reset(); inventoryHandoffUntil = 0L; }
+    @Override protected void onEnable() { reset(); }
+    @Override protected void onDisable() { reset(); }
     @EventTarget
-    private void onWorldLoad(EventWorldLoad event) { reset(); inventoryHandoffUntil = 0L; }
+    private void onWorldLoad(EventWorldLoad event) { reset(); }
 
     @EventTarget private void onScreen(EventScreenChange event) {
         if (event.getScreen() != null && noGui.getValue() && supportedScreen(event.getScreen())) event.cancelEvent();
@@ -87,11 +86,6 @@ public final class ContainerStealer extends BasicModule {
             else click(menu, selected, 0, ClickType.QUICK_MOVE);
         } else click(menu, selected, 0, ClickType.QUICK_MOVE);
         closeDelayTimer.reset();
-        inventoryHandoffUntil = System.currentTimeMillis() + 200L;
-    }
-
-    public boolean blocksInventoryManager() {
-        return isEnabled() && (active || System.currentTimeMillis() < inventoryHandoffUntil);
     }
 
     private void click(AbstractContainerMenu menu, int slot, int button, ClickType type) {
