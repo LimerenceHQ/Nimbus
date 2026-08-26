@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ToastComponent.class)
 public abstract class ToastComponentMixin {
-    @Inject(method = "render", at = @At("TAIL"))
+    @Inject(method = "render", at = @At("HEAD"))
     private void nimbus$extractHud(GuiGraphics graphics, CallbackInfo ci) {
         GuiHudRenderAccess gui = nimbus$guiAccess();
         if (gui != null) gui.nimbus$extractHud(graphics);
