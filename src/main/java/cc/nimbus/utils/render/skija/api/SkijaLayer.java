@@ -2,8 +2,6 @@ package cc.nimbus.utils.render.skija.api;
 
 import cc.nimbus.utils.render.skija.internal.backend.SkijaRenderTarget;
 import cc.nimbus.utils.render.skija.internal.backend.SkijaBackend;
-import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
@@ -48,15 +46,11 @@ public final class SkijaLayer {
         pose.pushPose();
         try {
             pose.scale(scaleX, scaleY, 1.0f);
-            RenderSystem.enableBlend();
-            RenderSystem.blendFunc(GlStateManager.SourceFactor.ONE,
-                    GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
             graphics.blit(net.minecraft.client.renderer.RenderType::guiTextured, identifier(),
                     0, 0, 0.0f, height,
                     graphics.guiWidth(), graphics.guiHeight(),
                     width, -height, width, height);
             graphics.flush();
-            RenderSystem.defaultBlendFunc();
         } finally {
             pose.popPose();
         }
