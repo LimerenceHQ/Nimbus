@@ -1,6 +1,6 @@
 # Nimbus Core and Manager Guide
 
-最后同步：2026-08-16。
+最后同步：2026-08-27。
 
 本文档说明 Nimbus Core、Manager、Module、Setting、Command、Config 和 EventBus 的当前结构与注册方式。它既是开发手册，也是 AI 修改这些基础设施时的约束。
 
@@ -13,15 +13,18 @@ Nimbus.onInitializeClient()
 └─ Core.INSTANCE.init(configDir)
    ├─ RenderManager
    ├─ RotationManager
+   ├─ PacketManager
    ├─ ModuleManager
-   ├─ NotificationManager
    ├─ TargetManager
    ├─ HudManager
+   ├─ NotificationManager
    ├─ ConfigManager
+   ├─ GameStateManager
    ├─ I18nManager
    ├─ AccountManager
    ├─ MusicManager
-   └─ CommandManager
+   ├─ CommandManager
+   └─ GatewayManager
 ```
 
 `Core` 只负责：
@@ -83,31 +86,37 @@ default Core core() {
 ```text
 1. RenderManager
 2. RotationManager
-3. ModuleManager
-4. NotificationManager
+3. PacketManager
+4. ModuleManager
 5. TargetManager
 6. HudManager
-7. ConfigManager
-8. I18nManager
-9. AccountManager
-10. MusicManager
-11. CommandManager
+7. NotificationManager
+8. ConfigManager
+9. GameStateManager
+10. I18nManager
+11. AccountManager
+12. MusicManager
+13. CommandManager
+14. GatewayManager
 ```
 
 shutdown 使用相反顺序：
 
 ```text
-1. CommandManager
-2. MusicManager
-3. AccountManager
-4. I18nManager
-5. ConfigManager
-6. HudManager
-7. TargetManager
+1. GatewayManager
+2. CommandManager
+3. MusicManager
+4. AccountManager
+5. I18nManager
+6. GameStateManager
+7. ConfigManager
 8. NotificationManager
-9. ModuleManager
-10. RotationManager
-11. RenderManager
+9. HudManager
+10. TargetManager
+11. ModuleManager
+12. PacketManager
+13. RotationManager
+14. RenderManager
 ```
 
 Core 先用局部变量创建全部 Manager，全部成功后才提交到字段：
@@ -237,15 +246,18 @@ public ExampleManager getExampleManager() {
 |---|---|---|
 | `RenderManager` | 持有 `SkijaRenderer`，初始化和关闭渲染子系统 | 无 |
 | `RotationManager` | Rotation 请求裁决、平滑恢复、服务端角度、MovementFix、RayCast/模型使用的活动角度 | Minecraft client、EventBus |
+| `PacketManager` | 客户端数据包监听与发送协调 | Minecraft client、EventBus |
 | `ModuleManager` | Module 注册、索引、按键映射和自动启用 | EventBus |
 | `NotificationManager` | Client/Game 通知队列、生命周期与公共 post API；渲染由 `ui.notification` 表现层负责 | NotificationRenderer、EventBus |
 | `TargetManager` | 每 Tick 构建不可变候选快照和范围缓存，集中应用 Target、Teams、AntiBot 过滤 | ModuleManager、Minecraft client、EventBus |
 | `HudManager` | HUD 元素注册、编辑状态和拖拽布局 | ModuleManager、RenderManager |
 | `ConfigManager` | 命名 Module 配置、全局 Client Settings、自动保存和配置文件切换 | ModuleManager、EventBus |
+| `GameStateManager` | 世界和客户端游戏状态快照 | Minecraft client |
 | `I18nManager` | Nimbus 独立语言选择、翻译加载、英文回退和参数格式化 | ClientSettings、Minecraft LanguageManager |
 | `AccountManager` | Alt 账户列表、最后账户、登录与账户文件 | Minecraft client |
 | `MusicManager` | 网易云账号、歌曲数据、播放队列、音频/图片缓存、播放器和系统媒体控制生命周期 | EventBus、Minecraft client |
 | `CommandManager` | Command 注册、执行、建议和聊天拦截 | EventBus |
+| `GatewayManager` | 网易账号、布吉岛查询、Gateway 后台任务和白端桥接 Session 生命周期 | Minecraft client、Windows DPAPI、Nimbus Gateway Native |
 
 Manager 之间只能通过明确依赖协作。不要把所有 Manager 互相注入，也不要让 Core 变成业务中转站。
 
@@ -410,8 +422,12 @@ nimbus/
 │  ├─ default.json
 │  └─ <profile>.json
 ├─ accounts/
-   ├─ accounts.json
+│  ├─ accounts.json
 │  └─ last.json
+├─ gateway/
+│  └─ accounts/
+│     ├─ accounts.json
+│     └─ device.json
 └─ music/
    ├─ music.json
    └─ cache/
@@ -423,6 +439,7 @@ Client Settings、Module 配置与 Account 配置是独立领域：
 - `ConfigManager` 管 `client.json`，保存 Language、Client Name、Style、Accent 和完整后处理参数。
 - `ConfigManager` 管 `configs/*.json`。
 - `AccountManager` 管 `accounts/accounts.json` 和 `accounts/last.json`。
+- `GatewayManager` 独立管理 `gateway/accounts/`；网易 MPay 设备和会话凭据使用 Windows DPAPI 加密，网易密码不持久化。
 
 命名 Config 不包含 Client Settings，切换命名 Config 不改变全局视觉。不要把账户 token 或音乐 cookie 混入 Module config。
 
@@ -612,6 +629,30 @@ accounts.login(account, callback, status);
 - 离线账户 UUID 使用 `OfflinePlayer:<username>` 生成稳定 name-based UUID。
 - Token/Microsoft 账户必须从服务端取得并验证真实 UUID；缺失或非法 UUID 会明确登录失败，不能退回所有账户共用的固定 UUID。
 - OAuth 本地 callback server 在成功、失败、取消和浏览器启动失败后都必须关闭；重复登录先取消旧流程。
+
+### 11.1 GatewayManager
+
+GatewayManager 与 Minecraft Alt `AccountManager` 是不同的持久化领域。它负责：
+
+- 在单线程后台执行 MPay/X19 登录和布吉岛服务器查询。
+- 使用 generation 丢弃迟到的异步结果，并在 Minecraft 主线程完成返回的 Future。
+- 返回不可变网易账号和角色 snapshot。
+- 只保存 DPAPI 加密后的 MPay 设备、会话和 X19 token，不保存邮箱密码。
+- 持有唯一活动的白端/Gateway Session，并在 shutdown 时先关闭 Session、再停止后台线程。
+
+目前仅允许固定服务器 `4661334467366178884`（布吉岛）；查询结果中的服务器 ID 和白端版本必须重新校验后才能进入启动阶段。
+
+Gateway 登录入口：
+
+- `loginWithEmail(email, password)`：网易邮箱/密码登录；密码数组会在提交后台任务前清空。
+- `loginWithCookie(cookie)`：导入 NEL 语义中的 X19 `sauth_json`（支持原始 JSON 和 `{"sauth_json":"..."}` 包装格式）；这不是任意浏览器 `Cookie:` 请求头。
+- `request4399Captcha()` 与 `loginWith4399(username, password, captchaSessionId, captcha)`：4399 PC 渠道登录，验证码图片只保存在内存。
+
+4399 登录先按 NEL 的 `ptlogin` 重定向和 `microgame/sdk/info` 流程换取 `4399pc` SAuth，再进入 X19 `login-otp` / `authentication-otp`。最终 SAuth、session 和 X19 token 与账号一起通过 Windows DPAPI 保护；邮箱密码和 4399 密码不落盘。
+
+`prepareWhiteClient(manifest)` 会把已查询的白端资源下载到 `nimbus/gateway/runtime`，校验响应大小和 MD5，使用临时文件/目录原子替换，并拒绝压缩包目录穿越、超大条目和不支持的格式。该步骤只准备资源，不启动白端或执行注入。
+
+开发阶段可从主菜单的 `Nimbus Gateway` 按钮，或通过聊天命令 `.gateway`（别名 `.gw`）打开 `Nimbus Gateway Diagnostics` Screen。`ChatScreenMixin` 在 vanilla 发送前分发 `EventChatSend`，本地点号命令取消后不会泄漏到服务器。Screen 继承 `AbstractSkijaScreen`，输入框中的密码使用遮罩显示；页面提供网易邮箱、X19 Cookie、4399 PC 验证码/登录和布吉岛查询入口，验证码图片在 Screen 中直接显示。Cookie 输入上限为 1 MiB，并接受原始/包装 SAuth、URL 编码的 `sauth_json` Cookie header 和常见浏览器 Cookie JSON 导出；不再以普通输入框的 8192 字符上限静默截断。该页面目前是诊断入口，尚未自动启动白端或连接本地 BServer。
 
 ## 12. RenderManager
 

@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "client.CommandSuggestionsMixin",
+    "client.ChatScreenMixin",
     "client.KeyboardHandlerMixin",
     "client.MinecraftMixin",
     "client.WindowMixin",

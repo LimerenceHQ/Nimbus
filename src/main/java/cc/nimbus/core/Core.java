@@ -27,6 +27,7 @@ public enum Core {
     private TargetManager targetManager;
     private GameStateManager gameStateManager;
     private NotificationManager notificationManager;
+    private GatewayManager gatewayManager;
     private boolean initialized;
 
     public synchronized void init(Path fabricConfigDirectory) {
@@ -46,7 +47,8 @@ public enum Core {
         MusicManager music = new MusicManager(nimbusDirectory.resolve("music"));
         CommandManager commands = new CommandManager();
         NotificationManager notifications = new NotificationManager(modules, renders, hud);
-        List<InstanceManager> started = new ArrayList<>(13);
+        GatewayManager gateway = new GatewayManager(nimbusDirectory.resolve("gateway"));
+        List<InstanceManager> started = new ArrayList<>(14);
 
         EventBus.clear();
         try {
@@ -63,6 +65,7 @@ public enum Core {
             start(accounts, started);
             start(music, started);
             start(commands, started);
+            start(gateway, started);
         } catch (RuntimeException error) {
             shutdownReverse(started, error);
             EventBus.clear();
@@ -82,6 +85,7 @@ public enum Core {
         accountManager = accounts;
         musicManager = music;
         commandManager = commands;
+        gatewayManager = gateway;
         initialized = true;
         configs.clientSettings().refreshWindowIdentity();
         configs.applyDeferredModuleStates();
@@ -95,15 +99,16 @@ public enum Core {
                 rotationManager,
                 packetManager,
                 moduleManager,
-                notificationManager,
                 targetManager,
                 hudManager,
+                notificationManager,
                 configManager,
                 gameStateManager,
                 i18nManager,
                 accountManager,
                 musicManager,
-                commandManager
+                commandManager,
+                gatewayManager
         ), null);
         try {
             if (failure != null) throw failure;
@@ -122,6 +127,7 @@ public enum Core {
             accountManager = null;
             musicManager = null;
             commandManager = null;
+            gatewayManager = null;
             initialized = false;
         }
     }
@@ -196,6 +202,10 @@ public enum Core {
 
     public NotificationManager getNotificationManager() {
         return requireInitialized(notificationManager, "NotificationManager");
+    }
+
+    public GatewayManager getGatewayManager() {
+        return requireInitialized(gatewayManager, "GatewayManager");
     }
 
     public boolean isInitialized() {

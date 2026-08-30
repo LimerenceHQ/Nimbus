@@ -31,6 +31,7 @@ public final class CommandManager implements InstanceManager {
             register(new BindCommand());
             register(new ConfigCommand());
             register(new HelpCommand());
+            register(new GatewayCommand());
             register(new HideCommand());
             register(new ModulesCommand());
             register(new MusicCommand());

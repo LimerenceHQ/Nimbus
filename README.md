@@ -21,6 +21,7 @@ Nimbus 是一个面向 Minecraft Fabric 客户端的开发中项目。当前工�
 - Skija 渲染子系统：统一 HUD、Screen、文本、图片、SVG、效果和后处理入口。
 - UI 基础：包含菜单、账户界面、六列 List ClickGUI，以及共用窗口系统的 Config、Client Settings 与 Nimbus Music；右 Shift 是默认打开键。
 - Music：网易云登录、推荐、精品歌单、搜索、歌词、真实播放队列和带原子索引的离线缓存。
+- Nimbus Gateway：NEL Cookie/4399/网易邮箱登录、布吉岛查询和白端资源准备；开发诊断界面通过 `.gateway` 打开。
 - 字体：Nimbus 自有界面统一使用 Geist、Inter、Noto Sans 和 Noto Sans CJK SC，并共享中英文 fallback 布局。
 
 当前仓库中包含 HUD、Render 类 Module 和一组基础客户端命令。这些实现同时承担对 Base API 的实际使用与验证。
@@ -134,6 +135,8 @@ nimbus/
 | `javazoom:jlayer` | MP3 解码和 WAV 转换 | GNU LGPL | [JavaLayer](http://www.javazoom.net/javalayer/javalayer.html) |
 | `org.jflac:jflac-codec` | FLAC 解码和 WAV 转换 | GNU LGPL 2.1 | [jFLAC](https://github.com/nguillaumin/jflac) |
 | `io.nayuki:qrcodegen` | 音乐登录二维码生成 | MIT License | [QR Code Generator](https://github.com/nayuki/QR-Code-generator) |
+| `org.apache.commons:commons-compress` | Nimbus Gateway 白端 ZIP/7z 资源安全解压 | Apache License 2.0 | [Apache Commons Compress](https://commons.apache.org/proper/commons-compress/) |
+| `org.tukaani:xz` | Commons Compress 的 7z/LZMA 解码支持 | Public Domain | [XZ for Java](https://tukaani.org/xz/java.html) |
 
 这些库及其权利归各自作者所有，并按各自许可证分发。Nimbus 不修改其包内实现；Fabric 模组中嵌入的依赖 JAR 保留上游元数据，完整许可证和声明以对应上游项目为准。
 

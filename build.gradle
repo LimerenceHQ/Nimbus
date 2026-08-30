@@ -20,6 +20,112 @@ repositories {
     mavenCentral()
 }
 
+// Nimbus Gateway is an optional native component.  It is enabled by default
+// on Windows (the supported runtime) and can be disabled with
+// -Pnimbus.gateway.native=false; non-Windows development remains unaffected.
+def gatewayNativeEnabled = providers.gradleProperty("nimbus.gateway.native")
+        .map { it.toBoolean() }
+        .orElse(org.gradle.internal.os.OperatingSystem.current().isWindows())
+def gatewayBuildDir = layout.buildDirectory.dir("gateway-native")
+def gatewayFallbackBuildDir = layout.buildDirectory.dir("gateway-msvc")
+def gatewayResourceDir = layout.buildDirectory.dir("generated/resources/gateway")
+def gatewayNativeStrict = providers.gradleProperty("nimbus.gateway.native.strict")
+        .map { it.toBoolean() }
+        .orElse(false)
+
+tasks.register("buildGatewayNative") {
+    group = "build"
+    description = "Builds the Nimbus Gateway native bridge and host (Windows x64)."
+    onlyIf { gatewayNativeEnabled.get() }
+    inputs.dir(layout.projectDirectory.dir("gateway"))
+    outputs.dir(gatewayResourceDir)
+    doLast {
+        if (!org.gradle.internal.os.OperatingSystem.current().isWindows()) {
+            throw new GradleException("Nimbus Gateway native build requires Windows x64")
+        }
+        def cmake = System.getenv("CMAKE")
+        if (cmake == null || cmake.isBlank()) {
+            def bundled = file("D:/Microsoft Visual Studio/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe")
+            cmake = bundled.isFile() ? bundled.absolutePath : "cmake"
+        }
+        def vcvars = file("D:/Microsoft Visual Studio/VC/Auxiliary/Build/vcvars64.bat")
+        def ninja = file("D:/Microsoft Visual Studio/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe")
+        def buildDir = gatewayBuildDir.get().asFile
+        def configureArgs = [cmake, "-S", file("gateway").absolutePath,
+                             "-B", buildDir.absolutePath, "-G", "Ninja",
+                             "-DCMAKE_BUILD_TYPE=Release"]
+        if (ninja.isFile()) configureArgs += "-DCMAKE_MAKE_PROGRAM=${ninja.absolutePath}"
+        def runNative = { List args ->
+            List<String> commandLine
+            if (vcvars.isFile()) {
+                def command = "call \"${vcvars.absolutePath}\" >nul && " +
+                        args.collect { "\"${it}\"" }.join(" ")
+                commandLine = ["cmd.exe", "/d", "/c", command.toString()]
+            } else {
+                commandLine = args.collect { it.toString() }
+            }
+            def process = new ProcessBuilder(commandLine)
+                    .directory(project.projectDir)
+                    .redirectErrorStream(true)
+                    .start()
+            process.inputStream.withReader("UTF-8") { reader ->
+                reader.eachLine { logger.lifecycle(it) }
+            }
+            int exitCode = process.waitFor()
+            if (exitCode != 0) {
+                throw new GradleException("Nimbus Gateway native command failed with code ${exitCode}")
+            }
+        }
+        runNative(configureArgs)
+        runNative([cmake, "--build", buildDir.absolutePath, "--config", "Release"])
+        def resources = gatewayResourceDir.get().asFile
+        resources.mkdirs()
+        ["nimbus-gateway-bridge.dll", "nimbus-gateway-host.exe"].each { name ->
+            // Some endpoint-security tools quarantine the bridge immediately after
+            // CMake links it.  Prefer the current build, then the previously
+            // generated MSVC build, and never copy a zero-byte placeholder.
+            def candidates = [
+                    file("${buildDir.absolutePath}/${name}"),
+                    file("${gatewayFallbackBuildDir.get().asFile.absolutePath}/${name}"),
+                    file("${buildDir.absolutePath}/Release/${name}"),
+                    file("${gatewayFallbackBuildDir.get().asFile.absolutePath}/Release/${name}")
+            ]
+            def built = candidates.find { it.isFile() && it.length() > 0 }
+            def destination = file("${resources.absolutePath}/${name}")
+            if (built == null) {
+                if (destination.isFile() && destination.length() == 0) destination.delete()
+                def message = "Nimbus Gateway native output unavailable for ${name}; antivirus may have quarantined it"
+                if (gatewayNativeStrict.get()) throw new GradleException(message)
+                logger.warn(message)
+                return
+            }
+            try {
+                java.nio.file.Files.copy(
+                        built.toPath(),
+                        destination.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+            } catch (IOException copyError) {
+                // If security software removes the file between discovery and
+                // copy, leave the resource absent rather than producing a
+                // misleading zero-byte entry in the jar.
+                if (destination.isFile() && destination.length() == 0) destination.delete()
+                def message = "Nimbus Gateway output ${name} could not be copied; antivirus may have quarantined it"
+                if (gatewayNativeStrict.get()) throw new GradleException(message, copyError)
+                logger.warn(message)
+            }
+        }
+    }
+}
+
+tasks.named("jar") {
+    dependsOn(tasks.named("buildGatewayNative"))
+    from(gatewayResourceDir) {
+        into "nimbus/gateway"
+        include "*.dll", "*.exe"
+    }
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings loom.officialMojangMappings()
@@ -33,6 +139,19 @@ dependencies {
     implementation include("javazoom:jlayer:${project.jlayer_version}")
     implementation include("org.jflac:jflac-codec:${project.jflac_version}")
     implementation include("io.nayuki:qrcodegen:${project.qrcodegen_version}")
+
+    // Minecraft 1.20.1 already ships JNA. Nimbus Gateway uses jna-platform's
+    // Windows DPAPI binding so NetEase session secrets are never stored in plaintext.
+    implementation "net.java.dev.jna:jna-platform:5.12.1"
+    implementation include("org.apache.commons:commons-compress:${project.commons_compress_version}")
+    implementation include("org.tukaani:xz:${project.xz_version}")
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${project.junit_version}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+tasks.named("test") {
+    useJUnitPlatform()
 }
 
 processResources {
