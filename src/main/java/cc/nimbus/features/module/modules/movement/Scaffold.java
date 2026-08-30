@@ -265,7 +265,7 @@ public class Scaffold extends BasicModule {
                 float deltaYaw = Mth.wrapDegrees(appliedRot.yaw() - lastHypixelRotation.yaw());
                 int speed = slow.getValue()
                         ? (GameStateManager.offGroundTicks <= 1 ? 60 : 30)
-                        : (GameStateManager.offGroundTicks <= 1 ? 120 : 60);
+                        : (GameStateManager.offGroundTicks <= 1 ? 150 : 90);
                 BlockPos raycastBlock = RotationRaycast.rayCastBlock(4.5D);
                 if (!currentPlace.getBlockPos().equals(raycastBlock)) {
                     if (Math.abs(deltaYaw) > speed) {
