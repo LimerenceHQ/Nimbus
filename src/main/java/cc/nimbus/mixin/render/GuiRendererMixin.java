@@ -87,6 +87,8 @@ public abstract class GuiRendererMixin implements GuiHudRenderAccess {
         }
         nimbus$hudReadyForExtraction = nimbus$hudHadContent;
         EventBus.call(new EventRender2D(EventType.POST, graphics));
+        // 1.21.4 renders ToastManager before this hook; extract after the HUD layer is ready.
+        nimbus$extractHud(graphics);
 
     }
 
