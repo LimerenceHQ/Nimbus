@@ -2,7 +2,6 @@ package cc.nimbus.utils.render.skija.api;
 
 import cc.nimbus.utils.render.skija.internal.text.FontFamily;
 import cc.nimbus.utils.render.skija.internal.text.TextFactory;
-import cc.nimbus.utils.render.skija.internal.text.TextLayout;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Paint;
 
@@ -78,17 +77,18 @@ public final class SkijaText {
 
     public void leftY(String family, float size, String text, float x, float y, float height, Paint paint) {
         text = normalize(text);
-        var font = FontFamily.getCachedFont(family, size);
-        canvas.drawString(text, x, TextLayout.baselineInBox(font, y, height), font, paint);
+        float baseline = y + TextFactory.getTextBaseline(family, size, text)
+                + (height - TextFactory.getTextHeight(family, size, text)) * 0.5f;
+        TextFactory.drawTextAtBaseline(canvas, family, size, text, x, baseline, paint);
     }
 
     public void box(String family, float size, String text, float x, float y, float width, float height, Paint paint) {
         text = normalize(text);
-        var font = FontFamily.getCachedFont(family, size);
-        canvas.drawString(text,
-                x + (width - font.measureTextWidth(text)) / 2f,
-                TextLayout.baselineInBox(font, y, height),
-                font, paint);
+        float textWidth = TextFactory.getTextWidth(family, size, text);
+        float baseline = y + TextFactory.getTextBaseline(family, size, text)
+                + (height - TextFactory.getTextHeight(family, size, text)) * 0.5f;
+        TextFactory.drawTextAtBaseline(canvas, family, size, text,
+                x + (width - textWidth) / 2f, baseline, paint);
     }
 
     public void centerWithShadow(String family, float size, String text, float centerX, float y, int color) {
