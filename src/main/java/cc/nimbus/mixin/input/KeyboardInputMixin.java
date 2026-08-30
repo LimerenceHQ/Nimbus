@@ -19,8 +19,8 @@ public abstract class KeyboardInputMixin extends ClientInput {
     @Final
     private Options options;
 
-    @Inject(method = "tick", at = @At("TAIL"))
-    private void onTick(boolean slowDown, float factor, CallbackInfo ci) {
+    @Inject(method = "tick()V", at = @At("TAIL"))
+    private void onTick(CallbackInfo ci) {
         EventMoveInput event = new EventMoveInput(this.forwardImpulse, this.leftImpulse, this.keyPresses.jump(), this.options.keySprint.isDown(), this.keyPresses.shift());
         EventBus.call(event);
 
