@@ -4,6 +4,7 @@ import cc.nimbus.core.Core;
 import cc.nimbus.event.EventType;
 import cc.nimbus.event.component.EventTarget;
 import cc.nimbus.event.component.Priority;
+import cc.nimbus.event.impl.game.EventTick;
 import cc.nimbus.event.impl.player.EventMotion;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
@@ -11,10 +12,12 @@ import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.rotation.Rotation;
+import cc.nimbus.managers.GameStateManager;
 import cc.nimbus.utils.client.BlockUtils;
 import cc.nimbus.utils.client.TimerUtils;
 import cc.nimbus.utils.entity.player.ChunkUtils;
 import cc.nimbus.utils.entity.player.InventoryUtils;
+import cc.nimbus.utils.entity.player.MovementUtils;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.core.BlockPos;
@@ -44,9 +47,14 @@ import java.util.stream.IntStream;
 public class ContainerStealer extends BasicModule {
     private static final TimerUtils timer = new TimerUtils();
     private static final TimerUtils timer2 = new TimerUtils();
+    private static final TimerUtils startTimer = new TimerUtils();
+    private static final TimerUtils stopTimer = new TimerUtils();
+
     private final BooleanSetting swap = new BooleanSetting( "Instant", false);
-    private final NumberSetting delay = new NumberSetting("Delay (Ticks)", 350, 0, 2000, 1);
-    private final NumberSetting delay1 = new NumberSetting("Multi Stack Delay (Ticks)",350, 0, 2000, 1);
+    private final NumberSetting startDelay = new NumberSetting("Start Delay", 350, 0, 2000, 1);
+    private final NumberSetting stopDelay = new NumberSetting("Stop Delay", 350, 0, 2000, 1);
+    private final NumberSetting delay = new NumberSetting("Delay", 350, 0, 2000, 1);
+    private final NumberSetting delay1 = new NumberSetting("Multi Stack Delay",350, 0, 2000, 1);
     private final BooleanSetting pickEnderChest = new BooleanSetting("Ender Chest", false);
     private Screen lastTickScreen;
 
@@ -65,10 +73,10 @@ public class ContainerStealer extends BasicModule {
     }
 
     @EventTarget(priority = Priority.High)
-    private void onMotion(EventMotion e) {
+    private void onMotion(EventTick e) {
         if (mc.player == null || mc.gameMode == null) return;
         this.setSuffix(delay.getValue());
-        if (e.getType() == EventType.PRE) {
+        if (e.isPre()) {
             Screen currentScreen = mc.screen;
             if (currentScreen instanceof ContainerScreen container) {
                 ChestMenu menu = container.getMenu();
@@ -81,11 +89,12 @@ public class ContainerStealer extends BasicModule {
                     String enderChest = Component.translatable("container.enderchest").getString();
                     if (chestTitle.equals(chest) || chestTitle.equals(largeChest) || chestTitle.equals("Chest") || this.pickEnderChest.getValue() && chestTitle.equals(enderChest)) {
                         if (this.isChestEmpty(menu) && timer.hasTimeElapsed(this.delay.getValue().longValue())) {
+                            if (!stopTimer.hasTimeElapsed(stopDelay.getValue().longValue(),true)) return;
                             mc.player.closeContainer();
                         } else {
                             List<Integer> slots = IntStream.range(0, menu.getRowCount() * 9).boxed().collect(Collectors.toList());
                             Collections.shuffle(slots);
-
+                            if (!startTimer.hasTimeElapsed(startDelay.getValue().longValue(),true)) return;
                             for(Integer pSlotId : slots) {
                                 ItemStack stack = menu.getSlot(pSlotId).getItem();
                                 if (isItemUseful(stack) && this.isBestItemInChest(menu, stack) && timer.hasTimeElapsed(this.delay.getValue().longValue())) {
@@ -94,20 +103,20 @@ public class ContainerStealer extends BasicModule {
                                         if (slot != -1 && slot + 18 < 54) {
                                             if (stack.getMaxStackSize() <= 1) {
                                                 if (slot < 9) {
-                                                    mc.gameMode.handleInventoryMouseClick(menu.containerId, pSlotId, slot, ClickType.SWAP, mc.player);
+                                                    GameStateManager.handleInventoryMouseClick(menu.containerId, pSlotId, slot, ClickType.SWAP, mc.player);
                                                 } else {
-                                                    mc.gameMode.handleInventoryMouseClick(menu.containerId, slot + 18, 8, ClickType.SWAP, mc.player);
-                                                    mc.gameMode.handleInventoryMouseClick(menu.containerId, pSlotId, 8, ClickType.SWAP, mc.player);
+                                                    GameStateManager.handleInventoryMouseClick(menu.containerId, slot + 18, 8, ClickType.SWAP, mc.player);
+                                                    GameStateManager.handleInventoryMouseClick(menu.containerId, pSlotId, 8, ClickType.SWAP, mc.player);
                                                 }
                                             } else if (timer2.hasTimeElapsed(this.delay1.getValue().longValue())) {
-                                                mc.gameMode.handleInventoryMouseClick(menu.containerId, pSlotId, 0, ClickType.QUICK_MOVE, mc.player);
+                                                GameStateManager.handleInventoryMouseClick(menu.containerId, pSlotId, 0, ClickType.QUICK_MOVE, mc.player);
                                                 timer2.reset();
                                             }
                                         } else {
                                             mc.player.closeContainer();
                                         }
                                     } else {
-                                        mc.gameMode.handleInventoryMouseClick(menu.containerId, pSlotId, 0, ClickType.QUICK_MOVE, mc.player);
+                                        GameStateManager.handleInventoryMouseClick(menu.containerId, pSlotId, 0, ClickType.QUICK_MOVE, mc.player);
                                     }
 
                                     timer.reset();
@@ -120,79 +129,6 @@ public class ContainerStealer extends BasicModule {
             }
 
             this.lastTickScreen = currentScreen;
-        }
-    };
-
-    @EventTarget
-    private void onTick(EventMotion e) {
-        if (mc.options.keyUse.isDown()) {
-            if (mc.player != null && (mc.player.isUsingItem() && e.getType() == EventType.POST)) {
-                return;
-            }
-            this.ghostInteractWithChest();
-        }
-    };
-
-    private boolean ghostInteractWithChest() {
-        if (mc.player != null && mc.level != null) {
-            Vec3 eyePos = mc.player.getEyePosition(1.0F);
-            Vec3 lookVec = mc.player.getLookAngle();
-            Vec3 reachEnd = eyePos.add(lookVec.scale((double)4.0F));
-            BlockEntity targetChest = null;
-            BlockHitResult fakeHit = null;
-            double closestDist = Double.MAX_VALUE;
-
-            for(BlockEntity be : ChunkUtils.getLoadedBlockEntities().collect(Collectors.toCollection(ArrayList::new))) {
-                if (be instanceof ChestBlockEntity) {
-                    ChestBlockEntity chest = (ChestBlockEntity)be;
-                    AABB box = this.getChestBox(chest);
-                    if (box != null) {
-                        Optional<Vec3> hit = box.clip(eyePos, reachEnd);
-                        if (hit.isPresent()) {
-                            double dist = ((Vec3)hit.get()).distanceTo(eyePos);
-                            if (dist < closestDist) {
-                                closestDist = dist;
-                                targetChest = chest;
-                                fakeHit = new BlockHitResult((Vec3)hit.get(), Direction.UP, chest.getBlockPos(), false);
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (targetChest != null && fakeHit != null) {
-                mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, fakeHit);
-                mc.player.swing(InteractionHand.MAIN_HAND);
-                return true;
-            } else {
-                return false;
-            }
-        } else {
-            return false;
-        }
-    }
-
-    private AABB getChestBox(ChestBlockEntity chestBE) {
-        BlockState state = chestBE.getBlockState();
-        if (!state.hasProperty(ChestBlock.TYPE)) {
-            return null;
-        } else {
-            ChestType chestType = (ChestType)state.getValue(ChestBlock.TYPE);
-            if (chestType == ChestType.LEFT) {
-                return null;
-            } else {
-                BlockPos pos = chestBE.getBlockPos();
-                AABB box = BlockUtils.getBoundingBox(pos);
-                if (chestType != ChestType.SINGLE) {
-                    BlockPos pos2 = pos.relative(ChestBlock.getConnectedDirection(state));
-                    if (BlockUtils.canBeClicked(pos2)) {
-                        AABB box2 = BlockUtils.getBoundingBox(pos2);
-                        box = box.minmax(box2);
-                    }
-                }
-
-                return box;
-            }
         }
     }
 
