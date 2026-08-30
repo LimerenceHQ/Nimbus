@@ -784,11 +784,22 @@ public final class NoFall extends BasicModule {
     }
 
     private Rotation getLookAtWaterBlock(BlockPos targetPos) {
-        if (minecraft.player == null || targetPos == null) {
+        if (minecraft.player == null || minecraft.level == null || targetPos == null) {
             return currentRotation();
         }
 
-        return toRotation(Vec3.atLowerCornerOf(targetPos));
+        BlockState state = minecraft.level.getBlockState(targetPos);
+        double topY = targetPos.getY() + 1.0D;
+        if (!state.getCollisionShape(minecraft.level, targetPos).isEmpty()) {
+            topY = targetPos.getY() + state.getCollisionShape(minecraft.level, targetPos).bounds().maxY;
+        }
+
+        Vec3 target = new Vec3(
+                targetPos.getX() + 0.5D,
+                topY - 1.0E-3D,
+                targetPos.getZ() + 0.5D
+        );
+        return toRotation(target);
     }
 
     private void placeWaterBucket(int waterBucketSlot) {
