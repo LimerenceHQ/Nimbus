@@ -12,11 +12,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 public final class ConnectionUtils {
-    private static final Field CHANNEL = findField(Connection.class, "channel", "f_129468_");
-    private static final Field PACKET_LISTENER = findField(Connection.class, "packetListener", "f_129470_");
-    private static final Field SENT_PACKETS = findField(Connection.class, "sentPackets", "f_129475_");
-    private static final Method DO_SEND_PACKET = findMethod(Connection.class, "doSendPacket", "m_243087_");
-    private static final Method GET_CURRENT_PROTOCOL = findMethod0(Connection.class, "getCurrentProtocol", "m_178315_");
+    private static final Field CHANNEL = findField(Connection.class, "channel", "n", "f_129468_");
+    private static final Field PACKET_LISTENER = findField(Connection.class, "packetListener", "q", "f_129470_");
+    private static final Field SENT_PACKETS = findField(Connection.class, "sentPackets", "v", "f_129475_");
+    private static final Method DO_SEND_PACKET = findMethod(Connection.class, "doSendPacket", "c", "m_243087_");
 
     private ConnectionUtils() {
     }
@@ -27,12 +26,11 @@ public final class ConnectionUtils {
         } catch (IllegalAccessException ignored) {
         }
 
-        ConnectionProtocol protocol = getCurrentProtocol(connection);
         Channel channel = getChannel(connection);
         if (channel.eventLoop().inEventLoop()) {
-            doSendPacket(connection, packet, null, protocol, ConnectionProtocol.getProtocolForPacket(packet));
+            doSendPacket(connection, packet);
         } else {
-            channel.eventLoop().execute(() -> doSendPacket(connection, packet, null, protocol, ConnectionProtocol.getProtocolForPacket(packet)));
+            channel.eventLoop().execute(() -> doSendPacket(connection, packet));
         }
     }
 
@@ -60,18 +58,15 @@ public final class ConnectionUtils {
         }
     }
 
-    private static ConnectionProtocol getCurrentProtocol(Connection connection) {
+    private static void doSendPacket(Connection connection, Packet<?> packet) {
         try {
-            return (ConnectionProtocol) GET_CURRENT_PROTOCOL.invoke(connection);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new IllegalStateException("Failed to invoke getCurrentProtocol", e);
-        }
-    }
-
-    private static void doSendPacket(Connection connection, Packet<?> packet, PacketSendListener callbacks,
-                                     ConnectionProtocol currentProtocol, ConnectionProtocol packetProtocol) {
-        try {
-            DO_SEND_PACKET.invoke(connection, packet, callbacks, currentProtocol, packetProtocol);
+            if (DO_SEND_PACKET.getParameterCount() == 3) {
+                DO_SEND_PACKET.invoke(connection, packet, null, false);
+            } else {
+                // Legacy 1.20.x signature retained for compatibility with older mappings.
+                ConnectionProtocol protocol = ConnectionProtocol.PLAY;
+                DO_SEND_PACKET.invoke(connection, packet, null, protocol, protocol);
+            }
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new IllegalStateException("Failed to invoke doSendPacket", e);
         }
@@ -98,13 +93,22 @@ public final class ConnectionUtils {
         }
         for (String alt : altNames) {
             for (Method method : owner.getDeclaredMethods()) {
-                if (method.getName().equals(alt)) {
+                if (method.getName().equals(alt) && isSendPacketMethod(method)) {
                     method.setAccessible(true);
                     return method;
                 }
             }
         }
         throw new IllegalStateException("Failed to resolve method on " + owner.getName());
+    }
+
+    private static boolean isSendPacketMethod(Method method) {
+        Class<?>[] parameters = method.getParameterTypes();
+        return (parameters.length == 3 || parameters.length == 4)
+                && Packet.class.isAssignableFrom(parameters[0])
+                && PacketSendListener.class.isAssignableFrom(parameters[1])
+                && (parameters[2] == boolean.class || parameters[2] == Boolean.class
+                || parameters[2] == ConnectionProtocol.class);
     }
 
     private static Method findMethod0(Class<?> owner, String name, String... altNames) {

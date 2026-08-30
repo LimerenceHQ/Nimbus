@@ -774,7 +774,7 @@ public final class FireGuard extends BasicModule {
     }
 
     private double getReach() {
-        return Math.min(mc.gameMode == null ? MAX_BLOCK_INTERACTION_RANGE : mc.gameMode.getPickRange(), MAX_BLOCK_INTERACTION_RANGE);
+        return Math.min(mc.player == null ? MAX_BLOCK_INTERACTION_RANGE : mc.player.blockInteractionRange(), MAX_BLOCK_INTERACTION_RANGE);
     }
 
     private double clamp(double value, double min, double max) {

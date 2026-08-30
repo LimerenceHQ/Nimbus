@@ -356,7 +356,7 @@ public final class AutoTrap extends BasicModule {
             return false;
         }
         Item item = itemStack.getItem();
-        FoodProperties food = item.getFoodProperties();
+        FoodProperties food = itemStack.get(net.minecraft.core.component.DataComponents.FOOD);
         boolean isFood = food != null;
         boolean isPotion = item instanceof PotionItem;
         return isFood || isPotion;
@@ -858,7 +858,7 @@ public final class AutoTrap extends BasicModule {
     private double getPlaceRange() {
         double configured = placeRange.getValue().doubleValue();
         double vanilla = minecraft.player == null
-                ? MAX_BLOCK_INTERACTION_RANGE : mc.gameMode.getPickRange();
+                ? MAX_BLOCK_INTERACTION_RANGE : mc.player.blockInteractionRange();
         return Math.min(configured, Math.min(vanilla, MAX_BLOCK_INTERACTION_RANGE));
     }
 

@@ -30,6 +30,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.PotionItem;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.phys.BlockHitResult;
 
 import java.util.concurrent.LinkedBlockingDeque;
@@ -136,7 +137,7 @@ public class NoSlow extends BasicModule {
                 }
                 Core.INSTANCE.getPacketManager().freeze(PacketDirection.INBOUND,
                         ClientboundSetEntityMotionPacket.class,
-                        ClientboundPingPacket.class);
+                        net.minecraft.network.protocol.common.ClientboundPingPacket.class);
             }
         }
     }
@@ -241,7 +242,7 @@ public class NoSlow extends BasicModule {
             return false;
         }
         Item item = itemStack.getItem();
-        FoodProperties food = item.getFoodProperties();
+        FoodProperties food = itemStack.get(DataComponents.FOOD);
         boolean isFood = food != null;
         boolean isPotion = item instanceof PotionItem;
         boolean isShield = item == Items.SHIELD;

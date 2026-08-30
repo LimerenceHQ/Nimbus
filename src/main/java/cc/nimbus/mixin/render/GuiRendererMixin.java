@@ -10,6 +10,7 @@ import cc.nimbus.utils.mixin.GuiHudRenderAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import org.spongepowered.asm.mixin.*;
@@ -44,7 +45,7 @@ public abstract class GuiRendererMixin implements GuiHudRenderAccess {
     }
     
     @Inject(method = "render", at = @At("TAIL"))
-    private void nimbus$render(GuiGraphics graphics, float partialTick, CallbackInfo ci) {
+    private void nimbus$render(GuiGraphics graphics, DeltaTracker partialTick, CallbackInfo ci) {
         Minecraft minecraft = Minecraft.getInstance();
         SkijaRenderer skija = Core.INSTANCE.getRenderManager().skija();
         skija.validateSupport();

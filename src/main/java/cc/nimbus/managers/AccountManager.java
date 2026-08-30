@@ -391,11 +391,19 @@ public final class AccountManager implements InstanceManager {
     ) {
         Minecraft.getInstance().execute(() -> {
             try {
-                var field = Minecraft.class.getDeclaredField("user");
+                java.lang.reflect.Field field = null;
+                for (String nameCandidate : new String[]{"user", "f", "f_91074_"}) {
+                    try {
+                        field = Minecraft.class.getDeclaredField(nameCandidate);
+                        break;
+                    } catch (NoSuchFieldException ignored) {
+                    }
+                }
+                if (field == null) throw new NoSuchFieldException("Minecraft user field");
                 field.setAccessible(true);
                 field.set(Minecraft.getInstance(), new net.minecraft.client.User(
                         name,
-                        uuid.toString(),
+                        uuid,
                         accessToken,
                         Optional.empty(),
                         Optional.empty(),

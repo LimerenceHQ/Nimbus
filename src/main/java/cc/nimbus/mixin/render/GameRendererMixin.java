@@ -6,6 +6,7 @@ import cc.nimbus.utils.mixin.GuiHudRenderAccess;
 import cc.nimbus.utils.mixin.MixinModuleLookup;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.client.renderer.GameRenderer;
 import org.spongepowered.asm.mixin.Mixin;
@@ -17,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(GameRenderer.class)
 public abstract class GameRendererMixin {
     @Inject(method = "render", at = @At("HEAD"))
-    private void nimbus$beginHudFrame(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
+    private void nimbus$beginHudFrame(DeltaTracker partialTick, boolean renderLevel, CallbackInfo ci) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.gui instanceof GuiHudRenderAccess gui) gui.nimbus$resetHudExtraction();
     }

@@ -14,9 +14,8 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Rect;
 import io.github.humbleui.types.RRect;
 
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
-import net.minecraft.client.gui.screens.OptionsScreen;
+import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
@@ -27,11 +26,6 @@ public class TitleScreen extends AbstractSkijaScreen {
     private static final int BUTTON_GAP = 10;
     public TitleScreen() {
         super(Component.literal("Nimbus"), "main-menu");
-    }
-
-    @Override
-    public void renderBackground(GuiGraphics graphics) {
-        graphics.fill(0, 0, graphics.guiWidth(), graphics.guiHeight(), 0xCC0B1015);
     }
 
     @Override

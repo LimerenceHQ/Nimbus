@@ -25,6 +25,7 @@ import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.state.PlayerRenderState;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
@@ -188,18 +189,16 @@ public final class ESP extends BasicModule {
         return (point.y() + 1f) * .5f * height;
     }
 
-    @SuppressWarnings("unchecked")
     private SkeletonPose fallbackSkeletonPose(Minecraft minecraft, Player player,
                                               float partialTick, long gameTime) {
         if (!(player instanceof AbstractClientPlayer clientPlayer)) return null;
-        EntityRenderer<?> renderer = minecraft.getEntityRenderDispatcher().getRenderer(player);
+        EntityRenderer<?, ?> renderer = minecraft.getEntityRenderDispatcher().getRenderer(player);
         if (!(renderer instanceof LivingEntityRendererAccess modelAccess)
                 || !(renderer instanceof PlayerRendererAccess playerAccess)
-                || !(modelAccess.nimbus$getModel() instanceof PlayerModel<?> rawModel)) return null;
+                || !(modelAccess.nimbus$getModel() instanceof PlayerModel rawModel)) return null;
 
         playerAccess.nimbus$setModelProperties(clientPlayer);
-        PlayerModel<net.minecraft.world.entity.LivingEntity> model =
-                (PlayerModel<net.minecraft.world.entity.LivingEntity>) (PlayerModel<?>) rawModel;
+        PlayerModel model = rawModel;
 
         float bodyYaw = Mth.rotLerp(partialTick, player.yBodyRotO, player.yBodyRot);
         float headYaw = Mth.rotLerp(partialTick, player.yHeadRotO, player.yHeadRot);
@@ -221,9 +220,14 @@ public final class ESP extends BasicModule {
         float limbSwing = motion.position - motion.speed * (1f - partialTick);
         if (player.isBaby()) limbSwing *= 3f;
 
-        model.prepareMobModel(player, limbSwing, limbSwingAmount, partialTick);
-        model.setupAnim(player, limbSwing, limbSwingAmount,
-                player.tickCount + partialTick, netHeadYaw, headPitch);
+        PlayerRenderState state = new PlayerRenderState();
+        state.yRot = netHeadYaw;
+        state.xRot = headPitch;
+        state.walkAnimationPos = limbSwing;
+        state.walkAnimationSpeed = limbSwingAmount;
+        state.isPassenger = player.isPassenger();
+        state.isBaby = player.isBaby();
+        model.setupAnim(state);
         return new SkeletonPose(
                 rotation(model.head), rotation(model.rightArm), rotation(model.leftArm),
                 rotation(model.rightLeg), rotation(model.leftLeg), gameTime

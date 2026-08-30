@@ -86,8 +86,7 @@ public final class AccountScreen extends Screen {
         return box;
     }
 
-    @Override
-    public void renderBackground(GuiGraphics graphics) {
+    private void nimbusRenderBackground(GuiGraphics graphics) {
         refreshAccounts();
         graphics.fill(0, 0, graphics.guiWidth(), graphics.guiHeight(), 0xCC0B1015);
         int panelLeft = panelLeft();
@@ -118,7 +117,7 @@ public final class AccountScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        nimbusRenderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
@@ -146,7 +145,7 @@ public final class AccountScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double x, double y, double vertical) {
+    public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
         refreshAccounts();
         int visibleHeight = Math.max(0, listBottom() - listTop());
         int contentHeight = accountSnapshot.size() * 32;

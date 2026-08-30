@@ -30,7 +30,7 @@ public final class TextInput {
 
     public void value(String value) {
         editor.setValue(value == null ? "" : value);
-        editor.moveCursorToEnd();
+        editor.moveCursorToEnd(false);
         scrollX = 0f;
     }
 

@@ -107,9 +107,9 @@ public final class ImageStore {
 
     public static ResourceLocation getEntityTexture(Entity entity) {
         if (entity instanceof AbstractClientPlayer player) {
-            return player.getSkinTextureLocation();
+            return player.getSkin().texture();
         }
-        return new ResourceLocation("minecraft", "textures/entity/steve.png");
+        return ResourceLocation.fromNamespaceAndPath("minecraft", "textures/entity/steve.png");
     }
 
     public static void drainPendingCloses() {

@@ -69,10 +69,11 @@ public abstract class FontMixin {
         }
     }
 
-    @Inject(method = "drawInBatch(Ljava/lang/String;FFIZLorg/joml/Matrix4f;Lnet/minecraft/client/renderer/MultiBufferSource;Lnet/minecraft/client/gui/Font$DisplayMode;IIZ)I", at = @At("HEAD"), cancellable = true)
+    /* 1.21.4 removed the String overload with the bidirectional flag. */
+    @Inject(method = "drawInBatch(Ljava/lang/String;FFIZLorg/joml/Matrix4f;Lnet/minecraft/client/renderer/MultiBufferSource;Lnet/minecraft/client/gui/Font$DisplayMode;II)I", at = @At("HEAD"), cancellable = true)
     private void nimbus$protectStringDrawSeeThrough(String text, float x, float y, int color, boolean dropShadow,
                                                     Matrix4f pose, MultiBufferSource buffer, Font.DisplayMode mode,
-                                                    int backgroundColor, int packedLight, boolean bidirectional,
+                                                    int backgroundColor, int packedLight,
                                                     CallbackInfoReturnable<Integer> cir) {
         if (NameProtect.isReplacing()) return;
         String replacement = NameProtect.replace(text);
@@ -80,7 +81,7 @@ public abstract class FontMixin {
         NameProtect.beginReplacing();
         try {
             cir.setReturnValue(((Font) (Object) this).drawInBatch(replacement, x, y, color, dropShadow,
-                    pose, buffer, mode, backgroundColor, packedLight, bidirectional));
+                    pose, buffer, mode, backgroundColor, packedLight));
         } finally {
             NameProtect.endReplacing();
         }

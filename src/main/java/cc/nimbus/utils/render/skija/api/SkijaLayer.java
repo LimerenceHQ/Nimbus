@@ -51,8 +51,8 @@ public final class SkijaLayer {
             RenderSystem.enableBlend();
             RenderSystem.blendFunc(GlStateManager.SourceFactor.ONE,
                     GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
-            graphics.blit(identifier(), 0, 0, graphics.guiWidth(), graphics.guiHeight(),
-                    0F, height, width, -height, width, height);
+            graphics.blit(net.minecraft.client.renderer.RenderType::guiTextured, identifier(), 0, 0, graphics.guiWidth(), graphics.guiHeight(),
+                    0, height, width, -height, width, height);
             graphics.flush();
             RenderSystem.defaultBlendFunc();
         } finally {

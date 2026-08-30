@@ -1,9 +1,10 @@
 package cc.nimbus.utils.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderType;
@@ -28,7 +29,6 @@ public final class Render3DUtils {
     private static int savedDepthFunc;
     private static Matrix4f pendingWorldProjection;
     private static WorldProjection worldProjection;
-    private static BufferBuilder meshBuffer;
     public enum DepthMode { NONE, NORMAL, BOTH, GREATER }
 
     public record LineSegment(Vec3 start, Vec3 end, int argb) {
@@ -571,60 +571,25 @@ public final class Render3DUtils {
 
     private static void drawQuads(PoseStack stack, DepthMode mode, QuadEmitter emitter) {
         if (stack == null) return;
-        Matrix4f modelView = stack.last().pose();
-        drawMesh(RenderType.debugQuads(), mode,
-                builder -> emitter.emit(new QuadSink(builder, modelView)));
+        drawMesh(stack, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR,
+                builder -> emitter.emit(new QuadSink(builder, stack.last().pose())));
     }
 
     private static void drawLines(PoseStack stack, DepthMode mode, float width, LineEmitter emitter) {
         if (stack == null) return;
-        Matrix4f modelView = stack.last().pose();
-        drawMesh(RenderType.lines(), mode, width,
-                builder -> emitter.emit(new LineSink(builder, modelView, width)));
+        drawMesh(stack, VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR_NORMAL,
+                builder -> emitter.emit(new LineSink(builder, stack.last().pose(), width)));
     }
 
-    private static void drawMesh(RenderType renderType, DepthMode mode, BuilderEmitter emitter) {
-        drawMesh(renderType, mode, 1.0f, emitter);
-    }
-
-    private static void drawMesh(RenderType renderType, DepthMode mode, float lineWidth,
+    private static void drawMesh(PoseStack stack, VertexFormat.Mode topology, VertexFormat format,
                                  BuilderEmitter emitter) {
         RenderSystem.assertOnRenderThread();
-        BufferBuilder allocator = meshBuffer;
-        if (allocator == null) {
-            allocator = meshBuffer = new BufferBuilder(1024);
-        }
-        MultiBufferSource.BufferSource buffers = MultiBufferSource.immediate(allocator);
-        try {
-            VertexConsumer consumer = buffers.getBuffer(renderType);
+        try (ByteBufferBuilder allocator = new ByteBufferBuilder(256 * 1024)) {
+            MultiBufferSource.BufferSource buffers = MultiBufferSource.immediate(allocator);
+            VertexConsumer consumer = buffers.getBuffer(topology == VertexFormat.Mode.LINES
+                    ? RenderType.lines() : RenderType.debugQuads());
             emitter.emit(consumer);
-
-            PoseStack globalModelView = RenderSystem.getModelViewStack();
-            globalModelView.pushPose();
-            globalModelView.setIdentity();
-            try {
-                if (!allocator.isCurrentBatchEmpty()) {
-                    BufferBuilder.RenderedBuffer rendered = allocator.end();
-                    renderType.setupRenderState();
-                    try {
-                        applyDepthMode(mode);
-                        if (renderType == RenderType.lines()) {
-                            GL11.glLineWidth(Math.max(0.5f, lineWidth));
-                        }
-                        BufferUploader.drawWithShader(rendered);
-                    } finally {
-                        if (renderType == RenderType.lines()) GL11.glLineWidth(1.0f);
-                        renderType.clearRenderState();
-                        GL11.glEnable(GL11.GL_DEPTH_TEST);
-                        GL11.glDepthFunc(GL11.GL_LEQUAL);
-                    }
-                }
-            } finally {
-                GL11.glDepthMask(true);
-                globalModelView.popPose();
-            }
-        } finally {
-            allocator.clear();
+            buffers.endBatch();
         }
     }
 
@@ -651,7 +616,7 @@ public final class Render3DUtils {
 
     private record QuadSink(VertexConsumer builder, Matrix4f matrix) {
         void vertex(float x,float y,float z,int c) {
-            builder.vertex(matrix,x,y,z).color((c >> 16) & 255, (c >> 8) & 255, c & 255, (c >>> 24) & 255).endVertex();
+            builder.addVertex(matrix,x,y,z).setColor(c);
         }
         void quad(float x1,float y1,float z1,float x2,float y2,float z2,float x3,float y3,float z3,float x4,float y4,float z4,int c) {
             quad(x1,y1,z1,x2,y2,z2,x3,y3,z3,x4,y4,z4,c,c,c,c);
@@ -666,8 +631,8 @@ public final class Render3DUtils {
             float nx=x2-x1, ny=y2-y1, nz=z2-z1;
             float length=(float)Math.sqrt(nx*nx+ny*ny+nz*nz); if(length < 1e-5f) return;
             nx/=length; ny/=length; nz/=length;
-            builder.vertex(matrix,x1,y1,z1).color((c >> 16) & 255, (c >> 8) & 255, c & 255, (c >>> 24) & 255).normal(nx,ny,nz).endVertex();
-            builder.vertex(matrix,x2,y2,z2).color((c >> 16) & 255, (c >> 8) & 255, c & 255, (c >>> 24) & 255).normal(nx,ny,nz).endVertex();
+            builder.addVertex(matrix,x1,y1,z1).setColor(c).setNormal(nx,ny,nz);
+            builder.addVertex(matrix,x2,y2,z2).setColor(c).setNormal(nx,ny,nz);
         }
     }
 

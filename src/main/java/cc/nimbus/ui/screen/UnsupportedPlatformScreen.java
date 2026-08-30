@@ -23,13 +23,13 @@ public final class UnsupportedPlatformScreen extends Screen {
                 .build());
     }
 
-    @Override
-    public void renderBackground(GuiGraphics graphics) {
+    private void nimbusRenderBackground(GuiGraphics graphics) {
         graphics.fill(0, 0, graphics.guiWidth(), graphics.guiHeight(), 0xF014171A);
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        nimbusRenderBackground(graphics);
         int centerX = graphics.guiWidth() / 2;
         int centerY = graphics.guiHeight() / 2;
         graphics.drawCenteredString(font, title, centerX, centerY - 42, 0xFFFF6B6B);

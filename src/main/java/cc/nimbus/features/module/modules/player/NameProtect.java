@@ -276,7 +276,7 @@ public final class NameProtect extends BasicModule {
         addName(names, minecraft.player.getGameProfile().getName());
         addName(names, minecraft.player.getScoreboardName());
         addName(names, minecraft.getUser().getName());
-        addName(names, minecraft.getUser().getGameProfile().getName());
+        addName(names, minecraft.getUser().getName());
         addDisplayNames(names, minecraft.player.getDisplayName());
         addDisplayNames(names, minecraft.player.getCustomName());
 

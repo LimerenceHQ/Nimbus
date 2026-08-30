@@ -382,7 +382,7 @@ public final class NoFall extends BasicModule {
 
         Level level = minecraft.level;
         BlockPos playerBlockPos = minecraft.player.blockPosition();
-        double maxReachDistance = minecraft.gameMode.getPickRange();
+        double maxReachDistance = minecraft.player.blockInteractionRange();
         int reach = (int) Math.ceil(maxReachDistance);
         List<BlockPos> possible = new ArrayList<>();
         for (int x = -reach; x <= reach; x++) {
@@ -600,7 +600,7 @@ public final class NoFall extends BasicModule {
         }
 
         BlockHitResult raycast = rayCastBlock(
-                rotation, minecraft.player, minecraft.level, minecraft.gameMode.getPickRange(), false);
+                rotation, minecraft.player, minecraft.level, minecraft.player.blockInteractionRange(), false);
         return raycast != null
                 && raycast.getType() == HitResult.Type.BLOCK
                 && raycast.getBlockPos().equals(hit.getBlockPos())
@@ -609,7 +609,7 @@ public final class NoFall extends BasicModule {
 
     private boolean isWithinReach(BlockHitResult hit) {
         if (minecraft.player == null || hit == null) return false;
-        double reach = minecraft.gameMode.getPickRange();
+        double reach = minecraft.player.blockInteractionRange();
         return minecraft.player.getEyePosition().distanceTo(hit.getLocation()) <= reach;
     }
 

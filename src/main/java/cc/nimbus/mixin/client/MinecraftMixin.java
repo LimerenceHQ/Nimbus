@@ -4,6 +4,7 @@ import cc.nimbus.event.impl.game.*;
 import cc.nimbus.event.impl.player.EventItemUse;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.ReceivingLevelScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
@@ -58,15 +59,11 @@ public class MinecraftMixin {
     }
 
     @Inject(method = "setLevel", at = @At("HEAD"))
-    private void onSetLevel(ClientLevel clientLevel, CallbackInfo ci) {
+    private void onSetLevel(ClientLevel clientLevel, ReceivingLevelScreen.Reason reason, CallbackInfo ci) {
 
         EventBus.call(new EventWorldLoad());
     }
 
-    @Inject(method = "clearLevel(Lnet/minecraft/client/gui/screens/Screen;)V", at = @At("HEAD"))
-    private void onClientLevel(Screen screen, CallbackInfo info) {
-        EventBus.call(new EventWorldLoad());
-    }
     @Inject(method = "handleKeybinds", at = @At("HEAD"))
     private void nimbus$oldHittingSwingWhileUsing(CallbackInfo ci) {
         EventBus.call(new EventClick());

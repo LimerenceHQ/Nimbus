@@ -130,7 +130,7 @@ public final class TNTWarn extends BasicModule {
     private float pulseScale(Minecraft minecraft, float fuse) {
         if (!pulse.getValue()) return 1f;
         float fade = Mth.clamp(1f - fuse / 20f / PULSE_THRESHOLD_SECONDS, 0f, 1f);
-        float time = (minecraft.level.getGameTime() + minecraft.getFrameTime()) / 20f;
+        float time = (minecraft.level.getGameTime() + minecraft.getDeltaTracker().getGameTimeDeltaPartialTick(true)) / 20f;
         return 1f + Mth.sin(time * PULSE_SPEED * (float) (Math.PI * 2.0))
                 * PULSE_AMPLITUDE * fade;
     }

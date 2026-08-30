@@ -40,14 +40,14 @@ import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.BookItem;
+import net.minecraft.world.item.WritableBookItem;
+import net.minecraft.world.item.WrittenBookItem;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ExperienceBottleItem;
 import net.minecraft.world.item.FireworkRocketItem;
 import net.minecraft.world.item.FishingRodItem;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemNameBlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.PickaxeItem;
@@ -490,7 +490,6 @@ public final class InventoryCleaner extends BasicModule {
         if (stack.is(Items.LAVA_BUCKET) && itemCount(Items.LAVA_BUCKET) > lavaBucketCount.getValue().intValue()) return false;
         if (stack.getItem() instanceof FishingRodItem && itemCount(Items.FISHING_ROD) > 1) return false;
         if (isProjectile(stack) && !keepProjectile.getValue()) return false;
-        if (stack.getItem() instanceof ItemNameBlockItem) return false;
         return isCommonItemUseful(stack);
     }
 
@@ -649,28 +648,28 @@ public final class InventoryCleaner extends BasicModule {
         if (preferBow.is("Crossbow")) return InventoryUtils.crossbowScore(stack);
         if (!(stack.getItem() instanceof BowItem)) return -1.0;
         int primary = InventoryUtils.enchantmentLevel(stack,
-                preferBow.is("Power Bow") ? Enchantments.POWER_ARROWS : Enchantments.PUNCH_ARROWS);
+                preferBow.is("Power Bow") ? Enchantments.POWER : Enchantments.PUNCH);
         return primary * 1000.0 + InventoryUtils.bowScore(stack);
     }
 
     private ItemStack bestPowerBow() {
         return bestMainStack(stack -> stack.getItem() instanceof BowItem,
-                stack -> InventoryUtils.enchantmentLevel(stack, Enchantments.POWER_ARROWS) * 1000.0
+                stack -> InventoryUtils.enchantmentLevel(stack, Enchantments.POWER) * 1000.0
                         + InventoryUtils.bowScore(stack));
     }
 
     private ItemStack bestPunchBow() {
         return bestMainStack(stack -> stack.getItem() instanceof BowItem,
-                stack -> InventoryUtils.enchantmentLevel(stack, Enchantments.PUNCH_ARROWS) * 1000.0
+                stack -> InventoryUtils.enchantmentLevel(stack, Enchantments.PUNCH) * 1000.0
                         + InventoryUtils.bowScore(stack));
     }
 
     private boolean isPowerBow(ItemStack stack) {
-        return InventoryUtils.enchantmentLevel(stack, Enchantments.POWER_ARROWS) > 0;
+        return InventoryUtils.enchantmentLevel(stack, Enchantments.POWER) > 0;
     }
 
     private boolean isPunchBow(ItemStack stack) {
-        return InventoryUtils.enchantmentLevel(stack, Enchantments.PUNCH_ARROWS) > 0;
+        return InventoryUtils.enchantmentLevel(stack, Enchantments.PUNCH) > 0;
     }
 
     private ItemStack bestWeapon() {
@@ -739,7 +738,7 @@ public final class InventoryCleaner extends BasicModule {
 
     private boolean isValidBlock(ItemStack stack) {
         if (stack == null || stack.isEmpty() || !(stack.getItem() instanceof BlockItem)
-                || stack.getItem() instanceof ItemNameBlockItem || !isMoveableSlot(stack)) return false;
+                || !isMoveableSlot(stack)) return false;
         Block block = ((BlockItem) stack.getItem()).getBlock();
         return !(block instanceof FlowerBlock) && !(block instanceof BushBlock)
                 && !(block instanceof FungusBlock) && !(block instanceof CropBlock)
@@ -751,7 +750,8 @@ public final class InventoryCleaner extends BasicModule {
         if (item instanceof BlockItem blockItem) {
             return blockItem.getBlock() != Blocks.ENCHANTING_TABLE && blockItem.getBlock() != Blocks.COBWEB;
         }
-        if (item instanceof BookItem || item instanceof ExperienceBottleItem || item instanceof FireworkRocketItem) {
+        if (item instanceof WritableBookItem || item instanceof WrittenBookItem
+                || item instanceof ExperienceBottleItem || item instanceof FireworkRocketItem) {
             return false;
         }
         return item != Items.WHEAT_SEEDS && item != Items.BEETROOT_SEEDS

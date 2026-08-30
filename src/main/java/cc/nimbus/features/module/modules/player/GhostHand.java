@@ -44,7 +44,7 @@ public class GhostHand extends BasicModule {
     }
 
     public static BlockHitResult raycastForChest() {
-        float tickDelta = mc.getFrameTime();
+        float tickDelta = mc.getDeltaTracker().getGameTimeDeltaPartialTick(true);
         Vec3 start = mc.player.getEyePosition(tickDelta);
         Vec3 direction = mc.player.getViewVector(tickDelta);
 

@@ -12,7 +12,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
@@ -134,15 +133,11 @@ public class GameStateManager implements InstanceManager {
         gameMode.nimbus$ensureHasSentCarriedItem();
         InteractionResult[] result = {InteractionResult.PASS};
         sendSequencedPacket(sequence -> {
-            ServerboundUseItemPacket packet = new ServerboundUseItemPacket(hand,sequence);
+            ServerboundUseItemPacket packet = new ServerboundUseItemPacket(hand, sequence, player.getYRot(), player.getXRot());
             ItemStack original = player.getItemInHand(hand);
-            if (player.getCooldowns().isOnCooldown(original.getItem())) return packet;
+            if (player.getCooldowns().isOnCooldown(original)) return packet;
 
-            InteractionResultHolder<ItemStack> useResult = original.use(level, player, hand);
-            InteractionResult interaction = useResult.getResult();
-            ItemStack transformed = useResult.getObject();
-            if (transformed != original) player.setItemInHand(hand, transformed);
-            result[0] = interaction;
+            result[0] = original.use(level, player, hand);
             return packet;
         });
         return result[0];

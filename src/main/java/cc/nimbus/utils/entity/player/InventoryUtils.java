@@ -1,7 +1,10 @@
 package cc.nimbus.utils.entity.player;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.util.StringUtil;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -12,6 +15,10 @@ import net.minecraft.world.item.*;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.item.component.ResolvableProfile;
+import net.minecraft.world.item.equipment.Equippable;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.*;
 
 import java.util.function.Predicate;
@@ -46,10 +53,9 @@ public final class InventoryUtils {
     }
 
     public static boolean hasValidProfileComponent(ItemStack stack) {
-        if (stack == null || stack.isEmpty() || !stack.is(Items.PLAYER_HEAD)) return true;
-        CompoundTag owner = stack.getTagElement("SkullOwner");
-        return owner == null || !owner.contains("Name", 8)
-                || owner.getString("Name").matches("[A-Za-z0-9_]{3,16}");
+        if (stack == null || stack.isEmpty()) return true;
+        ResolvableProfile profile = stack.get(DataComponents.PROFILE);
+        return profile == null || profile.name().map(StringUtil::isValidPlayerName).orElse(true);
     }
 
     public static ItemStack getBestWeapon() {
@@ -136,10 +142,10 @@ public final class InventoryUtils {
 
     public static double bowScore(ItemStack stack) {
         if (stack == null || !(stack.getItem() instanceof BowItem)) return -1.0;
-        return 2.0 + enchantmentLevel(stack, Enchantments.POWER_ARROWS) * 0.5
-                + enchantmentLevel(stack, Enchantments.PUNCH_ARROWS) * 0.25
-                + enchantmentLevel(stack, Enchantments.FLAMING_ARROWS) * 0.1
-                + enchantmentLevel(stack, Enchantments.INFINITY_ARROWS) * 0.1
+        return 2.0 + enchantmentLevel(stack, Enchantments.POWER) * 0.5
+                + enchantmentLevel(stack, Enchantments.PUNCH) * 0.25
+                + enchantmentLevel(stack, Enchantments.FLAME) * 0.1
+                + enchantmentLevel(stack, Enchantments.INFINITY) * 0.1
                 + durability(stack) * 1.0E-6;
     }
 
@@ -166,16 +172,15 @@ public final class InventoryUtils {
     public static double shearsScore(ItemStack stack) {
         if (stack == null || !stack.is(Items.SHEARS)) return -1.0;
         return stack.getDestroySpeed(Blocks.OAK_LEAVES.defaultBlockState())
-                + enchantmentLevel(stack, Enchantments.BLOCK_EFFICIENCY) + durability(stack) * 1.0E-6;
+                + enchantmentLevel(stack, Enchantments.EFFICIENCY) + durability(stack) * 1.0E-6;
     }
 
     public static double armorScore(ItemStack stack) {
         EquipmentSlot slot = armorSlot(stack);
         if (slot == null) return -1.0;
-        ArmorItem armor = (ArmorItem) stack.getItem();
-        return armor.getDefense() * 10.0
-                + armor.getToughness() * 2.0
-                + enchantmentLevel(stack, Enchantments.ALL_DAMAGE_PROTECTION) * 2.0
+        return attributeValueWithStack(stack, Attributes.ARMOR, slot) * 10.0
+                + attributeValueWithStack(stack, Attributes.ARMOR_TOUGHNESS, slot) * 2.0
+                + enchantmentLevel(stack, Enchantments.PROTECTION) * 2.0
                 + durability(stack) * 1.0E-6;
     }
 
@@ -192,8 +197,12 @@ public final class InventoryUtils {
 
     public static EquipmentSlot armorSlot(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return null;
-        if (stack.getItem() instanceof ArmorItem armor) return armor.getType().getSlot();
-        return null;
+        Equippable equipment = stack.get(DataComponents.EQUIPPABLE);
+        if (equipment == null) return null;
+        return switch (equipment.slot()) {
+            case HEAD, CHEST, LEGS, FEET -> equipment.slot();
+            default -> null;
+        };
     }
 
     public static boolean isWantedPotion(ItemStack stack) {
@@ -203,7 +212,7 @@ public final class InventoryUtils {
 
     public static boolean isConsumable(ItemStack stack) {
         return stack != null && !stack.isEmpty()
-                && (stack.isEdible() || stack.is(Items.POTION)
+                && (stack.has(DataComponents.FOOD) || stack.is(Items.POTION)
                 || stack.is(Items.SPLASH_POTION) || stack.is(Items.MILK_BUCKET));
     }
 
@@ -253,9 +262,10 @@ public final class InventoryUtils {
         return false;
     }
 
-    public static int enchantmentLevel(ItemStack stack, Enchantment enchantment) {
+    public static int enchantmentLevel(ItemStack stack, ResourceKey<Enchantment> enchantment) {
         if (stack == null || stack.isEmpty() || MINECRAFT.level == null) return 0;
-        return EnchantmentHelper.getItemEnchantmentLevel(enchantment, stack);
+        return EnchantmentHelper.getItemEnchantmentLevel(
+                MINECRAFT.level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(enchantment), stack);
     }
 
     private static ItemStack first(Predicate<ItemStack> predicate) {
@@ -317,7 +327,7 @@ public final class InventoryUtils {
     private static double toolScore(ItemStack stack, net.minecraft.tags.TagKey<Item> tag,
                                     net.minecraft.world.level.block.state.BlockState state) {
         if (stack == null || !stack.is(tag)) return -1.0;
-        int efficiency = enchantmentLevel(stack, Enchantments.BLOCK_EFFICIENCY);
+        int efficiency = enchantmentLevel(stack, Enchantments.EFFICIENCY);
         return stack.getDestroySpeed(state) + (efficiency > 0 ? efficiency * efficiency + 1 : 0)
                 + durability(stack) * 1.0E-6;
     }
@@ -345,20 +355,11 @@ public final class InventoryUtils {
         return attributeValueWithStack(stack, Attributes.ATTACK_DAMAGE, EquipmentSlot.MAINHAND);
     }
 
-    private static double attributeValueWithStack(ItemStack stack, Attribute attribute, EquipmentSlot slot) {
+    private static double attributeValueWithStack(ItemStack stack, Holder<Attribute> attribute, EquipmentSlot slot) {
         if (MINECRAFT.player == null || stack == null || stack.isEmpty()) return 0.0;
         double base = MINECRAFT.player.getAttributeBaseValue(attribute);
-        double addition = 0.0;
-        double multiplyBase = 0.0;
-        double multiplyTotal = 0.0;
-        for (AttributeModifier modifier : stack.getAttributeModifiers(slot).get(attribute)) {
-            switch (modifier.getOperation()) {
-                case ADDITION -> addition += modifier.getAmount();
-                case MULTIPLY_BASE -> multiplyBase += modifier.getAmount();
-                case MULTIPLY_TOTAL -> multiplyTotal += modifier.getAmount();
-            }
-        }
-        return (base + addition + base * multiplyBase) * (1.0 + multiplyTotal);
+        var modifiers = stack.get(DataComponents.ATTRIBUTE_MODIFIERS);
+        return modifiers == null ? base : modifiers.compute(base, slot);
     }
 
     private static ItemStack getBestArmorItem(ToDoubleFunction<ItemStack> scorer) {

@@ -1,6 +1,8 @@
 package cc.nimbus.utils.entity.player;
 
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.equipment.Equippable;
 import net.minecraft.world.item.*;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
@@ -59,7 +61,7 @@ public class ArmorUtils {
     }
 
     public static int getProtectionLevel(ItemStack stack) {
-        return stack == null || stack.isEmpty() ? -1 : InventoryUtils.enchantmentLevel(stack,(Enchantments.ALL_DAMAGE_PROTECTION));
+        return stack == null || stack.isEmpty() ? -1 : InventoryUtils.enchantmentLevel(stack, Enchantments.PROTECTION);
     }
 
     public static int getMaterialPriority(ItemStack stack) {
@@ -91,10 +93,10 @@ public class ArmorUtils {
 
 
     private static double getArmorDefense(ItemStack stack, EquipmentSlot slot) {
-        if (stack == null || stack.isEmpty() || !(stack.getItem() instanceof ArmorItem armorItem) || armorItem.getEquipmentSlot() != slot) {
+        if (stack == null || stack.isEmpty() || !(stack.get(DataComponents.EQUIPPABLE) instanceof Equippable equipment)
+                || equipment.slot() != slot) {
             return -1.0;
         }
-
-        return armorItem.getDefense() + InventoryUtils.enchantmentLevel(stack, (Enchantments.ALL_DAMAGE_PROTECTION));
+        return InventoryUtils.armorScore(stack);
     }
 }

@@ -8,6 +8,7 @@ import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.modules.player.Teams;
+import cc.nimbus.utils.entity.player.InventoryUtils;
 import cc.nimbus.ui.notification.NotificationType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -104,12 +105,12 @@ public final class ItemWarn extends BasicModule {
 
     private static boolean isGodAxe(ItemStack stack) {
         return stack != null && stack.is(Items.GOLDEN_AXE)
-                && EnchantmentHelper.getItemEnchantmentLevel(Enchantments.SHARPNESS, stack) > 100;
+                && InventoryUtils.enchantmentLevel(stack, Enchantments.SHARPNESS) > 100;
     }
 
     private static boolean isKnockbackBall(ItemStack stack) {
         return stack != null && stack.is(Items.SLIME_BALL)
-                && EnchantmentHelper.getItemEnchantmentLevel(Enchantments.KNOCKBACK, stack) > 0;
+                && InventoryUtils.enchantmentLevel(stack, Enchantments.KNOCKBACK) > 0;
     }
 
     private static boolean isGappleActive(Player player, ItemStack held) {

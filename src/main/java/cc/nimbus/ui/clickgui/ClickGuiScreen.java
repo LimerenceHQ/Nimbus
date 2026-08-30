@@ -91,7 +91,7 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
         if (acceptsInput()) view.mouseReleased();
         return true;
     }
-    @Override public boolean mouseScrolled(double x, double y, double vertical) {
+    @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
         if (!acceptsInput()) return true;
         return view.mouseScrolled(logicalX(framebufferX(x)), logicalY(framebufferY(y)), vertical);
     }
@@ -121,9 +121,6 @@ public final class ClickGuiScreen extends AbstractSkijaScreen {
     }
     @Override protected void removedSkijaScreen() { view.close(); }
     @Override public boolean isPauseScreen() { return false; }
-
-    @Override
-    public void renderBackground(GuiGraphics graphics) {}
 
     private float logicalX(float value) { return (value - originX) / scale; }
     private float logicalY(float value) { return (value - originY) / scale; }

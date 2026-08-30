@@ -21,7 +21,7 @@ public final class SkijaRenderTarget implements AutoCloseable {
     private int depthStencilRenderbuffer;
     private int width, height;
 
-    public SkijaRenderTarget(String name) { identifier = new ResourceLocation("nimbus", "skija/" + name); }
+    public SkijaRenderTarget(String name) { identifier = ResourceLocation.fromNamespaceAndPath("nimbus", "skija/" + name); }
     public ResourceLocation identifier() { return identifier; }
 
     public void ensure(int width, int height) {

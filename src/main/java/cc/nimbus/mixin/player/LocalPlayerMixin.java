@@ -15,7 +15,8 @@ import net.minecraft.client.gui.screens.ReceivingLevelScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.player.Input;
+import net.minecraft.client.player.ClientInput;
+import net.minecraft.world.entity.player.Input;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
@@ -25,7 +26,6 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.PlayerRideableJumping;
 import net.minecraft.world.entity.Pose;
-import net.minecraft.world.item.ElytraItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
@@ -38,13 +38,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Keeps LocalPlayer movement and packet generation vanilla on 1.20.1. */
+/** Keeps LocalPlayer movement and packet generation vanilla on 1.21.4. */
 @Mixin(LocalPlayer.class)
 public abstract class LocalPlayerMixin extends AbstractClientPlayer {
     @Shadow
     private double xLast;
     @Shadow
-    private double yLast1;
+    private double yLast;
     @Shadow
     private double zLast;
     @Shadow
@@ -78,11 +78,9 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
     @Shadow
     protected int sprintTriggerTime;
 
-    @Shadow
-    protected abstract void handleNetherPortalClient();
 
     @Shadow
-    public Input input;
+    public ClientInput input;
 
     @Shadow
     protected abstract boolean hasEnoughImpulseToStartSprinting();
@@ -149,15 +147,13 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
         }
 
         if (!(this.minecraft.screen instanceof ReceivingLevelScreen)) {
-            this.handleNetherPortalClient();
         }
 
-        boolean bl = this.input.jumping;
-        boolean bl2 = this.input.shiftKeyDown;
+        boolean bl = this.input.keyPresses.jump();
+        boolean bl2 = this.input.keyPresses.shift();
         boolean bl3 = this.hasEnoughImpulseToStartSprinting();
-        this.crouching = !this.getAbilities().flying && !this.isSwimming() && this.canEnterPose(Pose.CROUCHING) && (this.isShiftKeyDown() || !this.isSleeping() && !this.canEnterPose(Pose.STANDING));
-        float f = Mth.clamp(0.3F + EnchantmentHelper.getSneakingSpeedBonus(this), 0.0F, 1.0F);
-        this.input.tick(this.isMovingSlowly(), f);
+        this.crouching = !this.getAbilities().flying && !this.isSwimming() && !this.isPassenger() && this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.CROUCHING) && (this.isShiftKeyDown() || !this.isSleeping() && !this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.STANDING));
+        this.input.tick();
         this.minecraft.getTutorial().onInput(this.input);
         EventSlowDown event = new EventSlowDown();
         EventBus.call(event);
@@ -173,7 +169,7 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
         if (this.autoJumpTime > 0) {
             --this.autoJumpTime;
             bl4 = true;
-            this.input.jumping = true;
+            this.input.makeJump();
         }
 
         if (!this.noPhysics) {
@@ -206,7 +202,7 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
             boolean bl8 = !this.input.hasForwardImpulse() || !this.hasEnoughFoodToStartSprinting();
             boolean bl9 = bl8 || this.horizontalCollision && !this.minorHorizontalCollision || this.isInWater() && !this.isUnderWater();
             if (this.isSwimming()) {
-                if (!this.onGround() && !this.input.shiftKeyDown && bl8 || !this.isInWater()) {
+                if (!this.onGround() && !this.input.keyPresses.shift() && bl8 || !this.isInWater()) {
                     this.setSprinting(false);
                 }
             } else if (bl9) {
@@ -222,7 +218,7 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
                     bl8 = true;
                     this.onUpdateAbilities();
                 }
-            } else if (!bl && this.input.jumping && !bl4) {
+            } else if (!bl && this.input.keyPresses.jump() && !bl4) {
                 if (this.jumpTriggerTime == 0) {
                     this.jumpTriggerTime = 7;
                 } else if (!this.isSwimming()) {
@@ -234,15 +230,15 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
             }
         }
 
-        if (this.input.jumping && !bl8 && !bl && !this.getAbilities().flying && !this.isPassenger() && !this.onClimbable()) {
+        if (this.input.keyPresses.jump() && !bl8 && !bl && !this.getAbilities().flying && !this.isPassenger() && !this.onClimbable()) {
             ItemStack itemStack = this.getItemBySlot(EquipmentSlot.CHEST);
-            if (itemStack.is(Items.ELYTRA) && ElytraItem.isFlyEnabled(itemStack) && this.tryToStartFallFlying()) {
+            if (itemStack.is(Items.ELYTRA) && itemStack.getDamageValue() < itemStack.getMaxDamage() - 1 && this.tryToStartFallFlying()) {
                 this.connection.send(new ServerboundPlayerCommandPacket(this, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
             }
         }
 
         this.wasFallFlying = this.isFallFlying();
-        if (this.isInWater() && this.input.shiftKeyDown && this.isAffectedByFluids()) {
+        if (this.isInWater() && this.input.keyPresses.shift() && this.isAffectedByFluids()) {
             this.goDownInWater();
         }
 
@@ -256,11 +252,11 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
 
         if (this.getAbilities().flying && this.isControlledCamera()) {
             int i = 0;
-            if (this.input.shiftKeyDown) {
+            if (this.input.keyPresses.shift()) {
                 --i;
             }
 
-            if (this.input.jumping) {
+            if (this.input.keyPresses.jump()) {
                 ++i;
             }
 
@@ -278,11 +274,11 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
                 }
             }
 
-            if (bl && !this.input.jumping) {
+            if (bl && !this.input.keyPresses.jump()) {
                 this.jumpRidingTicks = -10;
                 playerRideableJumping.onPlayerJump(Mth.floor(this.getJumpRidingScale() * 100.0F));
                 this.sendRidingJump();
-            } else if (!bl && this.input.jumping) {
+            } else if (!bl && this.input.keyPresses.jump()) {
                 this.jumpRidingTicks = 0;
                 this.jumpRidingScale = 0.0F;
             } else if (bl) {
@@ -347,7 +343,7 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
 
         if (isControlledCamera()) {
             double dx = motionEvent.getPosX() - this.xLast;
-            double dy = motionEvent.getPosY() - this.yLast1;
+            double dy = motionEvent.getPosY() - this.yLast;
             double dz = motionEvent.getPosZ() - this.zLast;
             double dyaw = motionEvent.getYaw() - this.yRotLast;
             double dpitch = motionEvent.getPitch() - this.xRotLast;
@@ -364,7 +360,8 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
                         velocity.z,
                         motionEvent.getYaw(),
                         motionEvent.getPitch(),
-                        motionEvent.isGround()
+                        motionEvent.isGround(),
+                        player.horizontalCollision
                 ));
                 moved = false;
             } else if (moved && rotated) {
@@ -374,28 +371,31 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
                         motionEvent.getPosZ(),
                         motionEvent.getYaw(),
                         motionEvent.getPitch(),
-                        motionEvent.isGround()
+                        motionEvent.isGround(),
+                        player.horizontalCollision
                 ));
             } else if (moved) {
                 this.connection.send(new ServerboundMovePlayerPacket.Pos(
                         motionEvent.getPosX(),
                         motionEvent.getPosY(),
                         motionEvent.getPosZ(),
-                        motionEvent.isGround()
+                        motionEvent.isGround(),
+                        player.horizontalCollision
                 ));
             } else if (rotated) {
                 this.connection.send(new ServerboundMovePlayerPacket.Rot(
                         motionEvent.getYaw(),
                         motionEvent.getPitch(),
-                        motionEvent.isGround()
+                        motionEvent.isGround(),
+                        player.horizontalCollision
                 ));
             } else if (this.lastOnGround != motionEvent.isGround()) {
-                this.connection.send(new ServerboundMovePlayerPacket.StatusOnly(motionEvent.isGround()));
+                this.connection.send(new ServerboundMovePlayerPacket.StatusOnly(motionEvent.isGround(), player.horizontalCollision));
             }
 
             if (moved) {
                 this.xLast = motionEvent.getPosX();
-                this.yLast1 = motionEvent.getPosY();
+                this.yLast = motionEvent.getPosY();
                 this.zLast = motionEvent.getPosZ();
                 this.positionReminder = 0;
             }
