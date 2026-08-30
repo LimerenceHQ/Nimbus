@@ -1,159 +1,386 @@
 package cc.nimbus.features.module.modules.player;
 
+import cc.nimbus.core.Core;
+import cc.nimbus.event.EventType;
 import cc.nimbus.event.component.EventTarget;
-import cc.nimbus.event.impl.game.EventScreenChange;
-import cc.nimbus.event.impl.game.EventTick;
-import cc.nimbus.event.impl.game.EventWorldLoad;
+import cc.nimbus.event.component.Priority;
+import cc.nimbus.event.impl.player.EventMotion;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
-import cc.nimbus.features.module.api.setting.impl.MultiSelectSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
-import cc.nimbus.features.module.api.setting.impl.modes.Modes;
+import cc.nimbus.features.rotation.Rotation;
+import cc.nimbus.utils.client.BlockUtils;
 import cc.nimbus.utils.client.TimerUtils;
+import cc.nimbus.utils.entity.player.ChunkUtils;
 import cc.nimbus.utils.entity.player.InventoryUtils;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.*;
-import net.minecraft.world.inventory.*;
-import net.minecraft.tags.ItemTags;
-import net.minecraft.world.item.BowItem;
-import net.minecraft.world.item.CrossbowItem;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.client.gui.screens.inventory.ContainerScreen;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.item.*;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+@ModuleInfo(name = "ContainerStealer", category = ModuleCategory.Player)
+public class ContainerStealer extends BasicModule {
+    private static final TimerUtils timer = new TimerUtils();
+    private static final TimerUtils timer2 = new TimerUtils();
+    private final BooleanSetting swap = new BooleanSetting( "Instant", false);
+    private final NumberSetting delay = new NumberSetting("Delay (Ticks)", 350, 0, 2000, 1);
+    private final NumberSetting delay1 = new NumberSetting("Multi Stack Delay (Ticks)",350, 0, 2000, 1);
+    private final BooleanSetting pickEnderChest = new BooleanSetting("Ender Chest", false);
+    private Screen lastTickScreen;
 
-@ModuleInfo(name = "ContainerStealer", description = "Collects useful items from supported containers.", category = ModuleCategory.Player)
-public final class ContainerStealer extends BasicModule {
-    public final MultiSelectSetting containers = new MultiSelectSetting("Containers",
-            new Modes("Chest", "Furnace", "Blast Furnace", "Smoker", "Brewing Stand"),
-            java.util.Set.of());
-    public final NumberSetting openDelay = new NumberSetting("Open Delay", 50, 0, 1000, 10);
-    public final NumberSetting stealDelay = new NumberSetting("Steal Delay", 0, 0, 1000, 10);
-    public final NumberSetting stackDelay = new NumberSetting("Steal Delay Stack", 0, 0, 1000, 10);
-    public final NumberSetting closeDelay = new NumberSetting("Close Delay", 50, 0, 1000, 10);
-    public final BooleanSetting swap = new BooleanSetting("Swap", false);
-    public final BooleanSetting noGui = new BooleanSetting("No Gui Container", false);
-    public final BooleanSetting randomSlot = new BooleanSetting("Random Slot", false);
-    public final BooleanSetting filterTrash = new BooleanSetting("Filter Trash", false);
+    public static boolean isWorking() {
+        return !timer.hasTimeElapsed(3);
+    }
 
-    private final Minecraft minecraft = Minecraft.getInstance();
-    private boolean active;
-    private final List<Integer> order = new ArrayList<>();
-    private final TimerUtils openDelayTimer = new TimerUtils();
-    private final TimerUtils stealDelayTimer = new TimerUtils();
-    private final TimerUtils stackDelayTimer = new TimerUtils();
-    private final TimerUtils closeDelayTimer = new TimerUtils();
+    @Override
+    protected void onEnable() {
 
-    @Override protected void onEnable() { reset(); }
-    @Override protected void onDisable() { reset(); }
+    }
+
+    @Override
+    protected void onDisable() {
+
+    }
+
+    @EventTarget(priority = Priority.High)
+    private void onMotion(EventMotion e) {
+        if (mc.player == null || mc.gameMode == null) return;
+        this.setSuffix(delay.getValue());
+        if (e.getType() == EventType.PRE) {
+            Screen currentScreen = mc.screen;
+            if (currentScreen instanceof ContainerScreen container) {
+                ChestMenu menu = container.getMenu();
+                if (currentScreen != this.lastTickScreen) {
+                    timer.reset();
+                } else {
+                    String chestTitle = container.getTitle().getString();
+                    String chest = Component.translatable("container.chest").getString();
+                    String largeChest = Component.translatable("container.chestDouble").getString();
+                    String enderChest = Component.translatable("container.enderchest").getString();
+                    if (chestTitle.equals(chest) || chestTitle.equals(largeChest) || chestTitle.equals("Chest") || this.pickEnderChest.getValue() && chestTitle.equals(enderChest)) {
+                        if (this.isChestEmpty(menu) && timer.hasTimeElapsed(this.delay.getValue().longValue())) {
+                            mc.player.closeContainer();
+                        } else {
+                            List<Integer> slots = IntStream.range(0, menu.getRowCount() * 9).boxed().collect(Collectors.toList());
+                            Collections.shuffle(slots);
+
+                            for(Integer pSlotId : slots) {
+                                ItemStack stack = menu.getSlot(pSlotId).getItem();
+                                if (isItemUseful(stack) && this.isBestItemInChest(menu, stack) && timer.hasTimeElapsed(this.delay.getValue().longValue())) {
+                                    if (this.swap.getValue()) {
+                                        int slot = getFirstEmptySlot();
+                                        if (slot != -1 && slot + 18 < 54) {
+                                            if (stack.getMaxStackSize() <= 1) {
+                                                if (slot < 9) {
+                                                    mc.gameMode.handleInventoryMouseClick(menu.containerId, pSlotId, slot, ClickType.SWAP, mc.player);
+                                                } else {
+                                                    mc.gameMode.handleInventoryMouseClick(menu.containerId, slot + 18, 8, ClickType.SWAP, mc.player);
+                                                    mc.gameMode.handleInventoryMouseClick(menu.containerId, pSlotId, 8, ClickType.SWAP, mc.player);
+                                                }
+                                            } else if (timer2.hasTimeElapsed(this.delay1.getValue().longValue())) {
+                                                mc.gameMode.handleInventoryMouseClick(menu.containerId, pSlotId, 0, ClickType.QUICK_MOVE, mc.player);
+                                                timer2.reset();
+                                            }
+                                        } else {
+                                            mc.player.closeContainer();
+                                        }
+                                    } else {
+                                        mc.gameMode.handleInventoryMouseClick(menu.containerId, pSlotId, 0, ClickType.QUICK_MOVE, mc.player);
+                                    }
+
+                                    timer.reset();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            this.lastTickScreen = currentScreen;
+        }
+    };
+
     @EventTarget
-    private void onWorldLoad(EventWorldLoad event) { reset(); }
+    private void onTick(EventMotion e) {
+        if (mc.options.keyUse.isDown()) {
+            if (mc.player != null && (mc.player.isUsingItem() && e.getType() == EventType.POST)) {
+                return;
+            }
+            this.ghostInteractWithChest();
+        }
+    };
 
-    @EventTarget private void onScreen(EventScreenChange event) {
-        if (event.getScreen() != null && noGui.getValue() && supportedScreen(event.getScreen())) event.cancelEvent();
+    private boolean ghostInteractWithChest() {
+        if (mc.player != null && mc.level != null) {
+            Vec3 eyePos = mc.player.getEyePosition(1.0F);
+            Vec3 lookVec = mc.player.getLookAngle();
+            Vec3 reachEnd = eyePos.add(lookVec.scale((double)4.0F));
+            BlockEntity targetChest = null;
+            BlockHitResult fakeHit = null;
+            double closestDist = Double.MAX_VALUE;
+
+            for(BlockEntity be : ChunkUtils.getLoadedBlockEntities().collect(Collectors.toCollection(ArrayList::new))) {
+                if (be instanceof ChestBlockEntity) {
+                    ChestBlockEntity chest = (ChestBlockEntity)be;
+                    AABB box = this.getChestBox(chest);
+                    if (box != null) {
+                        Optional<Vec3> hit = box.clip(eyePos, reachEnd);
+                        if (hit.isPresent()) {
+                            double dist = ((Vec3)hit.get()).distanceTo(eyePos);
+                            if (dist < closestDist) {
+                                closestDist = dist;
+                                targetChest = chest;
+                                fakeHit = new BlockHitResult((Vec3)hit.get(), Direction.UP, chest.getBlockPos(), false);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (targetChest != null && fakeHit != null) {
+                mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, fakeHit);
+                mc.player.swing(InteractionHand.MAIN_HAND);
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
     }
 
-    @EventTarget private void onTick(EventTick event) {
-        if (event.getPhase() != EventTick.Phase.PRE || minecraft.player == null || minecraft.gameMode == null) return;
-        AbstractContainerMenu menu = minecraft.player.containerMenu;
-        int containerSlots = supportedSlots(menu);
-        if (containerSlots <= 0) { reset(); return; }
-        if (!active) { active = true; stealDelayTimer.reset(); stackDelayTimer.reset(); closeDelayTimer.reset(); rebuild(containerSlots); return; }
-        if (!openDelayTimer.hasTimeElapsed(openDelay.getValue().longValue(), true)) return;
-        if (order.size() != containerSlots) rebuild(containerSlots);
-        int selected = -1;
-        for (int index : order) {
-            ItemStack stack = menu.getSlot(index).getItem();
-            if (!useful(stack) || !bestInContainer(menu, index, stack)) continue;
-            selected = index; break;
+    private AABB getChestBox(ChestBlockEntity chestBE) {
+        BlockState state = chestBE.getBlockState();
+        if (!state.hasProperty(ChestBlock.TYPE)) {
+            return null;
+        } else {
+            ChestType chestType = (ChestType)state.getValue(ChestBlock.TYPE);
+            if (chestType == ChestType.LEFT) {
+                return null;
+            } else {
+                BlockPos pos = chestBE.getBlockPos();
+                AABB box = BlockUtils.getBoundingBox(pos);
+                if (chestType != ChestType.SINGLE) {
+                    BlockPos pos2 = pos.relative(ChestBlock.getConnectedDirection(state));
+                    if (BlockUtils.canBeClicked(pos2)) {
+                        AABB box2 = BlockUtils.getBoundingBox(pos2);
+                        box = box.minmax(box2);
+                    }
+                }
+
+                return box;
+            }
         }
-        if (selected < 0) {
-            if (closeDelayTimer.hasTimeElapsed(closeDelay.getValue().longValue(), true)) minecraft.player.closeContainer();
-            return;
-        }
-        ItemStack stack = menu.getSlot(selected).getItem();
-        if (!stealDelayTimer.hasTimeElapsed(stackDelay.getValue().longValue(), true)) return;
-        if (swap.getValue() && stack.getMaxStackSize() > 1) {
-            if (!stackDelayTimer.hasTimeElapsed(stealDelay.getValue().longValue(), true)) return;
-        }
-        if (swap.getValue() && stack.getMaxStackSize() <= 1) {
-            int empty = firstEmptyInventorySlot();
-            if (empty >= 0 && empty < 9) click(menu, selected, empty, ClickType.SWAP);
-            else click(menu, selected, 0, ClickType.QUICK_MOVE);
-        } else click(menu, selected, 0, ClickType.QUICK_MOVE);
-        closeDelayTimer.reset();
     }
 
-    private void click(AbstractContainerMenu menu, int slot, int button, ClickType type) {
-        if (minecraft.gameMode != null && minecraft.player != null)
-            minecraft.gameMode.handleInventoryMouseClick(menu.containerId, slot, button, type, minecraft.player);
-    }
+    private boolean isBestItemInChest(ChestMenu menu, ItemStack stack) {
+        if (!InventoryUtils.isGodItem(stack) && !InventoryUtils.isSharpnessAxe(stack)) {
+            for(int i = 0; i < menu.getRowCount() * 9; ++i) {
+                ItemStack checkStack = menu.getSlot(i).getItem();
+                if (stack.getItem() instanceof ArmorItem && checkStack.getItem() instanceof ArmorItem) {
+                    ArmorItem item = (ArmorItem)stack.getItem();
+                    ArmorItem checkItem = (ArmorItem)checkStack.getItem();
+                    if (item.getEquipmentSlot() == checkItem.getEquipmentSlot() && InventoryUtils.getProtection(checkStack) > InventoryUtils.getProtection(stack)) {
+                        return false;
+                    }
+                } else if (stack.getItem() instanceof SwordItem && checkStack.getItem() instanceof SwordItem) {
+                    if (InventoryUtils.getSwordDamage(checkStack) > InventoryUtils.getSwordDamage(stack)) {
+                        return false;
+                    }
+                } else if (stack.getItem() instanceof PickaxeItem && checkStack.getItem() instanceof PickaxeItem) {
+                    if (InventoryUtils.getToolScore(checkStack) > InventoryUtils.getToolScore(stack)) {
+                        return false;
+                    }
+                } else if (stack.getItem() instanceof AxeItem && checkStack.getItem() instanceof AxeItem) {
+                    if (InventoryUtils.getToolScore(checkStack) > InventoryUtils.getToolScore(stack)) {
+                        return false;
+                    }
+                } else if (stack.getItem() instanceof ShovelItem && checkStack.getItem() instanceof ShovelItem && InventoryUtils.getToolScore(checkStack) > InventoryUtils.getToolScore(stack)) {
+                    return false;
+                }
+            }
 
-    private boolean useful(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return false;
-        if (!InventoryUtils.hasValidProfileComponent(stack)) return false;
-        return !filterTrash.getValue() || !InventoryUtils.notUsefulItem(stack);
-    }
-
-    private boolean bestInContainer(AbstractContainerMenu menu, int slot, ItemStack stack) {
-        double score = score(stack);
-        for (int i = 0; i < supportedSlots(menu); i++) {
-            if (i == slot) continue;
-            ItemStack other = menu.getSlot(i).getItem();
-            if (other.isEmpty() || !sameFamily(stack, other)) continue;
-            if (score(other) > score) return false;
+            return true;
+        } else {
+            return true;
         }
+    }
+
+    private boolean isChestEmpty(ChestMenu menu) {
+        for(int i = 0; i < menu.getRowCount() * 9; ++i) {
+            ItemStack item = menu.getSlot(i).getItem();
+            if (!item.isEmpty() && isItemUseful(item) && this.isBestItemInChest(menu, item)) {
+                return false;
+            }
+        }
+
         return true;
     }
 
-    private boolean sameFamily(ItemStack a, ItemStack b) {
-        if (InventoryUtils.armorSlot(a) != null && InventoryUtils.armorSlot(b) != null)
-            return InventoryUtils.armorSlot(a) == InventoryUtils.armorSlot(b);
-        return (a.getItem() instanceof BowItem && b.getItem() instanceof BowItem)
-                || (a.getItem() instanceof CrossbowItem && b.getItem() instanceof CrossbowItem)
-                || (a.is(ItemTags.SWORDS) && b.is(ItemTags.SWORDS))
-                || (a.is(ItemTags.AXES) && b.is(ItemTags.AXES))
-                || (a.is(ItemTags.PICKAXES) && b.is(ItemTags.PICKAXES))
-                || (a.is(ItemTags.SHOVELS) && b.is(ItemTags.SHOVELS));
-    }
+    private int getFirstEmptySlot() {
+        Inventory inventory = mc.player.getInventory();
 
-    private double score(ItemStack stack) {
-        if (InventoryUtils.armorSlot(stack) != null) return InventoryUtils.armorScore(stack);
-        if (stack.getItem() instanceof BowItem) return InventoryUtils.bowScore(stack);
-        if (stack.getItem() instanceof CrossbowItem) return InventoryUtils.crossbowScore(stack);
-        if (stack.is(ItemTags.SWORDS)) return InventoryUtils.weaponScore(stack);
-        if (stack.is(ItemTags.AXES)) return Math.max(InventoryUtils.weaponScore(stack), InventoryUtils.axeScore(stack));
-        if (stack.is(ItemTags.PICKAXES)) return Math.max(InventoryUtils.weaponScore(stack), InventoryUtils.pickaxeScore(stack));
-        if (stack.is(ItemTags.SHOVELS)) return Math.max(InventoryUtils.weaponScore(stack), InventoryUtils.shovelScore(stack));
-        return 0.0;
-    }
+        for(int i = 0; i < inventory.items.size(); ++i) {
+            if (i != 8 && inventory.getItem(i).isEmpty()) {
+                return i;
+            }
+        }
 
-    private int supportedSlots(AbstractContainerMenu menu) {
-        if (menu instanceof ChestMenu chest && containers.isSelected("Chest")) return chest.getRowCount() * 9;
-        if (menu instanceof FurnaceMenu && containers.isSelected("Furnace")) return 3;
-        if (menu instanceof BlastFurnaceMenu && containers.isSelected("Blast Furnace")) return 3;
-        if (menu instanceof SmokerMenu && containers.isSelected("Smoker")) return 3;
-        if (menu instanceof BrewingStandMenu && containers.isSelected("Brewing Stand")) return 5;
-        return 0;
-    }
-
-    private boolean supportedScreen(Screen screen) {
-        return (screen instanceof ContainerScreen && containers.isSelected("Chest"))
-                || (screen instanceof FurnaceScreen && containers.isSelected("Furnace"))
-                || (screen instanceof BlastFurnaceScreen && containers.isSelected("Blast Furnace"))
-                || (screen instanceof SmokerScreen && containers.isSelected("Smoker"))
-                || (screen instanceof BrewingStandScreen && containers.isSelected("Brewing Stand"));
-    }
-
-    private int firstEmptyInventorySlot() {
-        if (minecraft.player == null) return -1;
-        for (int i = 0; i < 36; i++) if (minecraft.player.getInventory().getItem(i).isEmpty()) return i;
         return -1;
     }
-    private void rebuild(int size) { order.clear(); for (int i = 0; i < size; i++) order.add(i); if (randomSlot.getValue()) Collections.shuffle(order); }
-    private void reset() { active = false; stackDelayTimer.reset(); stealDelayTimer.reset(); openDelayTimer.reset(); closeDelayTimer.reset(); order.clear(); }
+
+    private boolean isItemUseful(ItemStack stack) {
+        InventoryCleaner inventoryCleaner = Core.INSTANCE.getModuleManager().getModule(InventoryCleaner.class);
+        if (stack.isEmpty()) {
+            return false;
+        } else if (!InventoryUtils.isGodItem(stack) && !InventoryUtils.isSharpnessAxe(stack)) {
+            if (stack.getItem() instanceof ArmorItem) {
+                ArmorItem item = (ArmorItem)stack.getItem();
+                float protection = InventoryUtils.getProtection(stack);
+                float bestArmor = InventoryUtils.getBestArmorScore(item.getEquipmentSlot());
+                return !(protection <= bestArmor);
+            } else if (stack.getItem() instanceof SwordItem) {
+                float damage = InventoryUtils.getSwordDamage(stack);
+                float bestDamage = InventoryUtils.getBestSwordDamage();
+                return !(damage <= bestDamage);
+            } else if (stack.getItem() instanceof PickaxeItem) {
+                float score = InventoryUtils.getToolScore(stack);
+                float bestScore = InventoryUtils.getBestPickaxeScore();
+                return !(score <= bestScore);
+            } else if (stack.getItem() instanceof AxeItem) {
+                float score = InventoryUtils.getToolScore(stack);
+                float bestScore = InventoryUtils.getBestAxeScore();
+                return !(score <= bestScore);
+            } else if (stack.getItem() instanceof ShovelItem) {
+                float score = InventoryUtils.getToolScore(stack);
+                float bestScore = InventoryUtils.getBestShovelScore();
+                return !(score <= bestScore);
+            } else if (stack.getItem() instanceof CrossbowItem) {
+                float score = InventoryUtils.getCrossbowScore(stack);
+                float bestScore = InventoryUtils.getBestCrossbowScore();
+                return !(score <= bestScore);
+            } else if (stack.getItem() instanceof BowItem && InventoryUtils.isPunchBow(stack)) {
+                float score = InventoryUtils.getPunchBowScore(stack);
+                float bestScore = InventoryUtils.getBestPunchBowScore();
+                return !(score <= bestScore);
+            } else if (stack.getItem() instanceof BowItem && InventoryUtils.isPowerBow(stack)) {
+                float score = InventoryUtils.getPowerBowScore(stack);
+                float bestScore = InventoryUtils.getBestPowerBowScore();
+                return !(score <= bestScore);
+            } else if (stack.getItem() == Items.COMPASS) {
+                return !InventoryUtils.hasItem(stack.getItem());
+            } else if (stack.getItem() == Items.WATER_BUCKET && InventoryUtils.getItemCount(Items.WATER_BUCKET) >= inventoryCleaner.waterBucketCount.getValue().intValue()) {
+                return false;
+            } else if (stack.getItem() == Items.LAVA_BUCKET && InventoryUtils.getItemCount(Items.LAVA_BUCKET) >= inventoryCleaner.lavaBucketCount.getValue().intValue()) {
+                return false;
+            } else if (stack.getItem() instanceof BlockItem && InventoryUtils.isItemValid(stack) && InventoryUtils.getBlockCountInInventory() + stack.getCount() >= inventoryCleaner.maxBlockSize.getValue().intValue()) {
+                return false;
+            } else if (stack.getItem() == Items.ARROW && InventoryUtils.getItemCount(Items.ARROW) + stack.getCount() >= inventoryCleaner.maxArrowSize.getValue().intValue()) {
+                return false;
+            } else if (stack.getItem() instanceof FishingRodItem && InventoryUtils.getItemCount(Items.FISHING_ROD) >= 1) {
+                return false;
+            } else if (stack.getItem() != Items.SNOWBALL && stack.getItem() != Items.EGG || InventoryUtils.getItemCount(Items.SNOWBALL) + InventoryUtils.getItemCount(Items.EGG) + stack.getCount() < inventoryCleaner.maxProjectileSize.getValue().intValue() && inventoryCleaner.keepProjectile.getValue()) {
+                return stack.getItem() instanceof ItemNameBlockItem ? false : InventoryUtils.isCommonItemUseful(stack);
+            } else {
+                return false;
+            }
+        } else {
+            return true;
+        }
+    }
+
+    private static class ChestInfo {
+        BlockPos blockPos;
+        Rotation screenPos;
+
+        public BlockPos getBlockPos() {
+            return this.blockPos;
+        }
+
+        public Rotation getScreenPos() {
+            return this.screenPos;
+        }
+
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (!(o instanceof ChestInfo)) {
+                return false;
+            } else {
+                ChestInfo other = (ChestInfo)o;
+                if (!other.canEqual(this)) {
+                    return false;
+                } else {
+                    Object this$blockPos = this.getBlockPos();
+                    Object other$blockPos = other.getBlockPos();
+                    if (this$blockPos == null) {
+                        if (other$blockPos != null) {
+                            return false;
+                        }
+                    } else if (!this$blockPos.equals(other$blockPos)) {
+                        return false;
+                    }
+
+                    Object this$screenPos = this.getScreenPos();
+                    Object other$screenPos = other.getScreenPos();
+                    if (this$screenPos == null) {
+                        if (other$screenPos != null) {
+                            return false;
+                        }
+                    } else if (!this$screenPos.equals(other$screenPos)) {
+                        return false;
+                    }
+
+                    return true;
+                }
+            }
+        }
+
+        protected boolean canEqual(Object other) {
+            return other instanceof ChestInfo;
+        }
+
+        public int hashCode() {
+            int PRIME = 59;
+            int result = 1;
+            Object $blockPos = this.getBlockPos();
+            result = result * 59 + ($blockPos == null ? 43 : $blockPos.hashCode());
+            Object $screenPos = this.getScreenPos();
+            result = result * 59 + ($screenPos == null ? 43 : $screenPos.hashCode());
+            return result;
+        }
+
+        public String toString() {
+            String var10000 = String.valueOf(this.getBlockPos());
+            return "ChestStealer.ChestInfo(blockPos=" + var10000 + ", screenPos=" + String.valueOf(this.getScreenPos()) + ")";
+        }
+
+        public ChestInfo(BlockPos blockPos, Rotation screenPos) {
+            this.blockPos = blockPos;
+            this.screenPos = screenPos;
+        }
+    }
 }

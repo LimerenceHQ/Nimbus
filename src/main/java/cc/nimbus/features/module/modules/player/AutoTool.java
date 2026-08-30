@@ -15,6 +15,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.SwordItem;
 import net.minecraft.world.phys.BlockHitResult;
 
 @ModuleInfo(name = "AutoTool", description = "Selects the most effective tool while mining.", category = ModuleCategory.Player)
@@ -58,13 +59,24 @@ public final class AutoTool extends BasicModule {
         if (minecraft.player == null) return;
         int selected = minecraft.player.getInventory().selected;
         double score = Double.NEGATIVE_INFINITY;
+        double bestScore = -1.0D;
         for (int i = 0; i < 9; i++) {
             ItemStack stack = minecraft.player.getInventory().getItem(i);
             if (!stack.is(ItemTags.SWORDS)) continue;
             if (checkGoldenAxe.getValue() && stack.getItem() instanceof AxeItem
                     && stack.getHoverName().getString().contains("一刀999")) continue;
-            double value = weaponScore(stack);
-            if (value > score) { score = value; selected = i; }
+            if (stack.getItem() instanceof SwordItem) {
+                score = InventoryUtils.getSwordDamage(stack);
+            } else if (stack.getItem() instanceof AxeItem) {
+                score = InventoryUtils.getAxeDamage(stack);
+            } else {
+                continue;
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                score = i;
+            }
         }
         if (score > Double.NEGATIVE_INFINITY) minecraft.player.getInventory().selected = (selected);
     }
@@ -86,10 +98,6 @@ public final class AutoTool extends BasicModule {
             if (speed > best) { best = speed; slot = i; }
         }
         return slot;
-    }
-
-    private double weaponScore(ItemStack stack) {
-        return InventoryUtils.weaponScore(stack);
     }
 
     private void restore() {

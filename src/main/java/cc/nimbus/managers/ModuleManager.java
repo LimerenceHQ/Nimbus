@@ -76,6 +76,7 @@ public final class ModuleManager implements InstanceManager {
                     new Friend(),
                     new Timer(),
                     new AntiBot(),
+                    new NoDelay(),
                     new Stuck(),
                     new MidPearl(),
                     new FireGuard(),

@@ -1,6 +1,7 @@
 package cc.nimbus.utils.network;
 
 import cc.nimbus.mixin.accessor.network.ServerboundMovePlayerPacketAccessor;
+import cc.nimbus.utils.client.IMinecraft;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.LevelLoadingScreen;
 import net.minecraft.network.Connection;
@@ -20,6 +21,11 @@ public final class PacketUtils {
         if (connection != null && packet != null) {
             ConnectionUtils.sendPacketNoEvent(connection, packet);
         }
+    }
+
+    public static void sendPacket(Packet<?> packet) {
+        if (IMinecraft.mc.getConnection() == null) return;
+        IMinecraft.mc.getConnection().send(packet);
     }
 
     public static void receivePacketNoEvent(Packet<?> packet) {

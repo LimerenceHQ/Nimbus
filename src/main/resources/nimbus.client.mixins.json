@@ -42,6 +42,7 @@
     "accessor.network.ServerboundInteractPacketAccessor",
     "accessor.network.ServerboundMovePlayerPacketAccessor",
     "accessor.player.MultiPlayerGameModeAccessor",
+    "accessor.player.LivingEntityAccessor",
     "accessor.player.LocalPlayerAccessor"
   ],
   "injectors": {

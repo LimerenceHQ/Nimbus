@@ -1,403 +1,616 @@
 package cc.nimbus.utils.entity.player;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+
 import net.minecraft.client.Minecraft;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.tags.ItemTags;
-import net.minecraft.util.StringUtil;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.ai.attributes.Attribute;
-import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.*;
-import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.*;
 
-import java.util.function.Predicate;
-import java.util.function.ToDoubleFunction;
+@SuppressWarnings("deprecation")
+public class InventoryUtils {
+    private static final Minecraft mc = Minecraft.getInstance();
+    static final List<Block> blacklistedBlocks;
 
-public final class InventoryUtils {
-    public static final int HELMET_SLOT_INVENTORY = 39;
-    public static final int CHEST_SLOT_INVENTORY = 38;
-    public static final int LEGS_SLOT_INVENTORY = 37;
-    public static final int FEET_SLOT_INVENTORY = 36;
-    public static final int OFFHAND_SLOT_INVENTORY = 40;
-    public static final int HELMET_SLOT_MENU = 5;
-    public static final int CHEST_SLOT_MENU = 6;
-    public static final int LEGS_SLOT_MENU = 7;
-    public static final int FEET_SLOT_MENU = 8;
-    public static final int OFFHAND_SLOT_MENU = 45;
-    public static final int  HELMET_SLOT_INTERACTION_MANAGER = 5;
-    public static final int CHEST_PLATE_SLOT_INVENTORY = 38, CHEST_PLATE_SLOT_INTERACTION_MANAGER = 6;
-    public static final int LEGGINGS_SLOT_INVENTORY = 37, LEGGINGS_SLOT_INTERACTION_MANAGER = 7;
-    public static final int BOOTS_SLOT_INVENTORY = 36, BOOTS_SLOT_INTERACTION_MANAGER = 8;
-
-    private static final Minecraft MINECRAFT = Minecraft.getInstance();
-
-    private InventoryUtils() {
+    public static boolean shouldDisableFeatures() {
+        return getAllItems().stream().anyMatch((item) -> {
+            if (item.isEmpty()) {
+                return false;
+            } else {
+                String string = item.getDisplayName().getString();
+                return string.contains("\u957f\u6309\u70b9\u51fb") || string.contains("\u70b9\u51fb\u4f7f\u7528") || string.contains("\u79bb\u5f00\u6e38\u620f") || string.contains("\u9009\u62e9\u4e00\u4e2a\u961f\u4f0d") || string.contains("\u518d\u6765\u4e00\u5c40");
+            }
+        });
     }
+    public static int getPailSlot() {
+        for (int i = 0; i < 9; i++) {
+            ItemStack stack = mc.player.containerMenu.getSlot(i + 36).getItem();
 
-    public static boolean isItemValid(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) {
+            if (stack.isEmpty() || !stack.getItem().getDescriptionId().equals("item.minecraft.water_bucket")) continue;
+
+            return i;
+        }
+        return -1;
+    }
+    public static boolean isGoldenHead(ItemStack e) {
+        if (e.isEmpty()) {
+            return false;
+        } else {
+            if (e.getItem() instanceof BlockItem) {
+                BlockItem item = (BlockItem)e.getItem();
+                if (item.getBlock() instanceof SkullBlock) {
+                    return true;
+                }
+            }
+
             return false;
         }
-        return !notUsefulItem(stack);
     }
 
-    public static boolean hasValidProfileComponent(ItemStack stack) {
-        if (stack == null || stack.isEmpty() || !stack.is(Items.PLAYER_HEAD)) return true;
-        CompoundTag owner = stack.getTagElement("SkullOwner");
-        return owner == null || !owner.contains("Name", 8)
-                || owner.getString("Name").matches("[A-Za-z0-9_]{3,16}");
+    public static int findItem(int startSlot, int endSlot, Item item) {
+        if (mc.player == null) {
+            return -1;
+        } else {
+            for(int i = startSlot; i < endSlot; ++i) {
+                ItemStack stack = mc.player.getInventory().getItem(i);
+                if (!stack.isEmpty() && stack.getItem() == item) {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
     }
 
-    public static ItemStack getBestWeapon() {
-        return bestStack(InventoryUtils::isWeapon, InventoryUtils::weaponScore, ItemStack.EMPTY);
+    public static boolean isSharpnessAxe(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        } else if (!(stack.getItem() instanceof AxeItem)) {
+            return false;
+        } else {
+            int itemEnchantmentLevel = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.SHARPNESS, stack);
+            return itemEnchantmentLevel >= 8 && itemEnchantmentLevel < 50;
+        }
     }
 
-    public static ItemStack getBestBow() {
-        return bestStack(stack -> stack.getItem() instanceof BowItem, InventoryUtils::bowScore, ItemStack.EMPTY);
+    public static boolean isGodAxe(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        } else {
+            String displayName = stack.getDisplayName().getString();
+            if (displayName.contains("\u4e00\u5200")) {
+                return true;
+            } else if (stack.hasTag() && stack.getTag().toString().contains("\u4e00\u5200")) {
+                return true;
+            } else if (stack.getItem() != Items.GOLDEN_AXE) {
+                return false;
+            } else {
+                return EnchantmentHelper.getItemEnchantmentLevel(Enchantments.SHARPNESS, stack) > 100;
+            }
+        }
     }
 
-    public static ItemStack getBestCrossbow() {
-        return bestStack(stack -> stack.getItem() instanceof CrossbowItem, InventoryUtils::crossbowScore, ItemStack.EMPTY);
+    public static boolean isEnchantedGApple(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        } else {
+            return stack.getItem() == Items.ENCHANTED_GOLDEN_APPLE;
+        }
     }
 
-    public static ItemStack getBestAxe(boolean excludeWeapon) {
-        return bestStack(stack -> stack.is(ItemTags.AXES), InventoryUtils::axeScore,
-                excludeWeapon ? getBestWeapon() : ItemStack.EMPTY);
+    public static boolean isEndCrystal(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        } else {
+            return stack.getItem() == Items.END_CRYSTAL;
+        }
     }
 
-    public static ItemStack getBestPickaxe(boolean excludeWeapon) {
-        return bestStack(stack -> stack.is(ItemTags.PICKAXES), InventoryUtils::pickaxeScore,
-                excludeWeapon ? getBestWeapon() : ItemStack.EMPTY);
+    public static boolean isKBBall(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        } else if (stack.getItem() != Items.SLIME_BALL) {
+            return false;
+        } else {
+            return EnchantmentHelper.getItemEnchantmentLevel(Enchantments.KNOCKBACK, stack) > 1;
+        }
     }
 
-    public static ItemStack getBestShovel(boolean excludeWeapon) {
-        return bestStack(stack -> stack.is(ItemTags.SHOVELS), InventoryUtils::shovelScore,
-                excludeWeapon ? getBestWeapon() : ItemStack.EMPTY);
+    public static boolean isKBStick(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        } else if (stack.getItem() != Items.STICK) {
+            return false;
+        } else {
+            return EnchantmentHelper.getItemEnchantmentLevel(Enchantments.KNOCKBACK, stack) > 1;
+        }
     }
 
+    public static int findEmptyInventory() {
+        for(int i = 9; i < mc.player.getInventory().items.size(); ++i) {
+            if (((ItemStack)mc.player.getInventory().items.get(i)).isEmpty()) {
+                return i;
+            }
+        }
 
-    public static ItemStack getBestShears() {
-        return bestStack(stack -> stack.is(Items.SHEARS), InventoryUtils::shearsScore, ItemStack.EMPTY);
+        return -1;
     }
 
-    public static ItemStack getBestArmor(EquipmentSlot slot) {
-        return bestStack(stack -> armorSlot(stack) == slot, InventoryUtils::armorScore, ItemStack.EMPTY);
+    public static int findEmptySlot() {
+        for(int i = 0; i < 9; ++i) {
+            if (((ItemStack)mc.player.getInventory().items.get(i)).isEmpty()) {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
-    public static ItemStack getBestHelmet() {
-        return getBestArmorItem(ArmorUtils::getHelmetDefense);
+    public static int getPunchLevel(ItemStack stack) {
+        return EnchantmentHelper.getItemEnchantmentLevel(Enchantments.PUNCH_ARROWS, stack);
     }
 
-    public static ItemStack getBestChestPlate() {
-        return getBestArmorItem(ArmorUtils::getChestPlateDefense);
+    public static int getPowerLevel(ItemStack stack) {
+        return EnchantmentHelper.getItemEnchantmentLevel(Enchantments.POWER_ARROWS, stack);
     }
 
-    public static ItemStack getBestLeggings() {
-        return getBestArmorItem(ArmorUtils::getLeggingsDefense);
+    public static List<ItemStack> getAllItems() {
+        ArrayList<ItemStack> list = new ArrayList<>(40);
+        if (mc.player != null) {
+            list.addAll(mc.player.getInventory().items);
+        }
+        if (mc.player != null) {
+            list.addAll(mc.player.getInventory().armor);
+        }
+        return list;
     }
 
-    public static ItemStack getBestBoots() {
-        return getBestArmorItem(ArmorUtils::getBootsDefense);
+    public static float getBestArmorScore(EquipmentSlot slot) {
+        return (Float)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof ArmorItem && ((ArmorItem)item.getItem()).getEquipmentSlot() == slot).map(InventoryUtils::getProtection).max(Float::compareTo).orElse(0.0F);
     }
 
-
-    public static ItemStack getBestFlintAndSteel() {
-        return bestStack(stack -> stack.is(Items.FLINT_AND_STEEL), InventoryUtils::durability, ItemStack.EMPTY);
+    public static float getCurrentArmorScore(EquipmentSlot slot) {
+        if (slot == EquipmentSlot.HEAD) {
+            return getProtection((ItemStack)mc.player.getInventory().armor.get(3));
+        } else if (slot == EquipmentSlot.CHEST) {
+            return getProtection((ItemStack)mc.player.getInventory().armor.get(2));
+        } else if (slot == EquipmentSlot.LEGS) {
+            return getProtection((ItemStack)mc.player.getInventory().armor.get(1));
+        } else {
+            return slot == EquipmentSlot.FEET ? getProtection((ItemStack)mc.player.getInventory().armor.get(0)) : 0.0F;
+        }
+    }
+    static {
+        blacklistedBlocks = Arrays.asList(Blocks.AIR, Blocks.WATER, Blocks.LAVA, Blocks.ENCHANTING_TABLE, Blocks.GLASS_PANE, Blocks.GLASS_PANE, Blocks.IRON_BARS, Blocks.SNOW, Blocks.COAL_ORE, Blocks.DIAMOND_ORE, Blocks.EMERALD_ORE, Blocks.CHEST, Blocks.TRAPPED_CHEST, Blocks.TORCH, Blocks.ANVIL, Blocks.TRAPPED_CHEST, Blocks.NOTE_BLOCK, Blocks.JUKEBOX, Blocks.TNT, Blocks.GOLD_ORE, Blocks.IRON_ORE, Blocks.LAPIS_ORE, Blocks.STONE_PRESSURE_PLATE, Blocks.LIGHT_WEIGHTED_PRESSURE_PLATE, Blocks.HEAVY_WEIGHTED_PRESSURE_PLATE, Blocks.STONE_BUTTON, Blocks.LEVER, Blocks.TALL_GRASS, Blocks.TRIPWIRE, Blocks.TRIPWIRE_HOOK, Blocks.RAIL, Blocks.CORNFLOWER, Blocks.RED_MUSHROOM, Blocks.BROWN_MUSHROOM, Blocks.VINE, Blocks.SUNFLOWER, Blocks.LADDER, Blocks.FURNACE, Blocks.SAND, Blocks.CACTUS, Blocks.DISPENSER, Blocks.DROPPER, Blocks.CRAFTING_TABLE, Blocks.COBWEB, Blocks.PUMPKIN, Blocks.COBBLESTONE_WALL, Blocks.OAK_FENCE, Blocks.REDSTONE_TORCH, Blocks.FLOWER_POT);
+    }
+    public static float getBestSwordDamage() {
+        return (Float)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof SwordItem).map(InventoryUtils::getSwordDamage).max(Float::compareTo).orElse(0.0F);
     }
 
-    public static ItemStack getGodAxe() {
-        return first(stack -> stack.is(Items.GOLDEN_AXE) && enchantmentLevel(stack, Enchantments.SHARPNESS) > 100);
+    public static ItemStack getBestSword() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof SwordItem).max(Comparator.comparingInt((s) -> (int)(getSwordDamage(s) * 100.0F))).orElse( null);
     }
 
-    public static ItemStack getKnockbackBall() {
-        return first(stack -> stack.is(Items.SLIME_BALL) && enchantmentLevel(stack, Enchantments.KNOCKBACK) > 0);
+    public static int getItemStackSlot(ItemStack stack) {
+        if (stack == null) {
+            return -1;
+        } else {
+            for(int i = 0; i < mc.player.getInventory().items.size(); ++i) {
+                if (mc.player.getInventory().items.get(i) == stack) {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
     }
 
-    public static boolean isWeapon(ItemStack stack) {
-        return stack != null && !stack.isEmpty()
-                && (stack.is(ItemTags.SWORDS) || stack.is(ItemTags.AXES)
-                || stack.is(ItemTags.PICKAXES) || stack.is(ItemTags.SHOVELS));
-    }
+    public static boolean isItemValid(ItemStack s) {
+        if (!s.isEmpty()) {
+            if (s.getItem() instanceof PlayerHeadItem) {
+                return false;
+            }
 
-    public static double weaponScore(ItemStack stack) {
-        if (!isWeapon(stack)) return -1.0;
-        return legacyWeaponDamage(stack)
-                + enchantmentLevel(stack, Enchantments.SHARPNESS) * 0.5 + durability(stack) * 1.0E-6;
-    }
+            String string = s.getDisplayName().getString();
+            if (string.contains("Click")) {
+                return false;
+            }
 
-    public static double attackSpeed(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return -1.0;
-        return attributeValueWithStack(stack, Attributes.ATTACK_SPEED, EquipmentSlot.MAINHAND);
-    }
+            if (string.contains("Right")) {
+                return false;
+            }
 
-    public static double bowScore(ItemStack stack) {
-        if (stack == null || !(stack.getItem() instanceof BowItem)) return -1.0;
-        return 2.0 + enchantmentLevel(stack, Enchantments.POWER_ARROWS) * 0.5
-                + enchantmentLevel(stack, Enchantments.PUNCH_ARROWS) * 0.25
-                + enchantmentLevel(stack, Enchantments.FLAMING_ARROWS) * 0.1
-                + enchantmentLevel(stack, Enchantments.INFINITY_ARROWS) * 0.1
-                + durability(stack) * 1.0E-6;
-    }
+            if (string.contains("\u70b9\u51fb")) {
+                return false;
+            }
 
-    public static double crossbowScore(ItemStack stack) {
-        if (stack == null || !(stack.getItem() instanceof CrossbowItem)) return -1.0;
-        return enchantmentLevel(stack, Enchantments.QUICK_CHARGE) * 2.0
-                + enchantmentLevel(stack, Enchantments.MULTISHOT)
-                + enchantmentLevel(stack, Enchantments.PIERCING) * 0.5
-                + durability(stack) * 1.0E-6;
-    }
+            if (string.contains("Teleport")) {
+                return false;
+            }
 
-    public static double axeScore(ItemStack stack) {
-        return toolScore(stack, ItemTags.AXES, Blocks.OAK_LOG.defaultBlockState());
-    }
+            if (string.contains("\u4f7f\u7528")) {
+                return false;
+            }
 
-    public static double pickaxeScore(ItemStack stack) {
-        return toolScore(stack, ItemTags.PICKAXES, Blocks.STONE.defaultBlockState());
-    }
+            if (string.contains("\u4f20\u9001")) {
+                return false;
+            }
 
-    public static double shovelScore(ItemStack stack) {
-        return toolScore(stack, ItemTags.SHOVELS, Blocks.DIRT.defaultBlockState());
-    }
+            if (string.contains("\u518d\u6765")) {
+                return false;
+            }
+        }
 
-    public static double shearsScore(ItemStack stack) {
-        if (stack == null || !stack.is(Items.SHEARS)) return -1.0;
-        return stack.getDestroySpeed(Blocks.OAK_LEAVES.defaultBlockState())
-                + enchantmentLevel(stack, Enchantments.BLOCK_EFFICIENCY) + durability(stack) * 1.0E-6;
-    }
-
-    public static double armorScore(ItemStack stack) {
-        EquipmentSlot slot = armorSlot(stack);
-        if (slot == null) return -1.0;
-        ArmorItem armor = (ArmorItem) stack.getItem();
-        return armor.getDefense() * 10.0
-                + armor.getToughness() * 2.0
-                + enchantmentLevel(stack, Enchantments.ALL_DAMAGE_PROTECTION) * 2.0
-                + durability(stack) * 1.0E-6;
-    }
-
-    public static boolean sameBestRank(ItemStack stack, ItemStack best, ToDoubleFunction<ItemStack> scorer) {
-        return stack != null && best != null && !stack.isEmpty() && !best.isEmpty()
-                && Double.compare(scorer.applyAsDouble(stack), scorer.applyAsDouble(best)) == 0
-                && durability(stack) == durability(best);
-    }
-
-    public static int durability(ItemStack stack) {
-        return stack != null && stack.isDamageableItem()
-                ? stack.getMaxDamage() - stack.getDamageValue() : Integer.MAX_VALUE;
-    }
-
-    public static EquipmentSlot armorSlot(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return null;
-        if (stack.getItem() instanceof ArmorItem armor) return armor.getType().getSlot();
-        return null;
-    }
-
-    public static boolean isWantedPotion(ItemStack stack) {
-        if (stack == null || stack.isEmpty() || !(stack.is(Items.POTION) || stack.is(Items.SPLASH_POTION))) return false;
         return true;
     }
 
-    public static boolean isConsumable(ItemStack stack) {
-        return stack != null && !stack.isEmpty()
-                && (stack.isEdible() || stack.is(Items.POTION)
-                || stack.is(Items.SPLASH_POTION) || stack.is(Items.MILK_BUCKET));
-    }
-
-    public static boolean notUsefulItem(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return true;
-        EquipmentSlot armorSlot = armorSlot(stack);
-        if (armorSlot != null) return armorScore(stack) < armorScore(getBestArmor(armorSlot));
-        if (stack.getItem() instanceof BowItem) return bowScore(stack) < bowScore(getBestBow());
-        if (stack.getItem() instanceof CrossbowItem) return crossbowScore(stack) < crossbowScore(getBestCrossbow());
-        if (isWeapon(stack)) {
-            boolean useful = weaponScore(stack) >= weaponScore(getBestWeapon());
-            if (stack.is(ItemTags.AXES)) useful |= axeScore(stack) >= axeScore(getBestAxe(false));
-            if (stack.is(ItemTags.PICKAXES)) useful |= pickaxeScore(stack) >= pickaxeScore(getBestPickaxe(false));
-            if (stack.is(ItemTags.SHOVELS)) useful |= shovelScore(stack) >= shovelScore(getBestShovel(false));
-            return !useful;
+    public static int getItemSlot(Item item) {
+        for(int i = 0; i < mc.player.getInventory().items.size(); ++i) {
+            ItemStack itemStack = (ItemStack)mc.player.getInventory().items.get(i);
+            if (itemStack.getItem() == item) {
+                return i;
+            }
         }
-        if (stack.is(Items.SHEARS)) return shearsScore(stack) < shearsScore(getBestShears());
-        if (stack.is(Items.FLINT_AND_STEEL)) return stack != getBestFlintAndSteel();
-        if (stack.is(Items.POTION) || stack.is(Items.SPLASH_POTION)) return !isWantedPotion(stack);
-        if (stack.is(Items.PLAYER_HEAD)) return false;
 
-        if (stack.getItem() instanceof BlockItem blockItem) return badBlock(blockItem.getBlock());
-
-        if (stack.is(Items.SLIME_BALL) && enchantmentLevel(stack, Enchantments.KNOCKBACK) > 0) return false;
-        if (stack.is(Items.FIRE_CHARGE) || stack.is(Items.TOTEM_OF_UNDYING)
-                || stack.is(Items.GOLDEN_APPLE) || stack.is(Items.ENCHANTED_GOLDEN_APPLE)
-                || stack.is(Items.FISHING_ROD) || stack.is(Items.SNOWBALL) || stack.is(Items.EGG)
-                || stack.is(Items.COAL) || stack.is(Items.IRON_INGOT) || stack.is(Items.GOLD_INGOT)
-                || stack.is(Items.DIAMOND) || stack.is(Items.EMERALD) || stack.is(Items.NETHER_STAR)
-                || stack.is(Items.BUCKET) || stack.is(Items.WATER_BUCKET) || stack.is(Items.LAVA_BUCKET)
-                || stack.is(Items.MILK_BUCKET) || stack.is(Items.ENDER_PEARL) || stack.is(Items.ARROW)
-                || stack.is(Items.COMPASS) || stack.is(Items.STICK) || stack.is(Items.ELYTRA)
-                || stack.is(Items.SHIELD)
-                || stack.is(Items.END_CRYSTAL)) return false;
-
-        return !isConsumable(stack);
+        return -1;
     }
 
-    public static boolean shouldDisableFeatures() {
-        if (MINECRAFT.player == null) return true;
-        int size = MINECRAFT.player.getInventory().getContainerSize();
-        for (int slot = 0; slot < size; slot++) {
-            String name = MINECRAFT.player.getInventory().getItem(slot).getHoverName().getString();
-            if (name.contains("长按点击") || name.contains("点击使用") || name.contains("离开游戏")
-                    || name.contains("选择一个队伍") || name.contains("再来一局")) return true;
+    public static ItemStack getBestProjectile() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && (item.getItem() == Items.EGG || item.getItem() == Items.SNOWBALL) && isItemValid(item)).max(Comparator.comparingInt(ItemStack::getCount)).orElse(null);
+    }
+
+    public static ItemStack getFishingRod() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof FishingRodItem && isItemValid(item)).findAny().orElse(null);
+    }
+
+    public static int getBlockCountInInventory() {
+        return getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof BlockItem && isValidStack(item) && isItemValid(item)).mapToInt(ItemStack::getCount).sum();
+    }
+
+    public static boolean isValidStack(ItemStack stack) {
+        if (stack != null && stack.getItem() instanceof BlockItem && stack.getCount() > 0) {
+            if (!InventoryUtils.isItemValid(stack)) {
+                return false;
+            } else {
+                String string = stack.getDisplayName().getString();
+                if (!string.contains("Click") && !string.contains("\u70b9\u51fb")) {
+                    if (stack.getItem() instanceof ItemNameBlockItem) {
+                        return false;
+                    } else {
+                        Block block = ((BlockItem)stack.getItem()).getBlock();
+                        if (block instanceof FlowerBlock) {
+                            return false;
+                        } else if (block instanceof BushBlock) {
+                            return false;
+                        } else if (block instanceof FungusBlock) {
+                            return false;
+                        } else if (block instanceof CropBlock) {
+                            return false;
+                        } else if (block instanceof SlabBlock) {
+                            return false;
+                        } else {
+                            return !blacklistedBlocks.contains(block);
+                        }
+                    }
+                } else {
+                    return false;
+                }
+            }
+        } else {
+            return false;
         }
-        return false;
+    }
+    public static ItemStack getWorstProjectile() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && (item.getItem() == Items.EGG || item.getItem() == Items.SNOWBALL)).min(Comparator.comparingInt(ItemStack::getCount)).orElse(null);
     }
 
-    public static int enchantmentLevel(ItemStack stack, Enchantment enchantment) {
-        if (stack == null || stack.isEmpty() || MINECRAFT.level == null) return 0;
-        return EnchantmentHelper.getItemEnchantmentLevel(enchantment, stack);
+    public static ItemStack getWorstArrow() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof ArrowItem && isItemValid(item)).min(Comparator.comparingInt(ItemStack::getCount)).orElse(null);
     }
 
-    private static ItemStack first(Predicate<ItemStack> predicate) {
-        if (MINECRAFT.player == null) return ItemStack.EMPTY;
-        int size = MINECRAFT.player.getInventory().getContainerSize();
-        for (int slot = 0; slot < size; slot++) {
-            ItemStack stack = MINECRAFT.player.getInventory().getItem(slot);
-            if (!stack.isEmpty() && predicate.test(stack)) return stack;
+    public static ItemStack getWorstBlock() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof BlockItem && isValidStack(item) && isItemValid(item)).min(Comparator.comparingInt(ItemStack::getCount)).orElse(null);
+    }
+
+    public static ItemStack getBestBlock() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof BlockItem && isValidStack(item) && isItemValid(item)).max(Comparator.comparingInt(ItemStack::getCount)).orElse(null);
+    }
+
+    public static float getBestPickaxeScore() {
+        return (Float)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof PickaxeItem && isItemValid(item)).map(InventoryUtils::getToolScore).max(Float::compareTo).orElse(0.0F);
+    }
+
+    public static ItemStack getBestPickaxe() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof PickaxeItem && isItemValid(item)).max(Comparator.comparingInt((s) -> (int)(getToolScore(s) * 100.0F))).orElse(null);
+    }
+
+    public static float getBestAxeScore() {
+        return (Float)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof AxeItem && !isSharpnessAxe(item) && isItemValid(item)).map(InventoryUtils::getToolScore).max(Float::compareTo).orElse(0.0F);
+    }
+
+    public static ItemStack getBestAxe() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof AxeItem && !isSharpnessAxe(item) && isItemValid(item)).max(Comparator.comparingInt((s) -> (int)(getToolScore(s) * 100.0F))).orElse(null);
+    }
+
+    public static ItemStack getBestShapeAxe() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof AxeItem && isSharpnessAxe(item) && isItemValid(item) && !isGodAxe(item)).max(Comparator.comparingInt((s) -> (int)(getAxeDamage(s) * 100.0F))).orElse(null);
+    }
+
+    public static float getBestShovelScore() {
+        return (Float)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof ShovelItem && isItemValid(item)).map(InventoryUtils::getToolScore).max(Float::compareTo).orElse(0.0F);
+    }
+
+    public static ItemStack getBestShovel() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof ShovelItem && isItemValid(item)).max(Comparator.comparingInt((s) -> (int)(getToolScore(s) * 100.0F))).orElse(null);
+    }
+
+    public static float getBestCrossbowScore() {
+        return (Float)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof CrossbowItem && isItemValid(item)).map(InventoryUtils::getCrossbowScore).max(Float::compareTo).orElse(0.0F);
+    }
+
+    public static ItemStack getBestCrossbow() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof CrossbowItem && isItemValid(item)).max(Comparator.comparingInt((s) -> (int)(getCrossbowScore(s) * 100.0F))).orElse(null);
+    }
+
+    public static float getBestPunchBowScore() {
+        return (Float)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof BowItem && isItemValid(item)).map(InventoryUtils::getPunchBowScore).max(Float::compareTo).orElse(0.0F);
+    }
+
+    public static ItemStack getBestPunchBow() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof BowItem && isItemValid(item)).max(Comparator.comparingInt((s) -> (int)(getPunchBowScore(s) * 100.0F))).orElse(null);
+    }
+
+    public static float getBestPowerBowScore() {
+        return (Float)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof BowItem && isItemValid(item)).map(InventoryUtils::getPowerBowScore).max(Float::compareTo).orElse(0.0F);
+    }
+
+    public static ItemStack getBestPowerBow() {
+        return (ItemStack)getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() instanceof BowItem && isItemValid(item)).max(Comparator.comparingInt((s) -> (int)(getPowerBowScore(s) * 100.0F))).orElse(null);
+    }
+
+    public static boolean isPunchBow(ItemStack stack) {
+        return getPunchBowScore(stack) > 10.0F && isItemValid(stack);
+    }
+
+    public static boolean isPowerBow(ItemStack stack) {
+        return getPowerBowScore(stack) > 10.0F && isItemValid(stack);
+    }
+
+    public static boolean hasItem(Item checkItem) {
+        return getAllItems().stream().anyMatch((item) -> !item.isEmpty() && item.getItem() == checkItem);
+    }
+
+    public static int getItemCount(Item checkItem) {
+        return getAllItems().stream().filter((item) -> !item.isEmpty() && item.getItem() == checkItem).mapToInt(ItemStack::getCount).sum();
+    }
+
+    public static float getPunchBowScore(ItemStack stack) {
+        if (stack == null) {
+            return 0.0F;
+        } else if (stack.isEmpty()) {
+            return 0.0F;
+        } else if (stack.getItem() instanceof BowItem) {
+            float valence = 10.0F;
+            valence += (float)EnchantmentHelper.getItemEnchantmentLevel(Enchantments.PUNCH_ARROWS, stack);
+            valence += (float)EnchantmentHelper.getItemEnchantmentLevel(Enchantments.INFINITY_ARROWS, stack);
+            valence += (float)EnchantmentHelper.getItemEnchantmentLevel(Enchantments.FLAMING_ARROWS, stack);
+            valence += (float)EnchantmentHelper.getItemEnchantmentLevel(Enchantments.POWER_ARROWS, stack) / 10.0F;
+            return valence + (float)stack.getDamageValue() / (float)stack.getMaxDamage();
+        } else {
+            return 0.0F;
         }
-        return ItemStack.EMPTY;
     }
 
-    private static boolean isBetterArmor(ItemStack stack, ItemStack bestStack, ToDoubleFunction<ItemStack> scorer) {
-        if (bestStack.isEmpty()) {
+    public static float getPowerBowScore(ItemStack stack) {
+        if (stack == null) {
+            return 0.0F;
+        } else if (stack.isEmpty()) {
+            return 0.0F;
+        } else if (stack.getItem() instanceof BowItem) {
+            float valence = 10.0F;
+            valence += (float)EnchantmentHelper.getItemEnchantmentLevel(Enchantments.PUNCH_ARROWS, stack) / 10.0F;
+            valence += (float)EnchantmentHelper.getItemEnchantmentLevel(Enchantments.INFINITY_ARROWS, stack);
+            valence += (float)EnchantmentHelper.getItemEnchantmentLevel(Enchantments.FLAMING_ARROWS, stack);
+            valence += (float)EnchantmentHelper.getItemEnchantmentLevel(Enchantments.POWER_ARROWS, stack);
+            return valence + (float)stack.getDamageValue() / (float)stack.getMaxDamage();
+        } else {
+            return 0.0F;
+        }
+    }
+
+    public static float getToolScore(ItemStack stack) {
+        float valence = 0.0F;
+        if (stack == null) {
+            return 0.0F;
+        } else if (stack.isEmpty()) {
+            return 0.0F;
+        } else if (isGodItem(stack)) {
+            return 0.0F;
+        } else if (isSharpnessAxe(stack)) {
+            return 0.0F;
+        } else {
+            if (stack.getItem() instanceof PickaxeItem) {
+                valence += stack.getDestroySpeed(Blocks.STONE.defaultBlockState());
+            } else if (stack.getItem() instanceof AxeItem) {
+                valence += stack.getDestroySpeed(Blocks.OAK_LOG.defaultBlockState());
+            } else {
+                if (!(stack.getItem() instanceof ShovelItem)) {
+                    return 0.0F;
+                }
+
+                valence += stack.getDestroySpeed(Blocks.DIRT.defaultBlockState());
+            }
+
+            int efficiency = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.BLOCK_EFFICIENCY, stack);
+            if (efficiency > 0) {
+                valence += (float)efficiency * 0.0075F;
+            }
+
+            return valence;
+        }
+    }
+
+    public static float getAxeDamage(ItemStack stack) {
+        float valence = 0.0F;
+        if (stack == null) {
+            return 0.0F;
+        } else if (stack.isEmpty()) {
+            return 0.0F;
+        } else {
+            if (stack.getItem() instanceof AxeItem && isSharpnessAxe(stack)) {
+                AxeItem axe = (AxeItem)stack.getItem();
+                if (axe == Items.WOODEN_AXE) {
+                    valence += 4.0F;
+                } else if (axe == Items.STONE_AXE) {
+                    valence += 5.0F;
+                } else if (axe == Items.IRON_AXE) {
+                    valence += 6.0F;
+                } else if (axe == Items.GOLDEN_AXE) {
+                    valence += 4.0F;
+                } else if (axe == Items.DIAMOND_AXE) {
+                    valence += 7.0F;
+                }
+            }
+
+            int itemEnchantmentLevel = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.SHARPNESS, stack);
+            if (itemEnchantmentLevel > 0) {
+                // 在Minecraft 1.20.6中，使用简化的锋利附魔伤害计算：0.5 * level + 0.5
+                float damageBonus = 0.5f * itemEnchantmentLevel + 0.5f;
+                valence += damageBonus;
+            }
+
+            return valence;
+        }
+    }
+
+    public static float getSwordDamage(ItemStack stack) {
+        float valence = 0.0F;
+        if (stack == null) {
+            return 0.0F;
+        } else if (stack.isEmpty()) {
+            return 0.0F;
+        } else {
+            if (stack.getItem() instanceof SwordItem) {
+                SwordItem sword = (SwordItem)stack.getItem();
+                // 在Minecraft 1.20.6中，使用Tier来获取攻击伤害
+                valence += sword.getTier().getAttackDamageBonus() + 1.0F;
+            }
+
+            int itemEnchantmentLevel = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.SHARPNESS, stack);
+            if (itemEnchantmentLevel > 0) {
+                // 在Minecraft 1.20.6中，使用简化的锋利附魔伤害计算：0.5 * level + 0.5
+                float damageBonus = 0.5f * itemEnchantmentLevel + 0.5f;
+                valence += damageBonus;
+            }
+
+            return valence;
+        }
+    }
+
+    public static float getProtection(ItemStack itemStack) {
+        int valence = 0;
+        if (itemStack == null) {
+            return 0.0F;
+        } else if (itemStack.isEmpty()) {
+            return 0.0F;
+        } else {
+            if (itemStack.getItem() instanceof ArmorItem) {
+                ArmorItem armor = (ArmorItem)itemStack.getItem();
+                // 在Minecraft 1.20.6中，getMaterial()返回Holder<ArmorMaterial>
+                var material = armor.getMaterial();
+                if (material == ArmorMaterials.LEATHER) {
+                    valence += 100;
+                } else if (material == ArmorMaterials.CHAIN) {
+                    valence += 200;
+                } else if (material == ArmorMaterials.IRON) {
+                    valence += 400;
+                } else if (material == ArmorMaterials.GOLD) {
+                    valence += 300;
+                } else if (material == ArmorMaterials.DIAMOND) {
+                    valence += 500;
+                } else if (material == ArmorMaterials.NETHERITE) {
+                    valence += 600;
+                }
+            }
+
+            valence += EnchantmentHelper.getItemEnchantmentLevel(Enchantments.ALL_DAMAGE_PROTECTION, itemStack);
+            return (float)valence;
+        }
+    }
+
+    public static float getCrossbowScore(ItemStack stack) {
+        int valence = 0;
+        if (stack == null) {
+            return 0.0F;
+        } else if (stack.isEmpty()) {
+            return 0.0F;
+        } else {
+            if (stack.getItem() instanceof CrossbowItem) {
+                valence += EnchantmentHelper.getItemEnchantmentLevel(Enchantments.QUICK_CHARGE, stack);
+                valence += EnchantmentHelper.getItemEnchantmentLevel(Enchantments.MULTISHOT, stack);
+                valence += EnchantmentHelper.getItemEnchantmentLevel(Enchantments.PIERCING, stack);
+            }
+
+            return (float)valence;
+        }
+    }
+
+    public static boolean isGodItem(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        } else if (stack.getItem() instanceof AxeItem && stack.getItem() == Items.GOLDEN_AXE && EnchantmentHelper.getItemEnchantmentLevel(Enchantments.SHARPNESS, stack) > 100) {
+            return true;
+        } else if (stack.getItem() == Items.SLIME_BALL && EnchantmentHelper.getItemEnchantmentLevel(Enchantments.KNOCKBACK, stack) > 1) {
+            return true;
+        } else if (stack.getItem() == Items.TOTEM_OF_UNDYING) {
+            return true;
+        } else {
+            return stack.getItem() == Items.END_CRYSTAL;
+        }
+    }
+
+    public static boolean isCommonItemUseful(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return true;
+        } else {
+            Item item = stack.getItem();
+            if (item instanceof BlockItem) {
+                BlockItem block = (BlockItem)item;
+                if (block.getBlock() == Blocks.ENCHANTING_TABLE) {
+                    return false;
+                }
+
+                if (block.getBlock() == Blocks.COBWEB) {
+                    return false;
+                }
+            } else {
+                if (item instanceof BookItem) {
+                    return false;
+                }
+
+                if (item instanceof ExperienceBottleItem) {
+                    return false;
+                }
+
+                if (item instanceof FireworkRocketItem) {
+                    return false;
+                }
+
+                if (item == Items.WHEAT_SEEDS || item == Items.BEETROOT_SEEDS || item == Items.MELON_SEEDS || item == Items.PUMPKIN_SEEDS) {
+                    return false;
+                }
+
+                if (item == Items.FLINT_AND_STEEL) {
+                    return false;
+                }
+            }
+
             return true;
         }
-
-        int material = ArmorUtils.getMaterialPriority(stack);
-        int bestMaterial = ArmorUtils.getMaterialPriority(bestStack);
-        if (material != bestMaterial) {
-            return material > bestMaterial;
-        }
-
-        int protection = ArmorUtils.getProtectionLevel(stack);
-        int bestProtection = ArmorUtils.getProtectionLevel(bestStack);
-        if (protection != bestProtection) {
-            return protection > bestProtection;
-        }
-
-        return getRemainingDurability(stack) > getRemainingDurability(bestStack);
-    }
-
-    public static int getRemainingDurability(ItemStack stack) {
-        return stack.isDamageableItem() ? stack.getMaxDamage() - stack.getDamageValue() : Integer.MAX_VALUE;
-    }
-
-    private static ItemStack bestStack(Predicate<ItemStack> predicate, ToDoubleFunction<ItemStack> scorer,
-                                       ItemStack excluded) {
-        if (MINECRAFT.player == null) return ItemStack.EMPTY;
-        ItemStack best = ItemStack.EMPTY;
-        double bestScore = Double.NEGATIVE_INFINITY;
-        int bestDurability = Integer.MIN_VALUE;
-        int size = MINECRAFT.player.getInventory().getContainerSize();
-        for (int slot = 0; slot < size; slot++) {
-            ItemStack stack = MINECRAFT.player.getInventory().getItem(slot);
-            if (stack.isEmpty() || stack == excluded || !predicate.test(stack)
-                    || stack.is(Items.GOLDEN_AXE) && enchantmentLevel(stack, Enchantments.SHARPNESS) > 100) continue;
-            double score = scorer.applyAsDouble(stack);
-            int durability = durability(stack);
-            if (score > bestScore || Double.compare(score, bestScore) == 0 && durability > bestDurability) {
-                best = stack;
-                bestScore = score;
-                bestDurability = durability;
-            }
-        }
-        return best;
-    }
-
-    private static double toolScore(ItemStack stack, net.minecraft.tags.TagKey<Item> tag,
-                                    net.minecraft.world.level.block.state.BlockState state) {
-        if (stack == null || !stack.is(tag)) return -1.0;
-        int efficiency = enchantmentLevel(stack, Enchantments.BLOCK_EFFICIENCY);
-        return stack.getDestroySpeed(state) + (efficiency > 0 ? efficiency * efficiency + 1 : 0)
-                + durability(stack) * 1.0E-6;
-    }
-
-    private static double legacyWeaponDamage(ItemStack stack) {
-        Item item = stack.getItem();
-        if (item == Items.NETHERITE_SWORD || item == Items.DIAMOND_SWORD) return 8.0;
-        if (item == Items.IRON_SWORD) return 7.0;
-        if (item == Items.STONE_SWORD) return 6.0;
-        if (item == Items.GOLDEN_SWORD || item == Items.WOODEN_SWORD) return 5.0;
-        if (item == Items.NETHERITE_AXE) return 10.0;
-        if (item == Items.DIAMOND_AXE) return 7.0;
-        if (item == Items.IRON_AXE) return 6.0;
-        if (item == Items.STONE_AXE) return 5.0;
-        if (item == Items.GOLDEN_AXE || item == Items.WOODEN_AXE) return 4.0;
-        if (item == Items.NETHERITE_PICKAXE || item == Items.DIAMOND_PICKAXE) return 6.0;
-        if (item == Items.IRON_PICKAXE) return 5.0;
-        if (item == Items.STONE_PICKAXE) return 4.0;
-        if (item == Items.GOLDEN_PICKAXE || item == Items.WOODEN_PICKAXE) return 3.0;
-        if (item == Items.NETHERITE_SHOVEL) return 6.5;
-        if (item == Items.DIAMOND_SHOVEL) return 5.0;
-        if (item == Items.IRON_SHOVEL) return 4.0;
-        if (item == Items.STONE_SHOVEL) return 3.0;
-        if (item == Items.GOLDEN_SHOVEL || item == Items.WOODEN_SHOVEL) return 2.0;
-        return attributeValueWithStack(stack, Attributes.ATTACK_DAMAGE, EquipmentSlot.MAINHAND);
-    }
-
-    private static double attributeValueWithStack(ItemStack stack, Attribute attribute, EquipmentSlot slot) {
-        if (MINECRAFT.player == null || stack == null || stack.isEmpty()) return 0.0;
-        double base = MINECRAFT.player.getAttributeBaseValue(attribute);
-        double addition = 0.0;
-        double multiplyBase = 0.0;
-        double multiplyTotal = 0.0;
-        for (AttributeModifier modifier : stack.getAttributeModifiers(slot).get(attribute)) {
-            switch (modifier.getOperation()) {
-                case ADDITION -> addition += modifier.getAmount();
-                case MULTIPLY_BASE -> multiplyBase += modifier.getAmount();
-                case MULTIPLY_TOTAL -> multiplyTotal += modifier.getAmount();
-            }
-        }
-        return (base + addition + base * multiplyBase) * (1.0 + multiplyTotal);
-    }
-
-    private static ItemStack getBestArmorItem(ToDoubleFunction<ItemStack> scorer) {
-        if (MINECRAFT.player == null) {
-            return ItemStack.EMPTY;
-        }
-
-        ItemStack bestStack = ItemStack.EMPTY;
-        int size = MINECRAFT.player.getInventory().getContainerSize();
-
-        for (int i = 0; i < size; i++) {
-            ItemStack stack = MINECRAFT.player.getInventory().getItem(i);
-            double defense = scorer.applyAsDouble(stack);
-            if (defense < 0) {
-                continue;
-            }
-
-            if (isBetterArmor(stack, bestStack, scorer)) {
-                bestStack = stack;
-            }
-        }
-
-        return bestStack;
-    }
-
-
-    private static boolean badBlock(Block block) {
-        return block instanceof AirBlock || block instanceof StairBlock || block instanceof SlabBlock
-                || block instanceof FenceBlock || block instanceof FenceGateBlock || block instanceof DoorBlock
-                || block instanceof TrapDoorBlock || block instanceof PressurePlateBlock || block instanceof ButtonBlock
-                || block instanceof WallBlock || block instanceof CarpetBlock || block instanceof ConcretePowderBlock
-                || block instanceof TintedGlassBlock || block instanceof StainedGlassBlock
-                || block instanceof StainedGlassPaneBlock || block instanceof BannerBlock || block instanceof LeavesBlock
-                || block instanceof SaplingBlock || block instanceof MushroomBlock || block instanceof FlowerBlock
-                || block instanceof BushBlock || block instanceof ComposterBlock || block instanceof NoteBlock
-                || block instanceof JukeboxBlock || block instanceof SignBlock || block == Blocks.IRON_BARS
-                || block == Blocks.IRON_BLOCK || block == Blocks.GLASS_PANE || block == Blocks.DIRT_PATH
-                || block == Blocks.FARMLAND || block == Blocks.SNOW || block == Blocks.AMETHYST_CLUSTER
-                || block == Blocks.MANGROVE_ROOTS || block == Blocks.SUGAR_CANE || block == Blocks.CACTUS
-                || block == Blocks.LILY_PAD;
     }
 }
