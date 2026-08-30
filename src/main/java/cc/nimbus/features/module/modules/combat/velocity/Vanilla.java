@@ -22,9 +22,9 @@ public class Vanilla extends Mode<Velocity> implements IMinecraft {
         if (event.getPacketState() == PacketEvent.PacketState.RECEIVE) {
             if (event.getPacket() instanceof ClientboundSetEntityMotionPacket packet) {
                 if (packet.getId() == mc.player.getId()) {
-                    int newXa = (int) (packet.getXa()* horizontal.getValue().doubleValue() / 100);
-                    int newYa = (int) (packet.getYa()* vertical.getValue().doubleValue() / 100);
-                    int newZa = (int) (packet.getZa() * horizontal.getValue().doubleValue() / 100);
+                    double newXa = packet.getXa() * horizontal.getValue().doubleValue() / 100;
+                    double newYa = packet.getYa() * vertical.getValue().doubleValue() / 100;
+                    double newZa = packet.getZa() * horizontal.getValue().doubleValue() / 100;
                     event.setPacket(new ClientboundSetEntityMotionPacket(
                             packet.getId(), new Vec3(
                             newXa,

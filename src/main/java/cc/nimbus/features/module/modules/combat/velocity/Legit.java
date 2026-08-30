@@ -56,8 +56,8 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
             if (event.getPacket() instanceof ClientboundSetEntityMotionPacket packet) {
                 if (isValidVelocityPacket(packet)) {
                     attackCount = computeReduceTicks(
-                            packet.getXa(),
-                            packet.getZa()
+                            packet.getXa() * 8000.0,
+                            packet.getZa() * 8000.0
                     );
 
                     if (!modules.isEnabled("Delay") || cantSprint()) {
@@ -82,9 +82,9 @@ public class Legit extends Mode<Velocity> implements IMinecraft {
             return false;
         }
 
-        double velocityX = packet.getXa() / 8000f;
-        double velocityY = packet.getYa() / 8000f;
-        double velocityZ = packet.getZa() / 8000f;
+        double velocityX = packet.getXa();
+        double velocityY = packet.getYa();
+        double velocityZ = packet.getZa();
 
         boolean falling = velocityY <= 0.0;
         double strength = new Vec3(velocityX, 0, velocityZ).length();
