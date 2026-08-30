@@ -71,35 +71,6 @@ public class GameStateManager implements InstanceManager {
         return packetOnGround && mc.player.onGround();
     }
 
-    public static float fallDist() {
-        if (mc.player == null || mc.player.onGround()) {
-            return 0.0F;
-        }
-
-        float vanillaDistance = Math.max(0.0F, mc.player.fallDistance);
-        if (vanillaDistance > 0.0F) {
-            return vanillaDistance;
-        }
-
-        double verticalVelocity = mc.player.getDeltaMovement().y;
-        int airborneTicks = GameStateManager.offGroundTicks;
-        if (verticalVelocity >= 0.0D || airborneTicks <= 0) {
-            return 0.0F;
-        }
-
-        double distance = 0.0D;
-        double previousVelocity = verticalVelocity;
-        for (int i = 0; i < airborneTicks; i++) {
-            if (previousVelocity < 0.0D) {
-                distance -= previousVelocity;
-            }
-            previousVelocity = (previousVelocity + 0.08D) / 0.98D;
-        }
-
-        return (float) Math.min(distance, Float.MAX_VALUE);
-    }
-
-
     @EventTarget
     public void onPacket(PacketEvent event) {
         if (!event.isSend()) return;

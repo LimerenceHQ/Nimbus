@@ -177,8 +177,8 @@ public final class NoFall extends BasicModule {
         }
 
         boolean enoughFallDistance = distanceMode.is("Safe Distance")
-                ? GameStateManager.fallDist()  > minecraft.player.getMaxFallDistance()
-                : GameStateManager.fallDist()  > fallDistance.getValue().doubleValue();
+                ? minecraft.player.fallDistance > minecraft.player.getMaxFallDistance()
+                : minecraft.player.fallDistance > fallDistance.getValue().doubleValue();
         return enoughFallDistance
                 && !minecraft.player.isInWater()
                 && !minecraft.player.onGround()
