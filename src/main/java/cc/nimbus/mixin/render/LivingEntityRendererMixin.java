@@ -14,6 +14,7 @@ import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -29,6 +30,9 @@ public abstract class LivingEntityRendererMixin
     @Shadow
     protected EntityModel<?> model;
 
+    @Unique
+    private LivingEntity nimbus$renderEntity;
+
     @Override
     public EntityModel<?> nimbus$getModel() {
         return model;
@@ -36,12 +40,16 @@ public abstract class LivingEntityRendererMixin
 
     @Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V", at = @At("TAIL"))
     private void nimbus$extractRotation(LivingEntity entity, LivingEntityRenderState state, float partialTick, CallbackInfo ci) {
+        nimbus$renderEntity = entity;
         EventRotationRender.currentEntity = entity;
         if (nimbus$isInventoryPreview() || entity != Minecraft.getInstance().player) return;
-        EventRotationRender event = new EventRotationRender(state.yRot, state.yRot, state.xRot, state.xRot);
+        // LivingEntityRenderState.yRot is relative to bodyRot, while the rotation event uses absolute yaw.
+        float vanillaHeadYaw = state.bodyRot + state.yRot;
+        EventRotationRender event = new EventRotationRender(vanillaHeadYaw, vanillaHeadYaw, state.xRot, state.xRot);
         EventBus.call(event);
-        state.yRot = event.getYaw();
-        state.xRot = event.getPitch();
+        float animatedYaw = Mth.rotLerp(partialTick, event.getLastYaw(), event.getYaw());
+        state.yRot = Mth.wrapDegrees(animatedYaw - state.bodyRot);
+        state.xRot = Mth.lerp(partialTick, event.getLastPitch(), event.getPitch());
     }
 
     @Unique
@@ -57,8 +65,8 @@ public abstract class LivingEntityRendererMixin
 
         ESP esp = Core.INSTANCE.getModuleManager().getModule(ESP.class);
         if (esp != null && esp.isEnabled() && esp.skeleton.getValue()) {
-            if (EventRotationRender.currentEntity != null) {
-                esp.captureSkeletonPose(EventRotationRender.currentEntity.getId(), playerModel);
+            if (nimbus$renderEntity != null) {
+                esp.captureSkeletonPose(nimbus$renderEntity.getId(), playerModel);
             }
         }
     }

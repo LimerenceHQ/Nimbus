@@ -28,6 +28,11 @@ public class GameStateManager implements InstanceManager {
     public static Vec3 eyePos = null;
 
     private static boolean packetOnGround;
+    private static Level fallDistanceLevel;
+    private static Player fallDistancePlayer;
+    private static long fallDistanceTick = Long.MIN_VALUE;
+    private static double fallDistanceY;
+    private static float trackedFallDistance;
 
     public static float getTimerSpeed() {
         return timerSpeed;
@@ -61,30 +66,49 @@ public class GameStateManager implements InstanceManager {
 
     public static float fallDist() {
         if (mc.player == null || mc.player.onGround()) {
+            resetFallDistanceTracking();
             return 0.0F;
         }
 
-        float vanillaDistance = Math.max(0.0F, mc.player.fallDistance);
-        if (vanillaDistance > 0.0F) {
-            return vanillaDistance;
+        updateFallDistanceTracking();
+        return Math.max(0.0F, Math.max(mc.player.fallDistance, trackedFallDistance));
+    }
+
+    private static void updateFallDistanceTracking() {
+        Player player = mc.player;
+        Level level = mc.level;
+        if (player == null || level == null) {
+            resetFallDistanceTracking();
+            return;
         }
 
-        double verticalVelocity = mc.player.getDeltaMovement().y;
-        int airborneTicks = GameStateManager.offGroundTicks;
-        if (verticalVelocity >= 0.0D || airborneTicks <= 0) {
-            return 0.0F;
+        long gameTime = level.getGameTime();
+        if (fallDistancePlayer != player || fallDistanceLevel != level) {
+            fallDistancePlayer = player;
+            fallDistanceLevel = level;
+            fallDistanceTick = gameTime;
+            fallDistanceY = player.getY();
+            trackedFallDistance = 0.0F;
+            return;
         }
+        if (fallDistanceTick == gameTime) return;
 
-        double distance = 0.0D;
-        double previousVelocity = verticalVelocity;
-        for (int i = 0; i < airborneTicks; i++) {
-            if (previousVelocity < 0.0D) {
-                distance -= previousVelocity;
-            }
-            previousVelocity = (previousVelocity + 0.08D) / 0.98D;
+        double deltaY = player.getY() - fallDistanceY;
+        fallDistanceY = player.getY();
+        fallDistanceTick = gameTime;
+        if (deltaY > 0.0D || player.onGround() || player.isInWater() || player.onClimbable()) {
+            trackedFallDistance = 0.0F;
+        } else if (deltaY < 0.0D) {
+            trackedFallDistance = Math.min(Float.MAX_VALUE, trackedFallDistance - (float) deltaY);
         }
+    }
 
-        return (float) Math.min(distance, Float.MAX_VALUE);
+    private static void resetFallDistanceTracking() {
+        fallDistancePlayer = null;
+        fallDistanceLevel = null;
+        fallDistanceTick = Long.MIN_VALUE;
+        fallDistanceY = 0.0D;
+        trackedFallDistance = 0.0F;
     }
 
 

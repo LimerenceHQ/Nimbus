@@ -36,7 +36,7 @@ public class EventRotationRender extends Cancelable {
     }
 
    public void setLastYaw(float yaw) {
-      this.lastPitch = yaw;
+      this.lastYaw = yaw;
    }
 
     public void setYaw(float yaw) {
