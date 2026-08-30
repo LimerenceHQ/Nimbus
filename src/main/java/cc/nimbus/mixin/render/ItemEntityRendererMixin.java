@@ -16,7 +16,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ItemEntityRenderer.class)
 public abstract class ItemEntityRendererMixin {
-    @Inject(method = "render(Lnet/minecraft/client/renderer/entity/state/ItemEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V", at = @At("HEAD"))
+    @Inject(method = "render(Lnet/minecraft/client/renderer/entity/state/ItemEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/client/renderer/entity/ItemEntityRenderer;renderMultipleFromCount(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;ILnet/minecraft/client/renderer/entity/state/ItemClusterRenderState;Lnet/minecraft/util/RandomSource;)V"))
     private void nimbus$itemPhysics(ItemEntityRenderState state, PoseStack poseStack,
                                     MultiBufferSource buffer, int packedLight,
                                     CallbackInfo ci) {
@@ -28,6 +30,7 @@ public abstract class ItemEntityRendererMixin {
 
         float vanillaSpin = ItemEntity.getSpin(state.ageInTicks, state.bobOffset);
         poseStack.mulPose(Axis.YP.rotation(-vanillaSpin));
+        poseStack.mulPose(Axis.YP.rotationDegrees(Math.floorMod(state.seed, 360)));
         poseStack.mulPose(Axis.XP.rotationDegrees(module.groundedTilt.getValue().floatValue()));
     }
 }
