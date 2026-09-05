@@ -132,10 +132,18 @@ public class Delay extends Mode<Legit> implements IMinecraft {
 
         if (Core.INSTANCE.getModuleManager().getModule(KillAura.class).attackTarget == null) return;
 
+//1
+        if (releaseTiming.isSelected("Until Landing")
+                && releaseMode.is("Release All")
+                && !mc.player.onGround()) {
+            startVelocityHandling();
+            return;
+        }
+
         bufferTicks = 0;
         state = BufferState.BUFFERING;
         holdingSprintEntityData = false;
-        Core.INSTANCE.getPacketManager().freeze(PacketDirection.INBOUND, this::shouldDelayPacket);
+        Core.INSTANCE.getPacketManager().freeze(PacketDirection.INBOUND);
     }
 
 
@@ -205,19 +213,6 @@ public class Delay extends Mode<Legit> implements IMinecraft {
 
     private void releasePackets() {
         Core.INSTANCE.getPacketManager().dispatch(PacketDirection.INBOUND);
-    }
-
-    private boolean shouldDelayPacket(Packet<?> packet) {
-        if (mc.player == null) {
-            return false;
-        }
-
-        if (packet instanceof ClientboundSetEntityMotionPacket motionPacket) {
-            return motionPacket.getId() == mc.player.getId();
-        }
-
-        return packet instanceof ClientboundSetEntityDataPacket entityDataPacket
-                && entityDataPacket.id() == mc.player.getId();
     }
 
     private void resetBuffer() {
