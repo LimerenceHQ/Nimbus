@@ -28,6 +28,7 @@ import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
 import cc.nimbus.ui.clickgui.tool.music.MusicDataState;
 import cc.nimbus.ui.clickgui.tool.music.coverflow.CoverFlowLayout;
 import cc.nimbus.ui.clickgui.tool.music.coverflow.CoverFlowState;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import io.github.humbleui.skija.FilterTileMode;
 import io.github.humbleui.skija.Image;
@@ -2484,7 +2485,7 @@ public final class MusicTool implements ToolPage {
         messageUntil = System.currentTimeMillis() + 2800L;
     }
 
-    private void drawMarquee(UiContext context, String font, float size, String text, UiRect bounds, int color) {
+    private void drawMarquee(UiContext context, FontSpec font, float size, String text, UiRect bounds, int color) {
         float textWidth = context.width(font, size, text);
         if (textWidth <= bounds.width()) {
             context.draw(font, size, text, bounds.x(), bounds.y(), color);
@@ -2578,7 +2579,7 @@ public final class MusicTool implements ToolPage {
             case INTELLIGENCE -> ClickGuiIcons.SPARKLES;
         };
     }
-    private static List<String> wrap(UiContext context, String font, float size, String value,
+    private static List<String> wrap(UiContext context, FontSpec font, float size, String value,
                                      float width, int maximumLines) {
         if (value == null || value.isBlank() || maximumLines <= 0) return List.of();
         List<String> result = new ArrayList<>();
@@ -2612,7 +2613,7 @@ public final class MusicTool implements ToolPage {
     private static String ellipsize(UiContext context, String value, float width) {
         return ellipsizeFont(context, UiContext.FONT, 10f, value, width);
     }
-    private static float fitTextSize(UiContext context, String font, float preferred, float minimum,
+    private static float fitTextSize(UiContext context, FontSpec font, float preferred, float minimum,
                                      String value, float width) {
         if (value == null || value.isEmpty() || context.width(font, preferred, value) <= width) return preferred;
         float minimumWidth = context.width(font, minimum, value);
@@ -2626,7 +2627,7 @@ public final class MusicTool implements ToolPage {
         }
         return low;
     }
-    private static String ellipsizeFont(UiContext context, String font, float size, String value, float width) {
+    private static String ellipsizeFont(UiContext context, FontSpec font, float size, String value, float width) {
         if (value == null) return "";
         if (context.width(font, size, value) <= width) return value;
         String result = value;
@@ -2635,7 +2636,7 @@ public final class MusicTool implements ToolPage {
         }
         return result + "...";
     }
-    private static void drawCenteredY(UiContext context, String font, float size, String value,
+    private static void drawCenteredY(UiContext context, FontSpec font, float size, String value,
                                       float x, float y, float height, int color) {
         context.draw(font, size, value, x, y + (height - context.height(font, size, value)) * .5f, color);
     }

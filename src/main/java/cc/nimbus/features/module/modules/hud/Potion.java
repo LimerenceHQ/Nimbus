@@ -11,6 +11,7 @@ import cc.nimbus.features.hud.HudViewport;
 import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
@@ -39,8 +40,8 @@ import java.util.Set;
         category = ModuleCategory.HUD
 )
 public final class Potion extends BasicModule {
-    private static final String FONT = NimbusFonts.BODY_MEDIUM;
-    private static final String TIME_FONT = NimbusFonts.BODY_MEDIUM;
+    private static final FontSpec FONT = NimbusFonts.BODY_MEDIUM;
+    private static final FontSpec TIME_FONT = NimbusFonts.BODY_MEDIUM;
     private static final float MAX_WIDTH = 230f;
     private static final float ROW_HEIGHT = 19f;
     private static final float ICON_SIZE = 18f;
@@ -223,7 +224,7 @@ public final class Potion extends BasicModule {
         return width;
     }
 
-    private static String ellipsize(SkijaFrame frame, String value, String font, float size, float width) {
+    private static String ellipsize(SkijaFrame frame, String value, FontSpec font, float size, float width) {
         if (frame.text().width(font, size, value) <= width) return value;
         String result = value;
         while (result.length() > 1 && frame.text().width(font, size, result + "…") > width) {

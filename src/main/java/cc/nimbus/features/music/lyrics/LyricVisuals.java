@@ -1,6 +1,7 @@
 package cc.nimbus.features.music.lyrics;
 
 import cc.nimbus.features.client.ClientSettings;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.types.Point;
@@ -29,7 +30,7 @@ public final class LyricVisuals {
     private LyricVisuals() {}
 
     public static void draw(
-            SkijaFrame frame, ClientSettings theme, String family, float size, String text,
+            SkijaFrame frame, ClientSettings theme, FontSpec family, float size, String text,
             float x, float y, WordLine words, int timeMs, int baseColor,
             float opacity, float highlight, long colorTime, ProgressStyle style
     ) {
@@ -44,7 +45,7 @@ public final class LyricVisuals {
     }
 
     public static void drawFlowing(
-            SkijaFrame frame, ClientSettings theme, String family, float size, String text,
+            SkijaFrame frame, ClientSettings theme, FontSpec family, float size, String text,
             float x, float y, int baseColor, float opacity, float highlight, long colorTime
     ) {
         if (text == null || text.isEmpty() || opacity <= .001f) return;
@@ -55,7 +56,7 @@ public final class LyricVisuals {
     }
 
     private static void drawGradient(
-            SkijaFrame frame, ClientSettings theme, String family, float size, String text,
+            SkijaFrame frame, ClientSettings theme, FontSpec family, float size, String text,
             float x, float y, float textWidth, float completion, int baseColor,
             float opacity, float highlight, long colorTime, ProgressStyle style
     ) {
@@ -100,7 +101,7 @@ public final class LyricVisuals {
     }
 
     private static float progressWidth(
-            SkijaFrame frame, String family, float size, String text, WordLine line,
+            SkijaFrame frame, FontSpec family, float size, String text, WordLine line,
             int timeMs, ProgressStyle style
     ) {
         WordGeometry geometry = wordGeometry(frame, family, text, line);
@@ -131,7 +132,7 @@ public final class LyricVisuals {
     }
 
     private static synchronized WordGeometry wordGeometry(
-            SkijaFrame frame, String family, String text, WordLine line
+            SkijaFrame frame, FontSpec family, String text, WordLine line
     ) {
         WordLayoutKey key = new WordLayoutKey(family, text, line);
         WordGeometry cached = WORD_LAYOUTS.get(key);
@@ -174,11 +175,11 @@ public final class LyricVisuals {
     }
 
     private static final class WordLayoutKey {
-        private final String family;
+        private final FontSpec family;
         private final String text;
         private final WordLine line;
 
-        private WordLayoutKey(String family, String text, WordLine line) {
+        private WordLayoutKey(FontSpec family, String text, WordLine line) {
             this.family = family;
             this.text = text;
             this.line = line;

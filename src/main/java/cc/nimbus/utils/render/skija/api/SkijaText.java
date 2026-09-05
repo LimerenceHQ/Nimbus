@@ -1,5 +1,6 @@
 package cc.nimbus.utils.render.skija.api;
 
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.skija.internal.text.FontFamily;
 import cc.nimbus.utils.render.skija.internal.text.TextFactory;
 import cc.nimbus.utils.render.skija.internal.text.TextLayout;
@@ -13,87 +14,87 @@ public final class SkijaText {
         this.canvas = canvas;
     }
 
-    public float width(String family, float size, String text) {
-        return TextFactory.getTextWidth(family, size, normalize(text));
+    public float width(FontSpec font, float size, String text) {
+        return TextFactory.getTextWidth(font, size, normalize(text));
     }
 
-    public float height(String family, float size) {
-        return TextFactory.getTextHeight(family, size);
+    public float height(FontSpec font, float size) {
+        return TextFactory.getTextHeight(font, size);
     }
 
-    public float height(String family, float size, String text) {
-        return TextFactory.getTextHeight(family, size, normalize(text));
+    public float height(FontSpec font, float size, String text) {
+        return TextFactory.getTextHeight(font, size, normalize(text));
     }
 
-    public float visualLeft(String family, float size, String text) {
-        return TextFactory.getTextVisualLeft(family, size, normalize(text));
+    public float visualLeft(FontSpec font, float size, String text) {
+        return TextFactory.getTextVisualLeft(font, size, normalize(text));
     }
 
-    public float visualRight(String family, float size, String text) {
-        return TextFactory.getTextVisualRight(family, size, normalize(text));
+    public float visualRight(FontSpec font, float size, String text) {
+        return TextFactory.getTextVisualRight(font, size, normalize(text));
     }
 
-    public float visualCenterY(String family, float size, String text) {
-        return TextFactory.getTextVisualCenterY(family, size, normalize(text));
+    public float visualCenterY(FontSpec font, float size, String text) {
+        return TextFactory.getTextVisualCenterY(font, size, normalize(text));
     }
 
-    public float baselineFromTop(String family, float size, String text, float top) {
-        return top + TextFactory.getTextBaseline(family, size, normalize(text));
+    public float baselineFromTop(FontSpec font, float size, String text, float top) {
+        return top + TextFactory.getTextBaseline(font, size, normalize(text));
     }
 
-    public void draw(String family, float size, String text, float x, float y, int color) {
+    public void draw(FontSpec font, float size, String text, float x, float y, int color) {
         try (Paint paint = paint(color)) {
-            TextFactory.drawText(canvas, family, size, normalize(text), x, y, paint);
+            TextFactory.drawText(canvas, font, size, normalize(text), x, y, paint);
         }
     }
 
-    public void draw(String family, float size, String text, float x, float y, Paint paint) {
-        TextFactory.drawText(canvas, family, size, normalize(text), x, y, paint);
+    public void draw(FontSpec font, float size, String text, float x, float y, Paint paint) {
+        TextFactory.drawText(canvas, font, size, normalize(text), x, y, paint);
     }
 
-    public void drawAtBaseline(String family, float size, String text,
+    public void drawAtBaseline(FontSpec font, float size, String text,
                                float x, float baseline, Paint paint) {
-        TextFactory.drawTextAtBaseline(canvas, family, size, normalize(text), x, baseline, paint);
+        TextFactory.drawTextAtBaseline(canvas, font, size, normalize(text), x, baseline, paint);
     }
 
-    public void drawWithShadow(String family, float size, String text, float x, float y, int color) {
+    public void drawWithShadow(FontSpec font, float size, String text, float x, float y, int color) {
         try (Paint paint = paint(color)) {
-            TextFactory.drawTextWithShadow(canvas, family, size, normalize(text), x, y, paint);
+            TextFactory.drawTextWithShadow(canvas, font, size, normalize(text), x, y, paint);
         }
     }
 
-    public void drawWithShadow(String family, float size, String text, float x, float y, Paint paint) {
-        TextFactory.drawTextWithShadow(canvas, family, size, normalize(text), x, y, paint);
+    public void drawWithShadow(FontSpec font, float size, String text, float x, float y, Paint paint) {
+        TextFactory.drawTextWithShadow(canvas, font, size, normalize(text), x, y, paint);
     }
 
-    public void center(String family, float size, String text, float centerX, float y, int color) {
+    public void center(FontSpec font, float size, String text, float centerX, float y, int color) {
         try (Paint paint = paint(color)) {
-            TextFactory.drawCenteredText(canvas, family, size, normalize(text), centerX, y, paint);
+            TextFactory.drawCenteredText(canvas, font, size, normalize(text), centerX, y, paint);
         }
     }
 
-    public void center(String family, float size, String text, float centerX, float y, Paint paint) {
-        TextFactory.drawCenteredText(canvas, family, size, normalize(text), centerX, y, paint);
+    public void center(FontSpec font, float size, String text, float centerX, float y, Paint paint) {
+        TextFactory.drawCenteredText(canvas, font, size, normalize(text), centerX, y, paint);
     }
 
-    public void leftY(String family, float size, String text, float x, float y, float height, Paint paint) {
+    public void leftY(FontSpec fontSpec, float size, String text, float x, float y, float height, Paint paint) {
         text = normalize(text);
-        var font = FontFamily.getCachedFont(family, size);
+        var font = FontFamily.getCachedFont(fontSpec, size);
         canvas.drawString(text, x, TextLayout.baselineInBox(font, y, height), font, paint);
     }
 
-    public void box(String family, float size, String text, float x, float y, float width, float height, Paint paint) {
+    public void box(FontSpec fontSpec, float size, String text, float x, float y, float width, float height, Paint paint) {
         text = normalize(text);
-        var font = FontFamily.getCachedFont(family, size);
+        var font = FontFamily.getCachedFont(fontSpec, size);
         canvas.drawString(text,
                 x + (width - font.measureTextWidth(text)) / 2f,
                 TextLayout.baselineInBox(font, y, height),
                 font, paint);
     }
 
-    public void centerWithShadow(String family, float size, String text, float centerX, float y, int color) {
+    public void centerWithShadow(FontSpec font, float size, String text, float centerX, float y, int color) {
         try (Paint paint = paint(color)) {
-            TextFactory.drawCenteredTextWithShadow(canvas, family, size, normalize(text), centerX, y, paint);
+            TextFactory.drawCenteredTextWithShadow(canvas, font, size, normalize(text), centerX, y, paint);
         }
     }
 

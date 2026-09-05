@@ -15,6 +15,7 @@ import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.features.module.api.setting.impl.submodule.ModeValue;
 import cc.nimbus.features.module.api.setting.impl.TextSetting;
 import cc.nimbus.utils.render.Render2DUtils;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import io.github.humbleui.skija.Paint;
@@ -28,8 +29,8 @@ import io.github.humbleui.types.RRect;
         enableOnStartUp = true
 )
 public final class WaterMark extends BasicModule {
-    private static final String FONT = NimbusFonts.DISPLAY;
-    private static final float FONT_SIZE = 16f;
+    private static final FontSpec FONT = NimbusFonts.DISPLAY;
+    private static final float FONT_SIZE = 15f;
     private static final float HEIGHT = 34f;
     private static final float LOGO_SIZE = 44f;
     private static final float COMPACT_LOGO_SIZE = 24f;

@@ -14,6 +14,7 @@ import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.ColorSetting;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import io.github.humbleui.skija.ClipMode;
@@ -40,7 +41,7 @@ import java.util.Set;
         enableOnStartUp = true
 )
 public final class ActiveList extends BasicModule {
-    private static final String FONT = NimbusFonts.BODY_MEDIUM;
+    private static final FontSpec FONT = NimbusFonts.BODY_MEDIUM;
     private static final float FONT_SIZE = 15f;
     private static final float ROW_HEIGHT = 25f;
     private static final float PADDING_X = 8f;

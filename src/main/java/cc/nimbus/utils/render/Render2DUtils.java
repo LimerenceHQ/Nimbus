@@ -1,5 +1,6 @@
 package cc.nimbus.utils.render;
 
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Paint;
@@ -16,7 +17,7 @@ import java.util.List;
 import java.util.Objects;
 
 public final class Render2DUtils {
-    private static final String ESP_EFFECT_FONT = NimbusFonts.BODY_MEDIUM;
+    private static final FontSpec ESP_EFFECT_FONT = NimbusFonts.BODY_MEDIUM;
     private static final float ESP_EFFECT_SIZE = 11f;
     private static final float ESP_EQUIPMENT_SIZE = 8f;
     private static final float ESP_EQUIPMENT_GAP = 1.5f;

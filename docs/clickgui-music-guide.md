@@ -54,11 +54,15 @@ Config 的选择操作不隐式加载。Load、Save、Create、Delete 与 Open F
 
 ## 5. 字体
 
-UI 使用 `NimbusFonts` 语义角色：
+UI 优先使用 `NimbusFonts` 的语义角色，统一维护用途、字体族和默认字重：
 
-- `DISPLAY`：品牌和窗口标题。
-- `BODY` / `BODY_MEDIUM` / `BODY_STRONG`：Module、Setting、按钮和数字。
-- `CONTENT` / `CONTENT_MEDIUM`：歌曲、歌手、专辑与歌词。
+- `DISPLAY`：品牌和窗口标题，默认 Geist 600。
+- `BODY` / `BODY_MEDIUM` / `BODY_STRONG`：Module、Setting、按钮和数字，默认 Inter 400 / 500 / 600。
+- `CONTENT` / `CONTENT_MEDIUM`：歌曲、歌手、专辑与歌词，默认 Noto Sans SC 400 / 500。
+
+例如 `frame.text().draw(NimbusFonts.BODY, 15f, text, x, y, color)` 使用正文角色的默认字重，而 `NimbusFonts.DISPLAY` 默认就是 600。不调用 `.weight(...)` 表示保留角色预设，并非统一使用 400；`NimbusFonts.DISPLAY.weight(700f)` 返回临时加粗配置，不修改角色的默认值。
+
+基础入口 `NimbusFonts.GEIST`、`NimbusFonts.INTER`、`NimbusFonts.NOTO_SANS_SC` 仍可直接使用，默认字重均为 400，适用于明确指定字体族的特殊需求。两层配置共用同样的三个可变字体文件。`.weight(...)` 支持 `100–900` 范围内的中间值；字号仍作为绘制和测量方法的第二个参数传入。固定配置可缓存为 `static final FontSpec`。
 
 中英文混排由 `TextFactory` 自动分 run。宽度测量、绘制、输入光标和选区必须使用同一 Skija 文本测量入口，不能用 Minecraft 字体宽度校正 Skija 文本。
 

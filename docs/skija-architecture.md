@@ -11,7 +11,7 @@
 > 禁止将 Minecraft 管理的颜色纹理直接挂载到原始 OpenGL framebuffer，也不得增加第二次全屏复制。
 > 文本布局拥有有界的字形 Blob 缓存；缓存项被淘汰或渲染器关闭时，必须同步释放对应资源。
 
-最后同步：2026-08-07。
+最后同步：2026-09-05。
 
 本文档是 Nimbus 自定义 Skija 子系统的架构说明、使用手册和 AI 修改约束。
 
@@ -374,42 +374,65 @@ public final class ExampleScreen extends AbstractSkijaScreen {
 
 ### 9.1 已注册字体
 
-当前 `FontFamily` 注册：
+当前 `FontFamily` 只注册三份可变字体资源：
 
-- `Geist-SemiBold`
-- `Inter-Regular`
-- `Inter-Medium`
-- `Inter-SemiBold`
-- `NotoSans-Regular`
-- `NotoSans-Medium`
-- `NotoSansCJKsc-Regular`
-- `NotoSansCJKsc-Medium`
+- `Geist-VariableFont_wght.ttf`，入口为 `NimbusFonts.GEIST`。
+- `Inter-VariableFont_opsz,wght.ttf`，入口为 `NimbusFonts.INTER`。
+- `NotoSansSC-VariableFont_wght.ttf`，入口为 `NimbusFonts.NOTO_SANS_SC`。
 
-业务代码优先使用 `cc.nimbus.utils.render.font.NimbusFonts` 的语义角色，不散落 family 字符串。Geist 用于品牌和窗口标题，Inter 用于控件、Module 和数字，Noto Sans 用于音乐内容；每个拉丁字体角色都注册了匹配字重的 Noto Sans CJK SC fallback。
+`cc.nimbus.utils.render.font.NimbusFonts` 提供两层不可变的 `FontSpec` 配置：
 
-`TextFactory` 按 Unicode code point 选择字体 run。测量与绘制使用同一份有界布局缓存，因此混合文本的 advance、居中、选区和光标不能各自实现另一套宽度算法。缓存只保存 Java 布局数据，Font 和 Typeface 仍由字体子系统统一拥有。
+- 基础字体：`GEIST`、`INTER`、`NOTO_SANS_SC`，默认字重统一为 `400`（Regular），用于明确指定字体族的特殊需求。
+- 语义角色：日常 UI 优先按用途选用下表的角色，字体族和默认字重集中定义在 `NimbusFonts` 中，避免各界面重复写同一组配置。
 
-字体名称必须完全匹配。未注册字体会立即抛出异常，不会静默回退到系统字体。
+| 角色 | 基础字体 | 默认字重 | 用途 |
+| --- | --- | --- | --- |
+| `DISPLAY` | `GEIST` | 600 | 品牌和窗口标题 |
+| `BODY` | `INTER` | 400 | 控件、Module 和正文 |
+| `BODY_MEDIUM` | `INTER` | 500 | 中等强调的控件文字和数字 |
+| `BODY_STRONG` | `INTER` | 600 | 更强强调的控件文字和数字 |
+| `CONTENT` | `NOTO_SANS_SC` | 400 | 歌曲、歌手和专辑信息 |
+| `CONTENT_MEDIUM` | `NOTO_SANS_SC` | 500 | 音乐标题和歌词 |
+
+不调用 `.weight(...)` 时，使用所选配置自身的默认字重，并非所有角色都是 `400`。角色只是基础字体配置的别名，不绑定静态字体文件，也不增加字体资源：
+
+```java
+frame.text().draw(NimbusFonts.BODY, 15f, "正文", x, y, 0xFFFFFFFF);
+
+FontSpec titleFont = NimbusFonts.DISPLAY;
+float width = frame.text().width(titleFont, 15f, "Nimbus 中文");
+frame.text().draw(titleFont, 15f, "Nimbus 中文", x, y, 0xFFFFFFFF);
+```
+
+需要临时覆盖字重时可使用 `NimbusFonts.DISPLAY.weight(700f)` 或 `NimbusFonts.INTER.weight(475f)`。`.weight(...)` 返回不可变配置，不会修改原角色或基础字体。字重表示粗细，必须是 `100–900` 之间的有限数值；字号表示文字大小，仍由绘制和测量方法的第二个参数指定，不能把 `15f` 这样的字号传给 `.weight(...)`。测量和绘制必须使用同一份字体配置和字号。固定配置可保存为业务类的 `static final FontSpec`，无需持有任何 native 资源。
+
+Geist 用于品牌和窗口标题，Inter 用于控件、Module 和数字，Noto Sans SC 用于音乐内容。Geist 和 Inter 遇到主字体不支持的字符时自动回退到 Noto Sans SC，并沿用同一个 `wght` 值；业务代码无需手动切换字体族。Noto Sans SC 文件的默认轴值为 `100`，但 `NimbusFonts.NOTO_SANS_SC` 使用统一的业务默认值 `400`，不依赖文件自身的默认字重。
+
+`FontFamily` 使用 Skija 的 `FontVariation("wght", weight)` 为每个 `FontSpec` 创建变体 Typeface，并按 family、字重和字号缓存。业务代码不需要关心 Typeface 或 native Font 的生命周期。
+
+`TextFactory` 按 Unicode code point 选择字体 run。测量与绘制使用同一份有界布局缓存，因此混合文本的 advance、居中、选区和光标不能各自实现另一套宽度算法。缓存保存 Java 布局数据和字形 Blob，淘汰或关闭时释放 Blob；Font 和 Typeface 仍由字体子系统统一拥有。
+
+`FontSpec.family()` 返回类型安全的 `FontFace` 枚举，业务层不接受任意字体名称字符串。内部未注册字体会立即抛出异常，不会静默回退到系统字体。
 
 字体资源缺失、字体文件无法解析或 family 重复注册会在字体子系统初始化时直接失败，并在异常中保留资源路径和 family。字号必须是有限正数。Renderer shutdown 会关闭 Font 缓存、Typeface、`TypefaceFontProvider`、`FontCollection` 和文本阴影 Paint。
 
 ### 9.2 坐标语义
 
 ```java
-frame.text().draw(family, size, text, x, y, color);
-frame.text().center(family, size, text, centerX, y, color);
+frame.text().draw(font, size, text, x, y, color);
+frame.text().center(font, size, text, centerX, y, color);
 ```
 
 `draw` 和 `center` 的 `y` 表示文本布局顶部。内部使用 `FontMetrics.ascent` 计算 baseline。
 
 ```java
-frame.text().leftY(family, size, text, x, y, height, paint);
+frame.text().leftY(font, size, text, x, y, height, paint);
 ```
 
 表示左对齐，并在 `[y, y + height]` 中垂直居中。
 
 ```java
-frame.text().box(family, size, text, x, y, width, height, paint);
+frame.text().box(font, size, text, x, y, width, height, paint);
 ```
 
 表示在指定矩形中水平和垂直居中。
@@ -417,14 +440,14 @@ frame.text().box(family, size, text, x, y, width, height, paint);
 Frame 外只测量时使用：
 
 ```java
-float width = skija.text().width(family, size, text);
-float height = skija.text().height(family, size);
-float visualLeft = skija.text().visualLeft(family, size, text);
-float visualRight = skija.text().visualRight(family, size, text);
-float visualCenterY = skija.text().visualCenterY(family, size, text);
+float width = skija.text().width(font, size, text);
+float height = skija.text().height(font, size);
+float visualLeft = skija.text().visualLeft(font, size, text);
+float visualRight = skija.text().visualRight(font, size, text);
+float visualCenterY = skija.text().visualCenterY(font, size, text);
 ```
 
-所有公开文本绘制和测量方法都将 `null` 文本视为空字符串；family 名称和字号错误仍会立即抛出异常。
+所有公开文本绘制和测量方法都将 `null` 文本视为空字符串；字体族不能为空，字重和字号不合法时仍会立即抛出异常。
 
 不要通过 `measureText()` 的单个字符串视觉 bounds 调整每次绘制的 baseline，否则不同文本会产生垂直像素相位变化。
 
@@ -456,7 +479,7 @@ Windows 字体预览使用 DirectWrite/ClearType，与当前 Skija 的 subpixel 
 
 ```java
 frame.draw().rect(x, y, w, h, 0xFFFFFFFF);
-frame.text().draw(FONT, 16, text, x, y, 0xFFFFFFFF);
+frame.text().draw(NimbusFonts.BODY, 16, text, x, y, 0xFFFFFFFF);
 ```
 
 若调用方传入 Paint，调用方拥有它：

@@ -12,6 +12,7 @@ import cc.nimbus.features.module.modules.player.AntiBot;
 import cc.nimbus.features.module.modules.player.Friend;
 import cc.nimbus.utils.render.Render3DUtils;
 import cc.nimbus.utils.render.PlayerProjectionCache;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
@@ -30,8 +31,8 @@ import java.util.Map;
 
 @ModuleInfo(name = "Nametag", description = "Shows player IDs and distance above players.", category = ModuleCategory.Render)
 public final class Nametag extends BasicModule {
-    private static final String NAME_FONT = NimbusFonts.BODY_STRONG;
-    private static final String META_FONT = NimbusFonts.BODY_MEDIUM;
+    private static final FontSpec NAME_FONT = NimbusFonts.BODY_STRONG;
+    private static final FontSpec META_FONT = NimbusFonts.BODY_MEDIUM;
     private static final float NAME_SIZE = 15f;
     private static final float META_SIZE = 11.5f;
     private static final float HEIGHT = 42f;

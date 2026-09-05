@@ -1,5 +1,7 @@
 package cc.nimbus.utils.render.skija.internal.text;
 
+import cc.nimbus.utils.render.font.FontFace;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.skija.internal.resource.ResourceDataCache;
 import io.github.humbleui.skija.*;
 import io.github.humbleui.skija.paragraph.FontCollection;
@@ -17,8 +19,10 @@ public final class FontFamily {
     }
 
     @ApiStatus.Internal
-    private static final Map<String, Typeface> TYPEFACE_CACHE = new ConcurrentHashMap<>();
-    private static final Map<String, String> FALLBACKS = new ConcurrentHashMap<>();
+    private static final Map<FontFace, Typeface> TYPEFACE_CACHE = new ConcurrentHashMap<>();
+    private static final Map<FontFace, FontFace> FALLBACKS = new ConcurrentHashMap<>();
+    private static final Map<VariantKey, Typeface> VARIANT_TYPEFACE_CACHE =
+            new LinkedHashMap<>(64, 0.75f, true);
 
     @ApiStatus.Internal
     private static final int MAX_FONTS = 256;
@@ -32,12 +36,11 @@ public final class FontFamily {
         ensureOpen();
     }
 
-    public static synchronized void registerTypeface(String fontPath, String familyName) {
+    public static synchronized void registerTypeface(String fontPath, FontFace familyName) {
         ensureOpen();
         Objects.requireNonNull(fontPath, "fontPath");
         Objects.requireNonNull(familyName, "familyName");
         if (fontPath.isBlank()) throw new IllegalArgumentException("fontPath cannot be blank");
-        if (familyName.isBlank()) throw new IllegalArgumentException("familyName cannot be blank");
         if (TYPEFACE_CACHE.containsKey(familyName)) {
             throw new IllegalStateException("Font family is already registered: " + familyName);
         }
@@ -52,7 +55,7 @@ public final class FontFamily {
             throw new IllegalStateException("Skija rejected font resource " + fontPath + " for family " + familyName);
         }
         try {
-            FONT_PROVIDER.registerTypeface(typeface, familyName);
+            FONT_PROVIDER.registerTypeface(typeface, familyName.name());
             TYPEFACE_CACHE.put(familyName, typeface);
         } catch (RuntimeException error) {
             if (!typeface.isClosed()) typeface.close();
@@ -60,7 +63,7 @@ public final class FontFamily {
         }
     }
 
-    public static @NotNull Typeface getTypeface(String familyName) {
+    static @NotNull Typeface getTypeface(FontFace familyName) {
         ensureOpen();
         Objects.requireNonNull(familyName, "familyName");
         Typeface tf = TYPEFACE_CACHE.get(familyName);
@@ -69,16 +72,21 @@ public final class FontFamily {
         return tf;
     }
 
-    public static synchronized Font getCachedFont(String familyName, float size) {
+    public static synchronized Font getCachedFont(FontSpec fontSpec, float size) {
+        Objects.requireNonNull(fontSpec, "fontSpec");
         if (!Float.isFinite(size) || size <= 0f) {
             throw new IllegalArgumentException("Font size must be finite and positive: " + size);
         }
-        Typeface tf = getTypeface(familyName);
-        FontKey key = new FontKey(tf, size);
+        FontKey key = new FontKey(fontSpec, Float.floatToIntBits(size));
         Font cached = FONT_CACHE.get(key);
         if (cached != null && !cached.isClosed()) return cached;
+        if (cached != null) {
+            FONT_CACHE.remove(key);
+            closeManaged(null, cached);
+            releaseUnusedVariant(variantKey(key.fontSpec()));
+        }
 
-        Font font = new Font(tf, size);
+        Font font = new Font(getVariantTypeface(fontSpec), size);
         font.setSubpixel(true);
 
         font.setMetricsLinear(true);
@@ -91,19 +99,21 @@ public final class FontFamily {
             Map.Entry<FontKey, Font> eldest = FONT_CACHE.entrySet().iterator().next();
             FONT_CACHE.remove(eldest.getKey());
             if (!eldest.getValue().isClosed()) eldest.getValue().close();
+            releaseUnusedVariant(variantKey(eldest.getKey().fontSpec()));
         }
         return font;
     }
 
-    public static synchronized void registerFallback(String familyName, String fallbackFamily) {
+    public static synchronized void registerFallback(FontFace familyName, FontFace fallbackFamily) {
         ensureOpen();
         getTypeface(familyName);
         getTypeface(fallbackFamily);
         FALLBACKS.put(familyName, fallbackFamily);
     }
 
-    public static String fallbackFamily(String familyName) {
-        return FALLBACKS.get(familyName);
+    public static FontSpec fallback(FontSpec fontSpec) {
+        FontFace fallback = FALLBACKS.get(fontSpec.family());
+        return fallback == null ? null : new FontSpec(fallback, fontSpec.weight());
     }
 
     public static synchronized void close() {
@@ -115,6 +125,10 @@ public final class FontFamily {
             failure = closeManaged(failure, font);
         }
         FONT_CACHE.clear();
+        for (Typeface typeface : VARIANT_TYPEFACE_CACHE.values()) {
+            if (!isBaseTypeface(typeface)) failure = closeManaged(failure, typeface);
+        }
+        VARIANT_TYPEFACE_CACHE.clear();
         failure = closeManaged(failure, FONT_COLLECTION);
         failure = closeManaged(failure, FONT_PROVIDER);
         for (Typeface typeface : TYPEFACE_CACHE.values()) {
@@ -139,45 +153,49 @@ public final class FontFamily {
         return failure;
     }
 
-    private static class FontKey {
-        public final Typeface typeface;
-        public final int sizeBits;
+    private static synchronized Typeface getVariantTypeface(FontSpec fontSpec) {
+        VariantKey key = new VariantKey(fontSpec.family(), Float.floatToIntBits(fontSpec.weight()));
+        Typeface cached = VARIANT_TYPEFACE_CACHE.get(key);
+        if (cached != null && !cached.isClosed()) return cached;
 
-        public FontKey(Typeface tf, float size) {
-            this.typeface = tf;
-            this.sizeBits = Float.floatToIntBits(size);
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * System.identityHashCode(typeface) + sizeBits;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (!(o instanceof FontKey k)) return false;
-            return k.typeface == typeface && k.sizeBits == sizeBits;
-        }
+        Typeface base = getTypeface(fontSpec.family());
+        Typeface variant = base.makeClone(new FontVariation("wght", fontSpec.weight()));
+        VARIANT_TYPEFACE_CACHE.put(key, variant);
+        return variant;
     }
+
+    private static VariantKey variantKey(FontSpec fontSpec) {
+        return new VariantKey(fontSpec.family(), Float.floatToIntBits(fontSpec.weight()));
+    }
+
+    private static void releaseUnusedVariant(VariantKey key) {
+        for (FontKey fontKey : FONT_CACHE.keySet()) {
+            if (variantKey(fontKey.fontSpec()).equals(key)) return;
+        }
+        Typeface typeface = VARIANT_TYPEFACE_CACHE.remove(key);
+        if (typeface != null && !isBaseTypeface(typeface)) closeManaged(null, typeface);
+    }
+
+    private static boolean isBaseTypeface(Typeface candidate) {
+        for (Typeface base : TYPEFACE_CACHE.values()) {
+            if (base == candidate) return true;
+        }
+        return false;
+    }
+
+    private record FontKey(FontSpec fontSpec, int sizeBits) {}
+
+    private record VariantKey(FontFace family, int weightBits) {}
 
     static {
         FONT_COLLECTION.setDefaultFontManager(FontMgr.getDefault());
         FONT_COLLECTION.setAssetFontManager(FONT_PROVIDER);
 
-        registerTypeface("assets/nimbus/fonts/Geist-SemiBold.ttf", "Geist-SemiBold");
-        registerTypeface("assets/nimbus/fonts/Inter_18pt-Regular.ttf", "Inter-Regular");
-        registerTypeface("assets/nimbus/fonts/Inter_18pt-Medium.ttf", "Inter-Medium");
-        registerTypeface("assets/nimbus/fonts/Inter_18pt-SemiBold.ttf", "Inter-SemiBold");
-        registerTypeface("assets/nimbus/fonts/NotoSans-Regular.ttf", "NotoSans-Regular");
-        registerTypeface("assets/nimbus/fonts/NotoSans-Medium.ttf", "NotoSans-Medium");
-        registerTypeface("assets/nimbus/fonts/NotoSansCJKsc-Regular.otf", "NotoSansCJKsc-Regular");
-        registerTypeface("assets/nimbus/fonts/NotoSansCJKsc-Medium.otf", "NotoSansCJKsc-Medium");
+        registerTypeface("assets/nimbus/fonts/Geist-VariableFont_wght.ttf", FontFace.GEIST);
+        registerTypeface("assets/nimbus/fonts/Inter-VariableFont_opsz,wght.ttf", FontFace.INTER);
+        registerTypeface("assets/nimbus/fonts/NotoSansSC-VariableFont_wght.ttf", FontFace.NOTO_SANS_SC);
 
-        registerFallback("Geist-SemiBold", "NotoSansCJKsc-Medium");
-        registerFallback("Inter-Regular", "NotoSansCJKsc-Regular");
-        registerFallback("Inter-Medium", "NotoSansCJKsc-Medium");
-        registerFallback("Inter-SemiBold", "NotoSansCJKsc-Medium");
-        registerFallback("NotoSans-Regular", "NotoSansCJKsc-Regular");
-        registerFallback("NotoSans-Medium", "NotoSansCJKsc-Medium");
+        registerFallback(FontFace.GEIST, FontFace.NOTO_SANS_SC);
+        registerFallback(FontFace.INTER, FontFace.NOTO_SANS_SC);
     }
 }
