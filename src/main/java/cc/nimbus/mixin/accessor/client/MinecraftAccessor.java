@@ -13,5 +13,5 @@ public interface MinecraftAccessor {
     void nimbus$setRightClickDelay(int value);
 
     @Accessor("missTime")
-    void setMissTime(int var1);
+    void nimbus$setMissTime(int value);
 }

@@ -9,27 +9,25 @@ import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.mixin.accessor.client.MinecraftAccessor;
 import cc.nimbus.mixin.accessor.player.LivingEntityAccessor;
 
-@ModuleInfo(name = "NoDelay",category = ModuleCategory.Player)
-public class NoDelay extends BasicModule {
+@ModuleInfo(
+        name = "NoDelay",
+        description = "Removes the client-side jump and attack delays.",
+        category = ModuleCategory.Player)
+public final class NoDelay extends BasicModule {
 
-    public BooleanSetting jumpDelay = new BooleanSetting("Jump Delay", true);
-    public BooleanSetting attackDelay = new BooleanSetting("Attack Delay", true);
-
-    @Override
-    public void onEnable() {
-    }
-
-    @Override
-    public void onDisable() {
-    }
+    public final BooleanSetting jumpDelay = new BooleanSetting("Jump Delay", true);
+    public final BooleanSetting attackDelay = new BooleanSetting("Attack Delay", true);
 
     @EventTarget
-    public void onTick(EventTick event) {
-        if (!event.isPre()) return;
-        if (mc.player == null) return;
+    private void onTick(EventTick event) {
+        if (event.getPhase() != EventTick.Phase.PRE || mc.player == null) return;
 
-        if (jumpDelay.getValue()) ((LivingEntityAccessor)mc.player).setNoJumpDelay(0);
+        if (jumpDelay.getValue()) {
+            ((LivingEntityAccessor) mc.player).setNoJumpDelay(0);
+        }
 
-        if (attackDelay.getValue()) ((MinecraftAccessor)mc).setMissTime(0);
+        if (attackDelay.getValue()) {
+            ((MinecraftAccessor) mc).nimbus$setMissTime(0);
+        }
     }
 }

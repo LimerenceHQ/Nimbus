@@ -785,6 +785,11 @@
   "nimbus.module.timer.setting.key_mode.option.mouse3": "鼠标侧键 3",
   "nimbus.module.timer.setting.key_mode.option.mouse4": "鼠标侧键 4",
 
+  "nimbus.module.no_delay.name": "无延迟",
+  "nimbus.module.no_delay.description": "移除客户端的跳跃和攻击延迟。",
+  "nimbus.module.no_delay.setting.jump_delay": "跳跃延迟",
+  "nimbus.module.no_delay.setting.attack_delay": "攻击延迟",
+
   "nimbus.module.ghost_hand.name": "穿墙交互",
   "nimbus.module.ghost_hand.description": "隔着方块使用容器。",
 
