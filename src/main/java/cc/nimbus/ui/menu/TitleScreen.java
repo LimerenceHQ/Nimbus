@@ -2,6 +2,7 @@ package cc.nimbus.ui.menu;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.ui.alt.AccountScreen;
+import cc.nimbus.ui.proxy.ProxyScreen;
 import cc.nimbus.ui.screen.AbstractSkijaScreen;
 import cc.nimbus.utils.render.skija.api.PostProcessOptions;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
@@ -42,13 +43,14 @@ public class TitleScreen extends AbstractSkijaScreen {
         try (Paint paint = new Paint().setAntiAlias(true)) {
             float scale = Math.min(1F, Math.min(width / 1100F, height / 700F));
             float center = width * .5F;
-            float top = height * .5F - 145F * scale;
+            float top = height * .5F - 170F * scale;
             frame.text().center(NimbusFonts.DISPLAY, 46, "Nimbus", center, top + 26F * scale, 0xFFFFFFFF);
             String[] labels = {
                     tr("nimbus.menu.singleplayer", "Singleplayer"),
                     tr("nimbus.menu.multiplayer", "Multiplayer"),
                     tr("nimbus.menu.alt_manager", "Alt Manager"),
-                    tr("nimbus.menu.settings", "Settings")
+                    tr("nimbus.menu.settings", "Settings"),
+                    tr("nimbus.menu.proxy", "Proxy / 连接 A")
             };
             for (int i = 0; i < labels.length; i++) {
                 float x = center - BUTTON_WIDTH * scale / 2F;
@@ -90,11 +92,11 @@ public class TitleScreen extends AbstractSkijaScreen {
         int renderWidth = minecraft.getWindow().getWidth();
         int renderHeight = minecraft.getWindow().getHeight();
         float scale = Math.min(1F, Math.min(renderWidth / 1100F, renderHeight / 700F));
-        float top = renderHeight * .5F - 145F * scale;
+        float top = renderHeight * .5F - 170F * scale;
         float left = renderWidth * .5F - BUTTON_WIDTH * scale / 2F;
         float clickX = framebufferX(x);
         float clickY = framebufferY(mouseY);
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             float y = top + 78F * scale + i * (BUTTON_HEIGHT + BUTTON_GAP) * scale;
             if (clickX >= left && clickX <= left + BUTTON_WIDTH * scale && clickY >= y && clickY <= y + BUTTON_HEIGHT * scale) {
                 activate(i); return true;
@@ -110,6 +112,7 @@ public class TitleScreen extends AbstractSkijaScreen {
             case 1 -> minecraft.setScreen(new JoinMultiplayerScreen(this));
             case 2 -> minecraft.setScreen(new AccountScreen(this));
             case 3 -> minecraft.setScreen(new OptionsScreen(this, minecraft.options));
+            case 4 -> minecraft.setScreen(new ProxyScreen(this));
         }
     }
 

@@ -16,6 +16,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Connection.class)
 public abstract class ConnectionMixin {
+    @Shadow public abstract java.net.SocketAddress getRemoteAddress();
+    @Unique private boolean nimbus$isLocalProxy(){
+        var address=getRemoteAddress();
+        return address instanceof java.net.InetSocketAddress inet && inet.getAddress()!=null && inet.getAddress().isLoopbackAddress();
+    }
+    @Inject(method="disconnect",at=@At("HEAD"))
+    private void nimbus$logDisconnect(net.minecraft.network.chat.Component reason,CallbackInfo ci){
+        if(nimbus$isLocalProxy())org.slf4j.LoggerFactory.getLogger("NimbusProxy").warn("B disconnect from {}: {}",getRemoteAddress(),reason.getString());
+    }
+    @Inject(method="exceptionCaught",at=@At("HEAD"))
+    private void nimbus$logConnectionException(ChannelHandlerContext ctx,Throwable error,CallbackInfo ci){
+        if(nimbus$isLocalProxy())org.slf4j.LoggerFactory.getLogger("NimbusProxy").error("B connection exception: "+getRemoteAddress(),error);
+    }
+
     @Inject(method = "sendPacket", at = @At("HEAD"), cancellable = true)
     private void nimbus$packetSend(Packet<?> packet, PacketSendListener packetSendListener, CallbackInfo ci) {
         if (!Core.INSTANCE.isInitialized()) return;

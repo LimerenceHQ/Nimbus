@@ -107,3 +107,113 @@ publishing {
         // retrieving dependencies.
     }
 }
+
+
+
+// The packaged DLL is an A-side JVMTI agent. B extracts it and uses remote Attach only.
+def nativeBuild = layout.buildDirectory.dir('native/proxy')
+def nativeResources = layout.buildDirectory.dir('generated/nativeProxy')
+def windowsHost = System.getProperty('os.name').toLowerCase(java.util.Locale.ROOT).startsWith('windows')
+def bundleNativeProxy = providers.gradleProperty('bundleNativeProxy').map { it.toBoolean() }.getOrElse(windowsHost)
+def cmakeCommand = providers.gradleProperty('cmakeExecutable').orElse(providers.provider {
+    if (windowsHost) {
+        def installer = new File(System.getenv('ProgramFiles(x86)') ?: 'C:/Program Files (x86)',
+                'Microsoft Visual Studio/Installer/vswhere.exe')
+        if (installer.isFile()) {
+            def installation = providers.exec {
+                commandLine installer.absolutePath, '-latest', '-products', '*',
+                        '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath'
+            }.standardOutput.asText.get().trim()
+            def bundled = new File(installation, 'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe')
+            if (bundled.isFile()) return bundled.absolutePath
+        }
+    }
+    return 'cmake'
+})
+
+tasks.register('configureNativeProxy', Exec) {
+    group = 'native'
+    inputs.file('native/proxy/CMakeLists.txt')
+    outputs.file(nativeBuild.map { it.file('CMakeCache.txt') })
+    doFirst {
+        commandLine cmakeCommand.get(), '-S', file('native/proxy').absolutePath,
+                '-B', nativeBuild.get().asFile.absolutePath, '-A', 'x64'
+    }
+}
+
+tasks.register('buildNativeProxy', Exec) {
+    group = 'native'
+    description = 'Builds the Windows x64 A-side nimbus_proxy agent.'
+    dependsOn 'configureNativeProxy'
+    inputs.files(fileTree('native/proxy') { include '**/*.cpp', '**/*.h', 'CMakeLists.txt' })
+    outputs.file(nativeBuild.map { it.file('Release/nimbus_proxy.dll') })
+    doFirst {
+        commandLine cmakeCommand.get(), '--build', nativeBuild.get().asFile.absolutePath,
+                '--config', 'Release', '--parallel', '2'
+    }
+}
+
+tasks.register('packageNativeProxy', Sync) {
+    group = 'native'
+    description = 'Stages the A-side agent in generated jar resources, not source resources.'
+    dependsOn 'buildNativeProxy'
+    from(nativeBuild.map { it.file('Release/nimbus_proxy.dll') }) {
+        into 'assets/nimbus/native/windows-x86_64'
+    }
+    into nativeResources
+    doFirst {
+        if (!nativeBuild.get().file('Release/nimbus_proxy.dll').asFile.isFile())
+            throw new GradleException('A-side nimbus_proxy.dll is missing after native build')
+    }
+}
+
+if (bundleNativeProxy) {
+    sourceSets.main.resources.srcDir(tasks.named('packageNativeProxy'))
+}
+
+tasks.named('sourcesJar', Jar) {
+    exclude 'assets/nimbus/native/**/*.dll'
+}
+
+// Controller DLL is loaded only by Nimbus (B) for local window/PID discovery.
+def nativeControllerBuild = layout.buildDirectory.dir('native/controller')
+def nativeControllerResources = layout.buildDirectory.dir('generated/nativeController')
+tasks.register('configureNativeController', Exec) {
+    group = 'native'
+    inputs.file('native/controller/CMakeLists.txt')
+    outputs.file(nativeControllerBuild.map { it.file('CMakeCache.txt') })
+    doFirst { commandLine cmakeCommand.get(), '-S', file('native/controller').absolutePath, '-B', nativeControllerBuild.get().asFile.absolutePath, '-A', 'x64' }
+}
+tasks.register('buildNativeController', Exec) {
+    group = 'native'
+    description = 'Builds the Nimbus-side Windows x64 process scanner.'
+    dependsOn 'configureNativeController'
+    inputs.files(fileTree('native/controller') { include '**/*.cpp', '**/*.h', 'CMakeLists.txt' })
+    outputs.file(nativeControllerBuild.map { it.file('Release/nimbus_controller.dll') })
+    doFirst { commandLine cmakeCommand.get(), '--build', nativeControllerBuild.get().asFile.absolutePath, '--config', 'Release', '--parallel', '2' }
+}
+tasks.register('packageNativeController', Sync) {
+    group = 'native'
+    description = 'Stages the Nimbus-side process scanner in generated jar resources.'
+    dependsOn 'buildNativeController'
+    from(nativeControllerBuild.map { it.file('Release/nimbus_controller.dll') }) { into 'assets/nimbus/native/windows-x86_64' }
+    into nativeControllerResources
+    doFirst { if (!nativeControllerBuild.get().file('Release/nimbus_controller.dll').asFile.isFile()) throw new GradleException('Nimbus controller DLL is missing after native build') }
+}
+if (bundleNativeProxy) { sourceSets.main.resources.srcDir(tasks.named('packageNativeController')) }
+
+// Standalone JDK-only helper: not part of Fabric or Nimbus's runtime classpath.
+sourceSets { proxyHelper { java.srcDir 'src/proxyHelper/java' } }
+tasks.register('proxyHelperJar',Jar) {
+    dependsOn 'proxyHelperClasses'
+    archiveFileName='nimbus_attach_helper.jar'
+    destinationDirectory=layout.buildDirectory.dir('proxy-helper')
+    from sourceSets.proxyHelper.output
+    manifest { attributes 'Main-Class':'cc.nimbus.proxyhelper.AttachHelper' }
+}
+tasks.register('packageProxyHelper',Sync) {
+    dependsOn 'proxyHelperJar'
+    from(tasks.named('proxyHelperJar')) { into 'assets/nimbus/native/windows-x86_64' }
+    into layout.buildDirectory.dir('generated/proxyHelper')
+}
+if(bundleNativeProxy) { sourceSets.main.resources.srcDir(tasks.named('packageProxyHelper')) }

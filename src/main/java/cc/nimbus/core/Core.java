@@ -27,6 +27,7 @@ public enum Core {
     private TargetManager targetManager;
     private GameStateManager gameStateManager;
     private NotificationManager notificationManager;
+    private ProxyManager proxyManager;
     private boolean initialized;
 
     public synchronized void init(Path fabricConfigDirectory) {
@@ -46,7 +47,8 @@ public enum Core {
         MusicManager music = new MusicManager(nimbusDirectory.resolve("music"));
         CommandManager commands = new CommandManager();
         NotificationManager notifications = new NotificationManager(modules, renders, hud);
-        List<InstanceManager> started = new ArrayList<>(13);
+        ProxyManager proxy = new ProxyManager(nimbusDirectory);
+        List<InstanceManager> started = new ArrayList<>(14);
 
         EventBus.clear();
         try {
@@ -57,6 +59,7 @@ public enum Core {
             start(targets, started);
             start(hud, started);
             start(notifications, started);
+            start(proxy, started);
             start(configs, started);
             start(state, started);
             start(i18n, started);
@@ -77,6 +80,7 @@ public enum Core {
         hudManager = hud;
         gameStateManager = state;
         notificationManager = notifications;
+        proxyManager = proxy;
         configManager = configs;
         i18nManager = i18n;
         accountManager = accounts;
@@ -95,9 +99,10 @@ public enum Core {
                 rotationManager,
                 packetManager,
                 moduleManager,
-                notificationManager,
                 targetManager,
                 hudManager,
+                notificationManager,
+                proxyManager,
                 configManager,
                 gameStateManager,
                 i18nManager,
@@ -118,6 +123,7 @@ public enum Core {
             configManager = null;
             gameStateManager = null;
             notificationManager = null;
+            proxyManager = null;
             i18nManager = null;
             accountManager = null;
             musicManager = null;
@@ -192,6 +198,10 @@ public enum Core {
 
     public I18nManager getI18nManager() {
         return requireInitialized(i18nManager, "I18nManager");
+    }
+
+    public ProxyManager getProxyManager() {
+        return requireInitialized(proxyManager, "ProxyManager");
     }
 
     public NotificationManager getNotificationManager() {

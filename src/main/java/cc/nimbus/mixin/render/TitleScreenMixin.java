@@ -2,6 +2,7 @@ package cc.nimbus.mixin.render;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.ui.alt.AccountScreen;
+import cc.nimbus.ui.proxy.ProxyScreen;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -28,6 +29,19 @@ public abstract class TitleScreenMixin extends Screen {
                 : "Alt Manager");
         addRenderableWidget(Button.builder(label,
                 button -> minecraft.setScreen(new AccountScreen(this)))
+                .bounds(x, y, NIMBUS_BUTTON_WIDTH, NIMBUS_BUTTON_HEIGHT)
+                .build());
+    }
+
+    @Inject(method = "init", at = @At("TAIL"))
+    private void nimbus$addProxyButton(CallbackInfo ci) {
+        int x = (width - NIMBUS_BUTTON_WIDTH) / 2;
+        int y = height / 4 + 192;
+        Component label = Component.literal(Core.INSTANCE.isInitialized()
+                ? Core.INSTANCE.getI18nManager().get("nimbus.menu.proxy", "Proxy / 连接 A")
+                : "Proxy / 连接 A");
+        addRenderableWidget(Button.builder(label,
+                button -> minecraft.setScreen(new ProxyScreen(this)))
                 .bounds(x, y, NIMBUS_BUTTON_WIDTH, NIMBUS_BUTTON_HEIGHT)
                 .build());
     }
