@@ -11,6 +11,7 @@ import cc.nimbus.managers.HudManager;
 import cc.nimbus.managers.NotificationManager;
 import cc.nimbus.managers.ModuleManager;
 import cc.nimbus.managers.RenderManager;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
@@ -26,10 +27,10 @@ import java.util.Map;
 import java.util.Set;
 
 public final class NotificationRenderer {
-    private static final String CLIENT_TITLE_FONT = NimbusFonts.DISPLAY;
-    private static final String CLIENT_TIME_FONT = NimbusFonts.CONTENT;
-    private static final String CLIENT_MESSAGE_FONT = NimbusFonts.BODY_MEDIUM;
-    private static final String GAME_FONT = NimbusFonts.BODY_STRONG;
+    private static final FontSpec CLIENT_TITLE_FONT = NimbusFonts.DISPLAY;
+    private static final FontSpec CLIENT_TIME_FONT = NimbusFonts.CONTENT;
+    private static final FontSpec CLIENT_MESSAGE_FONT = NimbusFonts.BODY_MEDIUM;
+    private static final FontSpec GAME_FONT = NimbusFonts.BODY_STRONG;
     private static final float CLIENT_TITLE_SIZE = 12f;
     private static final float CLIENT_TIME_SIZE = 9f;
     private static final float CLIENT_MESSAGE_SIZE = 11f;

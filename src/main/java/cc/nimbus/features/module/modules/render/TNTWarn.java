@@ -11,6 +11,7 @@ import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.ui.notification.NotificationType;
 import cc.nimbus.utils.render.Render3DUtils;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Paint;
@@ -34,7 +35,7 @@ import java.util.List;
         category = ModuleCategory.Render
 )
 public final class TNTWarn extends BasicModule {
-    private static final String FONT = NimbusFonts.BODY_STRONG;
+    private static final FontSpec FONT = NimbusFonts.BODY_STRONG;
     private static final int RED = 0xFFFF3B1F;
     private static final int YELLOW = 0xFFFFD400;
     private static final int GREEN = 0xFF42FF66;

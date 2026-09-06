@@ -18,6 +18,7 @@ import cc.nimbus.features.music.lyrics.LyricVisuals;
 import cc.nimbus.features.music.lyrics.LyricsTimeline;
 import cc.nimbus.features.music.playback.PlaybackState;
 import cc.nimbus.managers.MusicManager;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
@@ -34,7 +35,7 @@ import java.util.List;
         category = ModuleCategory.HUD
 )
 public final class MusicLyrics extends BasicModule {
-    private static final String FONT = NimbusFonts.CONTENT_MEDIUM;
+    private static final FontSpec FONT = NimbusFonts.CONTENT_MEDIUM;
     private static final float WIDTH = 520f;
     private static final float SINGLE_HEIGHT = 88f;
     private static final float MULTIPLE_HEIGHT = 148f;

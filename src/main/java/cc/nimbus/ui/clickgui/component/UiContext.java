@@ -2,6 +2,7 @@ package cc.nimbus.ui.clickgui.component;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.ui.clickgui.theme.ClickGuiTheme;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import io.github.humbleui.skija.Canvas;
@@ -17,8 +18,8 @@ public record UiContext(
         float logicalHeight
 ) {
     private static final float FONT_SCALE = 1.18f;
-    public static final String FONT = NimbusFonts.BODY;
-    public static final String FONT_MEDIUM = NimbusFonts.BODY_MEDIUM;
+    public static final FontSpec FONT = NimbusFonts.BODY;
+    public static final FontSpec FONT_MEDIUM = NimbusFonts.BODY_MEDIUM;
 
     public void text(String value, float x, float y, float size, int color) {
         draw(FONT, size, value, x, y, color);
@@ -28,34 +29,34 @@ public record UiContext(
         draw(FONT_MEDIUM, size, value, x, y, color);
     }
 
-    public void draw(String family, float size, String value, float x, float y, int color) {
-        frame.text().draw(family, fontSize(size), value, x, y, color);
+    public void draw(FontSpec font, float size, String value, float x, float y, int color) {
+        frame.text().draw(font, fontSize(size), value, x, y, color);
     }
 
-    public void center(String family, float size, String value, float centerX, float y, int color) {
-        frame.text().center(family, fontSize(size), value, centerX, y, color);
+    public void center(FontSpec font, float size, String value, float centerX, float y, int color) {
+        frame.text().center(font, fontSize(size), value, centerX, y, color);
     }
 
-    public float width(String family, float size, String value) {
-        return frame.text().width(family, fontSize(size), value);
+    public float width(FontSpec font, float size, String value) {
+        return frame.text().width(font, fontSize(size), value);
     }
 
-    public float height(String family, float size) {
-        return frame.text().height(family, fontSize(size));
+    public float height(FontSpec font, float size) {
+        return frame.text().height(font, fontSize(size));
     }
 
-    public float height(String family, float size, String value) {
-        return frame.text().height(family, fontSize(size), value);
+    public float height(FontSpec font, float size, String value) {
+        return frame.text().height(font, fontSize(size), value);
     }
 
-    public void visualLeft(String family, float size, String value, float x, float y, int color) {
+    public void visualLeft(FontSpec font, float size, String value, float x, float y, int color) {
         float scaledSize = fontSize(size);
-        frame.text().draw(family, scaledSize, value,
-                x - frame.text().visualLeft(family, scaledSize, value), y, color);
+        frame.text().draw(font, scaledSize, value,
+                x - frame.text().visualLeft(font, scaledSize, value), y, color);
     }
 
-    public float visualCenterY(String family, float size, String value) {
-        return frame.text().visualCenterY(family, fontSize(size), value);
+    public float visualCenterY(FontSpec font, float size, String value) {
+        return frame.text().visualCenterY(font, fontSize(size), value);
     }
 
     public void textIn(String value, UiRect bounds, float size, int color) {
@@ -67,11 +68,11 @@ public record UiContext(
         visualTextIn(FONT, value, bounds, size, color);
     }
 
-    public void visualTextIn(String family, String value, UiRect bounds, float size, int color) {
+    public void visualTextIn(FontSpec font, String value, UiRect bounds, float size, int color) {
         float scaledSize = fontSize(size);
         float textY = bounds.y() + bounds.height() * .5f
-                - frame.text().visualCenterY(family, scaledSize, value);
-        frame.text().draw(family, scaledSize, value, bounds.x(), textY, color);
+                - frame.text().visualCenterY(font, scaledSize, value);
+        frame.text().draw(font, scaledSize, value, bounds.x(), textY, color);
     }
 
     public void stableTextIn(String value, UiRect bounds, float size, int color) {

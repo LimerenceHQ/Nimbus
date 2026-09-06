@@ -785,6 +785,11 @@
   "nimbus.module.timer.setting.key_mode.option.mouse3": "Mouse3",
   "nimbus.module.timer.setting.key_mode.option.mouse4": "Mouse4",
 
+  "nimbus.module.no_delay.name": "No Delay",
+  "nimbus.module.no_delay.description": "Removes the client-side jump and attack delays.",
+  "nimbus.module.no_delay.setting.jump_delay": "Jump Delay",
+  "nimbus.module.no_delay.setting.attack_delay": "Attack Delay",
+
   "nimbus.module.ghost_hand.name": "GhostHand",
   "nimbus.module.ghost_hand.description": "Use containers through blocks.",
 

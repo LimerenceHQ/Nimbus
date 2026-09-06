@@ -12,6 +12,7 @@ import cc.nimbus.features.module.api.BasicModule;
 import cc.nimbus.features.module.api.ModuleCategory;
 import cc.nimbus.features.module.api.ModuleInfo;
 import cc.nimbus.features.module.modules.combat.KillAura;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import cc.nimbus.utils.render.skija.api.SkijaRenderer;
@@ -35,7 +36,7 @@ import net.minecraft.world.entity.LivingEntity;
         category = ModuleCategory.HUD
 )
 public final class Target extends BasicModule {
-    private static final String FONT = NimbusFonts.BODY_STRONG;
+    private static final FontSpec FONT = NimbusFonts.BODY_STRONG;
     private static final float WIDTH = 236f;
     private static final float HEIGHT = 56f;
     private static final float AVATAR_X = 6f;
@@ -258,7 +259,7 @@ public final class Target extends BasicModule {
         return Math.clamp(entity.getHealth() / max, 0f, 1f);
     }
 
-    private static String ellipsize(SkijaRenderer skija, String value, String font, float size, float width) {
+    private static String ellipsize(SkijaRenderer skija, String value, FontSpec font, float size, float width) {
         if (skija.text().width(font, size, value) <= width) return value;
         String result = value;
         while (result.length() > 1 && skija.text().width(font, size, result + "…") > width) {

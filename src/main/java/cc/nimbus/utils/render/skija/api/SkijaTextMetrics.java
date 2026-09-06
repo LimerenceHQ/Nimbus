@@ -1,5 +1,6 @@
 package cc.nimbus.utils.render.skija.api;
 
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.skija.internal.text.TextFactory;
 
 public final class SkijaTextMetrics {
@@ -9,28 +10,28 @@ public final class SkijaTextMetrics {
         this.renderer = renderer;
     }
 
-    public float width(String family, float size, String text) {
+    public float width(FontSpec font, float size, String text) {
         renderer.requireReady();
-        return TextFactory.getTextWidth(family, size, text == null ? "" : text);
+        return TextFactory.getTextWidth(font, size, text == null ? "" : text);
     }
 
-    public float height(String family, float size) {
+    public float height(FontSpec font, float size) {
         renderer.requireReady();
-        return TextFactory.getTextHeight(family, size);
+        return TextFactory.getTextHeight(font, size);
     }
 
-    public float visualLeft(String family, float size, String text) {
+    public float visualLeft(FontSpec font, float size, String text) {
         renderer.requireReady();
-        return TextFactory.getTextVisualLeft(family, size, text == null ? "" : text);
+        return TextFactory.getTextVisualLeft(font, size, text == null ? "" : text);
     }
 
-    public float visualRight(String family, float size, String text) {
+    public float visualRight(FontSpec font, float size, String text) {
         renderer.requireReady();
-        return TextFactory.getTextVisualRight(family, size, text == null ? "" : text);
+        return TextFactory.getTextVisualRight(font, size, text == null ? "" : text);
     }
 
-    public float visualCenterY(String family, float size, String text) {
+    public float visualCenterY(FontSpec font, float size, String text) {
         renderer.requireReady();
-        return TextFactory.getTextVisualCenterY(family, size, text == null ? "" : text);
+        return TextFactory.getTextVisualCenterY(font, size, text == null ? "" : text);
     }
 }

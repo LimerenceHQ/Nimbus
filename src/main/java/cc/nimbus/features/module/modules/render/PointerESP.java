@@ -12,6 +12,7 @@ import cc.nimbus.features.module.api.setting.impl.ColorSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.features.module.modules.player.AntiBot;
 import cc.nimbus.utils.render.Render3DUtils;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Path;

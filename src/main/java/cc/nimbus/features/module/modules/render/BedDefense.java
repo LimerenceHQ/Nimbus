@@ -11,6 +11,7 @@ import cc.nimbus.features.module.api.setting.impl.BooleanSetting;
 import cc.nimbus.features.module.api.setting.impl.NumberSetting;
 import cc.nimbus.utils.client.TimerUtils;
 import cc.nimbus.utils.render.Render3DUtils;
+import cc.nimbus.utils.render.font.FontSpec;
 import cc.nimbus.utils.render.font.NimbusFonts;
 import cc.nimbus.utils.render.skija.api.SkijaFrame;
 import net.minecraft.client.Minecraft;
@@ -44,8 +45,8 @@ import java.util.Set;
         category = ModuleCategory.Render
 )
 public final class BedDefense extends BasicModule {
-    private static final String FONT = NimbusFonts.BODY_MEDIUM;
-    private static final String TITLE_FONT = NimbusFonts.BODY_STRONG;
+    private static final FontSpec FONT = NimbusFonts.BODY_MEDIUM;
+    private static final FontSpec TITLE_FONT = NimbusFonts.BODY_STRONG;
     private static final long REBUILD_INTERVAL_MS = 900L;
     private static final int MAX_BEDS = 24;
     private static final int MAX_BLOCK_TYPES = 10;
