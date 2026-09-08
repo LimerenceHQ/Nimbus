@@ -29,13 +29,12 @@ int InitializeProxy(JavaVM* vm, unsigned short port) {
     }
     if (!InstallHookBridge(env)) { BServer_StopListener(env); return 12; }
     if (!InstallRelayHandler(env)) { BServer_StopListener(env); return 13; }
-    if (!InstallConnectionHook(env)) { BServer_StopListener(env); return 14; }
     if (BServer_TryCaptureLiveConnection(env)) {
-        LogTo("attach: A already in-game; SakuraTool mid-session relay armed");
-    } else if (BServer_BlockAMainThreadUntilBConnected(env)) {
-        LogTo("attach: queued SakuraTool main-thread gate until B reaches PLAY");
+        LogTo("attach: captured the live A connection; relay armed");
     } else {
-        LogTo("attach: main-thread gate could not be queued; continuing without it");
+        // 只有尚未建立 A 的游戏连接时才需要 Connection hook。
+        if (!InstallConnectionHook(env)) { BServer_StopListener(env); return 14; }
+        LogTo("attach: Connection hook armed for the first A channel");
     }
     g_port = port;
     g_running = true;

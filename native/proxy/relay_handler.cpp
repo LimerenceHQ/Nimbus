@@ -241,12 +241,14 @@ bool InstallRelayHandler(JNIEnv* env) {
     g_relay.ctor = g_hook.ctor;
     g_relay.internalName = g_hook.internalName;
     g_relay.dotName = g_hook.dotName;
+    // 每次注入只生成一个 pipeline key，所有 A 重连复用它，避免固定名称冲突。
+    g_relay.pipelineName = GenerateRandomClassName(1, 1);
     return true;
 }
 
 static void attachHandlerToPipeline(JNIEnv* env, jobject pipeline) {
-    static constexpr const char* kHandlerName = "nimbus_proxy_bridge";
-    jstring name = env->NewStringUTF(kHandlerName);
+    const char* handlerName = g_relay.pipelineName.c_str();
+    jstring name = env->NewStringUTF(handlerName);
     jobject existing = env->CallObjectMethod(pipeline, g_relay.netty.getMid, name);
     if (env->ExceptionCheck()) { env->ExceptionClear(); existing = nullptr; }
     if (existing) {

@@ -14,7 +14,6 @@ bool BServer_IsBActive();
 bool BServer_IsLoginIntention(JNIEnv* env, jobject packet);
 
 bool BServer_WaitForBConnected(int timeoutMs);
-bool BServer_BlockAMainThreadUntilBConnected(JNIEnv* env);
 
 void BServer_ForwardToB(JNIEnv* env, jobject packet);
 

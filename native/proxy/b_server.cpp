@@ -9,6 +9,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -36,8 +37,7 @@ struct BServer {
     jmethodID initCtor     = nullptr;
     jclass    handlerClass = nullptr;
     jmethodID handlerCtor  = nullptr;
-    jclass    mainGateClass = nullptr;
-    jmethodID mainGateCtor  = nullptr;
+    std::string pipelineName;
 
     jclass    connectionCls              = nullptr;
     jmethodID connectionConfigureSerMid  = nullptr;
@@ -188,6 +188,7 @@ struct BServer {
 
     std::mutex bMu;
     jobject   bChannel = nullptr;
+    uint64_t  bGeneration = 0;
 
     std::atomic<BState> bState{BState::AwaitHandshake};
 
@@ -448,7 +449,7 @@ void JNICALL Native_ServerInit_initChannel(JNIEnv* env, jobject , jobject ch) {
     }
 
     jobject handler = env->NewObject(g_bs.handlerClass, g_bs.handlerCtor);
-    jstring name = env->NewStringUTF("bside");
+    jstring name = env->NewStringUTF(g_bs.pipelineName.c_str());
     env->CallObjectMethod(pipeline, g_bs.pipelineAddLastMid, name, handler);
     if (env->ExceptionCheck()) LogAndClearException(env, "  addLast(bside)");
     env->DeleteLocalRef(name);
@@ -459,8 +460,26 @@ void JNICALL Native_ServerInit_initChannel(JNIEnv* env, jobject , jobject ch) {
         std::lock_guard<std::mutex> l(g_bs.bMu);
         if (g_bs.bChannel) env->DeleteGlobalRef(g_bs.bChannel);
         g_bs.bChannel = env->NewGlobalRef(ch);
+        ++g_bs.bGeneration;
         g_bs.bState.store(BState::AwaitHandshake, std::memory_order_release);
     }
+
+    // 新 B 连接必须先完成自己的 LOGIN/PLAY，避免旧连接尚未触发
+    // channelInactive 时把旧的 connected 状态带入新连接。
+    {
+        std::lock_guard<std::mutex> l(g_bConnMu);
+        g_bConnected = false;
+    }
+    if (g_bs.bUuidObj) {
+        env->DeleteGlobalRef(g_bs.bUuidObj);
+        g_bs.bUuidObj = nullptr;
+    }
+    if (g_bs.bName) {
+        env->DeleteGlobalRef(g_bs.bName);
+        g_bs.bName = nullptr;
+    }
+    g_bs.bUuidReady = false;
+    std::memset(g_bs.bUuidBytes, 0, sizeof(g_bs.bUuidBytes));
 
     LogTo("  B channel captured, state=AwaitHandshake");
 }
@@ -499,13 +518,32 @@ void closeARemoteConnection(JNIEnv* env) {
     }
 }
 
-void JNICALL Native_BSide_channelInactive(JNIEnv* env, jobject , jobject ) {
-    LogTo("BServer: B channelInactive");
+void JNICALL Native_BSide_channelInactive(JNIEnv* env, jobject , jobject ctx) {
+    jobject channel = nullptr;
+    if (ctx) {
+        jclass ctxCls = env->GetObjectClass(ctx);
+        jmethodID channelMid = ctxCls ? env->GetMethodID(
+            ctxCls, "channel", "()Lio/netty/channel/Channel;") : nullptr;
+        if (channelMid && !env->ExceptionCheck())
+            channel = env->CallObjectMethod(ctx, channelMid);
+        if (env->ExceptionCheck()) { env->ExceptionClear(); channel = nullptr; }
+        if (ctxCls) env->DeleteLocalRef(ctxCls);
+    }
+
+    bool current = false;
     {
         std::lock_guard<std::mutex> l(g_bs.bMu);
-        if (g_bs.bChannel) { env->DeleteGlobalRef(g_bs.bChannel); g_bs.bChannel = nullptr; }
-        g_bs.bState.store(BState::AwaitHandshake, std::memory_order_release);
+        current = channel && g_bs.bChannel && env->IsSameObject(channel, g_bs.bChannel);
+        if (current) {
+            env->DeleteGlobalRef(g_bs.bChannel);
+            g_bs.bChannel = nullptr;
+            g_bs.bState.store(BState::AwaitHandshake, std::memory_order_release);
+        }
     }
+    if (channel) env->DeleteLocalRef(channel);
+    if (!current) return;
+
+    LogTo("BServer: current B channel inactive; waiting for reconnect");
     {
         std::lock_guard<std::mutex> gateLock(g_bConnMu);
         g_bConnected = false;
@@ -517,13 +555,6 @@ void JNICALL Native_BSide_channelInactive(JNIEnv* env, jobject , jobject ) {
 
         closeARemoteConnection(env);
     }
-}
-
-void JNICALL Native_MainThreadGate_run(JNIEnv*, jobject ) {
-    if (BServer_WaitForBConnected(0)) return;
-    LogTo("[MAIN-GATE] blocking A Render thread until B reaches PLAY");
-    BServer_WaitForBConnected(-1);
-    LogTo("[MAIN-GATE] B reached PLAY; resuming A Render thread");
 }
 
 }
@@ -560,6 +591,7 @@ bool defineInitClass(JNIEnv* env, jobject mcLoader) {
     }
     g_bs.initCtor = env->GetMethodID(defined, "<init>", "()V");
     g_bs.initClass = static_cast<jclass>(env->NewGlobalRef(defined));
+    if (g_bs.pipelineName.empty()) g_bs.pipelineName = GenerateRandomClassName(1, 1);
     env->DeleteLocalRef(defined);
     LogTo("BServer: defined ServerChannelInit as %s", internal.c_str());
     return true;
@@ -599,49 +631,6 @@ bool defineHandlerClass(JNIEnv* env, jobject mcLoader) {
     g_bs.handlerClass = static_cast<jclass>(env->NewGlobalRef(defined));
     env->DeleteLocalRef(defined);
     LogTo("BServer: defined BSideHandler as %s", internal.c_str());
-    return true;
-}
-
-bool defineMainGateClass(JNIEnv* env, jobject mcLoader) {
-    if (g_bs.mainGateClass && g_bs.mainGateCtor) return true;
-
-    std::string simple   = GenerateRandomClassName(2, 3);
-    std::string internal = MakeInternalName(GetTrampolinePackage(), simple);
-
-    ClassBuilder cb(internal, "java/lang/Thread", 52);
-    u2 superInit = cb.methodRef("java/lang/Thread", "<init>", "()V");
-    std::vector<u1> ctor = {
-        0x2A, 0xB7, u1((superInit >> 8) & 0xFF), u1(superInit & 0xFF), 0xB1
-    };
-    cb.addCodedMethod("<init>", "()V", ACC_PUBLIC, ctor, 1, 1);
-    cb.addNativeMethod("run", "()V", ACC_PUBLIC | ACC_NATIVE);
-    std::vector<u1> bytes = cb.build();
-
-    jclass defined = env->DefineClass(internal.c_str(), mcLoader,
-                                      reinterpret_cast<const jbyte*>(bytes.data()),
-                                      static_cast<jsize>(bytes.size()));
-    if (!defined) {
-        LogAndClearException(env, "BServer/DefineMainGate");
-        return false;
-    }
-    JNINativeMethod nats[] = {
-        {const_cast<char*>("run"), const_cast<char*>("()V"),
-         reinterpret_cast<void*>(&Native_MainThreadGate_run)},
-    };
-    if (env->RegisterNatives(defined, nats, 1) != 0) {
-        LogAndClearException(env, "BServer/RegisterMainGate");
-        env->DeleteLocalRef(defined);
-        return false;
-    }
-
-    g_bs.mainGateCtor = env->GetMethodID(defined, "<init>", "()V");
-    g_bs.mainGateClass = static_cast<jclass>(env->NewGlobalRef(defined));
-    env->DeleteLocalRef(defined);
-    if (!g_bs.mainGateCtor || !g_bs.mainGateClass) {
-        LogAndClearException(env, "BServer/MainGateCtor");
-        return false;
-    }
-    LogTo("BServer: defined A main-thread gate as %s", internal.c_str());
     return true;
 }
 
@@ -1307,61 +1296,6 @@ bool BServer_WaitForBConnected(int timeoutMs) {
     return g_bConnected;
 }
 
-bool BServer_BlockAMainThreadUntilBConnected(JNIEnv* env) {
-    if (!env || !g_jvmti) return false;
-    if (BServer_WaitForBConnected(0)) return true;
-
-    jobject mcLoader = GetMinecraftClassLoader(env, g_jvmti);
-    if (!mcLoader) {
-        LogTo("[MAIN-GATE] Minecraft ClassLoader unavailable");
-        return false;
-    }
-    if (!defineMainGateClass(env, mcLoader)) {
-        env->DeleteGlobalRef(mcLoader);
-        return false;
-    }
-
-    jclass minecraftCls = LoadClassInLoader(
-        env, mcLoader, "net.minecraft.client.Minecraft");
-    env->DeleteGlobalRef(mcLoader);
-    if (!minecraftCls) {
-        LogTo("[MAIN-GATE] Minecraft class unavailable");
-        return false;
-    }
-
-    jmethodID getInstanceMid = findMethodByDesc(
-        minecraftCls, "()Lnet/minecraft/client/Minecraft;", true);
-    jmethodID executeMid = env->GetMethodID(
-        minecraftCls, "execute", "(Ljava/lang/Runnable;)V");
-    if (env->ExceptionCheck()) env->ExceptionClear();
-    if (!getInstanceMid || !executeMid) {
-        LogTo("[MAIN-GATE] Minecraft getInstance/execute lookup failed");
-        env->DeleteLocalRef(minecraftCls);
-        return false;
-    }
-
-    jobject minecraft = env->CallStaticObjectMethod(minecraftCls, getInstanceMid);
-    jobject gate = env->NewObject(g_bs.mainGateClass, g_bs.mainGateCtor);
-    if (!minecraft || !gate || env->ExceptionCheck()) {
-        if (env->ExceptionCheck()) env->ExceptionClear();
-        LogTo("[MAIN-GATE] failed to create Minecraft gate task");
-        if (gate) env->DeleteLocalRef(gate);
-        if (minecraft) env->DeleteLocalRef(minecraft);
-        env->DeleteLocalRef(minecraftCls);
-        return false;
-    }
-
-    env->CallVoidMethod(minecraft, executeMid, gate);
-    bool ok = !env->ExceptionCheck();
-    if (!ok) env->ExceptionClear();
-    LogTo("[MAIN-GATE] task %s on A Render thread", ok ? "queued" : "queue failed");
-
-    env->DeleteLocalRef(gate);
-    env->DeleteLocalRef(minecraft);
-    env->DeleteLocalRef(minecraftCls);
-    return ok;
-}
-
 void BServer_SetTargetConnection(JNIEnv* env, jobject connection) {
     std::lock_guard<std::mutex> l(g_bs.targetMu);
     if (g_bs.targetAConnection) env->DeleteGlobalRef(g_bs.targetAConnection);
@@ -1779,8 +1713,7 @@ void completeLogin(JNIEnv* env, jobject hello) {
         g_bConnected = true;
     }
     g_bConnCv.notify_all();
-    LogTo("login: B in PLAY (empty world); released A's Render thread — A now "
-          "connects and its live join stream feeds B");
+    LogTo("login: B in PLAY; asynchronous A relay is active");
 }
 
 }

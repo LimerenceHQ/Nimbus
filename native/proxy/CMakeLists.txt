@@ -15,5 +15,5 @@ target_compile_definitions(nimbus_proxy PRIVATE WIN_X64 NOMINMAX _CRT_SECURE_NO_
 if(MSVC)
     target_compile_options(nimbus_proxy PRIVATE /EHsc /utf-8 $<$<CONFIG:Release>:/O2>)
 endif()
-target_link_libraries(nimbus_proxy PRIVATE psapi ws2_32 kernel32 user32 advapi32)
+target_link_libraries(nimbus_proxy PRIVATE psapi ws2_32 kernel32 user32 advapi32 bcrypt)
 set_target_properties(nimbus_proxy PROPERTIES OUTPUT_NAME "nimbus_proxy")

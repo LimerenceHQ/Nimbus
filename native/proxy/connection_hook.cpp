@@ -5,6 +5,8 @@
 #include "trampolines.h"
 
 #include <cstring>
+#include <atomic>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 
@@ -14,6 +16,17 @@ constexpr const char* kConnectionInternal = "net/minecraft/network/Connection";
 constexpr const char* kChannelActiveName  = "channelActive";
 constexpr const char* kChannelActiveDesc  =
     "(Lio/netty/channel/ChannelHandlerContext;)V";
+
+std::atomic<bool> g_hookArmed{false};
+std::atomic<bool> g_hookPatched{false};
+std::atomic<bool> g_callbacksRegistered{false};
+std::mutex g_callbackMu;
+
+void DisableClassLoadHook(jvmtiEnv* jvmti) {
+    if (!jvmti || !g_hookArmed.exchange(false, std::memory_order_acq_rel)) return;
+    jvmti->SetEventNotificationMode(
+        JVMTI_DISABLE, JVMTI_EVENT_CLASS_FILE_LOAD_HOOK, nullptr);
+}
 
 void JNICALL ClassFileLoadHookCallback(
         jvmtiEnv* jvmti,
@@ -31,7 +44,8 @@ void JNICALL ClassFileLoadHookCallback(
 
     if (std::strcmp(name, kConnectionInternal) != 0) return;
     LogTo("ClassFileLoadHook fired for %s (len=%d)", name, (int)class_data_len);
-    if (!g_hook.valid()) { LogTo("  ...but g_hook not valid yet, skipping"); return; }
+    if (!g_hookArmed.load(std::memory_order_acquire)) return;
+    if (!g_hook.valid()) { LogTo("  ...but hook bridge is not ready, skipping"); return; }
 
     try {
         ClassFileEditor ed(class_data, static_cast<size_t>(class_data_len));
@@ -65,6 +79,9 @@ void JNICALL ClassFileLoadHookCallback(
         std::memcpy(buf, patched.data(), patched.size());
         *new_class_data     = buf;
         *new_class_data_len = static_cast<jint>(patched.size());
+        g_hookPatched.store(true, std::memory_order_release);
+        // 首次成功改写后关闭事件；后续 A 连接复用已改写的 Connection 类。
+        DisableClassLoadHook(jvmti);
         LogTo("  emitted patched bytes: %u -> %u", (unsigned)class_data_len,
               (unsigned)patched.size());
     } catch (const std::exception& e) {
@@ -75,23 +92,26 @@ void JNICALL ClassFileLoadHookCallback(
 }
 
 bool EnableCapabilitiesAndCallbacks(jvmtiEnv* jvmti) {
-    static bool registered = false;
-    if (registered) return true;
+    std::lock_guard<std::mutex> lock(g_callbackMu);
     jvmtiCapabilities available{};
-    if (jvmti->GetPotentialCapabilities(&available) != JVMTI_ERROR_NONE || !available.can_retransform_classes) return false;
-    jvmtiCapabilities cap{};
-    cap.can_generate_all_class_hook_events = available.can_generate_all_class_hook_events;
-    cap.can_retransform_classes            = 1;
-    if (jvmti->AddCapabilities(&cap) != JVMTI_ERROR_NONE) {
-        Dbg("Connection hook: AddCapabilities failed");
-        return false;
-    }
+    if (!g_callbacksRegistered.load(std::memory_order_acquire)) {
+        if (jvmti->GetPotentialCapabilities(&available) != JVMTI_ERROR_NONE ||
+            !available.can_retransform_classes) return false;
+        jvmtiCapabilities cap{};
+        cap.can_generate_all_class_hook_events = available.can_generate_all_class_hook_events;
+        cap.can_retransform_classes            = 1;
+        if (jvmti->AddCapabilities(&cap) != JVMTI_ERROR_NONE) {
+            Dbg("Connection hook: AddCapabilities failed");
+            return false;
+        }
 
-    jvmtiEventCallbacks cb{};
-    cb.ClassFileLoadHook = &ClassFileLoadHookCallback;
-    if (jvmti->SetEventCallbacks(&cb, sizeof(cb)) != JVMTI_ERROR_NONE) {
-        Dbg("Connection hook: SetEventCallbacks failed");
-        return false;
+        jvmtiEventCallbacks cb{};
+        cb.ClassFileLoadHook = &ClassFileLoadHookCallback;
+        if (jvmti->SetEventCallbacks(&cb, sizeof(cb)) != JVMTI_ERROR_NONE) {
+            Dbg("Connection hook: SetEventCallbacks failed");
+            return false;
+        }
+        g_callbacksRegistered.store(true, std::memory_order_release);
     }
 
     if (jvmti->SetEventNotificationMode(
@@ -100,7 +120,7 @@ bool EnableCapabilitiesAndCallbacks(jvmtiEnv* jvmti) {
         Dbg("Connection hook: SetEventNotificationMode failed");
         return false;
     }
-    registered = true;
+    g_hookArmed.store(true, std::memory_order_release);
     return true;
 }
 
@@ -137,6 +157,7 @@ bool RetransformIfLoaded(JNIEnv* env, jvmtiEnv* jvmti) {
 
 bool InstallConnectionHook(JNIEnv* env) {
     if (!g_jvmti || !env) return false;
+    if (g_hookPatched.load(std::memory_order_acquire)) return true;
     if (!g_hook.valid()) {
         Dbg("Connection hook: called before HookBridge installed");
         return false;

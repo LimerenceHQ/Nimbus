@@ -11,6 +11,7 @@ struct RelayHandler {
     jmethodID ctor   = nullptr;
     std::string internalName;
     std::string dotName;
+    std::string pipelineName;
 
     struct NettyRefs {
         jclass    contextCls           = nullptr;

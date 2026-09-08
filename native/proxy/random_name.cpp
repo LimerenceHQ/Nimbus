@@ -2,110 +2,63 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <bcrypt.h>
 
-#include <array>
 #include <cstdint>
-#include <cstdio>
-#include <random>
 #include <mutex>
-#include <algorithm>
-#include <cctype>
 
 namespace {
 
-constexpr std::array<const char*, 96> kWords = {
-    "Azure",   "Amber",   "Arcane",   "Aurora",   "Blaze",   "Bramble",
-    "Bright",  "Cinder",  "Cipher",   "Cobalt",   "Comet",   "Crimson",
-    "Crystal", "Dawn",    "Deep",     "Divine",   "Dream",   "Ember",
-    "Ethereal","Fable",   "Fallen",   "Feral",    "Flare",   "Flux",
-    "Frost",   "Gale",    "Gilded",   "Glacier",  "Glass",   "Glimmer",
-    "Glow",    "Grace",   "Grim",     "Hallow",   "Haze",    "Heavy",
-    "Hidden",  "Hollow",  "Horizon",  "Iron",     "Ivory",   "Jade",
-    "Karma",   "Keen",    "Lantern",  "Lattice",  "Lich",    "Lucid",
-    "Lunar",   "Marble",  "Mirror",   "Mist",     "Moon",    "Myth",
-    "Nebula",  "Nexus",   "Night",    "Nova",     "Obsidian","Onyx",
-    "Orbit",   "Pale",    "Phantom",  "Phase",    "Prism",   "Pulse",
-    "Quartz",  "Quiet",   "Radiant",  "Raven",    "Reactor", "Relic",
-    "Ridge",   "Rift",    "Rune",     "Saga",     "Sable",   "Scarlet",
-    "Shadow",  "Shard",   "Silent",   "Silver",   "Solstice","Somber",
-    "Solar",   "Sonic",   "Spark",    "Stellar",  "Storm",   "Swift",
-    "Thunder", "Titan",   "Umbral",   "Vector",   "Vestige", "Vortex",
-};
-
-std::mt19937_64 make_rng() {
-    LARGE_INTEGER pc{};
-    QueryPerformanceCounter(&pc);
-    FILETIME ft{};
-    GetSystemTimeAsFileTime(&ft);
-    uint64_t seed =
-        (uint64_t)pc.QuadPart ^
-        ((uint64_t)ft.dwHighDateTime << 32 | ft.dwLowDateTime) ^
-        ((uint64_t)GetCurrentProcessId() << 16) ^
-        (uint64_t)GetCurrentThreadId();
-    return std::mt19937_64(seed);
-}
-
-}
-
-std::string GenerateRandomClassName(int minWords, int maxWords) {
-    if (minWords < 1) minWords = 1;
-    if (maxWords < minWords) maxWords = minWords;
-
-    std::mt19937_64 rng = make_rng();
-
-    std::uniform_int_distribution<int> nDist(minWords, maxWords);
-    std::uniform_int_distribution<size_t> wDist(0, kWords.size() - 1);
-
-    int n = nDist(rng);
-    std::string out;
-    out.reserve(48);
-    for (int i = 0; i < n; ++i) {
-        out += kWords[wDist(rng)];
+uint64_t secureWord() {
+    uint64_t value = 0;
+    if (BCryptGenRandom(nullptr, reinterpret_cast<PUCHAR>(&value), sizeof(value),
+                        BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0) {
+        return value;
     }
-    return out;
+
+    // 系统随机源不可用时保留兼容路径，避免名称生成失败阻断初始化。
+    LARGE_INTEGER counter{};
+    QueryPerformanceCounter(&counter);
+    return static_cast<uint64_t>(counter.QuadPart) ^
+           (static_cast<uint64_t>(GetCurrentProcessId()) << 32) ^
+           static_cast<uint64_t>(GetCurrentThreadId());
 }
 
-std::string MakeInternalName(const std::string& internalPackage,
-                             const std::string& simpleName) {
-    if (internalPackage.empty()) return simpleName;
-    std::string out = internalPackage;
-    if (out.back() != '/') out.push_back('/');
-    out += simpleName;
-    return out;
+std::string randomIdentifier(size_t length) {
+    static constexpr char alphabet[] =
+        "abcdefghijklmnopqrstuvwxyz0123456789";
+    std::string result;
+    result.reserve(length);
+    result.push_back(static_cast<char>('a' + secureWord() % 26));
+    for (size_t i = 1; i < length; ++i) {
+        result.push_back(alphabet[secureWord() % (sizeof(alphabet) - 1)]);
+    }
+    return result;
 }
-
-namespace {
 
 std::string GenerateRandomPackageName() {
-    std::mt19937_64 rng = make_rng();
-    std::uniform_int_distribution<int> depthDist(1, 3);
-    std::uniform_int_distribution<size_t> wDist(0, kWords.size() - 1);
-
-    int depth = depthDist(rng);
-    std::string out;
-    for (int i = 0; i < depth; ++i) {
-        if (i > 0) {
-            out += "/";
-        }
-        std::uniform_int_distribution<int> wordCountDist(1, 2);
-        int wordCount = wordCountDist(rng);
-
-        std::string firstWord = kWords[wDist(rng)];
-        for (char& c : firstWord) {
-            c = std::tolower(static_cast<unsigned char>(c));
-        }
-        out += firstWord;
-
-        for (int j = 1; j < wordCount; ++j) {
-            out += kWords[wDist(rng)];
-        }
-    }
-    return out;
+    return "p/" + randomIdentifier(8) + "/q" + randomIdentifier(8);
 }
 
 std::string g_trampolinePackage;
 std::once_flag g_packageInitFlag;
 
+}
+
+std::string GenerateRandomClassName(int minWords, int maxWords) {
+    (void)minWords;
+    (void)maxWords;
+    // 类名在一次注入内由调用方缓存，重连时只复用已定义的类。
+    return randomIdentifier(12 + secureWord() % 5);
+}
+
+std::string MakeInternalName(const std::string& internalPackage,
+                             const std::string& simpleName) {
+    if (internalPackage.empty()) return simpleName;
+    std::string result = internalPackage;
+    if (result.back() != '/') result.push_back('/');
+    result += simpleName;
+    return result;
 }
 
 const std::string& GetTrampolinePackage() {
