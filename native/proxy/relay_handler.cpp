@@ -194,10 +194,19 @@ bool cacheNettyRefs(JNIEnv* env, jobject mcLoader) {
 }
 
 void JNICALL Native_RelayChannelRead(JNIEnv* env, jobject self, jobject ctx, jobject msg) {
+    if (BServer_IsCurrentChannel(env, ctx)) {
+        BServer_OnPacket(env, ctx, msg);
+        return;
+    }
     RelayChannelReadImpl(env, self, ctx, msg);
 }
 
 void JNICALL Native_RelayWrite(JNIEnv* env, jobject self, jobject ctx, jobject msg, jobject promise) {
+    if (BServer_IsCurrentChannel(env, ctx)) {
+        env->CallObjectMethod(ctx, g_relay.netty.ctxWriteMid, msg, promise);
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        return;
+    }
     RelayWriteImpl(env, self, ctx, msg, promise);
 }
 
@@ -220,6 +229,10 @@ void RelayFilter_MarkBypass(JNIEnv* env,jobject channel,jobject packet){
     g_bypassPending.push_back({c,p,now});
 }
 void JNICALL Native_RelayInactive(JNIEnv* env,jobject,jobject ctx){
+    if (BServer_IsCurrentChannel(env, ctx)) {
+        BServer_OnChannelInactive(env, ctx);
+        return;
+    }
     jobject channel=contextChannel(env,ctx);if(channel){RelayFilter_ClearBypass(env,channel);env->DeleteLocalRef(channel);}
     jclass c=env->GetObjectClass(ctx);
     auto fire=c?env->GetMethodID(c,"fireChannelInactive","()Lio/netty/channel/ChannelHandlerContext;"):nullptr;

@@ -19,12 +19,8 @@
 namespace {
 
 constexpr const char* kInitSuper         = "io/netty/channel/ChannelInitializer";
-constexpr const char* kHandlerSuper      = "io/netty/channel/ChannelInboundHandlerAdapter";
 
 constexpr const char* kInitChannelDesc     = "(Lio/netty/channel/Channel;)V";
-constexpr const char* kChannelReadDesc     = "(Lio/netty/channel/ChannelHandlerContext;Ljava/lang/Object;)V";
-constexpr const char* kChannelActiveDesc   = "(Lio/netty/channel/ChannelHandlerContext;)V";
-constexpr const char* kChannelInactiveDesc = "(Lio/netty/channel/ChannelHandlerContext;)V";
 
 enum class BState { AwaitHandshake, AwaitLogin, Play };
 
@@ -35,8 +31,6 @@ struct BServer {
 
     jclass    initClass    = nullptr;
     jmethodID initCtor     = nullptr;
-    jclass    handlerClass = nullptr;
-    jmethodID handlerCtor  = nullptr;
     std::string pipelineName;
 
     jclass    connectionCls              = nullptr;
@@ -448,7 +442,7 @@ void JNICALL Native_ServerInit_initChannel(JNIEnv* env, jobject , jobject ch) {
         LogTo("  bundle handlers kept (BundlerInfo available)");
     }
 
-    jobject handler = env->NewObject(g_bs.handlerClass, g_bs.handlerCtor);
+    jobject handler = env->NewObject(g_relay.klass, g_relay.ctor);
     jstring name = env->NewStringUTF(g_bs.pipelineName.c_str());
     env->CallObjectMethod(pipeline, g_bs.pipelineAddLastMid, name, handler);
     if (env->ExceptionCheck()) LogAndClearException(env, "  addLast(bside)");
@@ -482,10 +476,6 @@ void JNICALL Native_ServerInit_initChannel(JNIEnv* env, jobject , jobject ch) {
     std::memset(g_bs.bUuidBytes, 0, sizeof(g_bs.bUuidBytes));
 
     LogTo("  B channel captured, state=AwaitHandshake");
-}
-
-void JNICALL Native_BSide_channelActive(JNIEnv* , jobject , jobject ) {
-    LogTo("BServer: B channelActive");
 }
 
 void closeARemoteConnection(JNIEnv* env) {
@@ -561,10 +551,6 @@ void JNICALL Native_BSide_channelInactive(JNIEnv* env, jobject , jobject ctx) {
 void BSide_OnPacket(JNIEnv* env, jobject ctx, jobject msg);
 namespace {
 
-void JNICALL Native_BSide_channelRead(JNIEnv* env, jobject , jobject ctx, jobject msg) {
-    ::BSide_OnPacket(env, ctx, msg);
-}
-
 bool defineInitClass(JNIEnv* env, jobject mcLoader) {
     std::string simple   = GenerateRandomClassName(2, 3);
     std::string internal = MakeInternalName(GetTrampolinePackage(), simple);
@@ -594,43 +580,6 @@ bool defineInitClass(JNIEnv* env, jobject mcLoader) {
     if (g_bs.pipelineName.empty()) g_bs.pipelineName = GenerateRandomClassName(1, 1);
     env->DeleteLocalRef(defined);
     LogTo("BServer: defined ServerChannelInit as %s", internal.c_str());
-    return true;
-}
-
-bool defineHandlerClass(JNIEnv* env, jobject mcLoader) {
-    std::string simple   = GenerateRandomClassName(2, 3);
-    std::string internal = MakeInternalName(GetTrampolinePackage(), simple);
-
-    ClassBuilder cb(internal, kHandlerSuper, 52);
-    u2 superInit = cb.methodRef(kHandlerSuper, "<init>", "()V");
-    std::vector<u1> ctor = {
-        0x2A, 0xB7, u1((superInit >> 8) & 0xFF), u1(superInit & 0xFF), 0xB1
-    };
-    cb.addCodedMethod("<init>", "()V", ACC_PUBLIC, ctor, 1, 1);
-    cb.addNativeMethod("channelActive",   kChannelActiveDesc,   ACC_PUBLIC | ACC_NATIVE);
-    cb.addNativeMethod("channelInactive", kChannelInactiveDesc, ACC_PUBLIC | ACC_NATIVE);
-    cb.addNativeMethod("channelRead",     kChannelReadDesc,     ACC_PUBLIC | ACC_NATIVE);
-    std::vector<u1> bytes = cb.build();
-
-    jclass defined = env->DefineClass(internal.c_str(), mcLoader,
-                                      reinterpret_cast<const jbyte*>(bytes.data()),
-                                      static_cast<jsize>(bytes.size()));
-    if (!defined) { LogAndClearException(env, "BServer/DefineHandler"); return false; }
-    JNINativeMethod nats[] = {
-        {const_cast<char*>("channelActive"),   const_cast<char*>(kChannelActiveDesc),
-         reinterpret_cast<void*>(&Native_BSide_channelActive)},
-        {const_cast<char*>("channelInactive"), const_cast<char*>(kChannelInactiveDesc),
-         reinterpret_cast<void*>(&Native_BSide_channelInactive)},
-        {const_cast<char*>("channelRead"),     const_cast<char*>(kChannelReadDesc),
-         reinterpret_cast<void*>(&Native_BSide_channelRead)},
-    };
-    if (env->RegisterNatives(defined, nats, 3) != 0) {
-        LogAndClearException(env, "BServer/RegisterHandler"); env->DeleteLocalRef(defined); return false;
-    }
-    g_bs.handlerCtor = env->GetMethodID(defined, "<init>", "()V");
-    g_bs.handlerClass = static_cast<jclass>(env->NewGlobalRef(defined));
-    env->DeleteLocalRef(defined);
-    LogTo("BServer: defined BSideHandler as %s", internal.c_str());
     return true;
 }
 
@@ -1176,7 +1125,14 @@ bool bindServer(JNIEnv* env, jobject mcLoader, unsigned short port) {
     jclass isaCls  = env->FindClass("java/net/InetSocketAddress");
     if (!elgCls || !sbCls || !sscCls || !isaCls) return false;
 
-    jobject elg = env->NewObject(elgCls, env->GetMethodID(elgCls, "<init>", "()V"));
+    jmethodID elgCtor = env->GetMethodID(elgCls, "<init>", "(I)V");
+    if (!elgCtor && env->ExceptionCheck()) env->ExceptionClear();
+    jobject elg = elgCtor ? env->NewObject(elgCls, elgCtor, (jint)1) : nullptr;
+    if (!elg) {
+        jmethodID fallbackCtor = env->GetMethodID(elgCls, "<init>", "()V");
+        if (!fallbackCtor && env->ExceptionCheck()) env->ExceptionClear();
+        if (fallbackCtor) elg = env->NewObject(elgCls, fallbackCtor);
+    }
     if (env->ExceptionCheck()) { LogAndClearException(env, "NioELG"); return false; }
 
     jobject sb  = env->NewObject(sbCls, env->GetMethodID(sbCls, "<init>", "()V"));
@@ -1235,7 +1191,7 @@ bool InstallBServer(JNIEnv* env, unsigned short port) {
     if (g_bs.bServerBound) return true;
     jobject mcLoader = GetMinecraftClassLoader(env, g_jvmti);
     if (!mcLoader) return false;
-    bool ok = defineInitClass(env, mcLoader) && defineHandlerClass(env, mcLoader)
+    bool ok = defineInitClass(env, mcLoader)
            && cacheJavaRefs(env, mcLoader) && bindServer(env, mcLoader, port);
     env->DeleteGlobalRef(mcLoader);
     if (ok) g_bs.bServerBound = true;
@@ -2092,4 +2048,29 @@ void BSide_OnPacket(JNIEnv* env, jobject , jobject msg) {
             routeToA(env, msg);
         }
     }
+}
+
+bool BServer_IsCurrentChannel(JNIEnv* env, jobject ctx) {
+    if (!env || !ctx) return false;
+    jclass cls = env->GetObjectClass(ctx);
+    jmethodID mid = cls ? env->GetMethodID(cls, "channel", "()Lio/netty/channel/Channel;") : nullptr;
+    if (!mid && env->ExceptionCheck()) env->ExceptionClear();
+    jobject channel = mid ? env->CallObjectMethod(ctx, mid) : nullptr;
+    if (env->ExceptionCheck()) { env->ExceptionClear(); channel = nullptr; }
+    bool current = false;
+    if (channel) {
+        std::lock_guard<std::mutex> l(g_bs.bMu);
+        current = g_bs.bChannel && env->IsSameObject(channel, g_bs.bChannel);
+        env->DeleteLocalRef(channel);
+    }
+    if (cls) env->DeleteLocalRef(cls);
+    return current;
+}
+
+void BServer_OnPacket(JNIEnv* env, jobject ctx, jobject msg) {
+    BSide_OnPacket(env, ctx, msg);
+}
+
+void BServer_OnChannelInactive(JNIEnv* env, jobject ctx) {
+    Native_BSide_channelInactive(env, nullptr, ctx);
 }

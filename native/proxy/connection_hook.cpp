@@ -93,18 +93,7 @@ void JNICALL ClassFileLoadHookCallback(
 
 bool EnableCapabilitiesAndCallbacks(jvmtiEnv* jvmti) {
     std::lock_guard<std::mutex> lock(g_callbackMu);
-    jvmtiCapabilities available{};
     if (!g_callbacksRegistered.load(std::memory_order_acquire)) {
-        if (jvmti->GetPotentialCapabilities(&available) != JVMTI_ERROR_NONE ||
-            !available.can_retransform_classes) return false;
-        jvmtiCapabilities cap{};
-        cap.can_generate_all_class_hook_events = available.can_generate_all_class_hook_events;
-        cap.can_retransform_classes            = 1;
-        if (jvmti->AddCapabilities(&cap) != JVMTI_ERROR_NONE) {
-            Dbg("Connection hook: AddCapabilities failed");
-            return false;
-        }
-
         jvmtiEventCallbacks cb{};
         cb.ClassFileLoadHook = &ClassFileLoadHookCallback;
         if (jvmti->SetEventCallbacks(&cb, sizeof(cb)) != JVMTI_ERROR_NONE) {
@@ -124,33 +113,22 @@ bool EnableCapabilitiesAndCallbacks(jvmtiEnv* jvmti) {
     return true;
 }
 
-bool RetransformIfLoaded(JNIEnv* env, jvmtiEnv* jvmti) {
-
+bool ConnectionAlreadyLoaded(JNIEnv* env, jvmtiEnv* jvmti) {
     jint count = 0;
     jclass* classes = nullptr;
     if (jvmti->GetLoadedClasses(&count, &classes) != JVMTI_ERROR_NONE) return false;
-
-    int found = 0, retransformed = 0;
+    bool found = false;
     for (jint i = 0; i < count; ++i) {
         char* sig = nullptr;
         if (jvmti->GetClassSignature(classes[i], &sig, nullptr) != JVMTI_ERROR_NONE) continue;
         if (sig && std::strcmp(sig, "Lnet/minecraft/network/Connection;") == 0) {
-            ++found;
-            jvmtiError e = jvmti->RetransformClasses(1, &classes[i]);
-            if (e == JVMTI_ERROR_NONE) {
-                ++retransformed;
-            } else {
-                LogTo("Connection hook: RetransformClasses failed err=%d", (int)e);
-            }
+            found = true;
         }
         if (sig) jvmti->Deallocate(reinterpret_cast<unsigned char*>(sig));
     }
-    LogTo("RetransformIfLoaded: enumerated %d classes, found %d Connection, retransformed %d",
-          (int)count, found, retransformed);
-
     for (jint i = 0; i < count; ++i) env->DeleteLocalRef(classes[i]);
     jvmti->Deallocate(reinterpret_cast<unsigned char*>(classes));
-    return found == retransformed;
+    return found;
 }
 
 }
@@ -163,5 +141,14 @@ bool InstallConnectionHook(JNIEnv* env) {
         return false;
     }
     if (!EnableCapabilitiesAndCallbacks(g_jvmti)) return false;
-    return RetransformIfLoaded(env, g_jvmti);
+    // Never retransform an already-defined game class.  Existing connections
+    // are handled by BServer_TryCaptureLiveConnection; otherwise the caller
+    // asks the user to attach earlier on the next launch.
+    if (ConnectionAlreadyLoaded(env, g_jvmti)) DisableClassLoadHook(g_jvmti);
+    return true;
+}
+
+bool ConnectionHook_CanCaptureFutureConnection() {
+    return g_hookPatched.load(std::memory_order_acquire) ||
+           g_hookArmed.load(std::memory_order_acquire);
 }

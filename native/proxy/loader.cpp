@@ -23,17 +23,23 @@ int InitializeProxy(JavaVM* vm, unsigned short port) {
     JNIEnv* env = attach.env;
     if (env->PushLocalFrame(256) != JNI_OK) return 11;
     struct Frame { JNIEnv* env; ~Frame() { env->PopLocalFrame(nullptr); } } frame{env};
+    if (!InstallHookBridge(env)) { BServer_StopListener(env); return 12; }
+    if (!InstallRelayHandler(env)) { BServer_StopListener(env); return 13; }
+    // Arm the class-load hook before BServer resolves Connection.  A fresh
+    // client can then be transformed on first definition without a later
+    // RetransformClasses call.
+    if (!InstallConnectionHook(env)) { BServer_StopListener(env); return 14; }
     if (!InstallBServer(env, port)) {
         LogTo("attach: B listener bind failed; A hooks were not installed");
         return 15;
     }
-    if (!InstallHookBridge(env)) { BServer_StopListener(env); return 12; }
-    if (!InstallRelayHandler(env)) { BServer_StopListener(env); return 13; }
     if (BServer_TryCaptureLiveConnection(env)) {
         LogTo("attach: captured the live A connection; relay armed");
     } else {
-        // 只有尚未建立 A 的游戏连接时才需要 Connection hook。
-        if (!InstallConnectionHook(env)) { BServer_StopListener(env); return 14; }
+        if (!ConnectionHook_CanCaptureFutureConnection()) {
+            BServer_StopListener(env);
+            return 14;
+        }
         LogTo("attach: Connection hook armed for the first A channel");
     }
     g_port = port;

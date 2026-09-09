@@ -19,6 +19,11 @@ void Dbg(const char* fmt, ...) {
 
 void LogTo(const char* fmt, ...) {
 
+#if defined(NIMBUS_QUIET_RELEASE)
+    (void)fmt;
+    return;
+#endif
+
     static std::mutex logMutex;
     std::lock_guard<std::mutex> lock(logMutex);
 
