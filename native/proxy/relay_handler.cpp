@@ -96,11 +96,8 @@ void JNICALL RelayChannelReadImpl(JNIEnv* env,
                                      jobject msg) {
 
     std::string cls = javaClassName(env, msg);
-    bool mirrorToB = BServer_IsBActive() &&
-        cls.rfind("net.minecraft.network.protocol.game.", 0) == 0;
-    if (mirrorToB) {
-        BServer_ForwardToB(env, msg);
-    }
+    if (cls.rfind("net.minecraft.network.protocol.game.", 0) == 0)
+        BServer_ObserveAndRouteFromA(env, msg);
 
     env->CallObjectMethod(ctx, g_relay.netty.fireChannelReadMid, msg);
     if (env->ExceptionCheck()) env->ExceptionClear();
@@ -233,6 +230,7 @@ void JNICALL Native_RelayInactive(JNIEnv* env,jobject,jobject ctx){
         BServer_OnChannelInactive(env, ctx);
         return;
     }
+    BServer_OnAChannelInactive(env, ctx);
     jobject channel=contextChannel(env,ctx);if(channel){RelayFilter_ClearBypass(env,channel);env->DeleteLocalRef(channel);}
     jclass c=env->GetObjectClass(ctx);
     auto fire=c?env->GetMethodID(c,"fireChannelInactive","()Lio/netty/channel/ChannelHandlerContext;"):nullptr;

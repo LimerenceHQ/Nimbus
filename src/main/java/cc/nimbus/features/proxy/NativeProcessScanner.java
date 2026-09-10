@@ -59,9 +59,9 @@ public final class NativeProcessScanner {
             byte[] digest = sha256(bytes);
             Path dir = directory.toAbsolutePath().resolve("native");
             Files.createDirectories(dir);
-            Path dll = dir.resolve(HexFormat.of().formatHex(digest) + "-nimbus_controller.dll");
+            Path dll = dir.resolve(HexFormat.of().formatHex(digest) + ".dll");
             if (!Files.isRegularFile(dll) || !MessageDigest.isEqual(digest, sha256(Files.readAllBytes(dll)))) {
-                Path temp = Files.createTempFile(dir, "nimbus-controller-", ".tmp");
+                Path temp = Files.createTempFile(dir, "scanner-", ".tmp");
                 try {
                     Files.write(temp, bytes);
                     try { Files.move(temp, dll, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }

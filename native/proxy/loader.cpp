@@ -29,8 +29,17 @@ int InitializeProxy(JavaVM* vm, unsigned short port) {
     // client can then be transformed on first definition without a later
     // RetransformClasses call.
     if (!InstallConnectionHook(env)) { BServer_StopListener(env); return 14; }
-    if (!InstallBServer(env, port)) {
+    bool bReady = false;
+    for (int attempt = 0; attempt < 30 && !bReady; ++attempt) {
+        bReady = InstallBServer(env, port);
+        if (!bReady && attempt + 1 < 30) {
+            LogTo("attach: B listener initialization pending (attempt %d/30)", attempt + 1);
+            Sleep(100);
+        }
+    }
+    if (!bReady) {
         LogTo("attach: B listener bind failed; A hooks were not installed");
+        BServer_StopListener(env);
         return 15;
     }
     if (BServer_TryCaptureLiveConnection(env)) {

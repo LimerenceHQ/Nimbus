@@ -4,6 +4,7 @@ import cc.nimbus.managers.ProxyManager;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.Locale;
 
 public final class NativeProxyRuntime {
@@ -24,8 +25,12 @@ public final class NativeProxyRuntime {
         Exception failure = null;
         try {
             vm = vmClass.getMethod("attach", String.class).invoke(null, Long.toString(target.pid()));
+            Path logDir = ProxyPayload.logDirectory();
+            if (logDir == null) logDir = Path.of(System.getProperty("java.io.tmpdir"));
+            Files.createDirectories(logDir);
+            Path log = Files.createTempFile(logDir, "nimbus-proxy-", ".log");
             vmClass.getMethod("loadAgentPath", String.class, String.class)
-                    .invoke(vm, library.toAbsolutePath().toString(), "port=" + port);
+                    .invoke(vm, library.toAbsolutePath().toString(), "port=" + port + ";log=" + log);
         } catch (InvocationTargetException error) {
             Throwable cause = error.getCause();
             failure = stageFailure(target.pid(), vm != null, cause);

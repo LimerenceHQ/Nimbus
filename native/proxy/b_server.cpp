@@ -4,7 +4,9 @@
 #include "random_name.h"
 #include "relay_handler.h"
 #include "world_cache.h"
+#include "player_snapshot.h"
 #include "scoreboard_snapshot.h"
+#include "bootstrap_ack.h"
 
 #include <atomic>
 #include <chrono>
@@ -12,9 +14,12 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 #include <mutex>
 #include <string>
 #include <thread>
+
+void replayBootstrap(JNIEnv* env, jobject ch, bool skipLogin);
 
 namespace {
 
@@ -47,6 +52,8 @@ struct BServer {
     jmethodID statusResponsePacketCtor  = nullptr;
     jclass    serverStatusCls           = nullptr;
     jmethodID serverStatusCtor          = nullptr;
+    jclass    componentCls              = nullptr;
+    jmethodID componentLiteralMid       = nullptr;
     jclass    pongResponsePacketCls     = nullptr;
     jmethodID pongResponsePacketCtor    = nullptr;
     jclass    statusRequestPacketCls    = nullptr;
@@ -165,8 +172,18 @@ struct BServer {
     jmethodID playerPositionPacketCtor = nullptr;
     jclass    setCls                  = nullptr;
     jmethodID setOfMid                = nullptr;
+    jclass    chunkCacheCenterPacketCls = nullptr;
+    jmethodID chunkCacheCenterPacketCtor = nullptr;
+    jclass    chunkCacheRadiusPacketCls = nullptr;
+    jmethodID chunkCacheRadiusPacketCtor = nullptr;
+    jclass    defaultSpawnPacketCls = nullptr;
+    jmethodID defaultSpawnPacketCtor = nullptr;
+    jclass    blockPosCls = nullptr;
+    jmethodID blockPosCtor = nullptr;
     jclass    keepAlivePacketCls      = nullptr;
     jmethodID keepAlivePacketCtor     = nullptr;
+    jclass    acceptTeleportPacketCls = nullptr;
+    BootstrapAck bootstrapAck;
 
     jclass    uuidCls                 = nullptr;
     jmethodID uuidNameUuidFromBytesMid = nullptr;
@@ -183,6 +200,8 @@ struct BServer {
     std::mutex bMu;
     jobject   bChannel = nullptr;
     uint64_t  bGeneration = 0;
+    std::vector<jobject> bootstrapQueue;
+    static constexpr size_t kBootstrapMax = 256;
 
     std::atomic<BState> bState{BState::AwaitHandshake};
 
@@ -196,6 +215,7 @@ struct BServer {
     jmethodID cplRegistryAccessMid    = nullptr;
     jmethodID registryAccessFreezeMid = nullptr;
     jfieldID  mcPlayerFid             = nullptr;
+    jfieldID  mcInventoryMenuFid      = nullptr;
     jfieldID  mcGameModeFid           = nullptr;
     jfieldID  mcLevelFid              = nullptr;
     jmethodID gameModeGetTypeMid      = nullptr;
@@ -203,6 +223,25 @@ struct BServer {
     jmethodID levelDimMidA            = nullptr;
     jmethodID levelDimMidB            = nullptr;
     jmethodID objToStringMid          = nullptr;
+    jfieldID  clientLevelChunkSourceFid = nullptr;
+    jclass    clientChunkCacheCls     = nullptr;
+    jmethodID clientChunkGetMid       = nullptr;
+    jmethodID clientChunkLightEngineMid = nullptr;
+    jclass    chunkStatusCls          = nullptr;
+    jfieldID  chunkStatusFullFid      = nullptr;
+    jclass    chunkWithLightPacketCls = nullptr;
+    jmethodID chunkWithLightPacketCtor = nullptr;
+    jclass    containerMenuCls         = nullptr;
+    jmethodID containerGetItemsMid     = nullptr;
+    jmethodID containerGetCarriedMid   = nullptr;
+    jmethodID containerGetStateIdMid   = nullptr;
+    jclass    containerContentPacketCls = nullptr;
+    jmethodID containerContentPacketCtor = nullptr;
+    jmethodID playerGetInventoryMid      = nullptr;
+    jclass    inventoryCls               = nullptr;
+    jfieldID  inventorySelectedFid       = nullptr;
+    jclass    carriedItemPacketCls       = nullptr;
+    jmethodID carriedItemPacketCtor      = nullptr;
     jclass    loginPacketCls          = nullptr;
     jmethodID loginPacketCtor         = nullptr;
     jclass    optionalCls             = nullptr;
@@ -338,6 +377,13 @@ jclass loadOrFind(JNIEnv* env, jobject mcLoader, const char* dot, const char* si
     return c;
 }
 
+void clearBootstrapQueue(JNIEnv* env) {
+    if (!env) return;
+    std::lock_guard<std::mutex> lock(g_bs.bMu);
+    for (jobject packet : g_bs.bootstrapQueue) env->DeleteGlobalRef(packet);
+    g_bs.bootstrapQueue.clear();
+}
+
 std::string classNameForB(JNIEnv* env, jobject o) {
     if (!o || !g_jvmti) return {};
     jclass c = env->GetObjectClass(o);
@@ -464,6 +510,8 @@ void JNICALL Native_ServerInit_initChannel(JNIEnv* env, jobject , jobject ch) {
         std::lock_guard<std::mutex> l(g_bConnMu);
         g_bConnected = false;
     }
+    clearBootstrapQueue(env);
+    g_bs.bootstrapAck.reset();
     if (g_bs.bUuidObj) {
         env->DeleteGlobalRef(g_bs.bUuidObj);
         g_bs.bUuidObj = nullptr;
@@ -532,6 +580,9 @@ void JNICALL Native_BSide_channelInactive(JNIEnv* env, jobject , jobject ctx) {
     }
     if (channel) env->DeleteLocalRef(channel);
     if (!current) return;
+
+    clearBootstrapQueue(env);
+    g_bs.bootstrapAck.reset();
 
     LogTo("BServer: current B channel inactive; waiting for reconnect");
     {
@@ -949,8 +1000,17 @@ bool cacheJavaRefs(JNIEnv* env, jobject mcLoader) {
         "Lnet/minecraft/network/protocol/status/ServerStatus;");
     if (ss) {
         g_bs.serverStatusCls = static_cast<jclass>(env->NewGlobalRef(ss));
-
+        g_bs.serverStatusCtor = findMethodByDesc(ss,
+            "(Lnet/minecraft/network/chat/Component;Ljava/util/Optional;Ljava/util/Optional;Ljava/util/Optional;Z)V", false);
         env->DeleteLocalRef(ss);
+    }
+    jclass component = loadOrFind(env, mcLoader, "net.minecraft.network.chat.Component",
+                                  "Lnet/minecraft/network/chat/Component;");
+    if (component) {
+        g_bs.componentCls = static_cast<jclass>(env->NewGlobalRef(component));
+        g_bs.componentLiteralMid = findMethodByDesc(component,
+            "(Ljava/lang/String;)Lnet/minecraft/network/chat/MutableComponent;", true);
+        env->DeleteLocalRef(component);
     }
 
     jclass pp = loadOrFind(env, mcLoader,
@@ -961,6 +1021,46 @@ bool cacheJavaRefs(JNIEnv* env, jobject mcLoader) {
         g_bs.playerPositionPacketCtor = findMethodByDesc(pp,
             "(DDDFFLjava/util/Set;I)V", false);
         env->DeleteLocalRef(pp);
+    }
+
+    jclass ccc = loadOrFind(env, mcLoader,
+        "net.minecraft.network.protocol.game.ClientboundSetChunkCacheCenterPacket",
+        "Lnet/minecraft/network/protocol/game/ClientboundSetChunkCacheCenterPacket;");
+    if (ccc) {
+        g_bs.chunkCacheCenterPacketCls = static_cast<jclass>(env->NewGlobalRef(ccc));
+        g_bs.chunkCacheCenterPacketCtor = findMethodByDesc(ccc, "(II)V", false);
+        env->DeleteLocalRef(ccc);
+    }
+    jclass ccr = loadOrFind(env, mcLoader,
+        "net.minecraft.network.protocol.game.ClientboundSetChunkCacheRadiusPacket",
+        "Lnet/minecraft/network/protocol/game/ClientboundSetChunkCacheRadiusPacket;");
+    if (ccr) {
+        g_bs.chunkCacheRadiusPacketCls = static_cast<jclass>(env->NewGlobalRef(ccr));
+        g_bs.chunkCacheRadiusPacketCtor = findMethodByDesc(ccr, "(I)V", false);
+        env->DeleteLocalRef(ccr);
+    }
+    jclass acceptTeleport = loadOrFind(env, mcLoader,
+        "net.minecraft.network.protocol.game.ServerboundAcceptTeleportationPacket",
+        "Lnet/minecraft/network/protocol/game/ServerboundAcceptTeleportationPacket;");
+    if (acceptTeleport) {
+        g_bs.acceptTeleportPacketCls = static_cast<jclass>(env->NewGlobalRef(acceptTeleport));
+        env->DeleteLocalRef(acceptTeleport);
+    }
+    jclass blockPos = loadOrFind(env, mcLoader, "net.minecraft.core.BlockPos",
+                                 "Lnet/minecraft/core/BlockPos;");
+    if (blockPos) {
+        g_bs.blockPosCls = static_cast<jclass>(env->NewGlobalRef(blockPos));
+        g_bs.blockPosCtor = findMethodByDesc(blockPos, "(III)V", false);
+        env->DeleteLocalRef(blockPos);
+    }
+    jclass defaultSpawn = loadOrFind(env, mcLoader,
+        "net.minecraft.network.protocol.game.ClientboundSetDefaultSpawnPositionPacket",
+        "Lnet/minecraft/network/protocol/game/ClientboundSetDefaultSpawnPositionPacket;");
+    if (defaultSpawn) {
+        g_bs.defaultSpawnPacketCls = static_cast<jclass>(env->NewGlobalRef(defaultSpawn));
+        g_bs.defaultSpawnPacketCtor = findMethodByDesc(defaultSpawn,
+            "(Lnet/minecraft/core/BlockPos;F)V", false);
+        env->DeleteLocalRef(defaultSpawn);
     }
 
     jclass setC = env->FindClass("java/util/Set");
@@ -1081,6 +1181,93 @@ bool cacheJavaRefs(JNIEnv* env, jobject mcLoader) {
         if (env->ExceptionCheck()) env->ExceptionClear();
         env->DeleteLocalRef(lvlCls);
     }
+    jclass clientLevelCls = loadOrFind(env, mcLoader, "net.minecraft.client.multiplayer.ClientLevel",
+                                       "Lnet/minecraft/client/multiplayer/ClientLevel;");
+    if (clientLevelCls) {
+        g_bs.clientLevelChunkSourceFid = findFieldByDesc(clientLevelCls,
+            "Lnet/minecraft/client/multiplayer/ClientChunkCache;", false);
+        env->DeleteLocalRef(clientLevelCls);
+    }
+    jclass playerCls = loadOrFind(env, mcLoader, "net.minecraft.world.entity.player.Player",
+                                  "Lnet/minecraft/world/entity/player/Player;");
+    if (playerCls) {
+        g_bs.mcInventoryMenuFid = findFieldByDesc(playerCls,
+            "Lnet/minecraft/world/inventory/InventoryMenu;", false);
+        g_bs.playerGetInventoryMid = findMethodByDesc(playerCls,
+            "()Lnet/minecraft/world/entity/player/Inventory;", false);
+        env->DeleteLocalRef(playerCls);
+    }
+    jclass inventoryCls = loadOrFind(env, mcLoader,
+        "net.minecraft.world.entity.player.Inventory",
+        "Lnet/minecraft/world/entity/player/Inventory;");
+    if (inventoryCls) {
+        g_bs.inventoryCls = static_cast<jclass>(env->NewGlobalRef(inventoryCls));
+        g_bs.inventorySelectedFid = env->GetFieldID(inventoryCls, "selected", "I");
+        if (!g_bs.inventorySelectedFid && env->ExceptionCheck()) env->ExceptionClear();
+        if (!g_bs.inventorySelectedFid) {
+            g_bs.inventorySelectedFid = env->GetFieldID(inventoryCls, "f_35977_", "I");
+            if (env->ExceptionCheck()) env->ExceptionClear();
+        }
+        env->DeleteLocalRef(inventoryCls);
+    }
+    jclass containerMenuCls = loadOrFind(env, mcLoader,
+        "net.minecraft.world.inventory.AbstractContainerMenu",
+        "Lnet/minecraft/world/inventory/AbstractContainerMenu;");
+    if (containerMenuCls) {
+        g_bs.containerMenuCls = static_cast<jclass>(env->NewGlobalRef(containerMenuCls));
+        g_bs.containerGetItemsMid = findMethodByDesc(containerMenuCls,
+            "()Lnet/minecraft/core/NonNullList;", false);
+        g_bs.containerGetCarriedMid = findMethodByDesc(containerMenuCls,
+            "()Lnet/minecraft/world/item/ItemStack;", false);
+        g_bs.containerGetStateIdMid = findMethodByDesc(containerMenuCls, "()I", false);
+        env->DeleteLocalRef(containerMenuCls);
+    }
+    jclass contentPacketCls = loadOrFind(env, mcLoader,
+        "net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket",
+        "Lnet/minecraft/network/protocol/game/ClientboundContainerSetContentPacket;");
+    if (contentPacketCls) {
+        g_bs.containerContentPacketCls = static_cast<jclass>(env->NewGlobalRef(contentPacketCls));
+        g_bs.containerContentPacketCtor = env->GetMethodID(contentPacketCls, "<init>",
+            "(IILnet/minecraft/core/NonNullList;Lnet/minecraft/world/item/ItemStack;)V");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        env->DeleteLocalRef(contentPacketCls);
+    }
+    jclass carriedItemPacketCls = loadOrFind(env, mcLoader,
+        "net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket",
+        "Lnet/minecraft/network/protocol/game/ClientboundSetCarriedItemPacket;");
+    if (carriedItemPacketCls) {
+        g_bs.carriedItemPacketCls = static_cast<jclass>(env->NewGlobalRef(carriedItemPacketCls));
+        g_bs.carriedItemPacketCtor = env->GetMethodID(carriedItemPacketCls, "<init>", "(I)V");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        env->DeleteLocalRef(carriedItemPacketCls);
+    }
+    jclass chunkCacheCls = loadOrFind(env, mcLoader, "net.minecraft.client.multiplayer.ClientChunkCache",
+                                      "Lnet/minecraft/client/multiplayer/ClientChunkCache;");
+    if (chunkCacheCls) {
+        g_bs.clientChunkCacheCls = static_cast<jclass>(env->NewGlobalRef(chunkCacheCls));
+        g_bs.clientChunkGetMid = findMethodByDesc(chunkCacheCls,
+            "(IILnet/minecraft/world/level/chunk/ChunkStatus;Z)Lnet/minecraft/world/level/chunk/LevelChunk;", false);
+        g_bs.clientChunkLightEngineMid = findMethodByDesc(chunkCacheCls,
+            "()Lnet/minecraft/world/level/lighting/LevelLightEngine;", false);
+        env->DeleteLocalRef(chunkCacheCls);
+    }
+    jclass chunkStatusCls = loadOrFind(env, mcLoader, "net.minecraft.world.level.chunk.ChunkStatus",
+                                       "Lnet/minecraft/world/level/chunk/ChunkStatus;");
+    if (chunkStatusCls) {
+        g_bs.chunkStatusCls = static_cast<jclass>(env->NewGlobalRef(chunkStatusCls));
+        g_bs.chunkStatusFullFid = findFieldByDesc(chunkStatusCls,
+            "Lnet/minecraft/world/level/chunk/ChunkStatus;", true);
+        env->DeleteLocalRef(chunkStatusCls);
+    }
+    jclass chunkPacketCls = loadOrFind(env, mcLoader,
+        "net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket",
+        "Lnet/minecraft/network/protocol/game/ClientboundLevelChunkWithLightPacket;");
+    if (chunkPacketCls) {
+        g_bs.chunkWithLightPacketCls = static_cast<jclass>(env->NewGlobalRef(chunkPacketCls));
+        g_bs.chunkWithLightPacketCtor = findMethodByDesc(chunkPacketCls,
+            "(Lnet/minecraft/world/level/chunk/LevelChunk;Lnet/minecraft/world/level/lighting/LevelLightEngine;Ljava/util/BitSet;Ljava/util/BitSet;)V", false);
+        env->DeleteLocalRef(chunkPacketCls);
+    }
     jclass objCls = env->FindClass("java/lang/Object");
     if (objCls) {
         g_bs.objToStringMid = env->GetMethodID(objCls, "toString", "()Ljava/lang/String;");
@@ -1123,7 +1310,11 @@ bool bindServer(JNIEnv* env, jobject mcLoader, unsigned short port) {
     jclass sscCls  = loadOrFind(env, mcLoader, "io.netty.channel.socket.nio.NioServerSocketChannel",
                                 "Lio/netty/channel/socket/nio/NioServerSocketChannel;");
     jclass isaCls  = env->FindClass("java/net/InetSocketAddress");
-    if (!elgCls || !sbCls || !sscCls || !isaCls) return false;
+    if (!elgCls || !sbCls || !sscCls || !isaCls) {
+        LogTo("BServer: bind prerequisites missing (eventLoop=%p bootstrap=%p channel=%p address=%p)",
+              (void*)elgCls, (void*)sbCls, (void*)sscCls, (void*)isaCls);
+        return false;
+    }
 
     jmethodID elgCtor = env->GetMethodID(elgCls, "<init>", "(I)V");
     if (!elgCtor && env->ExceptionCheck()) env->ExceptionClear();
@@ -1135,7 +1326,25 @@ bool bindServer(JNIEnv* env, jobject mcLoader, unsigned short port) {
     }
     if (env->ExceptionCheck()) { LogAndClearException(env, "NioELG"); return false; }
 
+    auto stopGroup = [&](jobject group) {
+        if (!group) return;
+        jclass cls = env->GetObjectClass(group);
+        jmethodID stop = cls ? env->GetMethodID(cls, "shutdownGracefully", "()Lio/netty/util/concurrent/Future;") : nullptr;
+        if (stop && !env->ExceptionCheck()) {
+            jobject f = env->CallObjectMethod(group, stop);
+            if (f) env->DeleteLocalRef(f);
+        }
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        if (cls) env->DeleteLocalRef(cls);
+    };
+
     jobject sb  = env->NewObject(sbCls, env->GetMethodID(sbCls, "<init>", "()V"));
+    if (!sb || env->ExceptionCheck()) {
+        LogAndClearException(env, "BServer: ServerBootstrap ctor");
+        stopGroup(elg);
+        if (elg) env->DeleteLocalRef(elg);
+        return false;
+    }
     env->CallObjectMethod(sb,
         env->GetMethodID(sbCls, "group",
                          "(Lio/netty/channel/EventLoopGroup;)Lio/netty/bootstrap/ServerBootstrap;"),
@@ -1163,12 +1372,26 @@ bool bindServer(JNIEnv* env, jobject mcLoader, unsigned short port) {
                          "(Ljava/net/SocketAddress;)Lio/netty/channel/ChannelFuture;"),
         isa);
     env->DeleteLocalRef(isa);
-    if (env->ExceptionCheck()) { LogAndClearException(env, "bind"); return false; }
+    if (env->ExceptionCheck()) {
+        LogAndClearException(env, "BServer: bind");
+        env->DeleteLocalRef(sb);
+        stopGroup(elg);
+        env->DeleteLocalRef(elg);
+        return false;
+    }
     jobject boundChannel = nullptr;
     if (future) {
         jclass fCls = env->GetObjectClass(future);
         env->CallObjectMethod(future, env->GetMethodID(fCls, "sync", "()Lio/netty/channel/ChannelFuture;"));
-        if (env->ExceptionCheck()) { LogAndClearException(env, "bind-sync"); return false; }
+        if (env->ExceptionCheck()) {
+            LogAndClearException(env, "BServer: bind.sync");
+            env->DeleteLocalRef(fCls);
+            env->DeleteLocalRef(future);
+            env->DeleteLocalRef(sb);
+            stopGroup(elg);
+            env->DeleteLocalRef(elg);
+            return false;
+        }
         jmethodID channelMid = env->GetMethodID(fCls, "channel", "()Lio/netty/channel/Channel;");
         if (channelMid && !env->ExceptionCheck()) boundChannel = env->CallObjectMethod(future, channelMid);
         env->DeleteLocalRef(fCls);
@@ -1191,8 +1414,12 @@ bool InstallBServer(JNIEnv* env, unsigned short port) {
     if (g_bs.bServerBound) return true;
     jobject mcLoader = GetMinecraftClassLoader(env, g_jvmti);
     if (!mcLoader) return false;
-    bool ok = defineInitClass(env, mcLoader)
-           && cacheJavaRefs(env, mcLoader) && bindServer(env, mcLoader, port);
+    bool defined = defineInitClass(env, mcLoader);
+    bool refs = defined && cacheJavaRefs(env, mcLoader);
+    bool bound = refs && bindServer(env, mcLoader, port);
+    LogTo("BServer: install stages define=%d refs=%d bind=%d port=%u",
+          defined ? 1 : 0, refs ? 1 : 0, bound ? 1 : 0, static_cast<unsigned>(port));
+    bool ok = defined && refs && bound;
     env->DeleteGlobalRef(mcLoader);
     if (ok) g_bs.bServerBound = true;
     return ok;
@@ -1259,6 +1486,35 @@ void BServer_SetTargetConnection(JNIEnv* env, jobject connection) {
     LogTo("BServer: target A connection = %p", (void*)g_bs.targetAConnection);
 }
 
+void BServer_OnAChannelInactive(JNIEnv* env, jobject ctx) {
+    if (!env || !ctx) return;
+    jclass cls = env->GetObjectClass(ctx);
+    jmethodID channelMid = cls ? env->GetMethodID(cls, "channel", "()Lio/netty/channel/Channel;") : nullptr;
+    jobject channel = channelMid && !env->ExceptionCheck() ? env->CallObjectMethod(ctx, channelMid) : nullptr;
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    if (cls) env->DeleteLocalRef(cls);
+    bool matches = false;
+    {
+        std::lock_guard<std::mutex> lock(g_bs.targetMu);
+        if (channel && g_bs.targetAConnection && g_bs.connectionChannelFid) {
+            jobject targetChannel = env->GetObjectField(g_bs.targetAConnection, g_bs.connectionChannelFid);
+            if (targetChannel && !env->ExceptionCheck()) matches = env->IsSameObject(channel, targetChannel);
+            if (targetChannel) env->DeleteLocalRef(targetChannel);
+            if (env->ExceptionCheck()) env->ExceptionClear();
+        }
+        if (matches && g_bs.targetAConnection) {
+            env->DeleteGlobalRef(g_bs.targetAConnection);
+            g_bs.targetAConnection = nullptr;
+        }
+    }
+    if (channel) env->DeleteLocalRef(channel);
+    if (!matches) return;
+    g_bs.midSession.store(false, std::memory_order_release);
+    g_cache.clear(env);
+    clearBootstrapQueue(env);
+    LogTo("A connection inactive: target connection, world cache and mid-session state cleared");
+}
+
 bool BServer_TryCaptureLiveConnection(JNIEnv* env) {
     if (!env) return false;
     if (!g_bs.minecraftCls || !g_bs.mcGetInstanceMid || !g_bs.mcGetConnectionMid ||
@@ -1293,6 +1549,8 @@ bool BServer_TryCaptureLiveConnection(JNIEnv* env) {
 }
 
 namespace {
+
+bool replayLoadedChunkToB(JNIEnv* env, jobject ch, jint x, jint z);
 
 void writeToB(JNIEnv* env, jobject packet) {
     jobject ch;
@@ -1472,7 +1730,6 @@ bool reconstructAndSendLoginToB(JNIEnv* env, jobject ch) {
     if (env->ExceptionCheck()) env->ExceptionClear();
 
     jobject level = env->GetObjectField(mc, g_bs.mcLevelFid);
-    env->DeleteLocalRef(mc);
     jobject dimKey = nullptr, dimTypeKey = nullptr;
     if (level && !env->ExceptionCheck()) {
         jmethodID mids[2] = { g_bs.levelDimMidA, g_bs.levelDimMidB };
@@ -1514,12 +1771,21 @@ bool reconstructAndSendLoginToB(JNIEnv* env, jobject ch) {
         return false;
     }
 
-    const jint     playerId    = 2000000000;
+    jint playerId = 2000000000;
+    PlayerSnapshot livePlayer;
+    bool haveLivePlayer = false;
+    jobject live = g_bs.mcPlayerFid ? env->GetObjectField(mc, g_bs.mcPlayerFid) : nullptr;
+    if (live && !env->ExceptionCheck()) {
+        haveLivePlayer = ReadPlayerSnapshot(env, live, livePlayer);
+        if (haveLivePlayer) playerId = livePlayer.entityId;
+        env->DeleteLocalRef(live);
+    } else if (env->ExceptionCheck()) env->ExceptionClear();
+    env->DeleteLocalRef(mc);
     const jboolean hardcore    = JNI_FALSE;
     const jlong    seed        = 0;
     const jint     maxPlayers  = 20;
-    const jint     chunkRadius = 16;
-    const jint     simDist     = 16;
+    const jint     chunkRadius = 4;
+    const jint     simDist     = 4;
     jobject login = env->NewObject(g_bs.loginPacketCls, g_bs.loginPacketCtor,
         playerId, hardcore, gameType, (jobject)nullptr, levels, frozen,
         dimTypeKey, dimKey, seed, maxPlayers, chunkRadius, simDist,
@@ -1542,21 +1808,255 @@ bool reconstructAndSendLoginToB(JNIEnv* env, jobject ch) {
     if (!sent) return false;
     LogTo("mid-login: rebuilt ClientboundLoginPacket sent to B");
 
+    if (haveLivePlayer) {
+        const jint cx = static_cast<jint>(std::floor(livePlayer.x / 16.0));
+        const jint cz = static_cast<jint>(std::floor(livePlayer.z / 16.0));
+        if (g_bs.chunkCacheRadiusPacketCtor) {
+            jobject radius = env->NewObject(g_bs.chunkCacheRadiusPacketCls, g_bs.chunkCacheRadiusPacketCtor, (jint)4);
+            if (radius && !env->ExceptionCheck()) {
+                env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, radius);
+                if (env->ExceptionCheck()) env->ExceptionClear();
+                env->DeleteLocalRef(radius);
+            } else if (env->ExceptionCheck()) env->ExceptionClear();
+        }
+        if (g_bs.chunkCacheCenterPacketCtor) {
+            jobject center = env->NewObject(g_bs.chunkCacheCenterPacketCls, g_bs.chunkCacheCenterPacketCtor, cx, cz);
+            if (center && !env->ExceptionCheck()) {
+                env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, center);
+                if (env->ExceptionCheck()) env->ExceptionClear();
+                env->DeleteLocalRef(center);
+            } else if (env->ExceptionCheck()) env->ExceptionClear();
+        }
+        replayLoadedChunkToB(env, ch, cx, cz);
+    }
     if (g_bs.playerPositionPacketCtor && g_bs.setOfMid && g_bs.setCls) {
         jobject relSet = env->CallStaticObjectMethod(g_bs.setCls, g_bs.setOfMid);
         if (relSet && !env->ExceptionCheck()) {
+            const jint teleportId = g_bs.bootstrapAck.begin();
             jobject pos = env->NewObject(g_bs.playerPositionPacketCls, g_bs.playerPositionPacketCtor,
-                (jdouble)0.0, (jdouble)100.0, (jdouble)0.0, (jfloat)0.0f, (jfloat)0.0f, relSet, (jint)0);
+                haveLivePlayer ? livePlayer.x : (jdouble)0.0,
+                haveLivePlayer ? livePlayer.y : (jdouble)100.0,
+                haveLivePlayer ? livePlayer.z : (jdouble)0.0,
+                haveLivePlayer ? livePlayer.yaw : (jfloat)0.0f,
+                haveLivePlayer ? livePlayer.pitch : (jfloat)0.0f, relSet, teleportId);
             if (pos && !env->ExceptionCheck()) {
                 env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, pos);
                 if (env->ExceptionCheck()) env->ExceptionClear();
                 env->DeleteLocalRef(pos);
-                LogTo("mid-login: sent placeholder spawn position to B");
+                LogTo("mid-login: sent live spawn position to B (local teleport=%d)", (int)teleportId);
             } else if (env->ExceptionCheck()) env->ExceptionClear();
             env->DeleteLocalRef(relSet);
         } else if (env->ExceptionCheck()) env->ExceptionClear();
     }
+    if (haveLivePlayer && g_bs.defaultSpawnPacketCtor && g_bs.blockPosCtor) {
+        jobject spawnPos = env->NewObject(g_bs.blockPosCls, g_bs.blockPosCtor,
+            static_cast<jint>(std::floor(livePlayer.x)),
+            static_cast<jint>(std::floor(livePlayer.y)),
+            static_cast<jint>(std::floor(livePlayer.z)));
+        jobject marker = spawnPos && !env->ExceptionCheck()
+            ? env->NewObject(g_bs.defaultSpawnPacketCls, g_bs.defaultSpawnPacketCtor,
+                             spawnPos, livePlayer.yaw) : nullptr;
+        if (marker && !env->ExceptionCheck()) {
+            env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, marker);
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            env->DeleteLocalRef(marker);
+            LogTo("mid-login: sent loading-complete spawn marker");
+        } else if (env->ExceptionCheck()) env->ExceptionClear();
+        if (spawnPos) env->DeleteLocalRef(spawnPos);
+    }
     return true;
+}
+
+bool replayLoadedChunkToB(JNIEnv* env, jobject ch, jint x, jint z) {
+    if (!env || !ch || !g_bs.mcLevelFid || !g_bs.clientLevelChunkSourceFid ||
+        !g_bs.clientChunkGetMid || !g_bs.clientChunkLightEngineMid || !g_bs.chunkStatusCls ||
+        !g_bs.chunkStatusFullFid || !g_bs.chunkWithLightPacketCls ||
+        !g_bs.chunkWithLightPacketCtor || !g_bs.minecraftCls || !g_bs.mcGetInstanceMid) return false;
+    jobject mc = env->CallStaticObjectMethod(g_bs.minecraftCls, g_bs.mcGetInstanceMid);
+    jobject level = mc && !env->ExceptionCheck() ? env->GetObjectField(mc, g_bs.mcLevelFid) : nullptr;
+    jobject cache = level && !env->ExceptionCheck() ? env->GetObjectField(level, g_bs.clientLevelChunkSourceFid) : nullptr;
+    jobject full = env->GetStaticObjectField(g_bs.chunkStatusCls, g_bs.chunkStatusFullFid);
+    jobject light = cache && !env->ExceptionCheck() ? env->CallObjectMethod(cache, g_bs.clientChunkLightEngineMid) : nullptr;
+    jobject chunk = cache && full && !env->ExceptionCheck()
+        ? env->CallObjectMethod(cache, g_bs.clientChunkGetMid, x, z, full, JNI_FALSE) : nullptr;
+    jobject packet = chunk && light && !env->ExceptionCheck()
+        ? env->NewObject(g_bs.chunkWithLightPacketCls, g_bs.chunkWithLightPacketCtor,
+                         chunk, light, nullptr, nullptr) : nullptr;
+    bool sent = false;
+    if (packet && !env->ExceptionCheck()) {
+        env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, packet);
+        sent = !env->ExceptionCheck();
+    }
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    if (packet) env->DeleteLocalRef(packet); if (chunk) env->DeleteLocalRef(chunk);
+    if (light) env->DeleteLocalRef(light); if (full) env->DeleteLocalRef(full);
+    if (cache) env->DeleteLocalRef(cache); if (level) env->DeleteLocalRef(level); if (mc) env->DeleteLocalRef(mc);
+    return sent;
+}
+
+void replayLoadedChunksToB(JNIEnv* env, jobject ch, const PlayerSnapshot& player) {
+    if (!env || !ch || !g_bs.mcLevelFid || !g_bs.clientLevelChunkSourceFid ||
+        !g_bs.clientChunkGetMid || !g_bs.clientChunkLightEngineMid || !g_bs.chunkStatusCls ||
+        !g_bs.chunkStatusFullFid ||
+        !g_bs.chunkWithLightPacketCls || !g_bs.chunkWithLightPacketCtor || !g_bs.minecraftCls ||
+        !g_bs.mcGetInstanceMid) {
+        LogTo("mid-chunks: client chunk refs unavailable; relying on live stream");
+        return;
+    }
+    jobject mc = env->CallStaticObjectMethod(g_bs.minecraftCls, g_bs.mcGetInstanceMid);
+    jobject level = mc && !env->ExceptionCheck() ? env->GetObjectField(mc, g_bs.mcLevelFid) : nullptr;
+    jobject cache = level && !env->ExceptionCheck() ? env->GetObjectField(level, g_bs.clientLevelChunkSourceFid) : nullptr;
+    jobject full = env->GetStaticObjectField(g_bs.chunkStatusCls, g_bs.chunkStatusFullFid);
+    jobject light = cache && !env->ExceptionCheck() ? env->CallObjectMethod(cache, g_bs.clientChunkLightEngineMid) : nullptr;
+    if (env->ExceptionCheck() || !cache || !full || !light) {
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        LogTo("mid-chunks: failed to access ClientChunkCache");
+        if (mc) env->DeleteLocalRef(mc); if (level) env->DeleteLocalRef(level); if (cache) env->DeleteLocalRef(cache);
+        if (full) env->DeleteLocalRef(full); if (light) env->DeleteLocalRef(light);
+        return;
+    }
+    const jint cx = static_cast<jint>(std::floor(player.x / 16.0));
+    const jint cz = static_cast<jint>(std::floor(player.z / 16.0));
+    int sent = 0;
+    constexpr int radius = 4;
+    for (int dz = -radius; dz <= radius; ++dz) for (int dx = -radius; dx <= radius; ++dx) {
+        jobject chunk = env->CallObjectMethod(cache, g_bs.clientChunkGetMid, cx + dx, cz + dz, full, JNI_FALSE);
+        if (env->ExceptionCheck()) { env->ExceptionClear(); continue; }
+        if (!chunk) continue;
+        jobject packet = env->NewObject(g_bs.chunkWithLightPacketCls, g_bs.chunkWithLightPacketCtor,
+                                        chunk, light, nullptr, nullptr);
+        env->DeleteLocalRef(chunk);
+        if (packet && !env->ExceptionCheck()) {
+            env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, packet);
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            env->DeleteLocalRef(packet);
+            ++sent;
+        } else if (env->ExceptionCheck()) env->ExceptionClear();
+    }
+    LogTo("mid-chunks: replayed %d loaded chunks around %d,%d", sent, (int)cx, (int)cz);
+    env->DeleteLocalRef(mc); env->DeleteLocalRef(level); env->DeleteLocalRef(cache);
+    env->DeleteLocalRef(full); env->DeleteLocalRef(light);
+}
+
+void replayLoadedChunksToBAsync(JNIEnv* env, jobject ch, const PlayerSnapshot& player) {
+    if (!env || !ch) return;
+    jobject channelRef = env->NewGlobalRef(ch);
+    if (!channelRef) return;
+    std::thread([channelRef, player]() {
+        JniAttach attach;
+        if (!attach) {
+            return;
+        }
+        replayLoadedChunksToB(attach.env, channelRef, player);
+        attach.env->DeleteGlobalRef(channelRef);
+    }).detach();
+}
+
+void sendLocalInventorySnapshotToB(JNIEnv* env, jobject ch) {
+    if (!env || !ch || !g_bs.minecraftCls || !g_bs.mcGetInstanceMid ||
+        !g_bs.mcPlayerFid || !g_bs.mcInventoryMenuFid ||
+        !g_bs.containerGetItemsMid || !g_bs.containerGetCarriedMid ||
+        !g_bs.containerGetStateIdMid || !g_bs.containerContentPacketCls ||
+        !g_bs.containerContentPacketCtor) {
+        LogTo("inventory-bootstrap: local container refs unavailable");
+        return;
+    }
+    jobject mc = env->CallStaticObjectMethod(g_bs.minecraftCls, g_bs.mcGetInstanceMid);
+    jobject player = mc && !env->ExceptionCheck() ? env->GetObjectField(mc, g_bs.mcPlayerFid) : nullptr;
+    jobject menu = player && !env->ExceptionCheck() ? env->GetObjectField(player, g_bs.mcInventoryMenuFid) : nullptr;
+    jobject items = menu && !env->ExceptionCheck() ? env->CallObjectMethod(menu, g_bs.containerGetItemsMid) : nullptr;
+    jobject carried = menu && !env->ExceptionCheck() ? env->CallObjectMethod(menu, g_bs.containerGetCarriedMid) : nullptr;
+    jint stateId = menu && !env->ExceptionCheck() ? env->CallIntMethod(menu, g_bs.containerGetStateIdMid) : 0;
+    if (env->ExceptionCheck() || !items || !carried) {
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        LogTo("inventory-bootstrap: local inventory unavailable");
+        if (carried) env->DeleteLocalRef(carried);
+        if (items) env->DeleteLocalRef(items);
+        if (menu) env->DeleteLocalRef(menu);
+        if (player) env->DeleteLocalRef(player);
+        if (mc) env->DeleteLocalRef(mc);
+        return;
+    }
+    // The player inventory menu is always container id 0 for the client.
+    jobject packet = env->NewObject(g_bs.containerContentPacketCls,
+        g_bs.containerContentPacketCtor, (jint)0, stateId, items, carried);
+    if (packet && !env->ExceptionCheck()) {
+        env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, packet);
+        if (env->ExceptionCheck()) LogAndClearException(env, "inventory-bootstrap: write");
+        else LogTo("inventory-bootstrap: sent local container contents (state=%d)", (int)stateId);
+    } else if (env->ExceptionCheck()) {
+        LogAndClearException(env, "inventory-bootstrap: packet ctor");
+    }
+    if (packet) env->DeleteLocalRef(packet);
+
+    // Container contents do not include which hotbar slot is selected.  A
+    // freshly connected B otherwise defaults to slot 0 while the server still
+    // has A's old selected slot.  ServerboundUseItemPacket contains only the
+    // hand, so that mismatch makes lobby/menu items appear usable on B but the
+    // server actually activates a different slot.
+    if (g_bs.playerGetInventoryMid && g_bs.inventorySelectedFid &&
+        g_bs.carriedItemPacketCls && g_bs.carriedItemPacketCtor) {
+        jobject inventory = env->CallObjectMethod(player, g_bs.playerGetInventoryMid);
+        if (inventory && !env->ExceptionCheck()) {
+            jint selected = env->GetIntField(inventory, g_bs.inventorySelectedFid);
+            if (!env->ExceptionCheck() && selected >= 0 && selected < 9) {
+                jobject selectedPacket = env->NewObject(g_bs.carriedItemPacketCls,
+                    g_bs.carriedItemPacketCtor, selected);
+                if (selectedPacket && !env->ExceptionCheck()) {
+                    env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, selectedPacket);
+                    if (env->ExceptionCheck()) {
+                        LogAndClearException(env, "inventory-bootstrap: selected-slot write");
+                    } else {
+                        LogTo("inventory-bootstrap: sent selected hotbar slot=%d", (int)selected);
+                    }
+                    env->DeleteLocalRef(selectedPacket);
+                } else if (env->ExceptionCheck()) {
+                    LogAndClearException(env, "inventory-bootstrap: selected-slot packet ctor");
+                }
+            } else if (env->ExceptionCheck()) {
+                LogAndClearException(env, "inventory-bootstrap: selected-slot read");
+            }
+            env->DeleteLocalRef(inventory);
+        } else {
+            if (env->ExceptionCheck()) LogAndClearException(env, "inventory-bootstrap: get inventory");
+            LogTo("inventory-bootstrap: selected hotbar slot unavailable");
+        }
+    } else {
+        LogTo("inventory-bootstrap: selected-slot refs unavailable");
+    }
+    env->DeleteLocalRef(carried);
+    env->DeleteLocalRef(items);
+    env->DeleteLocalRef(menu);
+    env->DeleteLocalRef(player);
+    env->DeleteLocalRef(mc);
+}
+
+void sendScoreboardSnapshotToB(JNIEnv* env, jobject ch) {
+    if (!env || !ch || !g_bs.minecraftCls || !g_bs.mcGetInstanceMid || !g_bs.mcLevelFid) return;
+    jobject loader = GetMinecraftClassLoader(env, g_jvmti);
+    jobject mc = env->CallStaticObjectMethod(g_bs.minecraftCls, g_bs.mcGetInstanceMid);
+    jobject level = mc && !env->ExceptionCheck() ? env->GetObjectField(mc, g_bs.mcLevelFid) : nullptr;
+    if (!loader || !level || env->ExceptionCheck()) {
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        LogTo("scoreboard-bootstrap: client level unavailable");
+        if (level) env->DeleteLocalRef(level);
+        if (mc) env->DeleteLocalRef(mc);
+        if (loader) env->DeleteGlobalRef(loader);
+        return;
+    }
+    ScoreboardSnapshotStats stats;
+    bool ok = WriteScoreboardSnapshot(env, loader, level, [&](jobject packet) {
+        if (!packet || env->ExceptionCheck()) return false;
+        env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, packet);
+        return !env->ExceptionCheck();
+    }, stats);
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    LogTo("scoreboard-bootstrap: %s objectives=%d teams=%d scores=%d displays=%d",
+          ok ? "sent" : "unavailable", stats.objectives, stats.teams,
+          stats.scores, stats.displays);
+    env->DeleteLocalRef(level);
+    env->DeleteLocalRef(mc);
+    env->DeleteGlobalRef(loader);
 }
 
 void completeLogin(JNIEnv* env, jobject hello) {
@@ -1635,7 +2135,23 @@ void completeLogin(JNIEnv* env, jobject hello) {
         if (g_bs.midSession.load(std::memory_order_acquire)) {
             LogTo("login: mid-session — rebuilding login for B from A's state");
             reconstructAndSendLoginToB(env, ch);
+            if (g_bs.minecraftCls && g_bs.mcGetInstanceMid && g_bs.mcPlayerFid) {
+                jobject mcNow = env->CallStaticObjectMethod(g_bs.minecraftCls, g_bs.mcGetInstanceMid);
+                jobject playerNow = mcNow && !env->ExceptionCheck() ? env->GetObjectField(mcNow, g_bs.mcPlayerFid) : nullptr;
+                PlayerSnapshot snapshot;
+                if (playerNow && !env->ExceptionCheck() && ReadPlayerSnapshot(env, playerNow, snapshot))
+                    replayLoadedChunksToBAsync(env, ch, snapshot);
+                if (playerNow) env->DeleteLocalRef(playerNow);
+                if (mcNow) env->DeleteLocalRef(mcNow);
+                if (env->ExceptionCheck()) env->ExceptionClear();
+            }
         }
+        replayBootstrap(env, ch, g_bs.midSession.load(std::memory_order_acquire));
+        // These are server-side state snapshots rather than world chunks. The
+        // A connection may have sent them long before injection, so rebuild
+        // them from the live client objects after the protocol bootstrap.
+        if (!g_cache.hasScoreboard()) sendScoreboardSnapshotToB(env, ch);
+        sendLocalInventorySnapshotToB(env, ch);
         env->DeleteLocalRef(ch);
     }
 
@@ -1995,6 +2511,69 @@ void BServer_ForwardToB(JNIEnv* env, jobject packet) {
     env->DeleteLocalRef(ch);
 }
 
+void BServer_ObserveAndRouteFromA(JNIEnv* env, jobject packet) {
+    if (!env || !packet) return;
+    if (g_bs.bundlePacketCls && g_bs.bundleSubPacketsMid && g_bs.iterableIteratorMid &&
+        g_bs.iteratorHasNextMid && g_bs.iteratorNextMid && env->IsInstanceOf(packet, g_bs.bundlePacketCls)) {
+        jobject items = env->CallObjectMethod(packet, g_bs.bundleSubPacketsMid);
+        jobject it = items && !env->ExceptionCheck() ? env->CallObjectMethod(items, g_bs.iterableIteratorMid) : nullptr;
+        if (items) env->DeleteLocalRef(items);
+        while (it && env->CallBooleanMethod(it, g_bs.iteratorHasNextMid) && !env->ExceptionCheck()) {
+            jobject sub = env->CallObjectMethod(it, g_bs.iteratorNextMid);
+            if (sub && !env->ExceptionCheck()) {
+                BServer_ObserveAndRouteFromA(env, sub);
+                env->DeleteLocalRef(sub);
+            } else if (env->ExceptionCheck()) env->ExceptionClear();
+        }
+        if (it) env->DeleteLocalRef(it);
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        return;
+    }
+    g_cache.observe(env, packet);
+    if (g_bs.bState.load(std::memory_order_acquire) == BState::Play) {
+        BServer_ForwardToB(env, packet);
+        return;
+    }
+    std::lock_guard<std::mutex> lock(g_bs.bMu);
+    if (!g_bs.bChannel) return;
+    if (g_bs.bootstrapQueue.size() >= BServer::kBootstrapMax) {
+        env->DeleteGlobalRef(g_bs.bootstrapQueue.front());
+        g_bs.bootstrapQueue.erase(g_bs.bootstrapQueue.begin());
+    }
+    jobject ref = env->NewGlobalRef(packet);
+    if (ref) g_bs.bootstrapQueue.push_back(ref);
+}
+
+void replayBootstrap(JNIEnv* env, jobject ch, bool skipLogin) {
+    if (!env || !ch) return;
+    auto packets = g_cache.snapshot(env);
+    std::vector<jobject> queued;
+    {
+        std::lock_guard<std::mutex> lock(g_bs.bMu);
+        for (jobject packet : g_bs.bootstrapQueue) {
+            jobject local = env->NewLocalRef(packet);
+            if (local) queued.push_back(local);
+            env->DeleteGlobalRef(packet);
+        }
+        g_bs.bootstrapQueue.clear();
+    }
+    auto send = [&](jobject packet) {
+        if (!packet) return;
+        std::string cls = classNameForB(env, packet);
+        if (skipLogin && (cls == "net.minecraft.network.protocol.game.ClientboundLoginPacket" ||
+                          cls == "net.minecraft.network.protocol.game.ClientboundRespawnPacket" ||
+                          cls == "net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket" ||
+                          cls == "net.minecraft.network.protocol.game.ClientboundSetChunkCacheCenterPacket" ||
+                          cls == "net.minecraft.network.protocol.game.ClientboundSetChunkCacheRadiusPacket" ||
+                          cls == "net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket" ||
+                          cls == "net.minecraft.network.protocol.game.ClientboundForgetLevelChunkPacket")) return;
+        if (!forwardBundleExpanded(env, ch, packet)) writeOneToBWithTabGuard(env, ch, packet);
+    };
+    for (jobject packet : packets) { send(packet); env->DeleteLocalRef(packet); }
+    for (jobject packet : queued) { send(packet); env->DeleteLocalRef(packet); }
+    LogTo("bootstrap: replayed cache=%zu queued=%zu skipLogin=%d", packets.size(), queued.size(), skipLogin ? 1 : 0);
+}
+
 void BSide_OnPacket(JNIEnv* env, jobject , jobject msg) {
     std::string cls = classNameForB(env, msg);
     BState state = g_bs.bState.load(std::memory_order_acquire);
@@ -2038,12 +2617,56 @@ void BSide_OnPacket(JNIEnv* env, jobject , jobject msg) {
         return;
     }
 
+    if (g_bs.statusRequestPacketCls && env->IsInstanceOf(msg, g_bs.statusRequestPacketCls)) {
+        if (g_bs.statusResponsePacketCtor && g_bs.serverStatusCtor && g_bs.optionalCls && g_bs.optionalEmptyMid &&
+            g_bs.componentCls && g_bs.componentLiteralMid) {
+            jstring text = env->NewStringUTF("Server");
+            jobject description = env->CallStaticObjectMethod(g_bs.componentCls, g_bs.componentLiteralMid, text);
+            env->DeleteLocalRef(text);
+            jobject emptyPlayers = env->CallStaticObjectMethod(g_bs.optionalCls, g_bs.optionalEmptyMid);
+            jobject emptyVersion = env->CallStaticObjectMethod(g_bs.optionalCls, g_bs.optionalEmptyMid);
+            jobject emptyIcon = env->CallStaticObjectMethod(g_bs.optionalCls, g_bs.optionalEmptyMid);
+            jobject status = description && emptyPlayers && emptyVersion && emptyIcon && !env->ExceptionCheck()
+                ? env->NewObject(g_bs.serverStatusCls, g_bs.serverStatusCtor,
+                                 description, emptyPlayers, emptyVersion, emptyIcon, JNI_FALSE)
+                : nullptr;
+            if (description) env->DeleteLocalRef(description);
+            if (emptyPlayers) env->DeleteLocalRef(emptyPlayers);
+            if (emptyVersion) env->DeleteLocalRef(emptyVersion);
+            if (emptyIcon) env->DeleteLocalRef(emptyIcon);
+            if (status && !env->ExceptionCheck()) {
+                jobject response = env->NewObject(g_bs.statusResponsePacketCls,
+                                                  g_bs.statusResponsePacketCtor, status);
+                if (response && !env->ExceptionCheck()) {
+                    writeToB(env, response);
+                    env->DeleteLocalRef(response);
+                    LogTo("BServer: replied STATUS response");
+                } else if (env->ExceptionCheck()) env->ExceptionClear();
+                env->DeleteLocalRef(status);
+            } else if (env->ExceptionCheck()) {
+                LogAndClearException(env, "BServer: status response");
+            }
+        } else {
+            LogTo("BServer: STATUS request ignored; response refs unavailable");
+        }
+        return;
+    }
+
     if (g_bs.helloPacketCls && env->IsInstanceOf(msg, g_bs.helloPacketCls)) {
         completeLogin(env, msg);
         return;
     }
 
     if (g_bs.bState.load(std::memory_order_acquire) == BState::Play) {
+        if (g_bs.acceptTeleportPacketCls && env->IsInstanceOf(msg, g_bs.acceptTeleportPacketCls)) {
+            jint id = 0;
+            if (ReadTeleportId(env, msg, id) && g_bs.bootstrapAck.consumeLocalTeleport(id)) {
+                g_bs.bootstrapAck.reset();
+                LogTo("bootstrap: consumed local teleport ACK %d", (int)id);
+                return;
+            }
+            if (env->ExceptionCheck()) env->ExceptionClear();
+        }
         if (shouldRouteBToA(cls)) {
             routeToA(env, msg);
         }

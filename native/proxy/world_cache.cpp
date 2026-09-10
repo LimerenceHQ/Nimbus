@@ -47,6 +47,8 @@ WorldStateCache::Category WorldStateCache::categorize(std::string_view fqcn) {
     if (leaf == "ClientboundGameEventPacket") return Category::LatestGameEvent;
     if (leaf == "ClientboundSetTimePacket") return Category::LatestSetTime;
     if (leaf == "ClientboundPlayerPositionPacket") return Category::LatestPlayerPosition;
+    if (leaf == "ClientboundSetChunkCacheCenterPacket") return Category::LatestChunkCacheCenter;
+    if (leaf == "ClientboundSetChunkCacheRadiusPacket") return Category::LatestChunkCacheRadius;
     if (leaf == "ClientboundPlayerInfoUpdatePacket" ||
         leaf == "ClientboundPlayerInfoRemovePacket") return Category::AppendPlayerInfo;
     if (leaf == "ClientboundAddEntityPacket" ||
@@ -54,6 +56,19 @@ WorldStateCache::Category WorldStateCache::categorize(std::string_view fqcn) {
         leaf == "ClientboundRemoveEntitiesPacket") return Category::AppendEntity;
     if (leaf == "ClientboundLevelChunkWithLightPacket" ||
         leaf == "ClientboundForgetLevelChunkPacket") return Category::AppendChunk;
+    if (leaf == "ClientboundContainerSetContentPacket" ||
+        leaf == "ClientboundContainerSetSlotPacket" ||
+        leaf == "ClientboundSetCarriedItemPacket" ||
+        leaf == "ClientboundSetEquipmentPacket" ||
+        leaf == "ClientboundPlayerAbilitiesPacket" ||
+        leaf == "ClientboundSetHealthPacket" ||
+        leaf == "ClientboundSetExperiencePacket" ||
+        leaf == "ClientboundSetEntityDataPacket" ||
+        leaf == "ClientboundUpdateAttributesPacket") return Category::AppendSelfState;
+    if (leaf == "ClientboundSetObjectivePacket" ||
+        leaf == "ClientboundSetScorePacket" ||
+        leaf == "ClientboundSetDisplayObjectivePacket" ||
+        leaf == "ClientboundSetPlayerTeamPacket") return Category::AppendScoreboard;
     return Category::Ignored;
 }
 
@@ -70,13 +85,18 @@ void WorldStateCache::clearLocked(JNIEnv* env) {
     };
 
     drop(login_);
+    drop(respawn_);
     drop(gameEvent_);
     drop(setTime_);
     drop(playerPos_);
+    drop(chunkCacheCenter_);
+    drop(chunkCacheRadius_);
     dropAll(ordered_);
     dropAll(playerInfo_);
     dropAll(entities_);
     dropAll(chunks_);
+    dropAll(selfState_);
+    dropAll(scoreboard_);
     loginSeen_ = false;
 }
 
@@ -94,10 +114,15 @@ void WorldStateCache::clearWorldTailLocked(JNIEnv* env) {
     drop(gameEvent_);
     drop(setTime_);
     drop(playerPos_);
+    drop(respawn_);
+    drop(chunkCacheCenter_);
+    drop(chunkCacheRadius_);
     dropAll(ordered_);
     dropAll(playerInfo_);
     dropAll(entities_);
     dropAll(chunks_);
+    dropAll(selfState_);
+    dropAll(scoreboard_);
     loginSeen_ = login_ != nullptr;
     if (login_) {
         jobject orderedLogin = env->NewGlobalRef(login_);
@@ -132,9 +157,12 @@ void WorldStateCache::observe(JNIEnv* env, jobject packetLocalRef) {
 
     if (isRespawn) {
         clearWorldTailLocked(env);
+        respawn_ = env->NewGlobalRef(packetLocalRef);
         LogTo("world-cache: reset world tail on respawn; retained real login");
     }
-    if (!loginSeen_) return;
+    // A late attach has no Login packet left to observe. Keep collecting the
+    // state packets that follow so bootstrap can still reconstruct the local
+    // player instead of waiting for a world switch.
 
     jobject ordered = nullptr;
     if (ordered_.size() < kMaxOrdered) ordered = env->NewGlobalRef(packetLocalRef);
@@ -164,9 +192,13 @@ void WorldStateCache::observe(JNIEnv* env, jobject packetLocalRef) {
         case Category::LatestGameEvent:      replaceLatest(gameEvent_); break;
         case Category::LatestSetTime:        replaceLatest(setTime_); break;
         case Category::LatestPlayerPosition: replaceLatest(playerPos_); break;
+        case Category::LatestChunkCacheCenter: replaceLatest(chunkCacheCenter_); break;
+        case Category::LatestChunkCacheRadius: replaceLatest(chunkCacheRadius_); break;
         case Category::AppendPlayerInfo:     pushCapped(playerInfo_, kMaxPlayerInfo); break;
         case Category::AppendEntity:         pushCapped(entities_, kMaxEntities); break;
         case Category::AppendChunk:          pushCapped(chunks_, kMaxChunks); break;
+        case Category::AppendSelfState:      pushCapped(selfState_, kMaxSelfState); break;
+        case Category::AppendScoreboard:     pushCapped(scoreboard_, kMaxScoreboard); break;
         default: break;
     }
     if (categorized) env->DeleteGlobalRef(categorized);
@@ -176,7 +208,7 @@ std::vector<jobject> WorldStateCache::snapshot(JNIEnv* env) const {
     std::vector<jobject> out;
     if (!env) return out;
     std::lock_guard<std::mutex> lock(m_);
-    out.reserve(ordered_.size() + playerInfo_.size() + entities_.size() + chunks_.size() + 4);
+    out.reserve(playerInfo_.size() + entities_.size() + chunks_.size() + selfState_.size() + scoreboard_.size() + 8);
 
     auto appendUnique = [&](jobject packet) {
         if (!packet) return;
@@ -187,12 +219,17 @@ std::vector<jobject> WorldStateCache::snapshot(JNIEnv* env) const {
         if (local) out.push_back(local);
     };
 
-    for (jobject packet : ordered_) appendUnique(packet);
+    appendUnique(login_);
+    appendUnique(respawn_);
+    appendUnique(chunkCacheRadius_);
+    appendUnique(chunkCacheCenter_);
     appendUnique(gameEvent_);
     appendUnique(setTime_);
     for (jobject packet : playerInfo_) appendUnique(packet);
     for (jobject packet : entities_) appendUnique(packet);
     for (jobject packet : chunks_) appendUnique(packet);
+    for (jobject packet : selfState_) appendUnique(packet);
+    for (jobject packet : scoreboard_) appendUnique(packet);
     appendUnique(playerPos_);
     return out;
 }
@@ -221,7 +258,8 @@ void WorldStateCache::clear(JNIEnv* env) {
 
 void WorldStateCache::dump() const {
     std::lock_guard<std::mutex> lock(m_);
-    LogTo("WorldStateCache: login=%d ordered=%zu gameEvent=%d setTime=%d pos=%d playerInfo=%zu entities=%zu chunks=%zu",
+    LogTo("WorldStateCache: login=%d ordered=%zu gameEvent=%d setTime=%d pos=%d chunkCenter=%d chunkRadius=%d playerInfo=%zu entities=%zu chunks=%zu",
           login_ ? 1 : 0, ordered_.size(), gameEvent_ ? 1 : 0, setTime_ ? 1 : 0,
-          playerPos_ ? 1 : 0, playerInfo_.size(), entities_.size(), chunks_.size());
+          playerPos_ ? 1 : 0, chunkCacheCenter_ ? 1 : 0, chunkCacheRadius_ ? 1 : 0,
+          playerInfo_.size(), entities_.size(), chunks_.size());
 }

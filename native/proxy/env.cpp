@@ -4,9 +4,20 @@
 #include <cstdio>
 #include <cstring>
 #include <mutex>
+#include <string>
 
 JavaVM*   g_vm    = nullptr;
 jvmtiEnv* g_jvmti = nullptr;
+
+namespace {
+std::mutex g_logPathMutex;
+std::string g_logPath;
+}
+
+void SetProxyLogPath(const char* path) {
+    std::lock_guard<std::mutex> lock(g_logPathMutex);
+    g_logPath = path ? path : "";
+}
 
 void Dbg(const char* fmt, ...) {
     char buf[1024];
@@ -39,6 +50,13 @@ void LogTo(const char* fmt, ...) {
                                NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         };
         char buf[MAX_PATH];
+
+        {
+            std::lock_guard<std::mutex> pathLock(g_logPathMutex);
+            if (!g_logPath.empty() && g_logPath.size() < MAX_PATH) {
+                h = tryOpen(g_logPath.c_str());
+            }
+        }
 
         if (h == INVALID_HANDLE_VALUE) {
             const char* appdata = getenv("APPDATA");
@@ -112,7 +130,8 @@ JniAttach::JniAttach() {
     if (rc == JNI_EDETACHED) {
         JavaVMAttachArgs args{};
         args.version = JNI_VERSION_1_8;
-        args.name = const_cast<char*>("NimbusProxyNative");
+        // A null name lets the VM use its default thread naming policy.
+        args.name = nullptr;
         args.group = nullptr;
         if (g_vm->AttachCurrentThreadAsDaemon(
                 reinterpret_cast<void**>(&env), &args) == JNI_OK) {

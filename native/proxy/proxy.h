@@ -29,6 +29,7 @@ struct JniAttach {
 void Dbg(const char* fmt, ...);
 
 void LogTo(const char* fmt, ...);
+void SetProxyLogPath(const char* path);
 
 void LogAndClearException(JNIEnv* env, const char* where);
 

@@ -13,6 +13,9 @@ import java.util.HexFormat;
 public final class ProxyPayload {
     private static final String RESOURCE = "/assets/nimbus/native/windows-x86_64/nimbus_proxy.dll";
     private ProxyPayload() {}
+    private static volatile Path logDirectory;
+
+    public static Path logDirectory() { return logDirectory; }
 
     public static Path extractBundled(Path directory) throws IOException {
         try (InputStream input = ProxyPayload.class.getResourceAsStream(RESOURCE)) {
@@ -25,11 +28,14 @@ public final class ProxyPayload {
         byte[] bytes = input.readAllBytes();
         if (bytes.length == 0) throw new IOException("A 端 DLL 资源为空");
         byte[] digest = sha256(bytes);
+        logDirectory = directory.toAbsolutePath();
         Path parent = directory.toAbsolutePath().resolve("native");
         Files.createDirectories(parent);
-        Path target = parent.resolve(HexFormat.of().formatHex(digest) + "-nimbus_proxy.dll");
+        // Keep the content-addressed cache in the original directory without
+        // embedding the product name in the runtime filename.
+        Path target = parent.resolve(HexFormat.of().formatHex(digest) + ".dll");
         if (Files.isRegularFile(target) && MessageDigest.isEqual(digest, sha256(Files.readAllBytes(target)))) return target;
-        Path temp = Files.createTempFile(parent, "nimbus-payload-", ".tmp");
+        Path temp = Files.createTempFile(parent, "payload-", ".tmp");
         try {
             Files.write(temp, bytes);
             try {

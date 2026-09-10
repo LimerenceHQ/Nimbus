@@ -11,7 +11,7 @@ import java.util.Properties;
 public final class AttachHelper {
     private AttachHelper() {}
     public static void main(String[] args) {
-        if(args.length!=8){System.err.println("Expected one fixed Attach request");System.exit(64);return;}
+        if(args.length!=9){System.err.println("Expected one fixed Attach request");System.exit(64);return;}
         Path result=Path.of(args[5]).toAbsolutePath();
         String token=args[6];String stage="VALIDATE";int exit=2;String detail="";
         VirtualMachine vm=null;
@@ -31,7 +31,9 @@ public final class AttachHelper {
             Instant expected=Instant.parse(args[1]);
             if(!expected.equals(Instant.EPOCH)&&!info.startInstant().filter(actualStart -> actualStart.toEpochMilli()==expected.toEpochMilli()).isPresent())throw new IllegalStateException("PID identity changed");
             stage="ATTACH";vm=VirtualMachine.attach(Long.toString(pid));
-            stage="LOAD";vm.loadAgentPath(library.toString(),"port="+port);
+            Path log = Path.of(args[8]).toAbsolutePath();
+            Files.createDirectories(log.getParent());
+            stage="LOAD";vm.loadAgentPath(library.toString(),"port="+port+";log="+log);
             stage="DETACH";vm.detach();vm=null;
             stage="READY";detail="A listener ready on 127.0.0.1:"+port;exit=0;
         } catch(Exception|LinkageError e) { detail=e.getClass().getSimpleName()+": "+String.valueOf(e.getMessage()); if(e instanceof com.sun.tools.attach.AgentInitializationException init)detail+=" (native code "+init.returnValue()+")"; }
