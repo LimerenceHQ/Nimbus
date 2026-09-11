@@ -20,6 +20,7 @@
 #include <thread>
 
 void replayBootstrap(JNIEnv* env, jobject ch, bool skipLogin);
+void finishBootstrapToPlay(JNIEnv* env, jobject ch);
 
 namespace {
 
@@ -198,6 +199,8 @@ struct BServer {
     jobject   targetAConnection = nullptr;
 
     std::mutex bMu;
+    // 统一串行化发往 B 的数据，避免初始化快照与实时包交错。
+    std::recursive_mutex bWriteMu;
     jobject   bChannel = nullptr;
     uint64_t  bGeneration = 0;
     std::vector<jobject> bootstrapQueue;
@@ -224,6 +227,21 @@ struct BServer {
     jmethodID levelDimMidB            = nullptr;
     jmethodID objToStringMid          = nullptr;
     jfieldID  clientLevelChunkSourceFid = nullptr;
+    // 当前客户端实体快照所需的 JNI 类与方法引用。
+    jclass    entityCls                  = nullptr;
+    jmethodID entityGetIdMid             = nullptr;
+    jmethodID entityIsRemovedMid         = nullptr;
+    jmethodID entityGetAddEntityPacketMid = nullptr;
+    jmethodID entityGetEntityDataMid     = nullptr;
+    jclass    synchedEntityDataCls       = nullptr;
+    jmethodID synchedGetNonDefaultValuesMid = nullptr;
+    jmethodID clientLevelEntitiesForRenderingMid = nullptr;
+    jclass    setEntityDataPacketCls     = nullptr;
+    jmethodID setEntityDataPacketCtor    = nullptr;
+    jclass    setEntityMotionPacketCls   = nullptr;
+    jmethodID setEntityMotionPacketCtor  = nullptr;
+    jclass    setPassengersPacketCls     = nullptr;
+    jmethodID setPassengersPacketCtor    = nullptr;
     jclass    clientChunkCacheCls     = nullptr;
     jmethodID clientChunkGetMid       = nullptr;
     jmethodID clientChunkLightEngineMid = nullptr;
@@ -1186,7 +1204,62 @@ bool cacheJavaRefs(JNIEnv* env, jobject mcLoader) {
     if (clientLevelCls) {
         g_bs.clientLevelChunkSourceFid = findFieldByDesc(clientLevelCls,
             "Lnet/minecraft/client/multiplayer/ClientChunkCache;", false);
+        // 枚举注入前已经存在的 NPC 与其他实体。
+        g_bs.clientLevelEntitiesForRenderingMid = findMethodByDesc(
+            clientLevelCls, "()Ljava/lang/Iterable;", false);
         env->DeleteLocalRef(clientLevelCls);
+    }
+    // 解析 Entity 基类方法，用实体当前状态构造完整初始化包。
+    jclass entityCls = loadOrFind(env, mcLoader, "net.minecraft.world.entity.Entity",
+                                  "Lnet/minecraft/world/entity/Entity;");
+    if (entityCls) {
+        g_bs.entityCls = static_cast<jclass>(env->NewGlobalRef(entityCls));
+        g_bs.entityGetIdMid = findMethodByDesc(entityCls, "()I", false);
+        g_bs.entityIsRemovedMid = findMethodByDesc(entityCls, "()Z", false);
+        g_bs.entityGetAddEntityPacketMid = findMethodByDesc(entityCls,
+            "()Lnet/minecraft/network/protocol/Packet;", false);
+        g_bs.entityGetEntityDataMid = findMethodByDesc(entityCls,
+            "()Lnet/minecraft/network/syncher/SynchedEntityData;", false);
+        env->DeleteLocalRef(entityCls);
+    }
+    jclass sedCls = loadOrFind(env, mcLoader, "net.minecraft.network.syncher.SynchedEntityData",
+                               "Lnet/minecraft/network/syncher/SynchedEntityData;");
+    if (sedCls) {
+        g_bs.synchedEntityDataCls = static_cast<jclass>(env->NewGlobalRef(sedCls));
+        g_bs.synchedGetNonDefaultValuesMid = findMethodByDesc(sedCls,
+            "()Ljava/util/List;", false);
+        env->DeleteLocalRef(sedCls);
+    }
+    // 元数据、速度和乘客包均使用 1.20.1 原生构造器生成。
+    jclass sedPacketCls = loadOrFind(env, mcLoader,
+        "net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket",
+        "Lnet/minecraft/network/protocol/game/ClientboundSetEntityDataPacket;");
+    if (sedPacketCls) {
+        g_bs.setEntityDataPacketCls = static_cast<jclass>(env->NewGlobalRef(sedPacketCls));
+        g_bs.setEntityDataPacketCtor = env->GetMethodID(sedPacketCls, "<init>",
+            "(ILjava/util/List;)V");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        env->DeleteLocalRef(sedPacketCls);
+    }
+    jclass motionPacketCls = loadOrFind(env, mcLoader,
+        "net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket",
+        "Lnet/minecraft/network/protocol/game/ClientboundSetEntityMotionPacket;");
+    if (motionPacketCls) {
+        g_bs.setEntityMotionPacketCls = static_cast<jclass>(env->NewGlobalRef(motionPacketCls));
+        g_bs.setEntityMotionPacketCtor = env->GetMethodID(motionPacketCls, "<init>",
+            "(Lnet/minecraft/world/entity/Entity;)V");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        env->DeleteLocalRef(motionPacketCls);
+    }
+    jclass passengersPacketCls = loadOrFind(env, mcLoader,
+        "net.minecraft.network.protocol.game.ClientboundSetPassengersPacket",
+        "Lnet/minecraft/network/protocol/game/ClientboundSetPassengersPacket;");
+    if (passengersPacketCls) {
+        g_bs.setPassengersPacketCls = static_cast<jclass>(env->NewGlobalRef(passengersPacketCls));
+        g_bs.setPassengersPacketCtor = env->GetMethodID(passengersPacketCls, "<init>",
+            "(Lnet/minecraft/world/entity/Entity;)V");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        env->DeleteLocalRef(passengersPacketCls);
     }
     jclass playerCls = loadOrFind(env, mcLoader, "net.minecraft.world.entity.player.Player",
                                   "Lnet/minecraft/world/entity/player/Player;");
@@ -1556,6 +1629,7 @@ void writeToB(JNIEnv* env, jobject packet) {
     jobject ch;
     { std::lock_guard<std::mutex> l(g_bs.bMu); ch = g_bs.bChannel ? env->NewLocalRef(g_bs.bChannel) : nullptr; }
     if (!ch) return;
+    std::lock_guard<std::recursive_mutex> writeLock(g_bs.bWriteMu);
     env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, packet);
     if (env->ExceptionCheck()) LogAndClearException(env, "writeAndFlush");
     env->DeleteLocalRef(ch);
@@ -1918,7 +1992,8 @@ void replayLoadedChunksToB(JNIEnv* env, jobject ch, const PlayerSnapshot& player
     const jint cx = static_cast<jint>(std::floor(player.x / 16.0));
     const jint cz = static_cast<jint>(std::floor(player.z / 16.0));
     int sent = 0;
-    constexpr int radius = 4;
+    // 扩大扫描范围；未加载的区块会由 ClientChunkCache 返回空并跳过。
+    constexpr int radius = 8;
     for (int dz = -radius; dz <= radius; ++dz) for (int dx = -radius; dx <= radius; ++dx) {
         jobject chunk = env->CallObjectMethod(cache, g_bs.clientChunkGetMid, cx + dx, cz + dz, full, JNI_FALSE);
         if (env->ExceptionCheck()) { env->ExceptionClear(); continue; }
@@ -1927,6 +2002,7 @@ void replayLoadedChunksToB(JNIEnv* env, jobject ch, const PlayerSnapshot& player
                                         chunk, light, nullptr, nullptr);
         env->DeleteLocalRef(chunk);
         if (packet && !env->ExceptionCheck()) {
+            std::lock_guard<std::recursive_mutex> writeLock(g_bs.bWriteMu);
             env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, packet);
             if (env->ExceptionCheck()) env->ExceptionClear();
             env->DeleteLocalRef(packet);
@@ -1938,16 +2014,35 @@ void replayLoadedChunksToB(JNIEnv* env, jobject ch, const PlayerSnapshot& player
     env->DeleteLocalRef(full); env->DeleteLocalRef(light);
 }
 
+// 检查异步任务是否仍属于当前 B 连接，阻止旧连接线程继续写包。
+bool isCurrentBGeneration(JNIEnv* env, jobject channel, uint64_t generation) {
+    if (!env || !channel) return false;
+    std::lock_guard<std::mutex> lock(g_bs.bMu);
+    return g_bs.bChannel && g_bs.bGeneration == generation &&
+           env->IsSameObject(channel, g_bs.bChannel) &&
+           g_bs.bState.load(std::memory_order_acquire) == BState::Play;
+}
+
 void replayLoadedChunksToBAsync(JNIEnv* env, jobject ch, const PlayerSnapshot& player) {
     if (!env || !ch) return;
+    uint64_t generation = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_bs.bMu);
+        generation = g_bs.bGeneration;
+    }
     jobject channelRef = env->NewGlobalRef(ch);
     if (!channelRef) return;
-    std::thread([channelRef, player]() {
+    std::thread([channelRef, player, generation]() {
         JniAttach attach;
         if (!attach) {
             return;
         }
-        replayLoadedChunksToB(attach.env, channelRef, player);
+        if (isCurrentBGeneration(attach.env, channelRef, generation)) {
+            replayLoadedChunksToB(attach.env, channelRef, player);
+        } else {
+            LogTo("mid-chunks: stale async replay ignored (generation=%llu)",
+                  static_cast<unsigned long long>(generation));
+        }
         attach.env->DeleteGlobalRef(channelRef);
     }).detach();
 }
@@ -2059,6 +2154,110 @@ void sendScoreboardSnapshotToB(JNIEnv* env, jobject ch) {
     env->DeleteGlobalRef(loader);
 }
 
+// 将当前 A 世界中已存在的实体快照发送给 B，解决中途接入时 NPC 缺少生成包的问题。
+void sendCurrentEntitiesSnapshotToB(JNIEnv* env, jobject ch) {
+    if (!env || !ch || !g_bs.minecraftCls || !g_bs.mcGetInstanceMid || !g_bs.mcLevelFid ||
+        !g_bs.clientLevelEntitiesForRenderingMid || !g_bs.entityGetIdMid ||
+        !g_bs.entityIsRemovedMid || !g_bs.entityGetAddEntityPacketMid ||
+        !g_bs.entityGetEntityDataMid || !g_bs.synchedGetNonDefaultValuesMid ||
+        !g_bs.setEntityDataPacketCls || !g_bs.setEntityDataPacketCtor ||
+        !g_bs.iterableIteratorMid || !g_bs.iteratorHasNextMid || !g_bs.iteratorNextMid) {
+        LogTo("entity-bootstrap: entity JNI refs unavailable");
+        return;
+    }
+    // 整个快照串行写入，保持 AddEntity -> metadata -> motion/passengers 的顺序。
+    std::lock_guard<std::recursive_mutex> writeLock(g_bs.bWriteMu);
+    jobject mc = env->CallStaticObjectMethod(g_bs.minecraftCls, g_bs.mcGetInstanceMid);
+    jobject level = mc && !env->ExceptionCheck() ? env->GetObjectField(mc, g_bs.mcLevelFid) : nullptr;
+    jobject localPlayer = mc && g_bs.mcPlayerFid && !env->ExceptionCheck()
+        ? env->GetObjectField(mc, g_bs.mcPlayerFid) : nullptr;
+    jint selfId = localPlayer && !env->ExceptionCheck()
+        ? env->CallIntMethod(localPlayer, g_bs.entityGetIdMid) : static_cast<jint>(-2147483647 - 1);
+    jobject iterable = level && !env->ExceptionCheck()
+        ? env->CallObjectMethod(level, g_bs.clientLevelEntitiesForRenderingMid) : nullptr;
+    jobject iterator = iterable && !env->ExceptionCheck()
+        ? env->CallObjectMethod(iterable, g_bs.iterableIteratorMid) : nullptr;
+    if (env->ExceptionCheck() || !iterable || !iterator) {
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        LogTo("entity-bootstrap: entitiesForRendering unavailable");
+        if (iterator) env->DeleteLocalRef(iterator);
+        if (iterable) env->DeleteLocalRef(iterable);
+        if (localPlayer) env->DeleteLocalRef(localPlayer);
+        if (level) env->DeleteLocalRef(level);
+        if (mc) env->DeleteLocalRef(mc);
+        return;
+    }
+
+    int sent = 0, skipped = 0;
+    while (env->CallBooleanMethod(iterator, g_bs.iteratorHasNextMid) == JNI_TRUE) {
+        if (env->ExceptionCheck()) { env->ExceptionClear(); break; }
+        jobject entity = env->CallObjectMethod(iterator, g_bs.iteratorNextMid);
+        if (env->ExceptionCheck()) { env->ExceptionClear(); break; }
+        if (!entity) continue;
+        jint id = env->CallIntMethod(entity, g_bs.entityGetIdMid);
+        jboolean removed = env->CallBooleanMethod(entity, g_bs.entityIsRemovedMid);
+        if (env->ExceptionCheck() || removed == JNI_TRUE || id == selfId) {
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            ++skipped;
+            env->DeleteLocalRef(entity);
+            continue;
+        }
+
+        // 先创建实体，否则后续元数据包会被客户端忽略。
+        jobject addPacket = env->CallObjectMethod(entity, g_bs.entityGetAddEntityPacketMid);
+        if (env->ExceptionCheck()) { env->ExceptionClear(); addPacket = nullptr; }
+        if (addPacket) {
+            env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, addPacket);
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            env->DeleteLocalRef(addPacket);
+        }
+
+        // 恢复 NPC 名称、姿态、旗标等非默认元数据。
+        jobject data = env->CallObjectMethod(entity, g_bs.entityGetEntityDataMid);
+        jobject values = data && !env->ExceptionCheck()
+            ? env->CallObjectMethod(data, g_bs.synchedGetNonDefaultValuesMid) : nullptr;
+        if (values && !env->ExceptionCheck()) {
+            jobject metaPacket = env->NewObject(g_bs.setEntityDataPacketCls,
+                g_bs.setEntityDataPacketCtor, id, values);
+            if (metaPacket && !env->ExceptionCheck()) {
+                env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, metaPacket);
+                if (env->ExceptionCheck()) env->ExceptionClear();
+                env->DeleteLocalRef(metaPacket);
+            } else if (env->ExceptionCheck()) env->ExceptionClear();
+        } else if (env->ExceptionCheck()) env->ExceptionClear();
+        if (values) env->DeleteLocalRef(values);
+        if (data) env->DeleteLocalRef(data);
+
+        // 补充速度与乘客关系，避免移动 NPC 首帧停滞或坐骑关系缺失。
+        if (g_bs.setEntityMotionPacketCls && g_bs.setEntityMotionPacketCtor) {
+            jobject motion = env->NewObject(g_bs.setEntityMotionPacketCls,
+                g_bs.setEntityMotionPacketCtor, entity);
+            if (motion && !env->ExceptionCheck()) {
+                env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, motion);
+                if (env->ExceptionCheck()) env->ExceptionClear();
+                env->DeleteLocalRef(motion);
+            } else if (env->ExceptionCheck()) env->ExceptionClear();
+        }
+        if (g_bs.setPassengersPacketCls && g_bs.setPassengersPacketCtor) {
+            jobject passengers = env->NewObject(g_bs.setPassengersPacketCls,
+                g_bs.setPassengersPacketCtor, entity);
+            if (passengers && !env->ExceptionCheck()) {
+                env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, passengers);
+                if (env->ExceptionCheck()) env->ExceptionClear();
+                env->DeleteLocalRef(passengers);
+            } else if (env->ExceptionCheck()) env->ExceptionClear();
+        }
+        ++sent;
+        env->DeleteLocalRef(entity);
+    }
+    LogTo("entity-bootstrap: replayed %d entities (skipped=%d)", sent, skipped);
+    env->DeleteLocalRef(iterator);
+    env->DeleteLocalRef(iterable);
+    if (localPlayer) env->DeleteLocalRef(localPlayer);
+    if (level) env->DeleteLocalRef(level);
+    if (mc) env->DeleteLocalRef(mc);
+}
+
 void completeLogin(JNIEnv* env, jobject hello) {
 
     ensureARealUuid(env);
@@ -2139,19 +2338,25 @@ void completeLogin(JNIEnv* env, jobject hello) {
                 jobject mcNow = env->CallStaticObjectMethod(g_bs.minecraftCls, g_bs.mcGetInstanceMid);
                 jobject playerNow = mcNow && !env->ExceptionCheck() ? env->GetObjectField(mcNow, g_bs.mcPlayerFid) : nullptr;
                 PlayerSnapshot snapshot;
-                if (playerNow && !env->ExceptionCheck() && ReadPlayerSnapshot(env, playerNow, snapshot))
-                    replayLoadedChunksToBAsync(env, ch, snapshot);
+                if (playerNow && !env->ExceptionCheck() && ReadPlayerSnapshot(env, playerNow, snapshot)) {
+                    // 初始化阶段同步回放区块，避免与实时数据交错。
+                    replayLoadedChunksToB(env, ch, snapshot);
+                }
                 if (playerNow) env->DeleteLocalRef(playerNow);
                 if (mcNow) env->DeleteLocalRef(mcNow);
                 if (env->ExceptionCheck()) env->ExceptionClear();
             }
         }
+        // 主动发送注入前已存在的实体（包括 NPC）。
+        sendCurrentEntitiesSnapshotToB(env, ch);
         replayBootstrap(env, ch, g_bs.midSession.load(std::memory_order_acquire));
         // These are server-side state snapshots rather than world chunks. The
         // A connection may have sent them long before injection, so rebuild
         // them from the live client objects after the protocol bootstrap.
         if (!g_cache.hasScoreboard()) sendScoreboardSnapshotToB(env, ch);
         sendLocalInventorySnapshotToB(env, ch);
+        // 原子切换 PLAY 并补发 bootstrap drain 之后到达的尾包。
+        finishBootstrapToPlay(env, ch);
         env->DeleteLocalRef(ch);
     }
 
@@ -2179,7 +2384,6 @@ void completeLogin(JNIEnv* env, jobject hello) {
     env->DeleteLocalRef(uuid);
     env->DeleteLocalRef(jname);
 
-    g_bs.bState.store(BState::Play, std::memory_order_release);
     {
         std::lock_guard<std::mutex> l(g_bConnMu);
         g_bConnected = true;
@@ -2438,6 +2642,7 @@ void writeOneToBWithTabGuard(JNIEnv* env, jobject ch, jobject packet) {
             LogTo("ForwardToB: skipping ClientboundCustomPayloadPacket (mod channel, count=%d)", n);
         return;
     }
+    std::lock_guard<std::recursive_mutex> writeLock(g_bs.bWriteMu);
     env->CallObjectMethod(ch, g_bs.channelWriteAndFlushMid, packet);
     if (env->ExceptionCheck()) LogAndClearException(env, "ForwardToB/writeOne");
 }
@@ -2572,6 +2777,30 @@ void replayBootstrap(JNIEnv* env, jobject ch, bool skipLogin) {
     for (jobject packet : packets) { send(packet); env->DeleteLocalRef(packet); }
     for (jobject packet : queued) { send(packet); env->DeleteLocalRef(packet); }
     LogTo("bootstrap: replayed cache=%zu queued=%zu skipLogin=%d", packets.size(), queued.size(), skipLogin ? 1 : 0);
+}
+
+// 原子结束 bootstrap：新实时包会等待尾队列发完后再继续写入。
+void finishBootstrapToPlay(JNIEnv* env, jobject ch) {
+    if (!env || !ch) return;
+    std::lock_guard<std::recursive_mutex> writeLock(g_bs.bWriteMu);
+    std::vector<jobject> tail;
+    {
+        std::lock_guard<std::mutex> lock(g_bs.bMu);
+        g_bs.bState.store(BState::Play, std::memory_order_release);
+        for (jobject packet : g_bs.bootstrapQueue) {
+            jobject local = env->NewLocalRef(packet);
+            if (local) tail.push_back(local);
+            env->DeleteGlobalRef(packet);
+        }
+        g_bs.bootstrapQueue.clear();
+    }
+    for (jobject packet : tail) {
+        if (!forwardBundleExpanded(env, ch, packet)) {
+            writeOneToBWithTabGuard(env, ch, packet);
+        }
+        env->DeleteLocalRef(packet);
+    }
+    LogTo("bootstrap: switched atomically to PLAY; replayed tail=%zu", tail.size());
 }
 
 void BSide_OnPacket(JNIEnv* env, jobject , jobject msg) {
