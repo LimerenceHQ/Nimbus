@@ -80,7 +80,6 @@ void JNICALL ClassFileLoadHookCallback(
         *new_class_data     = buf;
         *new_class_data_len = static_cast<jint>(patched.size());
         g_hookPatched.store(true, std::memory_order_release);
-        // 首次成功改写后关闭事件；后续 A 连接复用已改写的 Connection 类。
         DisableClassLoadHook(jvmti);
         LogTo("  emitted patched bytes: %u -> %u", (unsigned)class_data_len,
               (unsigned)patched.size());
@@ -141,9 +140,6 @@ bool InstallConnectionHook(JNIEnv* env) {
         return false;
     }
     if (!EnableCapabilitiesAndCallbacks(g_jvmti)) return false;
-    // Never retransform an already-defined game class.  Existing connections
-    // are handled by BServer_TryCaptureLiveConnection; otherwise the caller
-    // asks the user to attach earlier on the next launch.
     if (ConnectionAlreadyLoaded(env, g_jvmti)) DisableClassLoadHook(g_jvmti);
     return true;
 }

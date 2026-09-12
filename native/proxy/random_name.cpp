@@ -16,7 +16,6 @@ uint64_t secureWord() {
         return value;
     }
 
-    // 系统随机源不可用时保留兼容路径，避免名称生成失败阻断初始化。
     LARGE_INTEGER counter{};
     QueryPerformanceCounter(&counter);
     return static_cast<uint64_t>(counter.QuadPart) ^
@@ -48,7 +47,6 @@ std::once_flag g_packageInitFlag;
 std::string GenerateRandomClassName(int minWords, int maxWords) {
     (void)minWords;
     (void)maxWords;
-    // 类名在一次注入内由调用方缓存，重连时只复用已定义的类。
     return randomIdentifier(12 + secureWord() % 5);
 }
 

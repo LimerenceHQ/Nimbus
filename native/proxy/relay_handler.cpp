@@ -252,7 +252,6 @@ bool InstallRelayHandler(JNIEnv* env) {
     g_relay.ctor = g_hook.ctor;
     g_relay.internalName = g_hook.internalName;
     g_relay.dotName = g_hook.dotName;
-    // 每次注入只生成一个 pipeline key，所有 A 重连复用它，避免固定名称冲突。
     g_relay.pipelineName = GenerateRandomClassName(1, 1);
     return true;
 }

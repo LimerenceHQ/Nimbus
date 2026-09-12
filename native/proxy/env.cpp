@@ -130,7 +130,6 @@ JniAttach::JniAttach() {
     if (rc == JNI_EDETACHED) {
         JavaVMAttachArgs args{};
         args.version = JNI_VERSION_1_8;
-        // A null name lets the VM use its default thread naming policy.
         args.name = nullptr;
         args.group = nullptr;
         if (g_vm->AttachCurrentThreadAsDaemon(

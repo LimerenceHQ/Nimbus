@@ -31,8 +31,6 @@ public final class ProxyPayload {
         logDirectory = directory.toAbsolutePath();
         Path parent = directory.toAbsolutePath().resolve("native");
         Files.createDirectories(parent);
-        // Keep the content-addressed cache in the original directory without
-        // embedding the product name in the runtime filename.
         Path target = parent.resolve(HexFormat.of().formatHex(digest) + ".dll");
         if (Files.isRegularFile(target) && MessageDigest.isEqual(digest, sha256(Files.readAllBytes(target)))) return target;
         Path temp = Files.createTempFile(parent, "payload-", ".tmp");

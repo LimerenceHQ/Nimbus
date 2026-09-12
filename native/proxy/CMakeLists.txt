@@ -11,8 +11,7 @@ add_library(nimbus_proxy SHARED
     trampolines.cpp relay_handler.cpp connection_hook.cpp world_cache.cpp scoreboard_snapshot.cpp player_snapshot.cpp b_server.cpp
 )
 target_include_directories(nimbus_proxy PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_compile_definitions(nimbus_proxy PRIVATE WIN_X64 NOMINMAX _CRT_SECURE_NO_WARNINGS
-    $<$<CONFIG:Release>:NIMBUS_QUIET_RELEASE>)
+target_compile_definitions(nimbus_proxy PRIVATE WIN_X64 NOMINMAX _CRT_SECURE_NO_WARNINGS)
 if(MSVC)
     target_compile_options(nimbus_proxy PRIVATE /EHsc /utf-8 $<$<CONFIG:Release>:/O2>)
 endif()

@@ -25,9 +25,6 @@ int InitializeProxy(JavaVM* vm, unsigned short port) {
     struct Frame { JNIEnv* env; ~Frame() { env->PopLocalFrame(nullptr); } } frame{env};
     if (!InstallHookBridge(env)) { BServer_StopListener(env); return 12; }
     if (!InstallRelayHandler(env)) { BServer_StopListener(env); return 13; }
-    // Arm the class-load hook before BServer resolves Connection.  A fresh
-    // client can then be transformed on first definition without a later
-    // RetransformClasses call.
     if (!InstallConnectionHook(env)) { BServer_StopListener(env); return 14; }
     bool bReady = false;
     for (int attempt = 0; attempt < 30 && !bReady; ++attempt) {

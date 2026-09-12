@@ -160,10 +160,6 @@ void WorldStateCache::observe(JNIEnv* env, jobject packetLocalRef) {
         respawn_ = env->NewGlobalRef(packetLocalRef);
         LogTo("world-cache: reset world tail on respawn; retained real login");
     }
-    // A late attach has no Login packet left to observe. Keep collecting the
-    // state packets that follow so bootstrap can still reconstruct the local
-    // player instead of waiting for a world switch.
-
     jobject ordered = nullptr;
     if (ordered_.size() < kMaxOrdered) ordered = env->NewGlobalRef(packetLocalRef);
 
