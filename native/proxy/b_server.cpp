@@ -2914,7 +2914,14 @@ void finishBootstrapToPlay(JNIEnv* env, jobject ch) {
 void BSide_OnPacket(JNIEnv* env, jobject , jobject msg) {
     std::string cls = classNameForB(env, msg);
     BState state = g_bs.bState.load(std::memory_order_acquire);
-    LogTo("BServer: RX %s (state=%d)", cls.c_str(), (int)state);
+    static constexpr char kMovePacket[] =
+        "net.minecraft.network.protocol.game.ServerboundMovePlayerPacket";
+    bool highFrequency = cls.rfind(kMovePacket, 0) == 0
+        || cls == "net.minecraft.network.protocol.game.ServerboundSwingPacket"
+        || cls == "net.minecraft.network.protocol.game.ServerboundInteractPacket";
+    if (!highFrequency) {
+        LogTo("BServer: RX %s (state=%d)", cls.c_str(), (int)state);
+    }
 
     if (g_bs.intentPacketCls && env->IsInstanceOf(msg, g_bs.intentPacketCls)) {
         jobject nextProto = g_bs.protoLogin;

@@ -118,6 +118,14 @@ bool shouldAllowC2S(const std::string& fqcn) {
     return std::strcmp(simple, "ServerboundCustomPayloadPacket") == 0;
 }
 
+bool isHighFrequencyMovementPacket(const std::string& fqcn) {
+    static constexpr char kMovePacket[] =
+        "net.minecraft.network.protocol.game.ServerboundMovePlayerPacket";
+    return fqcn.rfind(kMovePacket, 0) == 0
+        || fqcn == "net.minecraft.network.protocol.game.ServerboundSwingPacket"
+        || fqcn == "net.minecraft.network.protocol.game.ServerboundInteractPacket";
+}
+
 void JNICALL RelayWriteImpl(JNIEnv* env,
                                jobject ,
                                jobject ctx,
@@ -126,7 +134,9 @@ void JNICALL RelayWriteImpl(JNIEnv* env,
     std::string cls = javaClassName(env, msg);
     bool bypass = consumeBypassMark(env, ctx, msg);
     bool allow = bypass || shouldAllowC2S(cls);
-    LogTo("[C2S %s] %s", bypass ? "ROUTE" : (allow ? "PASS" : "DROP"), cls.c_str());
+    if (!isHighFrequencyMovementPacket(cls)) {
+        LogTo("[C2S %s] %s", bypass ? "ROUTE" : (allow ? "PASS" : "DROP"), cls.c_str());
+    }
 
     if (allow) {
         env->CallObjectMethod(ctx, g_relay.netty.ctxWriteMid, msg, promise);
