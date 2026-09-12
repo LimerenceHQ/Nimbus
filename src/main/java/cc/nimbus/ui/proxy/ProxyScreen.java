@@ -5,174 +5,155 @@ import cc.nimbus.managers.ProxyManager;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.multiplayer.ServerData;
-import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 public final class ProxyScreen extends Screen {
-    private boolean elevated;
-    private Button elevation;
     private final Screen parent;
     private final ProxyManager manager;
     private List<ProxyManager.TargetProcess> targets = List.of();
     private int selected;
-    private EditBox pid;
-    private EditBox port;
+    private boolean elevated;
     private Button targetButton;
-    private Button attach;
-    private Button attachPid;
-    private Button connect;
-    private String error = "";
+    private Button permissionButton;
+    private EditBox port;
+    private String message = "";
 
     public ProxyScreen(Screen parent) {
-        super(Component.literal("Proxy · Nimbus (B) → A"));
+        super(Component.literal("TakeOver 设置"));
         this.parent = parent;
-        this.manager = Core.INSTANCE.getProxyManager();
+        manager = Core.INSTANCE.getProxyManager();
     }
 
     @Override
     protected void init() {
-        String previousPid = pid == null ? "" : pid.getValue();
-        String previousPort = port == null ? "25565" : port.getValue();
+        ProxyManager.Configuration saved = manager.configuration();
+        elevated = saved.elevated();
         int left = width / 2 - 150;
-        int top = formTop();
+        int top = Math.max(48, height / 2 - 78);
 
         targetButton = addRenderableWidget(Button.builder(Component.empty(), button -> {
-            if (!targets.isEmpty()) selected = (selected + 1) % targets.size();
-            updateButtons();
+            if (!targets.isEmpty()) {
+                selected = (selected + 1) % targets.size();
+            }
+            updateLabels();
         }).bounds(left, top, 238, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("刷新"), button -> refresh())
+        addRenderableWidget(Button.builder(Component.literal("刷新"),
+                button -> refresh(currentPid()))
                 .bounds(left + 242, top, 58, 20).build());
 
-        pid = new EditBox(font, left, top + 33, 190, 20, Component.literal("A 进程 PID"));
-        pid.setMaxLength(19);
-        pid.setHint(Component.literal("输入 A 的 PID"));
-        pid.setValue(previousPid);
-        addRenderableWidget(pid);
-
-        port = new EditBox(font, left + 200, top + 33, 100, 20, Component.literal("A 的监听端口"));
+        String portLabel = "监听端口";
+        port = new EditBox(font, left, top + 42, 300, 20, Component.literal(portLabel));
         port.setMaxLength(5);
-        port.setValue(previousPort);
+        port.setValue(Integer.toString(saved.port()));
+        port.setHint(Component.literal(portLabel));
         addRenderableWidget(port);
 
-        attach = addRenderableWidget(Button.builder(Component.literal("向扫描到的 A 加载 DLL 并连接"), button -> prepare())
-                .bounds(left, top + 83, 300, 20).build());
-        attachPid = addRenderableWidget(Button.builder(Component.literal("按 PID 加载 DLL 并连接"), button -> preparePid())
-                .bounds(left, top + 59, 300, 20).build());
-        connect = addRenderableWidget(Button.builder(Component.literal("直接连接已加载的 A"), button -> {
-            try { connect(readPort()); } catch (RuntimeException ex) { error = ex.getMessage(); }
-        }).bounds(left, top + 107, 300, 20).build());
-        elevation=addRenderableWidget(Button.builder(Component.literal(elevated?"加载权限：管理员（弹出 UAC）":"加载权限：普通（点击切换管理员）"),button->{
-            elevated=!elevated;button.setMessage(Component.literal(elevated?"加载权限：管理员（弹出 UAC）":"加载权限：普通（点击切换管理员）"));
-        }).bounds(left,top+131,300,20).build());
-        addRenderableWidget(Button.builder(Component.literal("返回"), button -> onClose())
-                .bounds(left, top + 155, 300, 20).build());
-        refresh();
-        setInitialFocus(pid);
-    }
+        permissionButton = addRenderableWidget(Button.builder(Component.empty(), button -> {
+            elevated = !elevated;
+            updateLabels();
+        }).bounds(left, top + 70, 300, 20).build());
 
-    private void refresh() {
-        var old = targets.isEmpty() ? null : targets.get(selected);
-        try {
-            targets = manager.targets();
-            selected = old == null ? 0 : Math.max(0, targets.indexOf(old));
-            error = "";
-        } catch (RuntimeException ex) {
-            error = "读取进程列表失败：" + ex.getMessage();
-        }
-        updateButtons();
-    }
+        addRenderableWidget(Button.builder(Component.literal("保存"),
+                button -> saveAndClose())
+                .bounds(left, top + 102, 146, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("取消"),
+                button -> onClose())
+                .bounds(left + 154, top + 102, 146, 20).build());
 
-    private long readPid() {
-        return ProxyManager.parsePid(pid.getValue());
-    }
-
-    private int readPort() {
-        try {
-            int value = Integer.parseInt(port.getValue().trim());
-            if (value < 1 || value > 65535) throw new NumberFormatException();
-            return value;
-        } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("请输入 1–65535 的 A 端监听端口");
-        }
-    }
-
-    private void prepare() {
-        if (targets.isEmpty()) return;
-        try {
-            submit(elevated?manager.prepareElevated(targets.get(selected),readPort()):manager.prepare(targets.get(selected), readPort()));
-        } catch (RuntimeException ex) {
-            error = ex.getMessage();
-        }
-        updateButtons();
-    }
-
-    private void preparePid() {
-        try {
-            submit(elevated?manager.preparePidElevated(readPid(),readPort()):manager.preparePid(readPid(), readPort()));
-        } catch (RuntimeException ex) {
-            error = ex.getMessage();
-        }
-        updateButtons();
-    }
-
-    private void submit(CompletableFuture<ProxyManager.Endpoint> operation) {
-        error = "";
-        var client = minecraft;
-        operation.whenComplete((endpoint, failure) -> client.execute(() -> {
-            if (client.screen != this) return;
-            if (failure == null) connect(endpoint.port());
-            else error = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
-        }));
-    }
-
-    private void connect(int value) {
-        ProxyManager.Endpoint endpoint = manager.requestConnection(value);
-        ServerData data = new ServerData("Nimbus A", endpoint.address(), false);
-        ConnectScreen.startConnecting(this, minecraft, ServerAddress.parseString(endpoint.address()), data, false);
+        refresh(saved.preferredPid());
+        setInitialFocus(port);
     }
 
     @Override
     public void tick() {
-        pid.tick();
         port.tick();
-        updateButtons();
-    }
-
-    private void updateButtons() {
-        targetButton.setMessage(Component.literal(targets.isEmpty() ? "未扫描到 Java 进程（可直接输入 PID）" :
-                (selected + 1) + "/" + targets.size() + "  " + targets.get(selected).label()));
-        boolean busy = manager.isBusy();
-        targetButton.active = !busy && !targets.isEmpty();
-        attach.active = !busy && !targets.isEmpty();
-        attachPid.active = !busy;
-        connect.active = !busy;
-        if(elevation!=null)elevation.active=!busy;
-        pid.setEditable(!busy);
-        port.setEditable(!busy);
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
-        graphics.drawCenteredString(font, title, width / 2, 14, 0xFFFFFF);
-        graphics.drawCenteredString(font, "按布吉岛可见窗口扫描；手动 PID 使用进程快照", width / 2, 29, 0xAAAAAA);
-        graphics.drawString(font, "A 进程 PID", width / 2 - 150, formTop() + 23, 0xCCCCCC);
-        graphics.drawString(font, "监听端口", width / 2 + 50, formTop() + 23, 0xCCCCCC);
+        int top = Math.max(48, height / 2 - 78);
+        graphics.drawCenteredString(font, title, width / 2, top - 34, 0xFFFFFF);
+        graphics.drawString(font, "目标进程",
+                width / 2 - 150, top - 12, 0xA0A0A0, false);
+        graphics.drawString(font, "监听端口",
+                width / 2 - 150, top + 30, 0xA0A0A0, false);
         super.render(graphics, mouseX, mouseY, partialTick);
-        int y = formTop() + 180;
-        String detail = error.isEmpty() ? manager.status().detail() : error;
-        graphics.drawWordWrap(font, Component.literal(detail), Math.max(8, width / 2 - 150), y,
-                Math.min(300, width - 16), error.isEmpty() ? 0xCCCCCC : 0xFF8888);
+        if (!message.isBlank()) {
+            graphics.drawCenteredString(font, message, width / 2, top + 132, 0xFF7777);
+        }
     }
 
-    private int formTop() { return Math.max(44, height / 2 - 102); }
+    private void refresh(long preferredPid) {
+        try {
+            targets = manager.targets();
+            selected = 0;
+            for (int index = 0; index < targets.size(); index++) {
+                if (targets.get(index).pid() == preferredPid) {
+                    selected = index;
+                    break;
+                }
+            }
+            message = targets.isEmpty()
+                    ? "未扫描到可用的 A 进程" : "";
+        } catch (RuntimeException error) {
+            targets = List.of();
+            selected = 0;
+            message = error.getMessage() == null
+                    ? "扫描进程失败" : error.getMessage();
+        }
+        updateLabels();
+    }
+
+    private void updateLabels() {
+        if (targetButton != null) {
+            targetButton.setMessage(Component.literal(targets.isEmpty()
+                    ? "未扫描到 Java 进程"
+                    : targetLabel(targets.get(selected))));
+        }
+        if (permissionButton != null) {
+            permissionButton.setMessage(Component.literal(elevated
+                    ? "加载权限：管理员（UAC）"
+                    : "加载权限：普通"));
+        }
+    }
+
+    private void saveAndClose() {
+        try {
+            int parsedPort = Integer.parseInt(port.getValue().strip());
+            if (parsedPort < 1 || parsedPort > 65535) throw new NumberFormatException();
+            manager.configure(currentPid(), parsedPort, elevated);
+            onClose();
+        } catch (NumberFormatException error) {
+            message = "端口必须是 1–65535";
+            setFocused(port);
+        } catch (RuntimeException error) {
+            message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+        }
+    }
+
+    private long currentPid() {
+        return targets.isEmpty() ? manager.configuration().preferredPid() : targets.get(selected).pid();
+    }
+
+    private String targetLabel(ProxyManager.TargetProcess target) {
+        return (selected + 1) + "/" + targets.size() + "  " + target.label();
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            saveAndClose();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
 
     @Override public void onClose() { minecraft.setScreen(parent); }
     @Override public boolean isPauseScreen() { return false; }
+
 }

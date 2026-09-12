@@ -5,10 +5,16 @@ import cc.nimbus.features.proxy.ElevatedProxyRuntime;
 import cc.nimbus.features.proxy.NativeProcessScanner;
 import cc.nimbus.features.proxy.NativeProxyRuntime;
 import cc.nimbus.features.proxy.ProxyPayload;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -21,6 +27,12 @@ import java.util.concurrent.Executors;
 public final class ProxyManager implements InstanceManager {
     public enum State { IDLE, ATTACHING, READY, CONNECT_REQUESTED, FAILED, STOPPED }
     public record Status(State state, String detail) {}
+    public record Configuration(long preferredPid, int port, boolean elevated) {
+        public Configuration {
+            if (preferredPid < 0) throw new IllegalArgumentException("PID 不能小于 0");
+            validatePort(port);
+        }
+    }
     public record TargetProcess(long pid, Instant startedAt, String executable) {
         public TargetProcess {
             if (pid <= 0) throw new IllegalArgumentException("Invalid target PID");
@@ -53,9 +65,12 @@ public final class ProxyManager implements InstanceManager {
     private final PayloadSource payload;
     private final TargetValidator validator;
     private final Path nimbusDirectory;
+    private final Path configurationFile;
     private ExecutorService worker;
     private CompletableFuture<Endpoint> pending;
     private long generation;
+    private Configuration configuration = new Configuration(0, 25565, false);
+    private Endpoint lastEndpoint;
     private volatile Status status = new Status(State.STOPPED, "B 端控制器尚未初始化");
 
     public ProxyManager(Path nimbusDirectory) {
@@ -79,10 +94,12 @@ public final class ProxyManager implements InstanceManager {
         this.loader = Objects.requireNonNull(loader);
         this.payload = Objects.requireNonNull(payload);
         this.validator = Objects.requireNonNull(validator);
+        this.configurationFile = nimbusDirectory == null ? null : nimbusDirectory.resolve("proxy.json");
     }
 
     @Override public synchronized void init() {
         if (worker != null) return;
+        configuration = loadConfiguration();
         worker = Executors.newSingleThreadExecutor(task -> {
             Thread thread = new Thread(task, "Nimbus-ProxyController");
             thread.setDaemon(true);
@@ -95,6 +112,37 @@ public final class ProxyManager implements InstanceManager {
     public Status status() { return status; }
     public State state() { return status.state(); }
     public boolean isBusy() { return state() == State.ATTACHING; }
+    public synchronized Configuration configuration() { return configuration; }
+    public synchronized Optional<Endpoint> lanEndpoint() { return Optional.ofNullable(lastEndpoint); }
+
+    public synchronized void configure(long preferredPid, int port, boolean elevated) {
+        configuration = new Configuration(preferredPid, port, elevated);
+        saveConfiguration(configuration);
+    }
+
+    public CompletableFuture<Endpoint> prepareConfigured() {
+        Configuration settings = configuration();
+        try {
+            List<TargetProcess> available = targets();
+            TargetProcess target = available.stream()
+                    .filter(candidate -> candidate.pid() == settings.preferredPid())
+                    .findFirst()
+                    .orElseGet(() -> available.isEmpty() ? null : available.get(0));
+            if (target == null) {
+                if (settings.preferredPid() <= 0) {
+                    return CompletableFuture.failedFuture(new IllegalStateException("未扫描到可用的 A 进程，请长按进入设置"));
+                }
+                return settings.elevated()
+                        ? preparePidElevated(settings.preferredPid(), settings.port())
+                        : preparePid(settings.preferredPid(), settings.port());
+            }
+            return settings.elevated()
+                    ? prepareElevated(target, settings.port())
+                    : prepare(target, settings.port());
+        } catch (RuntimeException error) {
+            return CompletableFuture.failedFuture(error);
+        }
+    }
 
     public List<TargetProcess> targets() {
         long self = ProcessHandle.current().pid();
@@ -172,6 +220,7 @@ public final class ProxyManager implements InstanceManager {
                 else loader.load(target, library, port);
                 synchronized (this) {
                     if (attempt != generation) return;
+                    lastEndpoint = new Endpoint("127.0.0.1", port);
                     status = new Status(State.READY, "A 的监听器已就绪：127.0.0.1:" + port);
                     pending = null;
                 }
@@ -191,6 +240,7 @@ public final class ProxyManager implements InstanceManager {
     public synchronized Endpoint requestConnection(int port) {
         if (worker == null || isBusy()) throw new IllegalStateException("请等待 A 端加载完成");
         Endpoint endpoint = new Endpoint("127.0.0.1", port);
+        lastEndpoint = endpoint;
         status = new Status(State.CONNECT_REQUESTED, "已请求 B → A 连接；登录结果由 Minecraft 连接界面显示");
         return endpoint;
     }
@@ -199,6 +249,7 @@ public final class ProxyManager implements InstanceManager {
         generation++;
         if (pending != null) pending.completeExceptionally(new IllegalStateException("B 端控制器已关闭"));
         pending = null;
+        lastEndpoint = null;
         if (worker != null) worker.shutdownNow();
         worker = null;
         status = new Status(State.STOPPED, "B 端控制器已关闭；A 进程保持独立运行");
@@ -287,5 +338,43 @@ public final class ProxyManager implements InstanceManager {
     }
     private static String message(Throwable error) {
         return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+    }
+
+    private Configuration loadConfiguration() {
+        if (configurationFile == null || !Files.isRegularFile(configurationFile)) {
+            return new Configuration(0, 25565, false);
+        }
+        try {
+            JsonObject json = JsonParser.parseString(Files.readString(configurationFile, StandardCharsets.UTF_8))
+                    .getAsJsonObject();
+            long pid = json.has("preferredPid") ? json.get("preferredPid").getAsLong() : 0L;
+            int port = json.has("port") ? json.get("port").getAsInt() : 25565;
+            boolean elevated = json.has("elevated") && json.get("elevated").getAsBoolean();
+            return new Configuration(pid, port, elevated);
+        } catch (Exception error) {
+            return new Configuration(0, 25565, false);
+        }
+    }
+
+    private void saveConfiguration(Configuration value) {
+        if (configurationFile == null) return;
+        JsonObject json = new JsonObject();
+        json.addProperty("preferredPid", value.preferredPid());
+        json.addProperty("port", value.port());
+        json.addProperty("elevated", value.elevated());
+        Path temporary = configurationFile.resolveSibling(configurationFile.getFileName() + ".tmp");
+        try {
+            Files.createDirectories(configurationFile.getParent());
+            Files.writeString(temporary, json.toString(), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+            try {
+                Files.move(temporary, configurationFile, StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException ignored) {
+                Files.move(temporary, configurationFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException error) {
+            throw new UncheckedIOException("保存 Proxy 设置失败", error);
+        }
     }
 }
