@@ -110,7 +110,6 @@ publishing {
 
 
 
-// The packaged DLL is an A-side JVMTI agent. B extracts it and uses remote Attach only.
 def nativeBuild = layout.buildDirectory.dir('native/proxy')
 def nativeResources = layout.buildDirectory.dir('generated/nativeProxy')
 def windowsHost = System.getProperty('os.name').toLowerCase(java.util.Locale.ROOT).startsWith('windows')
@@ -175,7 +174,6 @@ tasks.named('sourcesJar', Jar) {
     exclude 'assets/nimbus/native/**/*.dll'
 }
 
-// Controller DLL is loaded only by Nimbus (B) for local window/PID discovery.
 def nativeControllerBuild = layout.buildDirectory.dir('native/controller')
 def nativeControllerResources = layout.buildDirectory.dir('generated/nativeController')
 tasks.register('configureNativeController', Exec) {
@@ -202,7 +200,6 @@ tasks.register('packageNativeController', Sync) {
 }
 if (bundleNativeProxy) { sourceSets.main.resources.srcDir(tasks.named('packageNativeController')) }
 
-// Standalone JDK-only helper: not part of Fabric or Nimbus's runtime classpath.
 sourceSets { proxyHelper { java.srcDir 'src/proxyHelper/java' } }
 tasks.register('proxyHelperJar',Jar) {
     dependsOn 'proxyHelperClasses'
