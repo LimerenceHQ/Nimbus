@@ -87,7 +87,6 @@ jar {
     from("LICENSE.txt") {
         rename { "${it}_${project.archives_base_name}" }
     }
-    from("README.md")
 }
 
 // configure the maven publication

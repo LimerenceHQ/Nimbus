@@ -6,9 +6,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
+import java.util.UUID;
 
 public final class ProxyPayload {
     private static final String RESOURCE = "/assets/nimbus/native/windows-x86_64/nimbus_proxy.dll";
@@ -27,12 +25,11 @@ public final class ProxyPayload {
     public static Path extract(Path directory, InputStream input) throws IOException {
         byte[] bytes = input.readAllBytes();
         if (bytes.length == 0) throw new IOException("A 端 DLL 资源为空");
-        byte[] digest = sha256(bytes);
-        logDirectory = directory.toAbsolutePath();
         Path parent = directory.toAbsolutePath().resolve("native");
         Files.createDirectories(parent);
-        Path target = parent.resolve(HexFormat.of().formatHex(digest) + ".dll");
-        if (Files.isRegularFile(target) && MessageDigest.isEqual(digest, sha256(Files.readAllBytes(target)))) return target;
+        logDirectory = parent.resolve("log");
+        Files.createDirectories(logDirectory);
+        Path target = parent.resolve(UUID.randomUUID().toString().replace("-", "") + ".dll");
         Path temp = Files.createTempFile(parent, "payload-", ".tmp");
         try {
             Files.write(temp, bytes);
@@ -45,8 +42,4 @@ public final class ProxyPayload {
         } finally { Files.deleteIfExists(temp); }
     }
 
-    private static byte[] sha256(byte[] bytes) {
-        try { return MessageDigest.getInstance("SHA-256").digest(bytes); }
-        catch (NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
-    }
 }

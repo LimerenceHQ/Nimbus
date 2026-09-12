@@ -4,12 +4,10 @@ import cc.nimbus.managers.ProxyManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.*;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 
 public final class NativeProcessScanner {
     private static final String RESOURCE = "/assets/nimbus/native/windows-x86_64/nimbus_controller.dll";
@@ -56,28 +54,21 @@ public final class NativeProcessScanner {
             if (input == null) throw new IOException("Nimbus 未打包只读进程扫描 DLL，请重新构建");
             byte[] bytes = input.readAllBytes();
             if (bytes.length == 0) throw new IOException("进程扫描 DLL 资源为空");
-            byte[] digest = sha256(bytes);
             Path dir = directory.toAbsolutePath().resolve("native");
             Files.createDirectories(dir);
-            Path dll = dir.resolve(HexFormat.of().formatHex(digest) + ".dll");
-            if (!Files.isRegularFile(dll) || !MessageDigest.isEqual(digest, sha256(Files.readAllBytes(dll)))) {
-                Path temp = Files.createTempFile(dir, "scanner-", ".tmp");
-                try {
-                    Files.write(temp, bytes);
-                    try { Files.move(temp, dll, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
-                    catch (AtomicMoveNotSupportedException ignored) { Files.move(temp, dll, StandardCopyOption.REPLACE_EXISTING); }
-                } finally { Files.deleteIfExists(temp); }
-            }
+            Path dll = dir.resolve(UUID.randomUUID().toString().replace("-", "") + ".dll");
+            Path temp = Files.createTempFile(dir, "scanner-", ".tmp");
+            try {
+                Files.write(temp, bytes);
+                try { Files.move(temp, dll, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
+                catch (AtomicMoveNotSupportedException ignored) { Files.move(temp, dll, StandardCopyOption.REPLACE_EXISTING); }
+            } finally { Files.deleteIfExists(temp); }
             System.load(dll.toString());
             loaded = true;
             return true;
         } catch (LinkageError error) {
             throw new IOException("进程扫描模块加载失败：" + error.getMessage(), error);
         }
-    }
-    private static byte[] sha256(byte[] data) {
-        try { return MessageDigest.getInstance("SHA-256").digest(data); }
-        catch (NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
     }
     public static int runElevated(Path directory,Path java,String[] arguments,Path workingDirectory)throws IOException{
         if(!ensureLoaded(directory))throw new IOException("管理员加载模块未就绪");

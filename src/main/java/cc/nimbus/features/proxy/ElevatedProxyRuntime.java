@@ -16,7 +16,7 @@ public final class ElevatedProxyRuntime {
         Path request=Files.createTempDirectory(nativeDir,"attach-request-");
         try {
         Path helper=request.resolve("attach-helper.jar"),result=request.resolve("result.properties");
-        Path logDir = directory.toAbsolutePath();
+        Path logDir = nativeDir.resolve("log");
         Files.createDirectories(logDir);
         Path log = Files.createTempFile(logDir, "nimbus-proxy-", ".log");
         try(var in=ElevatedProxyRuntime.class.getResourceAsStream("/assets/nimbus/native/windows-x86_64/nimbus_attach_helper.jar")){
