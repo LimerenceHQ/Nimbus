@@ -12,11 +12,16 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 public final class ConnectionUtils {
-    private static final Field CHANNEL = findField(Connection.class, "channel", "f_129468_");
-    private static final Field PACKET_LISTENER = findField(Connection.class, "packetListener", "f_129470_");
-    private static final Field SENT_PACKETS = findField(Connection.class, "sentPackets", "f_129475_");
-    private static final Method DO_SEND_PACKET = findMethod(Connection.class, "doSendPacket", "m_243087_");
-    private static final Method GET_CURRENT_PROTOCOL = findMethod0(Connection.class, "getCurrentProtocol", "m_178315_");
+    private static final Field CHANNEL = findField(Connection.class,
+            "channel", "field_11651", "f_129468_");
+    private static final Field PACKET_LISTENER = findField(Connection.class,
+            "packetListener", "field_11652", "f_129470_");
+    private static final Field SENT_PACKETS = findField(Connection.class,
+            "sentPackets", "field_11656", "f_129475_");
+    private static final Method DO_SEND_PACKET = findMethod(Connection.class,
+            "doSendPacket", "method_36942", "m_243087_");
+    private static final Method GET_CURRENT_PROTOCOL = findMethod0(Connection.class,
+            "getCurrentProtocol", "method_32306", "m_178315_");
 
     private ConnectionUtils() {
     }
