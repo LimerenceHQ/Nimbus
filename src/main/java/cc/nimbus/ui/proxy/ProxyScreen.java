@@ -23,7 +23,7 @@ public final class ProxyScreen extends Screen {
     private String message = "";
 
     public ProxyScreen(Screen parent) {
-        super(Component.literal("TakeOver 设置"));
+        super(Component.literal(tr("nimbus.takeover.settings.title", "TakeOver Settings")));
         this.parent = parent;
         manager = Core.INSTANCE.getProxyManager();
     }
@@ -41,11 +41,11 @@ public final class ProxyScreen extends Screen {
             }
             updateLabels();
         }).bounds(left, top, 238, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("刷新"),
+        addRenderableWidget(Button.builder(Component.literal(tr("nimbus.takeover.settings.refresh", "Refresh")),
                 button -> refresh(currentPid()))
                 .bounds(left + 242, top, 58, 20).build());
 
-        String portLabel = "监听端口";
+        String portLabel = tr("nimbus.takeover.settings.port", "Listening port");
         port = new EditBox(font, left, top + 42, 300, 20, Component.literal(portLabel));
         port.setMaxLength(5);
         port.setValue(Integer.toString(saved.port()));
@@ -57,10 +57,10 @@ public final class ProxyScreen extends Screen {
             updateLabels();
         }).bounds(left, top + 70, 300, 20).build());
 
-        addRenderableWidget(Button.builder(Component.literal("保存"),
+        addRenderableWidget(Button.builder(Component.literal(tr("nimbus.takeover.settings.save", "Save")),
                 button -> saveAndClose())
                 .bounds(left, top + 102, 146, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("取消"),
+        addRenderableWidget(Button.builder(Component.literal(tr("nimbus.takeover.settings.cancel", "Cancel")),
                 button -> onClose())
                 .bounds(left + 154, top + 102, 146, 20).build());
 
@@ -78,9 +78,9 @@ public final class ProxyScreen extends Screen {
         renderBackground(graphics);
         int top = Math.max(48, height / 2 - 78);
         graphics.drawCenteredString(font, title, width / 2, top - 34, 0xFFFFFF);
-        graphics.drawString(font, "目标进程",
+        graphics.drawString(font, tr("nimbus.takeover.settings.target", "Target process"),
                 width / 2 - 150, top - 12, 0xA0A0A0, false);
-        graphics.drawString(font, "监听端口",
+        graphics.drawString(font, tr("nimbus.takeover.settings.port", "Listening port"),
                 width / 2 - 150, top + 30, 0xA0A0A0, false);
         super.render(graphics, mouseX, mouseY, partialTick);
         if (!message.isBlank()) {
@@ -99,12 +99,12 @@ public final class ProxyScreen extends Screen {
                 }
             }
             message = targets.isEmpty()
-                    ? "未扫描到可用的 A 进程" : "";
+                    ? tr("nimbus.takeover.settings.no_target", "No usable A process found") : "";
         } catch (RuntimeException error) {
             targets = List.of();
             selected = 0;
             message = error.getMessage() == null
-                    ? "扫描进程失败" : error.getMessage();
+                    ? tr("nimbus.takeover.settings.scan_failed", "Process scan failed") : error.getMessage();
         }
         updateLabels();
     }
@@ -112,13 +112,13 @@ public final class ProxyScreen extends Screen {
     private void updateLabels() {
         if (targetButton != null) {
             targetButton.setMessage(Component.literal(targets.isEmpty()
-                    ? "未扫描到 Java 进程"
+                    ? tr("nimbus.takeover.settings.no_java", "No Java process found")
                     : targetLabel(targets.get(selected))));
         }
         if (permissionButton != null) {
             permissionButton.setMessage(Component.literal(elevated
-                    ? "加载权限：管理员（UAC）"
-                    : "加载权限：普通"));
+                    ? tr("nimbus.takeover.settings.permission_admin", "Load permission: Administrator (UAC)")
+                    : tr("nimbus.takeover.settings.permission_normal", "Load permission: Normal")));
         }
     }
 
@@ -129,7 +129,7 @@ public final class ProxyScreen extends Screen {
             manager.configure(currentPid(), parsedPort, elevated);
             onClose();
         } catch (NumberFormatException error) {
-            message = "端口必须是 1–65535";
+            message = tr("nimbus.takeover.settings.invalid_port", "Port must be between 1 and 65535");
             setFocused(port);
         } catch (RuntimeException error) {
             message = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
@@ -141,7 +141,8 @@ public final class ProxyScreen extends Screen {
     }
 
     private String targetLabel(ProxyManager.TargetProcess target) {
-        return (selected + 1) + "/" + targets.size() + "  " + target.label();
+        return tr("nimbus.takeover.settings.target_value", "%d/%d  %s",
+                selected + 1, targets.size(), target.label());
     }
 
     @Override
@@ -155,5 +156,10 @@ public final class ProxyScreen extends Screen {
 
     @Override public void onClose() { minecraft.setScreen(parent); }
     @Override public boolean isPauseScreen() { return false; }
+
+    private static String tr(String key, String fallback, Object... arguments) {
+        return Core.INSTANCE.isInitialized()
+                ? Core.INSTANCE.getI18nManager().get(key, fallback, arguments) : fallback;
+    }
 
 }

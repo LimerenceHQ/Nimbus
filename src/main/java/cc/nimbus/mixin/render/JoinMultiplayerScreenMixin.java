@@ -5,6 +5,7 @@ import cc.nimbus.managers.ProxyManager;
 import cc.nimbus.mixin.accessor.server.LanServerListAccessor;
 import cc.nimbus.ui.proxy.ProxyHoldButton;
 import cc.nimbus.ui.proxy.ProxyScreen;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.Screen;
@@ -30,6 +31,7 @@ public abstract class JoinMultiplayerScreenMixin extends Screen {
     @Shadow private LanServerDetection.LanServerList lanServerList;
     @Unique private ProxyHoldButton nimbus$proxyButton;
     @Unique private int nimbus$registeredPort = -1;
+    @Unique private boolean nimbus$failureVisible;
 
     protected JoinMultiplayerScreenMixin(Component title) {
         super(title);
@@ -39,12 +41,26 @@ public abstract class JoinMultiplayerScreenMixin extends Screen {
     private void nimbus$addProxyEntry(CallbackInfo ci) {
         nimbus$proxyButton = addRenderableWidget(new ProxyHoldButton(
                 Math.max(6, width - 166), 6, 160, 20,
-                Component.literal("TakeOver"),
+                Component.literal(tr("nimbus.takeover.button", "TakeOver")),
                 this::nimbus$quickConnect,
                 () -> minecraft.setScreen(new ProxyScreen(this))
         ));
-        nimbus$proxyButton.setTooltip(Tooltip.create(Component.literal("短按连接，长按进入设置")));
+        nimbus$proxyButton.setTooltip(Tooltip.create(Component.literal(
+                tr("nimbus.takeover.tooltip", "Short press to connect, hold for settings"))));
         nimbus$syncLanEntry();
+    }
+
+    @Inject(method = "render", at = @At("HEAD"))
+    private void nimbus$clearFailureOnHover(GuiGraphics graphics, int mouseX, int mouseY,
+                                             float partialTick, CallbackInfo ci) {
+        if (!nimbus$failureVisible || nimbus$proxyButton == null
+                || !nimbus$proxyButton.isMouseOver(mouseX, mouseY)) {
+            return;
+        }
+        nimbus$failureVisible = false;
+        nimbus$proxyButton.setMessage(Component.literal(tr("nimbus.takeover.button", "TakeOver")));
+        nimbus$proxyButton.setTooltip(Tooltip.create(Component.literal(
+                tr("nimbus.takeover.tooltip", "Short press to connect, hold for settings"))));
     }
 
     @Inject(method = "tick", at = @At("TAIL"))
@@ -65,7 +81,8 @@ public abstract class JoinMultiplayerScreenMixin extends Screen {
             return;
         }
         nimbus$proxyButton.active = false;
-        nimbus$proxyButton.setMessage(Component.literal("正在加载 A…"));
+        nimbus$failureVisible = false;
+        nimbus$proxyButton.setMessage(Component.literal(tr("nimbus.takeover.loading", "Loading A…")));
         manager.prepareConfigured().whenComplete((endpoint, failure) -> minecraft.execute(() -> {
             if (failure == null) {
                 nimbus$connect(endpoint);
@@ -76,8 +93,11 @@ public abstract class JoinMultiplayerScreenMixin extends Screen {
             String message = cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage();
             if (minecraft.screen == this && nimbus$proxyButton != null) {
                 nimbus$proxyButton.active = true;
-                nimbus$proxyButton.setMessage(Component.literal("失败 - 可进入设置调整"));
-                nimbus$proxyButton.setTooltip(Tooltip.create(Component.literal(message)));
+                nimbus$failureVisible = true;
+                nimbus$proxyButton.setMessage(Component.literal(
+                        tr("nimbus.takeover.failed", "Open settings to adjust")));
+                nimbus$proxyButton.setTooltip(Tooltip.create(Component.literal(
+                        tr("nimbus.takeover.failure_detail", "%s", message))));
             }
         }));
     }
@@ -123,11 +143,17 @@ public abstract class JoinMultiplayerScreenMixin extends Screen {
 
     @Unique
     private static String nimbus$lanName() {
-        return "Nimbus Proxy · TakeOver";
+        return tr("nimbus.takeover.lan_name", "Nimbus Proxy · TakeOver");
     }
 
     @Unique
     private static boolean nimbus$isLanName(String value) {
         return value.equals(nimbus$lanName());
+    }
+
+    @Unique
+    private static String tr(String key, String fallback, Object... arguments) {
+        return Core.INSTANCE.isInitialized()
+                ? Core.INSTANCE.getI18nManager().get(key, fallback, arguments) : fallback;
     }
 }

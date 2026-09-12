@@ -833,5 +833,25 @@
   "nimbus.module.velocity.setting.count": "次数",
   "nimbus.module.velocity.setting.attack_range": "攻击范围",
   "nimbus.module.velocity.setting.through_walls": "隔墙攻击",
-  "nimbus.module.velocity.setting.through_walls_range": "隔墙攻击范围"
+  "nimbus.module.velocity.setting.through_walls_range": "隔墙攻击范围",
+
+  "nimbus.takeover.button": "转发",
+  "nimbus.takeover.tooltip": "短按加载并连接，长按打开设置",
+  "nimbus.takeover.loading": "正在加载 A…",
+  "nimbus.takeover.failed": "可进入设置调整",
+  "nimbus.takeover.failure_detail": "%s",
+  "nimbus.takeover.lan_name": "Nimbus Proxy · 转发",
+  "nimbus.takeover.settings.title": "转发设置",
+  "nimbus.takeover.settings.refresh": "刷新",
+  "nimbus.takeover.settings.target": "目标进程",
+  "nimbus.takeover.settings.port": "监听端口",
+  "nimbus.takeover.settings.save": "保存",
+  "nimbus.takeover.settings.cancel": "取消",
+  "nimbus.takeover.settings.no_target": "未扫描到可用的 A 进程",
+  "nimbus.takeover.settings.scan_failed": "扫描进程失败",
+  "nimbus.takeover.settings.no_java": "未扫描到 Java 进程",
+  "nimbus.takeover.settings.permission_admin": "加载权限：管理员（UAC）",
+  "nimbus.takeover.settings.permission_normal": "加载权限：普通",
+  "nimbus.takeover.settings.invalid_port": "端口必须是 1–65535",
+  "nimbus.takeover.settings.target_value": "%d/%d  %s"
 }

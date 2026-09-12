@@ -833,5 +833,25 @@
   "nimbus.module.velocity.setting.count": "Count",
   "nimbus.module.velocity.setting.attack_range": "Attack Range",
   "nimbus.module.velocity.setting.through_walls": "Through Walls",
-  "nimbus.module.velocity.setting.through_walls_range": "Through Walls Range"
+  "nimbus.module.velocity.setting.through_walls_range": "Through Walls Range",
+
+  "nimbus.takeover.button": "TakeOver",
+  "nimbus.takeover.tooltip": "Short press to connect, hold for settings",
+  "nimbus.takeover.loading": "Loading A…",
+  "nimbus.takeover.failed": "Open settings to adjust",
+  "nimbus.takeover.failure_detail": "%s",
+  "nimbus.takeover.lan_name": "Nimbus Proxy · TakeOver",
+  "nimbus.takeover.settings.title": "TakeOver Settings",
+  "nimbus.takeover.settings.refresh": "Refresh",
+  "nimbus.takeover.settings.target": "Target process",
+  "nimbus.takeover.settings.port": "Listening port",
+  "nimbus.takeover.settings.save": "Save",
+  "nimbus.takeover.settings.cancel": "Cancel",
+  "nimbus.takeover.settings.no_target": "No usable A process found",
+  "nimbus.takeover.settings.scan_failed": "Process scan failed",
+  "nimbus.takeover.settings.no_java": "No Java process found",
+  "nimbus.takeover.settings.permission_admin": "Load permission: Administrator (UAC)",
+  "nimbus.takeover.settings.permission_normal": "Load permission: Normal",
+  "nimbus.takeover.settings.invalid_port": "Port must be between 1 and 65535",
+  "nimbus.takeover.settings.target_value": "%d/%d  %s"
 }
