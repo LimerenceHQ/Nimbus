@@ -2918,7 +2918,8 @@ void BSide_OnPacket(JNIEnv* env, jobject , jobject msg) {
         "net.minecraft.network.protocol.game.ServerboundMovePlayerPacket";
     bool highFrequency = cls.rfind(kMovePacket, 0) == 0
         || cls == "net.minecraft.network.protocol.game.ServerboundSwingPacket"
-        || cls == "net.minecraft.network.protocol.game.ServerboundInteractPacket";
+        || cls == "net.minecraft.network.protocol.game.ServerboundInteractPacket"
+        || cls == "net.minecraft.network.protocol.game.ServerboundPongPacket";
     if (!highFrequency) {
         LogTo("BServer: RX %s (state=%d)", cls.c_str(), (int)state);
     }

@@ -123,7 +123,8 @@ bool isHighFrequencyMovementPacket(const std::string& fqcn) {
         "net.minecraft.network.protocol.game.ServerboundMovePlayerPacket";
     return fqcn.rfind(kMovePacket, 0) == 0
         || fqcn == "net.minecraft.network.protocol.game.ServerboundSwingPacket"
-        || fqcn == "net.minecraft.network.protocol.game.ServerboundInteractPacket";
+        || fqcn == "net.minecraft.network.protocol.game.ServerboundInteractPacket"
+        || fqcn == "net.minecraft.network.protocol.game.ServerboundPongPacket";
 }
 
 void JNICALL RelayWriteImpl(JNIEnv* env,
