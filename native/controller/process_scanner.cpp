@@ -48,6 +48,20 @@ BOOL CALLBACK window(HWND hwnd, LPARAM data) {
     for(auto& process:processes) if(process.pid==pid) { process.window=true; break; }
     return TRUE;
 }
+struct WindowQuery { DWORD pid; bool found; };
+BOOL CALLBACK findBuchidaoWindow(HWND hwnd, LPARAM data) {
+    auto& query = *reinterpret_cast<WindowQuery*>(data);
+    if (!IsWindowVisible(hwnd)) return TRUE;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid != query.pid) return TRUE;
+    wchar_t title[512]{};
+    if (GetWindowTextW(hwnd, title, 512) > 0 && std::wcsstr(title, L"布吉岛")) {
+        query.found = true;
+        return FALSE;
+    }
+    return TRUE;
+}
 jstring text(JNIEnv* env,const std::wstring& value) {
     return env->NewString(reinterpret_cast<const jchar*>(value.data()),static_cast<jsize>(value.size()));
 }
@@ -90,5 +104,12 @@ Java_cc_nimbus_features_proxy_NativeProcessScanner_inspectNative(JNIEnv* env,jcl
         }
         return nullptr;
     } catch(...) { fail(env,"Process query",ERROR_NOT_ENOUGH_MEMORY); return nullptr; }
+}
+extern "C" JNIEXPORT jboolean JNICALL
+Java_cc_nimbus_features_proxy_NativeProcessScanner_hasBuchidaoWindowNative(JNIEnv*,jclass,jlong pid) {
+    if (pid <= 0 || pid > MAXDWORD) return JNI_FALSE;
+    WindowQuery query{static_cast<DWORD>(pid), false};
+    EnumWindows(findBuchidaoWindow, reinterpret_cast<LPARAM>(&query));
+    return query.found ? JNI_TRUE : JNI_FALSE;
 }
 

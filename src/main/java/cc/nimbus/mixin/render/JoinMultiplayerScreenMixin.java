@@ -75,6 +75,10 @@ public abstract class JoinMultiplayerScreenMixin extends Screen {
     @Unique
     private void nimbus$quickConnect() {
         ProxyManager manager = Core.INSTANCE.getProxyManager();
+        try {
+            manager.targets();
+        } catch (RuntimeException ignored) {
+        }
         var loaded = manager.lanEndpoint();
         if (loaded.isPresent()) {
             nimbus$connect(loaded.get());

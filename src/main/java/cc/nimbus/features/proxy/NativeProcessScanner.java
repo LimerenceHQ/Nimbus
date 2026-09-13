@@ -33,6 +33,11 @@ public final class NativeProcessScanner {
         return data == null ? Optional.empty() : Optional.of(parseSnapshot(pid, data));
     }
 
+    public static boolean hasBuchidaoWindow(long pid, Path directory) throws IOException {
+        if (pid <= 0 || pid > 0xffff_ffffL) return false;
+        return ensureLoaded(directory) && hasBuchidaoWindowNative(pid);
+    }
+
     public static Snapshot parseSnapshot(long pid, String[] data) throws IOException {
         try {
             if (data.length != 3 || data[0] == null || data[0].isBlank()) throw new IllegalArgumentException();
@@ -77,4 +82,5 @@ public final class NativeProcessScanner {
     private static native int runElevatedNative(String java,String[] arguments,String directory)throws IOException;
     private static native long[] discoverNative() throws IOException;
     private static native String[] inspectNative(long pid) throws IOException;
+    private static native boolean hasBuchidaoWindowNative(long pid);
 }

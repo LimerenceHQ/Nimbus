@@ -124,10 +124,7 @@ public final class ProxyManager implements InstanceManager {
         Configuration settings = configuration();
         try {
             List<TargetProcess> available = targets();
-            TargetProcess target = available.stream()
-                    .filter(candidate -> candidate.pid() == settings.preferredPid())
-                    .findFirst()
-                    .orElseGet(() -> available.isEmpty() ? null : available.get(0));
+            TargetProcess target = quickTarget(available, settings);
             if (target == null) {
                 if (settings.preferredPid() <= 0) {
                     return CompletableFuture.failedFuture(new IllegalStateException("未扫描到可用的 A 进程，请长按进入设置"));
@@ -354,6 +351,20 @@ public final class ProxyManager implements InstanceManager {
         } catch (Exception error) {
             return new Configuration(0, 25565, false);
         }
+    }
+
+    private TargetProcess quickTarget(List<TargetProcess> available, Configuration settings) {
+        if (available.isEmpty()) return null;
+        TargetProcess first = available.get(0);
+        if (nimbusDirectory != null && NativeProcessScanner.supported()) {
+            try {
+                if (NativeProcessScanner.hasBuchidaoWindow(first.pid(), nimbusDirectory)) return first;
+            } catch (IOException ignored) { }
+        }
+        return available.stream()
+                .filter(candidate -> candidate.pid() == settings.preferredPid())
+                .findFirst()
+                .orElse(first);
     }
 
     private void saveConfiguration(Configuration value) {
