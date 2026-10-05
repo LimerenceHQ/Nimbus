@@ -10,6 +10,8 @@ import com.google.gson.JsonParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -71,6 +73,7 @@ public final class ProxyManager implements InstanceManager {
     private long generation;
     private Configuration configuration = new Configuration(0, 25565, false);
     private Endpoint lastEndpoint;
+    private volatile long lastTargetPid;
     private volatile Status status = new Status(State.STOPPED, "B 端控制器尚未初始化");
 
     public ProxyManager(Path nimbusDirectory) {
@@ -113,7 +116,18 @@ public final class ProxyManager implements InstanceManager {
     public State state() { return status.state(); }
     public boolean isBusy() { return state() == State.ATTACHING; }
     public synchronized Configuration configuration() { return configuration; }
-    public synchronized Optional<Endpoint> lanEndpoint() { return Optional.ofNullable(lastEndpoint); }
+    public synchronized Optional<Endpoint> activeEndpoint() {
+        if (lastEndpoint == null || lastTargetPid <= 0) return Optional.ofNullable(lastEndpoint);
+        try {
+            ProcessHandle handle = ProcessHandle.of(lastTargetPid).orElse(null);
+            if (handle != null && handle.isAlive()) return Optional.of(lastEndpoint);
+        } catch (SecurityException ignored) {
+            return Optional.of(lastEndpoint);
+        }
+        lastEndpoint = null;
+        lastTargetPid = 0;
+        return Optional.empty();
+    }
 
     public synchronized void configure(long preferredPid, int port, boolean elevated) {
         configuration = new Configuration(preferredPid, port, elevated);
@@ -133,9 +147,15 @@ public final class ProxyManager implements InstanceManager {
                         ? preparePidElevated(settings.preferredPid(), settings.port())
                         : preparePid(settings.preferredPid(), settings.port());
             }
+            synchronized (this) {
+                if (lastEndpoint != null && lastTargetPid == target.pid()) {
+                    return CompletableFuture.completedFuture(lastEndpoint);
+                }
+            }
+            int port = selectPort(settings.port());
             return settings.elevated()
-                    ? prepareElevated(target, settings.port())
-                    : prepare(target, settings.port());
+                    ? prepareElevated(target, port)
+                    : prepare(target, port);
         } catch (RuntimeException error) {
             return CompletableFuture.failedFuture(error);
         }
@@ -218,6 +238,7 @@ public final class ProxyManager implements InstanceManager {
                 synchronized (this) {
                     if (attempt != generation) return;
                     lastEndpoint = new Endpoint("127.0.0.1", port);
+                    lastTargetPid = target.pid();
                     status = new Status(State.READY, "A 的监听器已就绪：127.0.0.1:" + port);
                     pending = null;
                 }
@@ -247,6 +268,7 @@ public final class ProxyManager implements InstanceManager {
         if (pending != null) pending.completeExceptionally(new IllegalStateException("B 端控制器已关闭"));
         pending = null;
         lastEndpoint = null;
+        lastTargetPid = 0;
         if (worker != null) worker.shutdownNow();
         worker = null;
         status = new Status(State.STOPPED, "B 端控制器已关闭；A 进程保持独立运行");
@@ -356,15 +378,36 @@ public final class ProxyManager implements InstanceManager {
     private TargetProcess quickTarget(List<TargetProcess> available, Configuration settings) {
         if (available.isEmpty()) return null;
         TargetProcess first = available.get(0);
+        long activePid = lastTargetPid;
         if (nimbusDirectory != null && NativeProcessScanner.supported()) {
             try {
-                if (NativeProcessScanner.hasBuchidaoWindow(first.pid(), nimbusDirectory)) return first;
+                if (NativeProcessScanner.hasBuchidaoWindow(first.pid(), nimbusDirectory)
+                        && (first.pid() != activePid || available.size() == 1)) return first;
             } catch (IOException ignored) { }
         }
         return available.stream()
-                .filter(candidate -> candidate.pid() == settings.preferredPid())
+                .filter(candidate -> candidate.pid() == settings.preferredPid()
+                        && (candidate.pid() != activePid || available.size() == 1))
                 .findFirst()
-                .orElse(first);
+                .orElseGet(() -> available.stream()
+                        .filter(candidate -> candidate.pid() != activePid)
+                        .findFirst()
+                        .orElse(first));
+    }
+
+    private synchronized int selectPort(int preferredPort) {
+        int start = preferredPort;
+        for (int offset = 0; offset < 65535; offset++) {
+            int candidate = ((start - 1 + offset) % 65535) + 1;
+            if (lastEndpoint != null && candidate == lastEndpoint.port()) continue;
+            try (ServerSocket socket = new ServerSocket()) {
+                socket.setReuseAddress(false);
+                socket.bind(new InetSocketAddress("127.0.0.1", candidate));
+                return candidate;
+            } catch (IOException ignored) {
+            }
+        }
+        return preferredPort;
     }
 
     private void saveConfiguration(Configuration value) {

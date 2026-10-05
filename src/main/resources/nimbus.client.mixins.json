@@ -40,7 +40,6 @@
     "render.ToastComponentMixin",
     "world.ClientLevelDataMixin",
     "accessor.client.MinecraftAccessor",
-    "accessor.server.LanServerListAccessor",
     "accessor.network.ServerboundInteractPacketAccessor",
     "accessor.network.ServerboundMovePlayerPacketAccessor",
     "accessor.player.MultiPlayerGameModeAccessor",

@@ -2,7 +2,6 @@ package cc.nimbus.mixin.render;
 
 import cc.nimbus.core.Core;
 import cc.nimbus.managers.ProxyManager;
-import cc.nimbus.mixin.accessor.server.LanServerListAccessor;
 import cc.nimbus.ui.proxy.ProxyHoldButton;
 import cc.nimbus.ui.proxy.ProxyScreen;
 import net.minecraft.client.gui.GuiGraphics;
@@ -12,25 +11,18 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
-import net.minecraft.client.server.LanServerDetection;
-import net.minecraft.client.server.LanServerPinger;
 import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.concurrent.CompletionException;
 
 @Mixin(JoinMultiplayerScreen.class)
 public abstract class JoinMultiplayerScreenMixin extends Screen {
-    @Shadow private LanServerDetection.LanServerList lanServerList;
     @Unique private ProxyHoldButton nimbus$proxyButton;
-    @Unique private int nimbus$registeredPort = -1;
     @Unique private boolean nimbus$failureVisible;
 
     protected JoinMultiplayerScreenMixin(Component title) {
@@ -47,7 +39,6 @@ public abstract class JoinMultiplayerScreenMixin extends Screen {
         ));
         nimbus$proxyButton.setTooltip(Tooltip.create(Component.literal(
                 tr("nimbus.takeover.tooltip", "Short press to connect, hold for settings"))));
-        nimbus$syncLanEntry();
     }
 
     @Inject(method = "render", at = @At("HEAD"))
@@ -69,19 +60,14 @@ public abstract class JoinMultiplayerScreenMixin extends Screen {
             nimbus$proxyButton.active = !Core.INSTANCE.getProxyManager().isBusy();
             nimbus$proxyButton.tickHold();
         }
-        nimbus$syncLanEntry();
     }
 
     @Unique
     private void nimbus$quickConnect() {
         ProxyManager manager = Core.INSTANCE.getProxyManager();
-        try {
-            manager.targets();
-        } catch (RuntimeException ignored) {
-        }
-        var loaded = manager.lanEndpoint();
-        if (loaded.isPresent()) {
-            nimbus$connect(loaded.get());
+        var active = manager.activeEndpoint();
+        if (active.isPresent()) {
+            nimbus$connect(active.get());
             return;
         }
         nimbus$proxyButton.active = false;
@@ -114,45 +100,8 @@ public abstract class JoinMultiplayerScreenMixin extends Screen {
     }
 
     @Unique
-    private void nimbus$syncLanEntry() {
-        if (lanServerList == null || !Core.INSTANCE.isInitialized()) return;
-        var endpoint = Core.INSTANCE.getProxyManager().lanEndpoint();
-        if (endpoint.isEmpty()) {
-            nimbus$removeLanEntries(-1);
-            nimbus$registeredPort = -1;
-            return;
-        }
-        int port = endpoint.get().port();
-        if (nimbus$registeredPort == port) return;
-        nimbus$removeLanEntries(port);
-        try {
-            lanServerList.addServer(LanServerPinger.createPingString(nimbus$lanName(), Integer.toString(port)),
-                    InetAddress.getByAddress(new byte[]{127, 0, 0, 1}));
-        } catch (UnknownHostException impossible) {
-            throw new IllegalStateException("无法创建 IPv4 loopback 地址", impossible);
-        }
-        nimbus$registeredPort = port;
-    }
-
-    @Unique
-    private void nimbus$removeLanEntries(int retainedPort) {
-        LanServerListAccessor accessor = (LanServerListAccessor) lanServerList;
-        synchronized (lanServerList) {
-            boolean changed = accessor.nimbus$getServers().removeIf(server ->
-                    nimbus$isLanName(server.getMotd())
-                            && (retainedPort < 0 || !server.getAddress().equals("127.0.0.1:" + retainedPort)));
-            if (changed) accessor.nimbus$setDirty(true);
-        }
-    }
-
-    @Unique
     private static String nimbus$lanName() {
         return tr("nimbus.takeover.lan_name", "Nimbus Proxy · TakeOver");
-    }
-
-    @Unique
-    private static boolean nimbus$isLanName(String value) {
-        return value.equals(nimbus$lanName());
     }
 
     @Unique
